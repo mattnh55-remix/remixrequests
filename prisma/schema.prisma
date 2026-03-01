@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  songs    Song[]
+  sessions Session[]
+  requests Request[]
+  rules    Ruleset?
+
+  CreditLedger CreditLedger[]
+  PlayHistory  PlayHistory[]
+
+identities Identity[]
+otpCodes   OtpCode[]
+}
+
+model Song {
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+
+  title      String
+  artist     String
+  artistKey  String
+  artworkUrl String?
+  explicit   Boolean  @default(false)
+  tags       String[] @default([])
+
+  createdAt   DateTime      @default(now())
+  Request     Request[]
+  PlayHistory PlayHistory[]
+
+  @@index([locationId])
+  @@index([artistKey])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+
+  startedAt DateTime @default(now())
+  endsAt    DateTime
+  createdAt DateTime @default(now())
+
+  requests Request[]
+  votes    Vote[]
+}
+
+model Request {
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id])
+
+  songId String
+  song   Song   @relation(fields: [songId], references: [id])
+
+  emailHash String
+  type      RequestType   @default(NEXT)
+  status    RequestStatus @default(APPROVED)
+
+  createdAt    DateTime  @default(now())
+  playedAt     DateTime?
+  rejectedAt   DateTime?
+  rejectReason String?
+
+  votes Vote[]
+
+  @@index([locationId, sessionId])
+  @@index([status])
+}
+
+model Vote {
+  id        String  @id @default(cuid())
+  requestId String
+  request   Request @relation(fields: [requestId], references: [id])
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id])
+
+  emailHash String
+  value     Int
+  createdAt DateTime @default(now())
+
+  @@unique([requestId, emailHash])
+  @@index([sessionId, emailHash])
+}
+
+model CreditLedger {
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+
+  emailHash String
+  delta     Int
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@index([locationId, emailHash])
+}
+
+model PlayHistory {
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+
+  songId String
+  song   Song   @relation(fields: [songId], references: [id])
+
+  artistKey String
+  playedAt  DateTime @default(now())
+
+  @@index([locationId, playedAt])
+  @@index([locationId, artistKey, playedAt])
+  @@index([locationId, songId, playedAt])
+}
+
+model Ruleset {
+  id         String   @id @default(cuid())
+  locationId String   @unique
+  location   Location @relation(fields: [locationId], references: [id])
+
+  costRequest  Int @default(1)
+  costUpvote   Int @default(1)
+  costDownvote Int @default(1)
+  costPlayNow  Int @default(5)
+
+  maxRequestsPerSession    Int @default(1)
+  maxVotesPerSession       Int @default(3)
+  minSecondsBetweenActions Int @default(10)
+
+  enforceArtistCooldown Boolean @default(true)
+  enforceSongCooldown   Boolean @default(true)
+  artistCooldownMinutes Int     @default(15)
+  songCooldownMinutes   Int     @default(120)
+
+  enableVoting Boolean @default(true)
+
+  msgExplicit         String @default("Sorry — this song isn’t available here.")
+  msgAlreadyRequested String @default("You’ve already made a request this session.")
+  msgArtistCooldown   String @default("Sorry — this artist has played in the last 15 minutes.")
+  msgSongCooldown     String @default("Sorry — this song has already been played in the last 2 hours.")
+  msgNoCredits        String @default("Not enough credits.")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Identity {
+  id          String   @id @default(cuid())
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id])
+
+  emailHash   String
+  phoneE164   String?
+  phoneHash   String?
+
+  deviceId    String?  // cookie-based device id
+  smsVerifiedAt DateTime?
+  emailOptInAt DateTime?
+  smsOptInAt   DateTime?
+
+  mailchimpStatus String? // "subscribed" | "error"
+  mailchimpError  String?
+
+  welcomeGrantedSessionId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([locationId, emailHash])
+  @@index([locationId, phoneHash])
+  @@index([locationId, deviceId])
+}
+
+model OtpCode {
+  id          String   @id @default(cuid())
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id])
+
+  emailHash   String
+  phoneE164   String
+  phoneHash   String
+
+  codeHash    String
+  expiresAt   DateTime
+  attempts    Int @default(0)
+  maxAttempts Int @default(6)
+  sentAt      DateTime @default(now())
+
+  ipHash      String?
+  deviceId    String?
+
+  @@index([locationId, phoneHash])
+  @@index([locationId, emailHash])
+  @@index([expiresAt])
+}
+
+enum RequestType {
+  NEXT
+  PLAY_NOW
+}
+
+enum RequestStatus {
+  APPROVED
+  REJECTED
+  PLAYED
+}

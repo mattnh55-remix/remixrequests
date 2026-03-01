@@ -1,0 +1,11 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #040406;
+  color: #fff;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+}
+a { color: inherit; text-decoration: none; }
+* { box-sizing: border-box; }
+
+@import "./neon.css";
