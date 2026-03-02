@@ -209,6 +209,46 @@ model OtpCode {
   @@index([expiresAt])
 }
 
+model PendingCheckout {
+  id           String   @id @default(cuid())
+
+  /// Unique tag we embed into Square Order.reference_id
+  referenceId  String   @unique
+
+  /// Your SMS session id (who to credit)
+  sessionId    String
+
+  /// Your location slug/id (optional but handy)
+  location     String
+
+  /// Which pack they bought (e.g. "10_25")
+  packageKey   String
+
+  /// Credits to grant when paid
+  credits      Int
+
+  /// Amount in cents (for auditing)
+  amountCents  Int
+  currency     String   @default("USD")
+
+  /// When created and when consumed
+  createdAt    DateTime @default(now())
+  consumedAt   DateTime?
+
+  /// Store Square payment id when webhook completes
+  paymentId    String?  @unique
+}
+
+model ProcessedPayment {
+  id        String   @id @default(cuid())
+
+  /// Square payment id; unique so we never grant twice
+  paymentId String   @unique
+
+  createdAt DateTime @default(now())
+}
+
+
 enum RequestType {
   NEXT
   PLAY_NOW
