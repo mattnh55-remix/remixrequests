@@ -8,37 +8,49 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const location = (searchParams.get("location") || "").trim();
+    const locationSlug = (searchParams.get("location") || "").trim();
     const identityId = (searchParams.get("identityId") || "").trim();
 
-    if (!location || !identityId) {
+    if (!locationSlug || !identityId) {
       return NextResponse.json(
         { ok: false, error: "Missing location or identityId." },
         { status: 400 }
       );
     }
 
-    /**
-     * Prisma schema note:
-     * Your error indicates CreditLedger.location is NOT a string field.
-     * It’s likely a relation to Location.
-     *
-     * We therefore filter in a way that works for relation-based schemas:
-     *   where: { location: { slug: location } }
-     *
-     * If your schema instead uses locationId, switch the filter to:
-     *   where: { locationId: location }
-     */
+    // 1) Resolve locationId from slug
+    const loc = await prisma.location.findUnique({
+      where: { slug: locationSlug },
+      select: { id: true },
+    });
 
+    if (!loc) {
+      return NextResponse.json(
+        { ok: false, error: "Unknown location." },
+        { status: 404 }
+      );
+    }
+
+    // 2) Resolve emailHash from identityId
+    // NOTE: This assumes your Identity model has an `emailHash` field, which is very likely
+    // given you store credits keyed by emailHash.
+    const ident = await prisma.identity.findUnique({
+      where: { id: identityId },
+      select: { emailHash: true },
+    });
+
+    if (!ident?.emailHash) {
+      return NextResponse.json(
+        { ok: false, error: "Unknown identity." },
+        { status: 404 }
+      );
+    }
+
+    // 3) Sum ledger deltas by (locationId, emailHash)
     const agg = await prisma.creditLedger.aggregate({
       where: {
-        identityId,
-        // ✅ Relation-based filter (most likely in your schema)
-        location: {
-          // If your Location model uses `slug`, this is correct.
-          // If it uses `id`, change `slug` -> `id`.
-          slug: location,
-        },
+        locationId: loc.id,
+        emailHash: ident.emailHash,
       },
       _sum: { delta: true },
     });
@@ -54,6 +66,9 @@ export async function GET(req: Request) {
     );
   } catch (err: any) {
     console.error("[balance] error:", err?.message || err);
-    return NextResponse.json({ ok: false, error: "Internal error." }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "Internal error." },
+      { status: 500 }
+    );
   }
 }
