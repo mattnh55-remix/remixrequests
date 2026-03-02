@@ -1,10 +1,10 @@
 // src/app/checkout/success/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function CheckoutSuccessPage() {
+function SuccessInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
@@ -18,19 +18,17 @@ export default function CheckoutSuccessPage() {
       const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
       const lsLocation = (localStorage.getItem("rr_location") || "").trim();
 
-      // Prefer query param, then localStorage
       const targetLocation = (locationFromQuery || lsLocation || "").trim();
 
       setIdentityId(lsIdentity);
       setLocation(targetLocation);
 
-      // If we have a location from query, persist it for future navigations
+      // Persist query location if present
       if (locationFromQuery) {
         localStorage.setItem("rr_location", locationFromQuery);
       }
 
-      // If we have enough info, bounce back quickly to the request UI.
-      // The request UI will re-fetch balance on load.
+      // Auto-return
       if (targetLocation && lsIdentity) {
         const t = window.setTimeout(() => {
           router.replace(`/request/${targetLocation}`);
@@ -38,7 +36,7 @@ export default function CheckoutSuccessPage() {
         return () => window.clearTimeout(t);
       }
     } catch {
-      // ignore localStorage errors
+      // ignore
     }
   }, [router, locationFromQuery]);
 
@@ -50,7 +48,7 @@ export default function CheckoutSuccessPage() {
           padding: 18,
           border: "1px solid rgba(255,255,255,0.14)",
           background: "rgba(0,0,0,0.35)",
-          backdropFilter: "blur(10px)"
+          backdropFilter: "blur(10px)",
         }}
       >
         <h1 style={{ fontSize: 28, margin: 0 }}>✅ Payment successful</h1>
@@ -93,7 +91,7 @@ export default function CheckoutSuccessPage() {
               border: "1px solid rgba(255,255,255,0.18)",
               background: "rgba(255,255,255,0.06)",
               color: "white",
-              cursor: "pointer"
+              cursor: "pointer",
             }}
           >
             Back to requests
@@ -108,7 +106,7 @@ export default function CheckoutSuccessPage() {
               background: "transparent",
               color: "white",
               cursor: "pointer",
-              opacity: 0.9
+              opacity: 0.9,
             }}
           >
             Home
@@ -120,5 +118,30 @@ export default function CheckoutSuccessPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+export default function CheckoutSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <main style={{ padding: 18, maxWidth: 720, margin: "0 auto" }}>
+          <div
+            style={{
+              borderRadius: 18,
+              padding: 18,
+              border: "1px solid rgba(255,255,255,0.14)",
+              background: "rgba(0,0,0,0.35)",
+              backdropFilter: "blur(10px)",
+            }}
+          >
+            <h1 style={{ fontSize: 28, margin: 0 }}>✅ Payment successful</h1>
+            <p style={{ opacity: 0.9, marginTop: 10 }}>Loading…</p>
+          </div>
+        </main>
+      }
+    >
+      <SuccessInner />
+    </Suspense>
   );
 }
