@@ -1,90 +1,118 @@
 import { NextResponse } from "next/server";
-import { PACKAGES, type PackageKey } from "@/lib/packages";
 import crypto from "crypto";
+import { prisma } from "@/lib/db";
+import { PACKAGES, type PackageKey } from "@/lib/packages";
 
-export const runtime = "nodejs"; // important for crypto & raw webhook needs elsewhere
+export const runtime = "nodejs";
 
-const SQUARE_BASE_URL = "https://connect.squareup.com";
+const SQUARE_BASE = "https://connect.squareup.com";
 
 function mustEnv(name: string) {
   const v = process.env[name];
-  if (!v) throw new Error(`Missing env var ${name}`);
+  if (!v) throw new Error(`Missing env var: ${name}`);
   return v;
+}
+
+async function squareFetch(path: string, init?: RequestInit) {
+  const accessToken = mustEnv("SQUARE_ACCESS_TOKEN");
+  const res = await fetch(`${SQUARE_BASE}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(JSON.stringify(data));
+  return data;
 }
 
 export async function POST(req: Request) {
   try {
-    const { packageKey, buyerEmail, sessionId } = (await req.json()) as {
-      packageKey: PackageKey;
-      buyerEmail?: string;
-      sessionId?: string; // your app’s session identifier if you have one
-    };
+    const body = await req.json();
 
-    const pkg = PACKAGES[packageKey];
-    if (!pkg) {
-      return NextResponse.json({ error: "Invalid packageKey" }, { status: 400 });
+    const location = String(body.location || "");
+    const identityId = String(body.identityId || "");
+    const packageKey = String(body.packageKey || "") as PackageKey;
+
+    if (!location || !identityId || !packageKey) {
+      return NextResponse.json({ ok: false, error: "Missing fields." }, { status: 400 });
     }
 
-    const accessToken = mustEnv("SQUARE_ACCESS_TOKEN");
-    const locationId = mustEnv("SQUARE_LOCATION_ID");
+    const pkg = (PACKAGES as any)[packageKey] as { credits: number; priceCents: number } | undefined;
+    if (!pkg) {
+      return NextResponse.json({ ok: false, error: "Invalid package." }, { status: 400 });
+    }
+
+    // Validate location + identity exist
+    const loc = await prisma.location.findUnique({ where: { slug: location } });
+    if (!loc) return NextResponse.json({ ok: false, error: "Invalid location." }, { status: 400 });
+
+    const identity = await prisma.identity.findUnique({ where: { id: identityId } });
+    if (!identity || identity.locationId !== loc.id) {
+      return NextResponse.json({ ok: false, error: "Invalid identity." }, { status: 400 });
+    }
+
     const baseUrl = mustEnv("APP_BASE_URL");
+    const squareLocationId = mustEnv("SQUARE_LOCATION_ID");
 
-    // IMPORTANT: attach metadata so webhook can know what to grant
-    const body = {
-      idempotency_key: crypto.randomUUID(),
-      quick_pay: {
-        name: pkg.label,
-        price_money: { amount: pkg.priceCents, currency: "USD" },
-        location_id: locationId,
-      },
-      checkout_options: {
-        redirect_url: `${baseUrl}/checkout/success`,
-        // You can also include a cancellation URL via your own UI
-        // but Square may not always call it depending on user behavior.
-      },
-      pre_populated_data: buyerEmail
-        ? {
-            buyer_email: buyerEmail,
-          }
-        : undefined,
-      // metadata is very helpful for fulfillment
-      metadata: {
-        packageKey,
-        credits: String(pkg.credits),
-        sessionId: sessionId || "",
-      },
-    };
+    // Bulletproof tag: ONLY our app makes these
+    const referenceId = `RR:${loc.id}:${identityId}:${crypto.randomUUID()}`;
 
-    const r = await fetch(`${SQUARE_BASE_URL}/v2/online-checkout/payment-links`, {
+    // 1) Create Square Order with reference_id
+    const orderRes = await squareFetch("/v2/orders", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        idempotency_key: crypto.randomUUID(),
+        order: {
+          location_id: squareLocationId,
+          reference_id: referenceId,
+          line_items: [
+            {
+              name: "RemixRequests Credits",
+              quantity: "1",
+              base_price_money: { amount: pkg.priceCents, currency: "USD" },
+              note: `${pkg.credits} credits (${packageKey})`,
+            },
+          ],
+        },
+      }),
     });
 
-    const data = await r.json();
+    const orderId = orderRes?.order?.id;
+    if (!orderId) throw new Error("Square did not return order.id");
 
-    if (!r.ok) {
-      return NextResponse.json({ error: data }, { status: r.status });
-    }
+    // 2) Create Square-hosted payment link for that order
+    const linkRes = await squareFetch("/v2/online-checkout/payment-links", {
+      method: "POST",
+      body: JSON.stringify({
+        idempotency_key: crypto.randomUUID(),
+        order_id: orderId,
+        checkout_options: {
+          redirect_url: `${baseUrl}/checkout/success`,
+        },
+      }),
+    });
 
-    // This is the Square-hosted checkout URL
-    const checkoutUrl = data?.payment_link?.url as string | undefined;
+    const checkoutUrl = linkRes?.payment_link?.url;
+    if (!checkoutUrl) throw new Error("Square did not return payment_link.url");
 
-    if (!checkoutUrl) {
-      return NextResponse.json(
-        { error: "Square did not return a checkout URL", raw: data },
-        { status: 500 }
-      );
-    }
+    // 3) Store pending mapping so webhook knows who to credit
+    await prisma.pendingCheckout.create({
+      data: {
+        referenceId,
+        identityId,
+        location,
+        packageKey,
+        credits: pkg.credits,
+        amountCents: pkg.priceCents,
+        currency: "USD",
+      },
+    });
 
-    return NextResponse.json({ checkoutUrl });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err?.message || "Server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: true, checkoutUrl });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
   }
 }
