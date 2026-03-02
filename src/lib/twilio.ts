@@ -1,8 +1,22 @@
-import twilio from "twilio";
+import Twilio from "twilio";
 
-export const twilioClient = twilio(
-  process.env.TWILIO_ACCOUNT_SID!,
-  process.env.TWILIO_AUTH_TOKEN!
-);
+export function getTwilioClient() {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
 
-export const TWILIO_FROM = process.env.TWILIO_FROM_NUMBER!;
+  if (!sid || !token) {
+    throw new Error("Missing TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN");
+  }
+
+  return Twilio(sid, token);
+}
+
+export function getVerifyServiceSid() {
+  const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+  if (!serviceSid) throw new Error("Missing TWILIO_VERIFY_SERVICE_SID");
+  return serviceSid;
+}
+
+export function getVerifyChannel() {
+  return process.env.TWILIO_VERIFY_CHANNEL || "sms";
+}
