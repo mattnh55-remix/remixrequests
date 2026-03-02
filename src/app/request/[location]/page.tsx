@@ -1,3 +1,4 @@
+// src/app/request/[location]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -25,6 +26,8 @@ const BUY_URL_BY_LOCATION: Record<string, string> = {
   // remixrequests: "https://your-checkout-link",
 };
 
+type BalanceRes = { ok: boolean; balance?: number; error?: string };
+
 export default function RequestPage({ params }: { params: { location: string } }) {
   const location = params.location;
 
@@ -36,6 +39,10 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [msg, setMsg] = useState<string>("");
 
   const [verified, setVerified] = useState(false);
+
+  // ✅ NEW: identityId is the durable “verified session” key
+  const [identityId, setIdentityId] = useState<string>("");
+
   const [balance, setBalance] = useState<number | null>(null);
   const [showVerify, setShowVerify] = useState(false);
 
@@ -43,6 +50,10 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [buyReason, setBuyReason] = useState<"none" | "out" | "notEnough" | "boost">("none");
 
   const [sessionCountdown, setSessionCountdown] = useState<string>("");
+
+  // ✅ NEW: animate credit changes
+  const [creditPulse, setCreditPulse] = useState(0);
+  const lastBalanceRef = useRef<number | null>(null);
 
   const sfx = useNeonSfx();
 
@@ -65,12 +76,76 @@ export default function RequestPage({ params }: { params: { location: string } }
     setSongs(data.items || []);
   }
 
+  // ✅ NEW: read-only balance fetch (production-safe)
+  async function fetchBalance(nextIdentityId?: string) {
+    const id = (nextIdentityId ?? identityId ?? "").trim();
+    if (!id) return;
+
+    try {
+      const res = await fetch(
+        `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
+        { cache: "no-store" }
+      );
+      const data = (await res.json()) as BalanceRes;
+
+      if (!data.ok) {
+        console.warn("[request] balance error:", data.error);
+        return;
+      }
+
+      const next = Number(data.balance ?? 0);
+
+      // animate on change
+      if (lastBalanceRef.current === null) {
+        lastBalanceRef.current = next;
+        setBalance(next);
+        return;
+      }
+
+      if (lastBalanceRef.current !== next) {
+        lastBalanceRef.current = next;
+        setBalance(next);
+        setCreditPulse((x) => x + 1);
+      } else {
+        setBalance(next);
+      }
+    } catch (e: any) {
+      console.warn("[request] balance fetch failed:", e?.message || e);
+    }
+  }
+
   useEffect(() => { refreshSession(); }, [location]);
   useEffect(() => { loadSongs(); }, [search, tag]);
 
   useEffect(() => {
     const id = setInterval(() => refreshSession(), 12000);
     return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
+
+  // ✅ NEW: bootstrap verified state from localStorage so Square return does NOT re-verify
+  useEffect(() => {
+    try {
+      const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+      const lsLocation = (localStorage.getItem("rr_location") || "").trim();
+
+      if (lsIdentity) {
+        setIdentityId(lsIdentity);
+        setVerified(true);
+
+        // immediately pull balance (and retry to tolerate webhook lag)
+        fetchBalance(lsIdentity);
+        window.setTimeout(() => fetchBalance(lsIdentity), 1200);
+        window.setTimeout(() => fetchBalance(lsIdentity), 3500);
+      }
+
+      // keep location aligned
+      if (location && lsLocation !== location) {
+        localStorage.setItem("rr_location", String(location));
+      }
+    } catch {
+      // ignore localStorage errors
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location]);
 
@@ -112,7 +187,10 @@ export default function RequestPage({ params }: { params: { location: string } }
   }
 
   async function submit(songId: string, action: "play_next" | "play_now") {
-    if (!verified) {
+    // ✅ IMPORTANT CHANGE:
+    // If we have an identityId from localStorage, do not force reverify.
+    // verified state is still used for UI, but identityId is the durable truth.
+    if (!verified && !identityId) {
       sfx.playError();
       setMsg("Please verify to unlock credits.");
       setShowVerify(true);
@@ -156,7 +234,19 @@ export default function RequestPage({ params }: { params: { location: string } }
       data?.session?.balance ??
       null;
 
-    if (typeof nextBalance === "number") setBalance(nextBalance);
+    if (typeof nextBalance === "number") {
+      // animate on change if different
+      if (lastBalanceRef.current === null || lastBalanceRef.current !== nextBalance) {
+        lastBalanceRef.current = nextBalance;
+        setBalance(nextBalance);
+        setCreditPulse((x) => x + 1);
+      } else {
+        setBalance(nextBalance);
+      }
+    } else {
+      // If server didn’t return balance, do a safe refresh
+      fetchBalance();
+    }
   }
 
   const trending = useMemo(() => {
@@ -225,10 +315,11 @@ export default function RequestPage({ params }: { params: { location: string } }
   }, [rules, buyUrl]);
 
   const creditsLabel = useMemo(() => {
-    if (!verified) return "Verify to unlock credits";
-    if (balance === null) return "Credits";
+    // ✅ updated label to be clearer + animated via creditPulse usage in HUD
+    if (!verified && !identityId) return "Verify to unlock credits";
+    if (balance === null) return "Credits: …";
     return `Credits: ${balance}`;
-  }, [verified, balance]);
+  }, [verified, identityId, balance]);
 
   return (
     <div className="neonRoot">
@@ -252,32 +343,73 @@ export default function RequestPage({ params }: { params: { location: string } }
               {sfx.muted ? "🔇 Sound Off" : "🔊 Sound On"}
             </button>
 
-            {balance !== null ? (
+            {/* ✅ Always show credit panel (even before known), animate on change */}
+            <div
+              className="neonPanel"
+              style={{
+                padding: "10px 12px",
+                borderRadius: 18,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(0,0,0,0.18)",
+                minWidth: 88,
+                textAlign: "center",
+              }}
+              title="Credits balance"
+            >
+              <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 900, letterSpacing: 0.8 }}>CREDITS</div>
               <div
-                className="neonPanel"
+                key={creditPulse}
                 style={{
-                  padding: "10px 12px",
-                  borderRadius: 18,
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "rgba(0,0,0,0.18)",
+                  fontSize: 22,
+                  fontWeight: 1000,
+                  lineHeight: 1.1,
+                  animation: "rrPop 420ms ease-out",
                 }}
               >
-                <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 900, letterSpacing: 0.8 }}>CREDITS</div>
-                <div style={{ fontSize: 18, fontWeight: 1000 }}>{balance}</div>
+                {typeof balance === "number" ? balance : "—"}
               </div>
-            ) : null}
+              <button
+                className="neonBtn"
+                style={{ marginTop: 6, padding: "8px 10px", borderRadius: 14, fontSize: 12 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  sfx.playTap();
+                  fetchBalance();
+                }}
+                title="Refresh balance"
+              >
+                Refresh
+              </button>
+            </div>
 
-            {!verified ? (
+            {(!verified && !identityId) ? (
               <button className="neonBtn neonBtnPrimary" onClick={() => { sfx.playTap(); setShowVerify(true); }}>
                 Verify • Unlock Credits
               </button>
             ) : (
-              <button className="neonBtn" onClick={() => { sfx.playTap(); setMsg("✅ You’re verified. Tap a song to request!"); }}>
+              <button
+                className="neonBtn"
+                onClick={() => {
+                  sfx.playTap();
+                  setMsg("✅ You’re verified. Tap a song to request!");
+                  // helpful after returning from checkout
+                  fetchBalance();
+                }}
+              >
                 Verified ✓
               </button>
             )}
           </div>
         </div>
+
+        {/* ✅ balance pop animation (global) */}
+        <style jsx global>{`
+          @keyframes rrPop {
+            0% { transform: scale(0.92); filter: brightness(0.9); }
+            60% { transform: scale(1.06); filter: brightness(1.12); }
+            100% { transform: scale(1); filter: brightness(1); }
+          }
+        `}</style>
 
         {msg ? (
           <div className="neonPanel" style={{ padding: 12, marginBottom: 12, background: "rgba(0,0,0,0.22)" }}>
@@ -409,10 +541,10 @@ export default function RequestPage({ params }: { params: { location: string } }
 
                     <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
                       <button
-                        disabled={!email || !verified}
+                        disabled={!email || (!verified && !identityId)}
                         onClick={() => {
                           sfx.playTap();
-                          if (verified && typeof balance === "number" && !canAffordNext) {
+                          if ((verified || identityId) && typeof balance === "number" && !canAffordNext) {
                             setMsg("You’re out of credits for Play Next.");
                             openBuy("out");
                             return;
@@ -420,16 +552,16 @@ export default function RequestPage({ params }: { params: { location: string } }
                           submit(s.id, "play_next");
                         }}
                         className="neonBtn"
-                        style={{ opacity: (!email || !verified) ? 0.55 : 1 }}
+                        style={{ opacity: (!email || (!verified && !identityId)) ? 0.55 : 1 }}
                       >
                         Play Next • {costRequest} credit
                       </button>
 
                       <button
-                        disabled={!email || !verified}
+                        disabled={!email || (!verified && !identityId)}
                         onClick={() => {
                           sfx.playTap();
-                          if (verified && typeof balance === "number" && !canAffordNow) {
+                          if ((verified || identityId) && typeof balance === "number" && !canAffordNow) {
                             setMsg("Boost needs more credits.");
                             openBuy("boost");
                             return;
@@ -437,7 +569,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                           submit(s.id, "play_now");
                         }}
                         className="neonBtn neonBtnPrimary"
-                        style={{ opacity: (!email || !verified) ? 0.55 : 1, position: "relative", overflow: "hidden" }}
+                        style={{ opacity: (!email || (!verified && !identityId)) ? 0.55 : 1, position: "relative", overflow: "hidden" }}
                       >
                         <span
                           aria-hidden
@@ -464,7 +596,7 @@ export default function RequestPage({ params }: { params: { location: string } }
         </div>
 
         <div style={{ position: "sticky", bottom: 10, zIndex: 10, marginTop: 14, display: "grid", gap: 10 }}>
-          {!verified ? (
+          {(!verified && !identityId) ? (
             <button className="neonBtn neonBtnPrimary" onClick={() => { sfx.playTap(); setShowVerify(true); }} style={{ width: "100%" }}>
               Verify • Unlock Credits
             </button>
@@ -481,19 +613,40 @@ export default function RequestPage({ params }: { params: { location: string } }
           email={email}
           setEmail={setEmail}
           onVerified={(info) => {
+            // ✅ persist verified UX
             setVerified(true);
             setShowVerify(false);
-            if (info?.balance !== undefined) setBalance(info.balance ?? null);
+
+            // pull identityId from LS (VerifyModal already writes it)
+            try {
+              const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+              if (lsIdentity) setIdentityId(lsIdentity);
+            } catch {}
+
+            if (info?.balance !== undefined) {
+              const nb = (info.balance ?? null);
+              if (typeof nb === "number") {
+                lastBalanceRef.current = nb;
+                setBalance(nb);
+                setCreditPulse((x) => x + 1);
+              } else {
+                setBalance(null);
+              }
+            }
+
             setMsg("✅ Verified! Welcome credits unlocked.");
             sfx.playSuccess();
             refreshSession();
+
+            // ✅ always fetch a fresh balance after verification
+            fetchBalance();
           }}
           onClose={() => setShowVerify(false)}
           sfx={sfx}
         />
 
         <CreditHud
-          verified={verified}
+          verified={verified || !!identityId}
           balance={balance}
           creditsLabel={creditsLabel}
           sessionCountdown={sessionCountdown}
@@ -506,7 +659,7 @@ export default function RequestPage({ params }: { params: { location: string } }
           open={showBuy}
           onClose={() => { setShowBuy(false); setBuyReason("none"); }}
           sfx={sfx}
-          verified={verified}
+          verified={verified || !!identityId}
           balance={balance}
           reason={buyReason}
           buyUrl={buyUrl}
@@ -638,6 +791,7 @@ function CreditHud({
       >
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            {/* creditsLabel already updates; keep it */}
             <div style={{ fontWeight: 1000, letterSpacing: 0.4, whiteSpace: "nowrap" }}>
               {creditsLabel}
             </div>
