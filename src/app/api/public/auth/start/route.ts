@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
 import { hashEmail } from "@/lib/security";
 import { getOrCreateDeviceId, sha256 } from "@/lib/device";
-import { twilioClient, TWILIO_FROM } from "@/lib/twilio";
+import { getTwilioClient, getTwilioFrom } from "@/lib/twilio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -129,11 +129,14 @@ export async function POST(req: Request) {
     });
 
     try {
-      await twilioClient.messages.create({
-        from: TWILIO_FROM,
-        to: phoneE164,
-        body: `Your Remix verification code is ${code}. It expires in 10 minutes.`,
-      });
+      const twilio = getTwilioClient();
+const from = getTwilioFrom();
+
+await twilio.messages.create({
+  from,
+  to: phoneE164,
+  body: `Your Remix verification code is ${code}. It expires in 10 minutes.`,
+});
     } catch (err: any) {
       console.error("AUTH_START_TWILIO_SEND_FAILED", {
         reqId,
