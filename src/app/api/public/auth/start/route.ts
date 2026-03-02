@@ -11,16 +11,11 @@ export const dynamic = "force-dynamic";
 
 function normalizePhoneToE164(raw: string) {
   const input = (raw || "").trim();
-
-  // If user already provided E.164, keep it
   if (input.startsWith("+")) return input;
 
-  // Digits-only fallback; assumes US if 10 digits
   const digits = input.replace(/\D/g, "");
   if (digits.length === 10) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
-
-  // Fallback: return as-is (will likely fail Twilio, and we’ll report)
   return input;
 }
 
@@ -54,14 +49,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Enter a valid email." }, { status: 400 });
     }
 
-    if (!TWILIO_FROM) {
-      console.error("AUTH_START_CONFIG_ERROR", { reqId, missing: "TWILIO_FROM" });
-      return NextResponse.json(
-        { ok: false, error: "SMS is temporarily unavailable. Try again later." },
-        { status: 503 }
-      );
-    }
-
     const { loc } = await getRulesForLocation(location);
 
     const { deviceId, setCookie } = getOrCreateDeviceId(req.headers.get("cookie"));
@@ -69,7 +56,7 @@ export async function POST(req: Request) {
     const phoneE164 = normalizePhoneToE164(phone);
     const phoneHash = sha256(phoneE164);
 
-    // Simple rate limit: 3 OTP / 10 minutes / device / location
+    // Rate limit (simple): 3 OTP per 10 min per device
     const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
     const recent = await prisma.otpCode.count({
       where: { locationId: loc.id, deviceId, sentAt: { gte: tenMinAgo } },
@@ -83,60 +70,56 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create OTP
+    // Create/update identity with opt-ins captured (not verified yet)
+    await prisma.identity.upsert({
+      where: { locationId_emailHash: { locationId: loc.id, emailHash } },
+      update: {
+        phoneE164,
+        phoneHash,
+        deviceId,
+        emailOptInAt: emailOptIn ? new Date() : undefined,
+        smsOptInAt: smsOptIn ? new Date() : undefined,
+      },
+      create: {
+        locationId: loc.id,
+        emailHash,
+        phoneE164,
+        phoneHash,
+        deviceId,
+        emailOptInAt: emailOptIn ? new Date() : undefined,
+        smsOptInAt: smsOptIn ? new Date() : undefined,
+      },
+    });
+
+    // OTP code
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const codeHash = crypto.createHash("sha256").update(code).digest("hex");
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Write Identity + OTP first (so we have a record even if Twilio fails),
-    // then try to send SMS; if Twilio fails, delete OTP record.
-    const otp = await prisma.$transaction(async (tx) => {
-      await tx.identity.upsert({
-        where: { locationId_emailHash: { locationId: loc.id, emailHash } },
-        update: {
-          phoneE164,
-          phoneHash,
-          deviceId,
-          emailOptInAt: emailOptIn ? new Date() : undefined,
-          smsOptInAt: smsOptIn ? new Date() : undefined,
-        },
-        create: {
-          locationId: loc.id,
-          emailHash,
-          phoneE164,
-          phoneHash,
-          deviceId,
-          emailOptInAt: emailOptIn ? new Date() : undefined,
-          smsOptInAt: smsOptIn ? new Date() : undefined,
-        },
-      });
-
-      // NOTE: your Prisma model likely has sentAt default now() (since you query by sentAt).
-      // If not, add sentAt here.
-      return await tx.otpCode.create({
-        data: {
-          locationId: loc.id,
-          emailHash,
-          phoneE164,
-          phoneHash,
-          codeHash,
-          expiresAt,
-          ipHash: sha256(ip),
-          deviceId,
-        },
-        select: { id: true },
-      });
+    const otp = await prisma.otpCode.create({
+      data: {
+        locationId: loc.id,
+        emailHash,
+        phoneE164,
+        phoneHash,
+        codeHash,
+        expiresAt,
+        ipHash: sha256(ip),
+        deviceId,
+      },
+      select: { id: true },
     });
 
+    // Send SMS (lazy init; env checked at call time)
     try {
       const twilio = getTwilioClient();
-const from = getTwilioFrom();
+      const from = getTwilioFrom();
 
-await twilio.messages.create({
-  from,
-  to: phoneE164,
-  body: `Your Remix verification code is ${code}. It expires in 10 minutes.`,
-});
+      await twilio.messages.create({
+        from,
+        to: phoneE164,
+        body: `Your Remix verification code is ${code}. It expires in 10 minutes.`,
+      });
     } catch (err: any) {
       console.error("AUTH_START_TWILIO_SEND_FAILED", {
         reqId,
@@ -147,7 +130,7 @@ await twilio.messages.create({
         status: err?.status,
       });
 
-      // Best-effort cleanup so a failed SMS doesn’t leave a valid OTP sitting around
+      // Best-effort cleanup so failed SMS doesn’t leave valid OTP sitting around
       try {
         await prisma.otpCode.delete({ where: { id: otp.id } });
       } catch (cleanupErr: any) {
@@ -158,10 +141,7 @@ await twilio.messages.create({
         });
       }
 
-      return NextResponse.json(
-        { ok: false, error: "Could not send SMS. Please try again." },
-        { status: 502 }
-      );
+      return NextResponse.json({ ok: false, error: "Could not send code." }, { status: 502 });
     }
 
     console.log("AUTH_START_OK", {
@@ -175,11 +155,7 @@ await twilio.messages.create({
     if (setCookie) res.headers.set("set-cookie", setCookie);
     return res;
   } catch (err: any) {
-    console.error("AUTH_START_FATAL", {
-      reqId,
-      message: err?.message || String(err),
-      stack: err?.stack,
-    });
+    console.error("AUTH_START_FATAL", { reqId, message: err?.message || String(err), stack: err?.stack });
     return NextResponse.json({ ok: false, error: "Server error." }, { status: 500 });
   }
 }
