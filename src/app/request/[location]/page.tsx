@@ -932,6 +932,11 @@ const res = await fetch(`/api/public/auth/start`, {
       });
       const data = await res.json();
       if (!data.ok) {
+// Persist identity for checkout flow (buy page reads this)
+if (typeof window !== "undefined" && data?.identityId) {
+  localStorage.setItem("rr_identityId", String(data.identityId));
+  localStorage.setItem("rr_location", String(location));
+}
         sfx.playError();
         setMsg(data.error || "Invalid code.");
         return;
