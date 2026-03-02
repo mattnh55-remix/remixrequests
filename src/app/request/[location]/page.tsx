@@ -73,54 +73,38 @@ export default function RequestPage({ params }: { params: { location: string } }
     setSongs(data.items || []);
   }
 
-async function fetchBalanceNumber(nextIdentityId?: string): Promise<number> {
-  const id = (nextIdentityId ?? identityId ?? "").trim();
-  if (!id) throw new Error("Missing identityId");
+  async function fetchBalanceNumber(nextIdentityId?: string): Promise<number> {
+    const id = (nextIdentityId ?? identityId ?? "").trim();
+    if (!id) throw new Error("Missing identityId");
 
-  const res = await fetch(
-    `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
-    { cache: "no-store" }
-  );
-  const data = (await res.json()) as BalanceRes;
+    const res = await fetch(
+      `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
+      { cache: "no-store" }
+    );
+    const data = (await res.json()) as BalanceRes;
 
-  if (!data.ok) {
-    throw new Error(data.error || "Balance fetch failed");
+    if (!data.ok) {
+      throw new Error(data.error || "Balance fetch failed");
+    }
+
+    return Number(data.balance ?? 0);
   }
 
-  return Number(data.balance ?? 0);
-}
-
-const bal = useAnimatedBalance(
-  () => fetchBalanceNumber(),
-  {
+  const bal = useAnimatedBalance(() => fetchBalanceNumber(), {
     enabled: Boolean(identityId),
     softPollMs: 2600,
     intervalMs: 650,
     // keep last-known balance per location + identity so +X feels correct
     storageKey: `rr_lastBalance:${location}:${identityId || "anon"}`,
-  }
-);
+  });
 
-      const next = Number(data.balance ?? 0);
+      // TouchTunes polish:
+      // push new balance into the animated balance controller (pulse + +X banner handled there)
+      bal.applyBalance(next);
 
-      // animate on change
-      if (lastBalanceRef.current === null) {
-        lastBalanceRef.current = next;
-        setBalance(next);
-        return;
-      }
-
-      if (lastBalanceRef.current !== next) {
-        lastBalanceRef.current = next;
-        setBalance(next);
-        setCreditPulse((x) => x + 1);
-       } else {
-        setBalance(next);
-      }
-    } catch (e: any) {
-      console.warn("[request] balance fetch failed:", e?.message || e);
-    }
-  }
+      // TouchTunes polish:
+      // push new balance into the animated balance controller (pulse + +X banner handled there)
+      bal.applyBalance(next);
 
   useEffect(() => { refreshSession(); }, [location]);
   useEffect(() => { loadSongs(); }, [search, tag]);
