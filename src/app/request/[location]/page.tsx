@@ -893,7 +893,7 @@ function VerifyModal({
 
     setBusy(true);
     try {
-const res = await fetch(`/api/public/auth/start`, {
+      const res = await fetch(`/api/public/auth/start`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ location, email, phone, emailOptIn, smsOptIn })
@@ -928,21 +928,25 @@ const res = await fetch(`/api/public/auth/start`, {
       const res = await fetch(`/api/public/auth/verify`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, email, phone, code })
+        body: JSON.stringify({ location, email, code })
       });
       const data = await res.json();
+
       if (!data.ok) {
-// Persist identity for checkout flow (buy page reads this)
-if (typeof window !== "undefined" && data?.identityId) {
-  localStorage.setItem("rr_identityId", String(data.identityId));
-  localStorage.setItem("rr_location", String(location));
-}
         sfx.playError();
         setMsg(data.error || "Invalid code.");
         return;
       }
+
+      // ✅ Persist identity for checkout flow (buy page reads this)
+      if (typeof window !== "undefined" && data?.identityId) {
+        localStorage.setItem("rr_identityId", String(data.identityId));
+        localStorage.setItem("rr_location", String(location));
+      }
+
       sfx.playSuccess();
       onVerified?.({ balance: data?.balance ?? data?.credits?.balance ?? null });
+
     } catch {
       sfx.playError();
       setMsg("Could not verify code.");
