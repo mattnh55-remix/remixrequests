@@ -893,7 +893,7 @@ function VerifyModal({
 
     setBusy(true);
     try {
-      const res = await fetch(`/api/public/verify/send`, {
+const res = await fetch(`/api/public/auth/start`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ location, email, phone, emailOptIn, smsOptIn })
@@ -925,7 +925,7 @@ function VerifyModal({
 
     setBusy(true);
     try {
-      const res = await fetch(`/api/public/verify/confirm`, {
+      const res = await fetch(`/api/public/auth/verify`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ location, email, phone, code })
