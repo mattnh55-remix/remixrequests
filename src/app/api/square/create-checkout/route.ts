@@ -96,13 +96,11 @@ export async function POST(req: Request) {
       }),
     });
 
-    const checkoutUrl = linkRes?.payment_link?.url || linkRes?.payment_link?.long_url;
+     const checkoutUrl = linkRes?.payment_link?.url || linkRes?.payment_link?.long_url;
     if (!checkoutUrl) {
       console.error("CHECKOUT_FATAL", { reqId, message: "Square did not return payment_link.url", linkRes });
       return NextResponse.json({ ok: false, error: "Square did not return checkout URL." }, { status: 502 });
     }
-
-    const orderId = linkRes?.payment_link?.order_id as string | undefined;
 
     // Store pending mapping so webhook knows who to credit
     await prisma.pendingCheckout.create({
@@ -114,12 +112,10 @@ export async function POST(req: Request) {
         credits: pkg.credits,
         amountCents: pkg.priceCents,
         currency: "USD",
-        // If your schema has orderId, keep this. If it DOESN'T, delete this line.
-        ...(orderId ? ({ orderId } as any) : {}),
       },
     });
 
-    return NextResponse.json({ ok: true, checkoutUrl, referenceId, orderId });
+    return NextResponse.json({ ok: true, checkoutUrl, referenceId });
   } catch (e: any) {
     if (e?.squareStatus) {
       console.error("CHECKOUT_SQUARE_ERROR", {
