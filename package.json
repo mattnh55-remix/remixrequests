@@ -1,7 +1,7 @@
 {
   "name": "remix-song-requests",
   "private": true,
-  "scripts": {
+"scripts": {
   "dev": "next dev",
   "build": "next build",
   "start": "next start",
@@ -10,7 +10,7 @@
   "prisma:migrate": "prisma migrate dev",
   "prisma:migrate:deploy": "prisma migrate deploy",
   "seed": "tsx scripts/seed.ts"
-}
+},
   "dependencies": {
     "@mailchimp/mailchimp_marketing": "^3.0.80",
     "@prisma/client": "5.18.0",
