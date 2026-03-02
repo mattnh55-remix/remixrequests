@@ -18,12 +18,29 @@ export async function GET(req: Request) {
       );
     }
 
-    // Read-only aggregation from CreditLedger
-    // NOTE: If your ledger uses a different numeric field name (ex: "amount" or "credits"),
-    // change `_sum: { delta: true }` and the returned property accordingly.
+    /**
+     * Prisma schema note:
+     * Your error indicates CreditLedger.location is NOT a string field.
+     * It’s likely a relation to Location.
+     *
+     * We therefore filter in a way that works for relation-based schemas:
+     *   where: { location: { slug: location } }
+     *
+     * If your schema instead uses locationId, switch the filter to:
+     *   where: { locationId: location }
+     */
+
     const agg = await prisma.creditLedger.aggregate({
-      where: { location, identityId },
-      _sum: { delta: true }
+      where: {
+        identityId,
+        // ✅ Relation-based filter (most likely in your schema)
+        location: {
+          // If your Location model uses `slug`, this is correct.
+          // If it uses `id`, change `slug` -> `id`.
+          slug: location,
+        },
+      },
+      _sum: { delta: true },
     });
 
     const balance = Number(agg._sum.delta || 0);
@@ -32,16 +49,11 @@ export async function GET(req: Request) {
       { ok: true, balance },
       {
         status: 200,
-        headers: {
-          "cache-control": "no-store, max-age=0"
-        }
+        headers: { "cache-control": "no-store, max-age=0" },
       }
     );
   } catch (err: any) {
     console.error("[balance] error:", err?.message || err);
-    return NextResponse.json(
-      { ok: false, error: "Internal error." },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: "Internal error." }, { status: 500 });
   }
 }
