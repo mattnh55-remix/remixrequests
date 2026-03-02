@@ -303,8 +303,7 @@ if (typeof nextBalance === "number") {
     if (!verified && !identityId) return "Verify to unlock credits";
     if (bal.balance === null) return "Credits: …";
     return `Credits: ${bal.balance}`;
-  }, [verified, identityId, balance]);
-
+}, [verified, identityId, bal.balance]);
   return (
     <div className="neonRoot">
       <div className="neonWrap" style={{ paddingBottom: 96 }}>
