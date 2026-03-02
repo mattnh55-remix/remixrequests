@@ -111,7 +111,7 @@ export async function POST(req: Request) {
 
   const balance = await getCreditBalance(loc.id, emailHash);
 
-  const res = NextResponse.json({ ok: true, verified: true, welcomeGranted: true, balance });
+  const res = NextResponse.json({ ok: true, verified: true, identityId: identity.id, welcomeGranted: true, balance });
   if (setCookie) res.headers.set("set-cookie", setCookie);
   return res;
 }
