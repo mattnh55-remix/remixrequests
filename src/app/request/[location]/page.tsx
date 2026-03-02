@@ -97,14 +97,19 @@ export default function RequestPage({ params }: { params: { location: string } }
     // keep last-known balance per location + identity so +X feels correct
     storageKey: `rr_lastBalance:${location}:${identityId || "anon"}`,
   });
+  // 🔥 TouchTunes-style nudge after checkout return
+  // Gives a second pulse in case webhook credits land slightly delayed
+  useEffect(() => {
+    if (!identityId) return;
 
-      // TouchTunes polish:
-      // push new balance into the animated balance controller (pulse + +X banner handled there)
-      bal.applyBalance(next);
+    const t = window.setTimeout(() => {
+      bal.refreshOnce();
+    }, 900);
 
-      // TouchTunes polish:
-      // push new balance into the animated balance controller (pulse + +X banner handled there)
-      bal.applyBalance(next);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identityId, location]);
+
 
   useEffect(() => { refreshSession(); }, [location]);
   useEffect(() => { loadSongs(); }, [search, tag]);
@@ -125,9 +130,9 @@ export default function RequestPage({ params }: { params: { location: string } }
         setIdentityId(lsIdentity);
         setVerified(true);
 
-// Kick an immediate refresh once identity is known.
-// The hook will soft-poll for ~2–3 seconds to tolerate webhook lag.
-bal.refreshOnce();
+	// Kick an immediate refresh once identity is known.
+	// The hook will soft-poll for ~2–3 seconds to tolerate webhook lag.
+	bal.refreshOnce();
       }
 
       // keep location aligned
@@ -225,12 +230,12 @@ bal.refreshOnce();
       data?.session?.balance ??
       null;
 
-if (typeof nextBalance === "number") {
-  bal.applyBalance(nextBalance);
-} else {
-  // If server didn’t return balance, do a safe refresh
-  bal.refreshOnce();
-}
+    if (typeof nextBalance === "number") {
+      bal.applyBalance(nextBalance);
+    } else {
+      // If server didn’t return balance, do a safe refresh
+      bal.refreshOnce();
+    }
   }
 
   const trending = useMemo(() => {
@@ -298,12 +303,13 @@ if (typeof nextBalance === "number") {
     ];
   }, [rules, buyUrl]);
 
-  const creditsLabel = useMemo(() => {
-    // ✅ updated label to be clearer + animated via creditPulse usage in HUD
-    if (!verified && !identityId) return "Verify to unlock credits";
-    if (bal.balance === null) return "Credits: …";
-    return `Credits: ${bal.balance}`;
-}, [verified, identityId, bal.balance]);
+  const creditsLabel =
+    !verified && !identityId
+      ? "Verify to unlock credits"
+      : bal.balance === null
+        ? "Credits: …"
+        : `Credits: ${bal.balance}`;
+
   return (
     <div className="neonRoot">
       <div className="neonWrap" style={{ paddingBottom: 96 }}>
