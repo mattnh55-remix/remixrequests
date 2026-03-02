@@ -170,12 +170,11 @@ export async function POST(req: Request) {
   } catch (e: any) {
     // Square error surface
     if (e?.squareStatus) {
-      console.error("CHECKOUT_SQUARE_ERROR", {
-        reqId,
-        squareStatus: e.squareStatus,
-        squareBody: e.squareBody,
-      });
-
+console.error("CHECKOUT_SQUARE_ERROR", {
+  reqId,
+  squareStatus: e.squareStatus,
+  squareBody: JSON.stringify(e.squareBody),
+});
       return NextResponse.json(
         { ok: false, error: "Square error", details: e.squareBody },
         { status: 502 }
