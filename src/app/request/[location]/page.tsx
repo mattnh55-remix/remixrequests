@@ -114,7 +114,7 @@ const bal = useAnimatedBalance(
         lastBalanceRef.current = next;
         setBalance(next);
         setCreditPulse((x) => x + 1);
-      } else {
+       } else {
         setBalance(next);
       }
     } catch (e: any) {
