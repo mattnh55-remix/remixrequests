@@ -2,6 +2,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import AnimatedBalanceCounter from "@/components/ui/neon/AnimatedBalanceCounter";
+import { useAnimatedBalance } from "@/components/ui/neon/useAnimatedBalance";
 
 const RAILS = [
   "All Ages","Adult Night","TikTok","DISCO","80s","90s","2000s","Boy Bands","Pop Hits","Mom’s Hits","Dad Rock"
@@ -43,17 +45,12 @@ export default function RequestPage({ params }: { params: { location: string } }
   // ✅ NEW: identityId is the durable “verified session” key
   const [identityId, setIdentityId] = useState<string>("");
 
-  const [balance, setBalance] = useState<number | null>(null);
   const [showVerify, setShowVerify] = useState(false);
 
   const [showBuy, setShowBuy] = useState(false);
   const [buyReason, setBuyReason] = useState<"none" | "out" | "notEnough" | "boost">("none");
 
   const [sessionCountdown, setSessionCountdown] = useState<string>("");
-
-  // ✅ NEW: animate credit changes
-  const [creditPulse, setCreditPulse] = useState(0);
-  const lastBalanceRef = useRef<number | null>(null);
 
   const sfx = useNeonSfx();
 
@@ -76,22 +73,33 @@ export default function RequestPage({ params }: { params: { location: string } }
     setSongs(data.items || []);
   }
 
-  // ✅ NEW: read-only balance fetch (production-safe)
-  async function fetchBalance(nextIdentityId?: string) {
-    const id = (nextIdentityId ?? identityId ?? "").trim();
-    if (!id) return;
+async function fetchBalanceNumber(nextIdentityId?: string): Promise<number> {
+  const id = (nextIdentityId ?? identityId ?? "").trim();
+  if (!id) throw new Error("Missing identityId");
 
-    try {
-      const res = await fetch(
-        `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
-        { cache: "no-store" }
-      );
-      const data = (await res.json()) as BalanceRes;
+  const res = await fetch(
+    `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
+    { cache: "no-store" }
+  );
+  const data = (await res.json()) as BalanceRes;
 
-      if (!data.ok) {
-        console.warn("[request] balance error:", data.error);
-        return;
-      }
+  if (!data.ok) {
+    throw new Error(data.error || "Balance fetch failed");
+  }
+
+  return Number(data.balance ?? 0);
+}
+
+const bal = useAnimatedBalance(
+  () => fetchBalanceNumber(),
+  {
+    enabled: Boolean(identityId),
+    softPollMs: 2600,
+    intervalMs: 650,
+    // keep last-known balance per location + identity so +X feels correct
+    storageKey: `rr_lastBalance:${location}:${identityId || "anon"}`,
+  }
+);
 
       const next = Number(data.balance ?? 0);
 
@@ -133,10 +141,9 @@ export default function RequestPage({ params }: { params: { location: string } }
         setIdentityId(lsIdentity);
         setVerified(true);
 
-        // immediately pull balance (and retry to tolerate webhook lag)
-        fetchBalance(lsIdentity);
-        window.setTimeout(() => fetchBalance(lsIdentity), 1200);
-        window.setTimeout(() => fetchBalance(lsIdentity), 3500);
+// Kick an immediate refresh once identity is known.
+// The hook will soft-poll for ~2–3 seconds to tolerate webhook lag.
+bal.refreshOnce();
       }
 
       // keep location aligned
@@ -202,7 +209,7 @@ export default function RequestPage({ params }: { params: { location: string } }
     const required = action === "play_now" ? costPlayNow : costRequest;
 
     // UI-only: if balance is known, intercept insufficient and open drawer.
-    if (typeof balance === "number" && balance < required) {
+    if (typeof bal.balance === "number" && bal.balance < required) {
       sfx.playError();
       setMsg(required === costPlayNow ? "Not enough credits for Play Now." : "Not enough credits to request.");
       openBuy(required === costPlayNow ? "boost" : "notEnough");
@@ -234,19 +241,12 @@ export default function RequestPage({ params }: { params: { location: string } }
       data?.session?.balance ??
       null;
 
-    if (typeof nextBalance === "number") {
-      // animate on change if different
-      if (lastBalanceRef.current === null || lastBalanceRef.current !== nextBalance) {
-        lastBalanceRef.current = nextBalance;
-        setBalance(nextBalance);
-        setCreditPulse((x) => x + 1);
-      } else {
-        setBalance(nextBalance);
-      }
-    } else {
-      // If server didn’t return balance, do a safe refresh
-      fetchBalance();
-    }
+if (typeof nextBalance === "number") {
+  bal.applyBalance(nextBalance);
+} else {
+  // If server didn’t return balance, do a safe refresh
+  bal.refreshOnce();
+}
   }
 
   const trending = useMemo(() => {
@@ -317,8 +317,8 @@ export default function RequestPage({ params }: { params: { location: string } }
   const creditsLabel = useMemo(() => {
     // ✅ updated label to be clearer + animated via creditPulse usage in HUD
     if (!verified && !identityId) return "Verify to unlock credits";
-    if (balance === null) return "Credits: …";
-    return `Credits: ${balance}`;
+    if (bal.balance === null) return "Credits: …";
+    return `Credits: ${bal.balance}`;
   }, [verified, identityId, balance]);
 
   return (
@@ -374,7 +374,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                 onClick={(e) => {
                   e.stopPropagation();
                   sfx.playTap();
-                  fetchBalance();
+                  bal.refreshOnce();
                 }}
                 title="Refresh balance"
               >
@@ -393,7 +393,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                   sfx.playTap();
                   setMsg("✅ You’re verified. Tap a song to request!");
                   // helpful after returning from checkout
-                  fetchBalance();
+                  bal.refreshOnce();
                 }}
               >
                 Verified ✓
@@ -412,7 +412,14 @@ export default function RequestPage({ params }: { params: { location: string } }
         `}</style>
 
         {msg ? (
-          <div className="neonPanel" style={{ padding: 12, marginBottom: 12, background: "rgba(0,0,0,0.22)" }}>
+          <AnimatedBalanceCounter
+  balance={bal.balance}
+  pulseKey={bal.pulseKey}
+  showDeltaBanner={bal.showDeltaBanner}
+  delta={bal.delta}
+  onRefresh={bal.refreshOnce}
+  isRefreshing={bal.isRefreshing}
+/>
             {msg}
           </div>
         ) : null}
@@ -639,7 +646,7 @@ export default function RequestPage({ params }: { params: { location: string } }
             refreshSession();
 
             // ✅ always fetch a fresh balance after verification
-            fetchBalance();
+            bal.refreshOnce();
           }}
           onClose={() => setShowVerify(false)}
           sfx={sfx}
