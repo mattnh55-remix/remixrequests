@@ -92,8 +92,10 @@ export async function POST(req: Request) {
     const idemSeed = clientRequestId || crypto.randomUUID();
 
     // Bulletproof RR tag: ONLY our app makes these
-    const referenceId = `RR:${loc.id}:${identityId}:${crypto.randomUUID()}`;
-
+// Square order.reference_id must be <= 40 chars.
+// Use a short token and map it in PendingCheckout.
+const token = crypto.randomBytes(12).toString("hex"); // 24 chars
+const referenceId = `RR:${token}`; // 3 + 1 + 24 = 28 chars
     console.log("CHECKOUT_START", {
       reqId,
       locationSlug: location,
