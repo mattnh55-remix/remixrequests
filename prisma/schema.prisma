@@ -21,8 +21,8 @@ model Location {
   CreditLedger CreditLedger[]
   PlayHistory  PlayHistory[]
 
-identities Identity[]
-otpCodes   OtpCode[]
+  identities Identity[]
+  otpCodes   OtpCode[]
 }
 
 model Song {
@@ -161,25 +161,26 @@ model Ruleset {
 }
 
 model Identity {
-  id          String   @id @default(cuid())
-  locationId  String
-  location    Location @relation(fields: [locationId], references: [id])
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
 
-  emailHash   String
-  phoneE164   String?
-  phoneHash   String?
+  emailHash String
+  phoneE164 String?
+  phoneHash String?
 
-  deviceId    String?  // cookie-based device id
+  deviceId      String? // cookie-based device id
   smsVerifiedAt DateTime?
-  emailOptInAt DateTime?
-  smsOptInAt   DateTime?
+  emailOptInAt  DateTime?
+  smsOptInAt    DateTime?
 
   mailchimpStatus String? // "subscribed" | "error"
   mailchimpError  String?
 
   welcomeGrantedSessionId String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  pendingCheckouts        PendingCheckout[]
 
   @@unique([locationId, emailHash])
   @@index([locationId, phoneHash])
@@ -187,22 +188,22 @@ model Identity {
 }
 
 model OtpCode {
-  id          String   @id @default(cuid())
-  locationId  String
-  location    Location @relation(fields: [locationId], references: [id])
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
 
-  emailHash   String
-  phoneE164   String
-  phoneHash   String
+  emailHash String
+  phoneE164 String
+  phoneHash String
 
   codeHash    String
   expiresAt   DateTime
-  attempts    Int @default(0)
-  maxAttempts Int @default(6)
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(6)
   sentAt      DateTime @default(now())
 
-  ipHash      String?
-  deviceId    String?
+  ipHash   String?
+  deviceId String?
 
   @@index([locationId, phoneHash])
   @@index([locationId, emailHash])
@@ -210,44 +211,36 @@ model OtpCode {
 }
 
 model PendingCheckout {
-  id           String   @id @default(cuid())
+  id          String @id @default(cuid())
+  referenceId String @unique
 
-  /// Unique tag we embed into Square Order.reference_id
-  referenceId  String   @unique
+  /// Who to credit (the SMS-verified customer)
+  identityId String
+  identity   Identity @relation(fields: [identityId], references: [id])
 
-  /// Your SMS session id (who to credit)
-  sessionId    String
+  /// Location slug (optional)
+  location String
 
-  /// Your location slug/id (optional but handy)
-  location     String
+  packageKey  String
+  credits     Int
+  amountCents Int
+  currency    String @default("USD")
 
-  /// Which pack they bought (e.g. "10_25")
-  packageKey   String
+  createdAt  DateTime  @default(now())
+  consumedAt DateTime?
+  paymentId  String?   @unique
 
-  /// Credits to grant when paid
-  credits      Int
-
-  /// Amount in cents (for auditing)
-  amountCents  Int
-  currency     String   @default("USD")
-
-  /// When created and when consumed
-  createdAt    DateTime @default(now())
-  consumedAt   DateTime?
-
-  /// Store Square payment id when webhook completes
-  paymentId    String?  @unique
+  @@index([identityId])
 }
 
 model ProcessedPayment {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
   /// Square payment id; unique so we never grant twice
-  paymentId String   @unique
+  paymentId String @unique
 
   createdAt DateTime @default(now())
 }
-
 
 enum RequestType {
   NEXT
