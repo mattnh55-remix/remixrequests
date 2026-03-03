@@ -400,18 +400,19 @@ export default function RequestPage({ params }: { params: { location: string } }
           }
         `}</style>
 
-        {msg ? (
-          <AnimatedBalanceCounter
-  balance={bal.balance}
-  pulseKey={bal.pulseKey}
-  showDeltaBanner={bal.showDeltaBanner}
-  delta={bal.delta}
-  onRefresh={bal.refreshOnce}
-  isRefreshing={bal.isRefreshing}
-/>
-            {msg}
-          </div>
-        ) : null}
+   {msg ? (
+  <div className="neonToast">
+    <AnimatedBalanceCounter
+      balance={bal.balance}
+      pulseKey={bal.pulseKey}
+      showDeltaBanner={bal.showDeltaBanner}
+      delta={bal.delta}
+      onRefresh={bal.refreshOnce}
+      isRefreshing={bal.isRefreshing}
+    />
+    {msg}
+  </div>
+) : null}
 
         {/* TOP CONTROLS */}
         <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
