@@ -2,8 +2,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import AnimatedBalanceCounter from "@/components/ui/neon/AnimatedBalanceCounter";
-import { useAnimatedBalance } from "@/components/ui/neon/useAnimatedBalance";
+import AnimatedBalanceCounter from "../../../../components/ui/neon/AnimatedBalanceCounter";
+import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 
 const RAILS = [
   "All Ages","Adult Night","TikTok","DISCO","80s","90s","2000s","Boy Bands","Pop Hits","Mom’s Hits","Dad Rock"
@@ -347,7 +347,7 @@ export default function RequestPage({ params }: { params: { location: string } }
             >
               <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 900, letterSpacing: 0.8 }}>CREDITS</div>
               <div
-                key={creditPulse}
+                key={bal.pulseKey}
                 style={{
                   fontSize: 22,
                   fontWeight: 1000,
@@ -355,8 +355,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                   animation: "rrPop 420ms ease-out",
                 }}
               >
-                {typeof balance === "number" ? balance : "—"}
-              </div>
+			{typeof bal.balance === "number" ? bal.balance : "—"}              </div>
               <button
                 className="neonBtn"
                 style={{ marginTop: 6, padding: "8px 10px", borderRadius: 14, fontSize: 12 }}
@@ -507,8 +506,8 @@ export default function RequestPage({ params }: { params: { location: string } }
           <div className="neonGrid">
             {songs.map((s) => {
               const hot = trendingIds.has(s.id);
-              const canAffordNext = typeof balance !== "number" ? true : balance >= costRequest;
-              const canAffordNow  = typeof balance !== "number" ? true : balance >= costPlayNow;
+              const canAffordNext = typeof bal.balance !== "number" ? true : bal.balance >= costRequest;
+              const canAffordNow  = typeof bal.balance !== "number" ? true : bal.balance >= costPlayNow;
 
               return (
                 <div key={s.id} className="neonTile" data-hot={hot ? "true" : "false"}>
@@ -541,7 +540,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                         disabled={!email || (!verified && !identityId)}
                         onClick={() => {
                           sfx.playTap();
-                          if ((verified || identityId) && typeof balance === "number" && !canAffordNext) {
+                          if ((verified || identityId) && typeof bal.balance === "number" && !canAffordNext) {
                             setMsg("You’re out of credits for Play Next.");
                             openBuy("out");
                             return;
@@ -558,7 +557,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                         disabled={!email || (!verified && !identityId)}
                         onClick={() => {
                           sfx.playTap();
-                          if ((verified || identityId) && typeof balance === "number" && !canAffordNow) {
+                          if ((verified || identityId) && typeof bal.balance === "number" && !canAffordNow) {
                             setMsg("Boost needs more credits.");
                             openBuy("boost");
                             return;
@@ -620,16 +619,10 @@ export default function RequestPage({ params }: { params: { location: string } }
               if (lsIdentity) setIdentityId(lsIdentity);
             } catch {}
 
-            if (info?.balance !== undefined) {
-              const nb = (info.balance ?? null);
-              if (typeof nb === "number") {
-                lastBalanceRef.current = nb;
-                setBalance(nb);
-                setCreditPulse((x) => x + 1);
-              } else {
-                setBalance(null);
-              }
-            }
+if (info?.balance !== undefined) {
+  const nb = info.balance ?? null;
+  bal.applyBalance(nb);
+}
 
             setMsg("✅ Verified! Welcome credits unlocked.");
             sfx.playSuccess();
@@ -642,22 +635,22 @@ export default function RequestPage({ params }: { params: { location: string } }
           sfx={sfx}
         />
 
-        <CreditHud
-          verified={verified || !!identityId}
-          balance={balance}
-          creditsLabel={creditsLabel}
-          sessionCountdown={sessionCountdown}
-          onVerify={() => { sfx.playTap(); setShowVerify(true); }}
-          onBuy={() => openBuy(balance === 0 ? "out" : "none")}
-          onTap={() => sfx.playTap()}
-        />
+<CreditHud
+  verified={verified || !!identityId}
+  balance={bal.balance}
+  creditsLabel={creditsLabel}
+  sessionCountdown={sessionCountdown}
+  onVerify={() => { sfx.playTap(); setShowVerify(true); }}
+  onBuy={() => openBuy(bal.balance === 0 ? "out" : "none")}
+  onTap={() => sfx.playTap()}
+/>
 
         <BuyCreditsDrawer
           open={showBuy}
           onClose={() => { setShowBuy(false); setBuyReason("none"); }}
           sfx={sfx}
           verified={verified || !!identityId}
-          balance={balance}
+          balance={bal.balance}
           reason={buyReason}
           buyUrl={buyUrl}
           packs={uiPacks}
