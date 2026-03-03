@@ -314,16 +314,27 @@ export default function RequestPage({ params }: { params: { location: string } }
     <div className="neonRoot">
       <div className="neonWrap" style={{ paddingBottom: 96 }}>
         {/* HEADER */}
-        <div className="neonHeader">
-          <div>
-            <div className="neonTitle">Request a Song</div>
+        <div className="neonHeader neonHeader3">
+          {/* Left: Logo */}
+          <div className="neonHeaderLeft">
+            {rules?.rules?.logoUrl ? (
+              <img className="neonLogo" src={rules.rules.logoUrl} alt={`${locationName} logo`} />
+            ) : (
+              <div className="neonLogoFallback">REMIX</div>
+            )}
+          </div>
+
+          {/* Center: Title */}
+          <div className="neonHeaderCenter">
+            <div className="neonTitle">REQUEST A SONG</div>
             <div className="neonSub">
               {locationName} • Tap a song to request
               {sessionCountdown ? ` • ${sessionCountdown}` : ""}
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "flex-end" }}>
+          {/* Right: Sound + Credits/Claim/Buy */}
+          <div className="neonHeaderRight">
             <button
               className="neonBtn"
               onClick={() => { sfx.playTap(); sfx.setMuted(!sfx.muted); }}
@@ -332,7 +343,6 @@ export default function RequestPage({ params }: { params: { location: string } }
               {sfx.muted ? "🔇 Sound Off" : "🔊 Sound On"}
             </button>
 
-            {/* ✅ Always show credit panel (even before known), animate on change */}
             <div
               className="neonPanel"
               style={{
@@ -340,12 +350,31 @@ export default function RequestPage({ params }: { params: { location: string } }
                 borderRadius: 18,
                 border: "1px solid rgba(255,255,255,0.12)",
                 background: "rgba(0,0,0,0.18)",
-                minWidth: 88,
+                minWidth: 104,
                 textAlign: "center",
               }}
-              title="Credits balance"
+              title="Credits"
             >
-              <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 900, letterSpacing: 0.8 }}>CREDITS</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 900, letterSpacing: 0.8 }}>CREDITS</div>
+
+                {/* keep refresh available (verified users) without changing backend behavior */}
+                {(verified || identityId) ? (
+                  <button
+                    className="neonBtn"
+                    style={{ padding: "6px 8px", borderRadius: 12, fontSize: 12, lineHeight: 1 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      sfx.playTap();
+                      bal.refreshOnce();
+                    }}
+                    title="Refresh balance"
+                  >
+                    ↻
+                  </button>
+                ) : null}
+              </div>
+
               <div
                 key={bal.pulseKey}
                 style={{
@@ -355,38 +384,38 @@ export default function RequestPage({ params }: { params: { location: string } }
                   animation: "rrPop 420ms ease-out",
                 }}
               >
-			{typeof bal.balance === "number" ? bal.balance : "—"}              </div>
-              <button
-                className="neonBtn"
-                style={{ marginTop: 6, padding: "8px 10px", borderRadius: 14, fontSize: 12 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  sfx.playTap();
-                  bal.refreshOnce();
-                }}
-                title="Refresh balance"
-              >
-                Refresh
-              </button>
-            </div>
+                {(!verified && !identityId) ? 5 : (typeof bal.balance === "number" ? bal.balance : "—")}
+              </div>
 
-            {(!verified && !identityId) ? (
-              <button className="neonBtn neonBtnPrimary" onClick={() => { sfx.playTap(); setShowVerify(true); }}>
-                Verify • Unlock Credits
-              </button>
-            ) : (
-              <button
-                className="neonBtn"
-                onClick={() => {
-                  sfx.playTap();
-                  setMsg("✅ You’re verified. Tap a song to request!");
-                  // helpful after returning from checkout
-                  bal.refreshOnce();
-                }}
-              >
-                Verified ✓
-              </button>
-            )}
+              {(!verified && !identityId) ? (
+                <button
+                  className="neonBtn neonBtnPrimary neonPulse"
+                  style={{ marginTop: 6, padding: "8px 10px", borderRadius: 14, fontSize: 12 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sfx.playTap();
+                    setShowVerify(true);
+                  }}
+                  title="Claim your credits"
+                >
+                  CLAIM
+                </button>
+              ) : (
+                <button
+                  className="neonBtn neonBtnPrimary"
+                  style={{ marginTop: 6, padding: "8px 10px", borderRadius: 14, fontSize: 12 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sfx.playTap();
+                    setBuyReason("boost");
+                    setShowBuy(true);
+                  }}
+                  title="Buy more credits"
+                >
+                  Buy More
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -415,14 +444,6 @@ export default function RequestPage({ params }: { params: { location: string } }
 
         {/* TOP CONTROLS */}
         <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
-          <input
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="Your email (for credits & rules)"
-            className="neonInput"
-            autoComplete="email"
-            onFocus={() => sfx.playTap()}
-          />
 
           <input
             id="songSearch"
@@ -594,7 +615,7 @@ export default function RequestPage({ params }: { params: { location: string } }
         <div style={{ position: "sticky", bottom: 10, zIndex: 10, marginTop: 14, display: "grid", gap: 10 }}>
           {(!verified && !identityId) ? (
             <button className="neonBtn neonBtnPrimary" onClick={() => { sfx.playTap(); setShowVerify(true); }} style={{ width: "100%" }}>
-              Verify • Unlock Credits
+              CLAIM
             </button>
           ) : (
             <button className="neonBtn neonBtnPrimary" style={{ width: "100%" }} onClick={() => { sfx.playTap(); document.getElementById("songSearch")?.focus(); }}>
@@ -738,7 +759,7 @@ function CreditHud({
   const isLow = isKnown && balance <= 2;
   const isZero = isKnown && balance === 0;
 
-  const primaryLabel = !verified ? "Verify • Unlock Credits" : "Get Credits";
+  const primaryLabel = !verified ? "CLAIM" : "Get Credits";
   const secondary = !verified
     ? "Welcome credits + faster boosts"
     : isKnown

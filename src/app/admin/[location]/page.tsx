@@ -164,6 +164,27 @@ async function importFile(file: File) {
                   <Field label="Song cooldown minutes" value={rules.songCooldownMinutes} onChange={(v) => setRules({ ...rules, songCooldownMinutes: v })} />
 
                   <Toggle label="Enable voting" checked={rules.enableVoting} onChange={(c) => setRules({ ...rules, enableVoting: c })} />
+
+                  <Text label="Logo URL (square or rectangle)" value={rules.logoUrl} onChange={(v) => setRules({ ...rules, logoUrl: v })} />
+                  {rules.logoUrl ? (
+                    <div style={{ marginTop: 6, opacity: 0.9 }}>
+                      <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Preview</div>
+                      <img
+                        src={rules.logoUrl}
+                        alt="Logo preview"
+                        style={{
+                          height: 46,
+                          width: "auto",
+                          maxWidth: "100%",
+                          objectFit: "contain",
+                          borderRadius: 12,
+                          border: "1px solid #2b2b55",
+                          background: "#0b0b10",
+                          padding: 8,
+                        }}
+                      />
+                    </div>
+                  ) : null}
                 </div>
 
                 <div style={{ borderTop: "1px solid #1c1c2a", paddingTop: 12, marginTop: 12, display: "grid", gap: 10 }}>

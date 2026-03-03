@@ -85,6 +85,38 @@
   margin-bottom: 14px;
 }
 
+.neonHeader3 { grid-template-columns: 1fr; }
+.neonHeaderLeft { display: flex; align-items: center; justify-content: flex-start; }
+.neonHeaderCenter { text-align: center; }
+.neonHeaderRight { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
+
+.neonLogo {
+  height: 46px;
+  width: auto;
+  max-width: 180px;
+  object-fit: contain;
+  border-radius: 14px;
+  filter: drop-shadow(0 0 14px rgba(0,247,255,0.25));
+}
+
+.neonLogoFallback {
+  font-weight: 1000;
+  letter-spacing: 1px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--stroke);
+  background: linear-gradient(135deg, rgba(0,247,255,0.12), rgba(255,57,212,0.10));
+  box-shadow: var(--glowA), var(--glowB);
+}
+
+@keyframes neonPulse {
+  0% { transform: translateY(0) scale(1); filter: brightness(1); }
+  50% { transform: translateY(-1px) scale(1.03); filter: brightness(1.12); }
+  100% { transform: translateY(0) scale(1); filter: brightness(1); }
+}
+
+.neonPulse { animation: neonPulse 1.15s ease-in-out infinite; }
+
 .neonTitle {
   font-size: 24px;
   font-weight: 900;
@@ -236,7 +268,7 @@
 }
 
 @media (min-width: 720px) {
-  .neonHeader { grid-template-columns: 1fr auto; }
+  .neonHeader { grid-template-columns: auto 1fr auto; }
   .neonGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
