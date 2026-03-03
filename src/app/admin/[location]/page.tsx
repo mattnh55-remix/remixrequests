@@ -29,8 +29,7 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     const r1 = await fetch(`/api/admin/rules/get/${location}`, { cache: "no-store" });
     if (r1.status === 401) { setAuthed(false); return; }
     const d1 = await r1.json();
-    setRules(d1.rules);
-
+    setRules((prev: any) => prev ?? d1.rules);
     const r2 = await fetch(`/api/admin/queue/${location}`, { cache: "no-store" });
     const d2 = await r2.json();
     setQueue({ playNow: d2.playNow || [], upNext: d2.upNext || [] });
@@ -54,6 +53,7 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     const data = await res.json();
     if (!data.ok) setMsg("Failed to save rules.");
     else setMsg("✅ Rules saved.");
+    await loadAll();
   }
 
   async function markPlayed(requestId: string) {
