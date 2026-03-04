@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getRulesForLocation } from "@/lib/rules";
-import { getOrCreateCurrentSession } from "@/lib/validators";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 
 function jsonFail(message: string, status = 400) {
@@ -9,19 +8,18 @@ function jsonFail(message: string, status = 400) {
 }
 
 export async function GET(req: Request, { params }: { params: { location: string } }) {
-  if (!isAdminFromCookie(req.headers.get("cookie"))) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+  if (!isAdminFromCookie(req.headers.get("cookie") || "")) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
   const { loc } = await getRulesForLocation(params.location);
-  const session = await getOrCreateCurrentSession(loc.id, 4);
 
   const items = await prisma.redemptionCode.findMany({
-    where: { locationId: loc.id, sessionId: session.id },
+    where: { locationId: loc.id },
     orderBy: { createdAt: "desc" }
   });
 
-  return NextResponse.json({ ok: true, sessionId: session.id, items });
+  return NextResponse.json({ ok: true, items });
 }
 
 export async function POST(req: Request, { params }: { params: { location: string } }) {
@@ -39,21 +37,17 @@ export async function POST(req: Request, { params }: { params: { location: strin
   if (!Number.isFinite(points) || points <= 0) return jsonFail("Points must be > 0.");
   if (!Number.isFinite(maxUses) || maxUses < 1) return jsonFail("Max uses must be >= 1.");
 
-  const { loc } = await getRulesForLocation(params.location);
-  const session = await getOrCreateCurrentSession(loc.id, 4);
-
-  // session-bound expiry
-  const expiresAt = new Date(session.endsAt);
+const { loc } = await getRulesForLocation(params.location);
 
   try {
     const created = await prisma.redemptionCode.create({
       data: {
         locationId: loc.id,
-        sessionId: session.id,
         code,
         points,
         maxUses,
-        expiresAt,
+expiresAt: null,
+redeemWindowMinutes: 150,
         source
       }
     });

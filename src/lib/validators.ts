@@ -17,7 +17,14 @@ export async function getOrCreateCurrentSession(locationId: string, sessionHours
 }
 
 export async function getCreditBalance(locationId: string, emailHash: string) {
-  const rows = await prisma.creditLedger.findMany({ where: { locationId, emailHash } });
+  const now = new Date();
+  const rows = await prisma.creditLedger.findMany({
+    where: {
+      locationId,
+      emailHash,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+  });
   return rows.reduce((a, r) => a + r.delta, 0);
 }
 

@@ -110,6 +110,8 @@ model CreditLedger {
   delta     Int
   reason    String
   createdAt DateTime @default(now())
+  expiresAt DateTime?
+
 
   @@index([locationId, emailHash])
 }
@@ -258,35 +260,42 @@ enum RequestStatus {
 model RedemptionCode {
   id         String   @id @default(cuid())
   locationId String
-  sessionId  String
   code       String
   points     Int
   maxUses    Int      @default(1)
   uses       Int      @default(0)
-  expiresAt  DateTime
+
+  // Optional: campaign-wide expiration for the code itself (can be null)
+  expiresAt  DateTime?
+
+  // How long the granted promo points remain valid after redemption
+  redeemWindowMinutes Int @default(120)
+
   disabledAt DateTime?
-  source     String?  // "manual" | "import" | batch tag
+  source     String?
   createdAt  DateTime @default(now())
 
   usesRel RedemptionCodeUse[]
 
   @@unique([locationId, code])
-  @@index([locationId, sessionId])
+  @@index([locationId])
   @@index([expiresAt])
 }
 
 model RedemptionCodeUse {
   id         String   @id @default(cuid())
   locationId String
-  sessionId  String
   codeId     String
   emailHash  String
   createdAt  DateTime @default(now())
 
+  // Per-user expiry (activation time + window). Useful for audit/UX.
+  expiresAt  DateTime
+
   code RedemptionCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
 
-  // One use per user per code (your requirement)
   @@unique([codeId, emailHash])
-  @@index([locationId, sessionId])
+  @@index([locationId])
   @@index([emailHash])
+  @@index([expiresAt])
 }

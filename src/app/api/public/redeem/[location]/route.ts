@@ -77,8 +77,7 @@ export async function POST(req: Request, { params }: { params: { location: strin
 
   if (!rc) return jsonFail("Invalid code.");
   if (rc.disabledAt) return jsonFail("This code is disabled.");
-  if (rc.sessionId !== session.id) return jsonFail("This code is not valid for the current session.");
-  if (rc.expiresAt <= now) return jsonFail("This code has expired.");
+  if (rc.expiresAt && rc.expiresAt <= now) return jsonFail("This code has expired.");
   if (rc.uses >= rc.maxUses) return jsonFail("This code has reached its limit.");
 
   // Redeem atomically: prevent double use + enforce maxUses
@@ -94,15 +93,17 @@ export async function POST(req: Request, { params }: { params: { location: strin
       const fresh = await tx.redemptionCode.findUnique({ where: { id: rc.id } });
       if (!fresh) throw new Error("INVALID");
       if (fresh.disabledAt) throw new Error("DISABLED");
-      if (fresh.expiresAt <= now) throw new Error("EXPIRED");
+      if (fresh.expiresAt && fresh.expiresAt <= now) throw new Error("EXPIRED");
       if (fresh.uses >= fresh.maxUses) throw new Error("LIMIT");
+
+      const promoExpiresAt = new Date(Date.now() + fresh.redeemWindowMinutes * 60 * 1000);
 
       await tx.redemptionCodeUse.create({
         data: {
           locationId: loc.id,
-          sessionId: session.id,
           codeId: rc.id,
-          emailHash
+          emailHash,
+          expiresAt: promoExpiresAt
         }
       });
 
@@ -115,15 +116,16 @@ export async function POST(req: Request, { params }: { params: { location: strin
         data: {
           locationId: loc.id,
           emailHash,
-          delta: rc.points,
-          reason: `redeem:${code}`
+          delta: fresh.points,
+          reason: `redeem:${code}`,
+          expiresAt: promoExpiresAt
         }
       });
 
-      return { pointsAdded: rc.points };
+      return { pointsAdded: fresh.points, expiresAt: promoExpiresAt.toISOString() };
     });
 
-    return NextResponse.json({ ok: true, pointsAdded: result.pointsAdded });
+    return NextResponse.json({ ok: true, pointsAdded: result.pointsAdded, expiresAt: result.expiresAt });
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg === "ALREADY_USED") return jsonFail("You already used this code.", 409);
