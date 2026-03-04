@@ -53,6 +53,17 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [sessionCountdown, setSessionCountdown] = useState<string>("");
 
   const sfx = useNeonSfx();
+// Persist email so verified users don't "lose" ability to tap after reload/Square return
+useEffect(() => {
+  try {
+    const e = email.trim();
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+      localStorage.setItem("rr_email", e);
+    }
+  } catch {
+    // ignore
+  }
+}, [email]);
 
   async function refreshSession() {
     try {
@@ -125,10 +136,11 @@ export default function RequestPage({ params }: { params: { location: string } }
     try {
       const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
       const lsLocation = (localStorage.getItem("rr_location") || "").trim();
-
+    const lsEmail = (localStorage.getItem("rr_email") || "").trim();
       if (lsIdentity) {
         setIdentityId(lsIdentity);
         setVerified(true);
+        if (lsEmail) setEmail(lsEmail);
 
 	// Kick an immediate refresh once identity is known.
 	// The hook will soft-poll for ~2–3 seconds to tolerate webhook lag.
@@ -450,6 +462,45 @@ className={`neonPanel rrPointsPanel ${
 
         {/* TOP CONTROLS */}
         <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
+{(verified || identityId) && !email ? (
+  <div className="neonPanel" style={{ padding: 12, border: "1px solid rgba(255,255,255,0.12)" }}>
+    <div style={{ fontWeight: 900, letterSpacing: 0.3, marginBottom: 6 }}>
+      Finish setup
+    </div>
+    <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 10 }}>
+      Enter your email to unlock song requests on this device.
+    </div>
+    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@domain.com"
+        className="neonInput"
+        autoComplete="email"
+        onFocus={() => sfx.playTap()}
+        style={{ flex: 1 }}
+      />
+      <button
+        className="neonBtn neonBtnPrimary"
+        onClick={() => {
+          sfx.playTap();
+          const e = email.trim();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+            sfx.playError();
+            setMsg("Please enter a valid email.");
+            return;
+          }
+          try { localStorage.setItem("rr_email", e); } catch {}
+          sfx.playSuccess();
+          setMsg("✅ Email saved. You can request songs now.");
+        }}
+        style={{ whiteSpace: "nowrap" }}
+      >
+        Save
+      </button>
+    </div>
+  </div>
+) : null}
 
 <input
   id="songSearch"
@@ -1127,11 +1178,11 @@ function VerifyModal({
         return;
       }
 
-      // ✅ Persist identity for checkout flow (buy page reads this)
-      if (typeof window !== "undefined" && data?.identityId) {
-        localStorage.setItem("rr_identityId", String(data.identityId));
-        localStorage.setItem("rr_location", String(location));
-      }
+if (typeof window !== "undefined" && data?.identityId) {
+  localStorage.setItem("rr_identityId", String(data.identityId));
+  localStorage.setItem("rr_location", String(location));
+  if (email?.trim()) localStorage.setItem("rr_email", email.trim());
+}
 
       sfx.playSuccess();
       onVerified?.({ balance: data?.balance ?? data?.credits?.balance ?? null });

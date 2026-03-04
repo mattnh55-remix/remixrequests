@@ -1,3 +1,4 @@
+// components/ui/neon/SongTile.tsx
 import React from "react";
 
 export function SongTile(props: {

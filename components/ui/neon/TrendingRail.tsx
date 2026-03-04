@@ -1,3 +1,4 @@
+// components/ui/neon/TrendingRail.tsx
 import React from "react";
 
 type TrendingItem = {
