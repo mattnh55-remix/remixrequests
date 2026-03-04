@@ -450,14 +450,19 @@ export default function RequestPage({ params }: { params: { location: string } }
         {/* TOP CONTROLS */}
         <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
 
-          <input
-            id="songSearch"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search title or artist…"
-            className="neonInput"
-            onFocus={() => sfx.playTap()}
-          />
+<input
+  id="songSearch"
+  value={search}
+  onChange={e => setSearch(e.target.value)}
+  placeholder="Search songs or artists…"
+  className="neonInput neonSearchInput"
+  onFocus={() => sfx.playTap()}
+  style={{
+    fontWeight: 800,
+    fontSize: 16,
+    letterSpacing: 0.2,
+  }}
+/>
 
           <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6 }}>
             <button onClick={() => { sfx.playTap(); setTag(""); }} className="neonBtn" style={chip2(tag === "")}>All</button>
@@ -525,7 +530,7 @@ export default function RequestPage({ params }: { params: { location: string } }
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "2px 4px 10px" }}>
             <div style={{ fontWeight: 1000, letterSpacing: 0.4 }}>Pick a Song</div>
             <div style={{ color: "var(--muted)", fontSize: 12 }}>
-              Play Next costs {costRequest} • Play Now costs {costPlayNow}
+              Request costs {costRequest} • Boosts cost {costPlayNow}
             </div>
           </div>
 
@@ -558,7 +563,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                     <div className="neonBadgeRow">
                       {hot ? <span className="neonBadge neonBadgeHot">HOT</span> : null}
                       {s.explicit ? <span className="neonBadge" style={{ borderColor: "rgba(255,204,0,0.35)" }}>EXPLICIT</span> : null}
-                      <span className="neonBadge">{costRequest} credit</span>
+                      <span className="neonBadge">{costRequest} point</span>
                     </div>
 
                     <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
@@ -567,24 +572,30 @@ export default function RequestPage({ params }: { params: { location: string } }
                         onClick={() => {
                           sfx.playTap();
                           if ((verified || identityId) && typeof bal.balance === "number" && !canAffordNext) {
-                            setMsg("You’re out of credits for Play Next.");
+                            setMsg("You’re out of points for Play Next.");
                             openBuy("out");
                             return;
                           }
                           submit(s.id, "play_next");
                         }}
-                        className="neonBtn"
-                        style={{ opacity: (!email || (!verified && !identityId)) ? 0.55 : 1 }}
-                      >
-                        Play Next • {costRequest} credit
-                      </button>
-
+ className="neonBtn"
+style={{ opacity: (!email || (!verified && !identityId)) ? 0.55 : 1 }}
+>
+  <>
+    <span className="rrLabelDesktop">
+      Request! · {costRequest} Point
+    </span>
+    <span className="rrLabelMobile">
+      Request! · {costRequest} Pt
+    </span>
+  </>
+</button>
                       <button
                         disabled={!email || (!verified && !identityId)}
                         onClick={() => {
                           sfx.playTap();
                           if ((verified || identityId) && typeof bal.balance === "number" && !canAffordNow) {
-                            setMsg("Boost needs more credits.");
+                            setMsg("Boost needs more points.");
                             openBuy("boost");
                             return;
                           }
@@ -605,9 +616,16 @@ export default function RequestPage({ params }: { params: { location: string } }
                             pointerEvents: "none",
                           }}
                         />
-                        <span style={{ position: "relative" }}>
-                          Play Now • {costPlayNow} credits
-                        </span>
+<span style={{ position: "relative" }}>
+  <>
+    <span className="rrLabelDesktop">
+      BOOST to Top · {costPlayNow} Points
+    </span>
+    <span className="rrLabelMobile">
+      BOOST · {costPlayNow} Pts
+    </span>
+  </>
+</span>
                       </button>
                     </div>
                   </div>
@@ -768,8 +786,8 @@ function CreditHud({
   const secondary = !verified
     ? "Welcome credits + faster boosts"
     : isKnown
-      ? (isZero ? "Out of credits — power up now" : isLow ? "Low credits — keep the vibe going" : "Boost songs to jump the line")
-      : "Tap to view credit packs";
+      ? (isZero ? "Out of points — power up now" : isLow ? "Low credits — keep the vibe going" : "Boost songs to jump the line")
+      : "Tap to view Point Packs";
 
   return (
     <div
@@ -890,17 +908,17 @@ function BuyCreditsDrawer({
   if (!open) return null;
 
   const headline =
-    !verified ? "Verify to unlock credits" :
-    reason === "boost" ? "Boost needs credits" :
-    reason === "out" ? "You’re out of credits" :
-    reason === "notEnough" ? "Not enough credits" :
-    "Power up your session";
+    !verified ? "Start Using Points Now!" :
+    reason === "boost" ? "Boost needs points!" :
+    reason === "out" ? "You’re out of points!" :
+    reason === "notEnough" ? "Not enough points!" :
+    "Power up your session!";
 
   const sub =
-    !verified ? "Fast SMS verification — unlock welcome credits instantly." :
+    !verified ? "Fast SMS verification — unlock welcome points instantly." :
     typeof balance === "number"
-      ? `Current balance: ${balance} credits`
-      : "Choose a pack — credits hit instantly when checkout completes.";
+      ? `Current balance: ${balance} points`
+      : "Choose a points pack — Use instantly! (Valid for today's session only)";
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "grid", alignItems: "end" }}>
@@ -937,8 +955,8 @@ function BuyCreditsDrawer({
         <div style={{ padding: "0 14px 14px", display: "grid", gap: 10 }}>
           <div style={{ padding: 12, borderRadius: 18, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", display: "grid", gap: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-              <div style={{ fontWeight: 1000, letterSpacing: 0.35 }}>Pick a credit pack</div>
-              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 12 }}>Instant unlock • Premium boosts</div>
+              <div style={{ fontWeight: 1000, letterSpacing: 0.35 }}>Pick a points pack</div>
+              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 12 }}>Instant unlock • Fun boosts!</div>
             </div>
 
             <div style={{ display: "grid", gap: 10 }}>
@@ -1144,7 +1162,7 @@ function VerifyModal({
       >
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
           <div>
-            <div style={{ fontWeight: 1000, letterSpacing: 0.4, fontSize: 16 }}>Unlock your credits</div>
+            <div style={{ fontWeight: 1000, letterSpacing: 0.4, fontSize: 16 }}>Unlock your points</div>
             <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 12, marginTop: 4 }}>
               Verify once → request + boost faster all session.
             </div>
@@ -1159,7 +1177,7 @@ function VerifyModal({
           <div style={{ display: "flex", gap: 8 }}>
             <span className="neonBadge" style={{ borderColor: step === "collect" ? "rgba(0,247,255,0.35)" : "rgba(255,255,255,0.14)" }}>1) Phone</span>
             <span className="neonBadge" style={{ borderColor: step === "code" ? "rgba(0,247,255,0.35)" : "rgba(255,255,255,0.14)" }}>2) Code</span>
-            <span className="neonBadge" style={{ borderColor: "rgba(255,57,212,0.25)" }}>3) Credits</span>
+            <span className="neonBadge" style={{ borderColor: "rgba(255,57,212,0.25)" }}>3) Points</span>
           </div>
 
           <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="neonInput" autoComplete="email" onFocus={() => sfx.playTap()} disabled={busy} />
@@ -1171,12 +1189,12 @@ function VerifyModal({
 
           <label style={rowToggle}>
             <input type="checkbox" checked={emailOptIn} onChange={e => setEmailOptIn(e.target.checked)} disabled={busy} />
-            <span>Yes, send me email perks & bonus credit drops</span>
+            <span>Yes, send me email perks & coupons</span>
           </label>
 
           <label style={rowToggle}>
             <input type="checkbox" checked={smsOptIn} onChange={e => setSmsOptIn(e.target.checked)} disabled={busy} />
-            <span>Yes, send me SMS updates (optional)</span>
+            <span>Yes, give me points & send me SMS updates</span>
           </label>
 
           {msg ? <div style={miniNote}>{msg}</div> : null}

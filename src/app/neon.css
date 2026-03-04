@@ -537,3 +537,19 @@
   .rrPointsDesktop { display: none; }
   .rrPointsMobile { display: inline; }
 }
+
+/* Desktop/Mobile label helpers */
+.rrLabelMobile { display: none; }
+@media (max-width: 520px) {
+  .rrLabelDesktop { display: none; }
+  .rrLabelMobile { display: inline; }
+}
+
+/* Stronger search text + placeholder (if search uses .neonInput) */
+.neonInput {
+  font-weight: 800;
+}
+.neonInput::placeholder {
+  opacity: 0.85;
+  font-weight: 800;
+}
