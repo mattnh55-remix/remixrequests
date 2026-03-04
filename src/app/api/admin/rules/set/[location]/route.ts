@@ -22,7 +22,7 @@ export async function POST(req: Request, { params }: { params: { location: strin
       costUpvote: int(body.costUpvote, rules.costUpvote),
       costDownvote: int(body.costDownvote, rules.costDownvote),
       costPlayNow: int(body.costPlayNow, rules.costPlayNow),
-
+      logoUrl: body.logoUrl ?? null,
       maxRequestsPerSession: int(body.maxRequestsPerSession, rules.maxRequestsPerSession),
       maxVotesPerSession: int(body.maxVotesPerSession, rules.maxVotesPerSession),
       minSecondsBetweenActions: int(body.minSecondsBetweenActions, rules.minSecondsBetweenActions),

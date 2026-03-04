@@ -138,6 +138,8 @@ model Ruleset {
   costUpvote   Int @default(1)
   costDownvote Int @default(1)
   costPlayNow  Int @default(5)
+  
+  logoUrl String?
 
   maxRequestsPerSession    Int @default(1)
   maxVotesPerSession       Int @default(3)
