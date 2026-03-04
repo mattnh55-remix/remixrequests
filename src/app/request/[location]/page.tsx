@@ -599,7 +599,7 @@ className={`neonPanel rrPointsPanel ${
   data-hot={hot ? "true" : "false"}
   role="button"
   tabIndex={0}
-  title="Tap to request (Play Next)"
+  title="Tap to Request!"
   onClick={() => {
     sfx.playTap();
 

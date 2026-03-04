@@ -461,7 +461,7 @@ style={{
 
             <div style={{ height: 10 }} />
 
-            <div style={laneHdr}>PLAY NOW LANE</div>
+            <div style={laneHdr}>BOOSTED (<i>PAID</i> TO PLAY NEXT)</div>
             {(queue?.playNow || []).map((q) => (
               <QueueRow key={q.id} q={q} onPlayed={() => markPlayed(q.id)} onReject={() => reject(q.id)} />
             ))}
