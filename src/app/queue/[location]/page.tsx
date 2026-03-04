@@ -297,7 +297,7 @@ if (identityId) bal.refreshOnce();
 
   const locationName = sessionInfo?.location?.name || "Remix Skate & Event Center";
 
-  const rules = sessionInfo?.rules || sessionInfo?.rulesObj || sessionInfo?.rules?.rules || sessionInfo?.rules?.rulesObj || sessionInfo?.rules;
+  const rules = sessionInfo?.rules;
   const enableVoting = rules?.enableVoting !== false;
   const costUpvote = Number(rules?.costUpvote ?? 1);
   const costDownvote = Number(rules?.costDownvote ?? 1);
@@ -375,9 +375,14 @@ if (identityId) bal.refreshOnce();
           <div className="neonHeaderRight">
             <div className="neonHud">
               <div className="neonHudLabel">POINTS</div>
-              <div className="neonHudValue">
-                <AnimatedBalanceCounter value={typeof bal.balance === "number" ? bal.balance : 0} />
-              </div>
+<div className="neonHudValue">
+  <AnimatedBalanceCounter
+    balance={typeof bal.balance === "number" ? bal.balance : 0}
+    pulseKey={bal.pulseKey}
+    delta={bal.delta}
+    showDeltaBanner={bal.showDeltaBanner}
+  />
+</div>
               <button className="neonHudBtn" onClick={() => bal.refreshOnce()}>
                 Refresh
               </button>
