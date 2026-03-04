@@ -301,9 +301,6 @@ style={{
   height: 350,
   objectFit: "contain",
   borderRadius: 22,
-  border: "1px solid rgba(90,90,255,0.35)",
-  background: "rgba(0,0,0,0.35)",
-  padding: 14,
   marginBottom: 18,
 
   // logo glow + appear animation
