@@ -2,6 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+async function safeJson(res: Response) {
+  const text = await res.text();
+  if (!text) return { ok: false, _raw: "", _nonJson: true };
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { ok: false, _raw: text.slice(0, 500), _nonJson: true };
+  }
+}
+
 type QueueItem = {
   id: string;
   title: string;
@@ -186,11 +196,7 @@ async function disableCode(id: string) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ id })
   });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok || !d.ok) {
-    setCodesMsg(d.error || "Failed to disable code.");
-    return;
-  }
+  
   setCodesMsg("✅ Code disabled.");
   await loadCodes();
 }
@@ -205,7 +211,7 @@ async function importCodesFile(file: File) {
     body: form
   });
 
-  const d = await r.json().catch(() => ({}));
+  const d: any = await safeJson(r);
   if (!r.ok || !d.ok) {
     setCodesMsg(d.error || "Import failed.");
     return;
