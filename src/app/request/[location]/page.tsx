@@ -322,7 +322,9 @@ useEffect(() => {
   }
 
   return (
-<style>{`
+
+    <div className="neonRoot">
+      <style>{`
   .flipWrap {
     perspective: 900px;
   }
@@ -368,7 +370,6 @@ useEffect(() => {
     letter-spacing: 0.8px;
   }
 `}</style>
-    <div className="neonRoot">
       <div className="rrWall" />
       <div className="neonWrap" style={{ paddingBottom: 96 }}>
         {/* HEADER */}
