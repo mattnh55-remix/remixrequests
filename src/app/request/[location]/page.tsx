@@ -53,6 +53,7 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [sessionCountdown, setSessionCountdown] = useState<string>("");
 
   const sfx = useNeonSfx();
+const [showQueueFlip, setShowQueueFlip] = useState(false);
 // Persist email so verified users don't "lose" ability to tap after reload/Square return
 useEffect(() => {
   try {
@@ -321,6 +322,52 @@ useEffect(() => {
   }
 
   return (
+<style>{`
+  .flipWrap {
+    perspective: 900px;
+  }
+  .flipCard {
+    width: 170px;
+    height: 44px;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 260ms ease;
+  }
+  .flipCard.isFlipped {
+    transform: rotateY(180deg);
+  }
+  .flipFace {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: linear-gradient(135deg, rgba(0,255,200,0.10), rgba(255,0,180,0.10));
+    box-shadow: 0 0 18px rgba(0,255,200,0.12), 0 0 18px rgba(255,0,180,0.10);
+    backface-visibility: hidden;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 900;
+    letter-spacing: 0.3px;
+  }
+  .flipFace:hover {
+    transform: translateY(-1px);
+  }
+  .flipFront {}
+  .flipBack {
+    transform: rotateY(180deg);
+    background: linear-gradient(135deg, rgba(255,0,180,0.12), rgba(0,255,200,0.08));
+  }
+  .flipTiny {
+    font-size: 12px;
+    opacity: 0.75;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+  }
+`}</style>
     <div className="neonRoot">
       <div className="rrWall" />
       <div className="neonWrap" style={{ paddingBottom: 96 }}>
@@ -467,6 +514,39 @@ className={`neonPanel rrPointsPanel ${
     <div style={{ fontWeight: 900, letterSpacing: 0.3, marginBottom: 6 }}>
       Finish setup
     </div>
+    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+  <div className="flipWrap">
+    <div
+      className={`flipCard ${showQueueFlip ? "isFlipped" : ""}`}
+      onClick={() => {
+        sfx.playTap();
+        setShowQueueFlip(true);
+        // give the flip a moment, then navigate
+        setTimeout(() => {
+          window.location.href = `/queue/${location}`;
+        }, 220);
+      }}
+      title="View the live queue and vote"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          (e.currentTarget as HTMLDivElement).click();
+        }
+      }}
+    >
+      <div className="flipFace flipFront">
+        <span>View the Queue!</span>
+        <span style={{ fontSize: 16 }}>➡️</span>
+      </div>
+
+      <div className="flipFace flipBack">
+        <span className="flipTiny">QUEUE & VOTING</span>
+      </div>
+    </div>
+  </div>
+</div>
     <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 10 }}>
       Enter your email to unlock song requests on this device.
     </div>
