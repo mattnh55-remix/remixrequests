@@ -10,6 +10,7 @@ export async function GET(_: Request, { params }: { params: { location: string }
     session: { id: session.id, endsAt: session.endsAt },
     rules: {
       costRequest: rules.costRequest,
+      logoUrl: rules.logoUrl,
       costUpvote: rules.costUpvote,
       costDownvote: rules.costDownvote,
       costPlayNow: rules.costPlayNow,
