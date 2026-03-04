@@ -167,11 +167,12 @@ async function createCode() {
     body: JSON.stringify({ code, points: codePoints, maxUses: codeMaxUses, source: "manual" })
   });
 
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok || !d.ok) {
-    setCodesMsg(d.error || "Failed to create code.");
-    return;
-  }
+const d: any = await safeJson(r);
+if (!r.ok || !d.ok) {
+  console.error("CREATE CODE FAIL:", { status: r.status, d });
+  setCodesMsg(d?.error || (d?._nonJson ? `Create code failed (non-JSON, ${r.status}).` : `Create code failed (${r.status}).`));
+  return;
+}
 
   setCodesMsg("✅ Code created.");
   setCodeNew("");
@@ -224,19 +225,11 @@ if (r1.status === 401) {
   return;
 }
 
-const raw1 = await r1.text();
-
-// Debug: show first part of body if it isn't JSON
-if (!raw1.trim().startsWith("{")) {
-  console.error("RULES RAW RESPONSE:", raw1);
-  setMsg(`Rules API returned non-JSON (status ${r1.status}). Check console.`);
-  return;
-}
-
-const d1 = JSON.parse(raw1);
+const d1: any = await safeJson(r1);
 
 if (!r1.ok || !d1?.rules) {
-  setMsg(d1?.error || `Rules API failed (status ${r1.status}).`);
+  console.error("RULES API FAIL:", { status: r1.status, d1 });
+  setMsg(d1?.error || (d1?._nonJson ? `Rules API returned non-JSON (status ${r1.status}).` : `Rules API failed (${r1.status}).`));
   return;
 }
 
