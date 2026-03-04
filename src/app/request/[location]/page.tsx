@@ -188,7 +188,7 @@ export default function RequestPage({ params }: { params: { location: string } }
     // verified state is still used for UI, but identityId is the durable truth.
     if (!verified && !identityId) {
       sfx.playError();
-      setMsg("Please verify to unlock credits.");
+      setMsg("Please verify to unlock points.");
       setShowVerify(true);
       return;
     }
@@ -200,7 +200,7 @@ export default function RequestPage({ params }: { params: { location: string } }
     // UI-only: if balance is known, intercept insufficient and open drawer.
     if (typeof bal.balance === "number" && bal.balance < required) {
       sfx.playError();
-      setMsg(required === costPlayNow ? "Not enough credits for Play Now." : "Not enough credits to request.");
+      setMsg(required === costPlayNow ? "Not enough points for request" : "Not enough points to request.");
       openBuy(required === costPlayNow ? "boost" : "notEnough");
       return;
     }
@@ -286,9 +286,9 @@ export default function RequestPage({ params }: { params: { location: string } }
     if (Array.isArray(raw) && raw.length) {
       return raw.map((p: any, idx: number) => ({
         id: String(p.id ?? idx),
-        title: String(p.title ?? p.name ?? "Credits"),
-        subtitle: String(p.subtitle ?? p.desc ?? "Instant credits"),
-        creditsLabel: String(p.creditsLabel ?? (p.credits ? `${p.credits} credits` : "Credits")),
+        title: String(p.title ?? p.name ?? "Points"),
+        subtitle: String(p.subtitle ?? p.desc ?? "Instant points"),
+        creditsLabel: String(p.creditsLabel ?? (p.credits ? `${p.credits} credits` : "Points")),
         highlight: Boolean(p.highlight ?? p.featured ?? idx === 1),
         badge: String(p.badge ?? (idx === 1 ? "Most Popular" : "")) || undefined,
         cta: String(p.cta ?? "Choose"),
@@ -297,21 +297,20 @@ export default function RequestPage({ params }: { params: { location: string } }
     }
 
     return [
-      { id: "quick", title: "Quick Boost", subtitle: "Perfect for 1–2 songs", creditsLabel: "10 credits", badge: "Fast", cta: "Get credits", href: buyUrl ?? undefined },
-      { id: "party", title: "Party Pack", subtitle: "Best for groups", creditsLabel: "25 credits", highlight: true, badge: "Most Popular", cta: "Get credits", href: buyUrl ?? undefined },
-      { id: "allnight", title: "All Night", subtitle: "Skate like a legend", creditsLabel: "50 credits", badge: "Best Value", cta: "Get credits", href: buyUrl ?? undefined },
+      { id: "quick", title: "Quick Boost", subtitle: "Perfect for 1–2 songs", creditsLabel: "10 credits", badge: "Fast", cta: "Get Points", href: buyUrl ?? undefined },
+      { id: "party", title: "Party Pack", subtitle: "Best for groups", creditsLabel: "25 credits", highlight: true, badge: "Most Popular", cta: "Get Points", href: buyUrl ?? undefined },
+      { id: "allnight", title: "All Night", subtitle: "Skate like a legend", creditsLabel: "50 credits", badge: "Best Value", cta: "Get Points", href: buyUrl ?? undefined },
     ];
   }, [rules, buyUrl]);
-
-  const creditsLabel =
-    !verified && !identityId
-      ? "Verify to unlock credits"
-      : bal.balance === null
-        ? "Credits: …"
-        : `Credits: ${bal.balance}`;
+  let creditsLabel = "Use Points!";
+  if (verified || identityId) {
+    if (bal.balance === null) creditsLabel = "Points: …";
+    else creditsLabel = `Points: ${bal.balance}`;
+  }
 
   return (
     <div className="neonRoot">
+      <div className="rrWall" />
       <div className="neonWrap" style={{ paddingBottom: 96 }}>
         {/* HEADER */}
         <div className="neonHeader neonHeader3">
@@ -337,7 +336,9 @@ export default function RequestPage({ params }: { params: { location: string } }
           <div className="neonHeaderRight">
   
             <div
-              className="neonPanel"
+className={`neonPanel rrPointsPanel ${
+  (verified || identityId) && typeof bal.balance === "number" && bal.balance <= 2 ? "rrPointsLow" : ""
+}`}
               style={{
                 padding: "10px 12px",
                 borderRadius: 18,
@@ -346,7 +347,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                 minWidth: 104,
                 textAlign: "center",
               }}
-              title="Credits"
+              title="Points"
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                 <div
@@ -401,7 +402,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                     sfx.playTap();
                     setShowVerify(true);
                   }}
-                  title="Claim your credits"
+                  title="Claim your Points"
                 >
                   USE
                 </button>
@@ -415,7 +416,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                     setBuyReason("boost");
                     setShowBuy(true);
                   }}
-                  title="Buy more credits"
+                  title="Buy more Points"
                 >
                   ADD POINTS
                 </button>
@@ -668,7 +669,7 @@ if (info?.balance !== undefined) {
   bal.applyBalance(nb);
 }
 
-            setMsg("✅ Verified! Welcome credits unlocked.");
+            setMsg("✅ Verified! Welcome Points Unlocked.");
             sfx.playSuccess();
             refreshSession();
 
@@ -782,11 +783,11 @@ function CreditHud({
   const isLow = isKnown && balance <= 2;
   const isZero = isKnown && balance === 0;
 
-  const primaryLabel = !verified ? "CLAIM" : "Get Credits";
+  const primaryLabel = !verified ? "CLAIM" : "Get Points";
   const secondary = !verified
-    ? "Welcome credits + faster boosts"
+    ? "Welcome points + faster boosts"
     : isKnown
-      ? (isZero ? "Out of points — power up now" : isLow ? "Low credits — keep the vibe going" : "Boost songs to jump the line")
+      ? (isZero ? "Out of points — power up now" : isLow ? "Low points — keep the vibe going" : "Boost songs to jump the line")
       : "Tap to view Point Packs";
 
   return (
@@ -1217,8 +1218,9 @@ function VerifyModal({
         </div>
       </div>
     </div>
-  );
+);
 }
+/*------WHERE MY TRUE END IS--------*/
 
 const rowToggle = { display: "flex", gap: 10, alignItems: "center", fontSize: 12, color: "rgba(255,255,255,0.78)", padding: "6px 2px" } as const;
 const miniNote  = { display: "grid", gap: 8, marginBottom: 6, padding: 12, borderRadius: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)" } as const;
