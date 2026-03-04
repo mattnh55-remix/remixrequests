@@ -217,14 +217,31 @@ async function importCodesFile(file: File) {
   // ---------- data ----------
   async function loadAll() {
     // Rules
-    const r1 = await fetch(`/api/admin/rules/get/${location}`, { cache: "no-store" });
-    if (r1.status === 401) {
-      setAuthed(false);
-      return;
-    }
-    const d1 = await r1.json();
-    setRules(d1.rules);
-    cacheLogo(d1?.rules?.logoUrl);
+const r1 = await fetch(`/api/admin/rules/get/${location}`, { cache: "no-store" });
+
+if (r1.status === 401) {
+  setAuthed(false);
+  return;
+}
+
+const raw1 = await r1.text();
+
+// Debug: show first part of body if it isn't JSON
+if (!raw1.trim().startsWith("{")) {
+  console.error("RULES RAW RESPONSE:", raw1);
+  setMsg(`Rules API returned non-JSON (status ${r1.status}). Check console.`);
+  return;
+}
+
+const d1 = JSON.parse(raw1);
+
+if (!r1.ok || !d1?.rules) {
+  setMsg(d1?.error || `Rules API failed (status ${r1.status}).`);
+  return;
+}
+
+setRules(d1.rules);
+cacheLogo(d1?.rules?.logoUrl);
 
     // Queue
     const r2 = await fetch(`/api/admin/queue/${location}`, { cache: "no-store" });
