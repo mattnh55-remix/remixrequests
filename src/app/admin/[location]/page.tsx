@@ -195,10 +195,24 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     } catch {}
   }
 
-  useEffect(() => {
-    loadCachedLogo();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+useEffect(() => {
+  loadCachedLogo();
+
+  // Try to prefetch rules to get logo even before login
+  fetch(`/api/admin/rules/get/${location}`, { cache: "no-store" })
+    .then(r => {
+      if (!r.ok) return null;
+      return r.json();
+    })
+    .then(d => {
+      if (d?.rules?.logoUrl) {
+        cacheLogo(d.rules.logoUrl);
+      }
+    })
+    .catch(() => {});
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   useEffect(() => {
     if (!authed) return;
@@ -265,22 +279,38 @@ export default function AdminPage({ params }: { params: { location: string } }) 
 
     return (
       <div style={loginWrap}>
+<style>{`
+  @keyframes rrAdminCardIn {
+    0%   { opacity: 0; transform: translateY(10px) scale(0.985); filter: blur(2px); }
+    100% { opacity: 1; transform: translateY(0px)  scale(1);     filter: blur(0px); }
+  }
+
+  @keyframes rrAdminLogoIn {
+    0%   { opacity: 0; transform: scale(0.92); filter: blur(6px); }
+    55%  { opacity: 1; transform: scale(1.02); filter: blur(0px); }
+    100% { opacity: 1; transform: scale(1);    filter: blur(0px); }
+  }
+`}</style>
         <div style={loginCard}>
           {logoUrl ? (
             <img
               src={logoUrl}
               alt="Admin Logo"
-              style={{
-                width: 350,
-                height: 350,
-                objectFit: "contain",
-                borderRadius: 22,
-                border: "1px solid #2b2b55",
-                background: "rgba(0,0,0,0.35)",
-                padding: 14,
-                marginBottom: 18
-              }}
-            />
+style={{
+  width: 350,
+  height: 350,
+  objectFit: "contain",
+  borderRadius: 22,
+  border: "1px solid rgba(90,90,255,0.35)",
+  background: "rgba(0,0,0,0.35)",
+  padding: 14,
+  marginBottom: 18,
+
+  // logo glow + appear animation
+  boxShadow:
+    "0 0 0 1px rgba(90,90,255,0.10), 0 0 22px rgba(90,90,255,0.10), 0 0 70px rgba(122,60,255,0.10)",
+  animation: "rrAdminLogoIn 700ms cubic-bezier(0.2, 0.9, 0.2, 1) both",
+}}            />
           ) : null}
 
           <h1 style={{ margin: 0 }}>Admin • {location}</h1>
@@ -637,4 +667,19 @@ const tabBtn: any = { padding: "10px 12px", borderRadius: 14, border: "1px solid
 const tabBtnOn: any = { ...tabBtn, border: "1px solid #4a4aff", background: "rgba(22,22,70,0.75)" };
 
 const loginWrap: any = { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 };
-const loginCard: any = { maxWidth: 560, width: "100%", borderRadius: 26, border: "1px solid #222", background: "rgba(0,0,0,0.35)", padding: 18, textAlign: "center" };
+const loginCard: any = {
+  maxWidth: 560,
+  width: "100%",
+  borderRadius: 26,
+  border: "1px solid rgba(90,90,255,0.35)",
+  background: "rgba(0,0,0,0.42)",
+  padding: 18,
+  textAlign: "center",
+
+  // subtle neon glow
+  boxShadow:
+    "0 0 0 1px rgba(90,90,255,0.12), 0 0 24px rgba(90,90,255,0.10), 0 0 60px rgba(122,60,255,0.08)",
+
+  // appear animation
+  animation: "rrAdminCardIn 520ms ease-out both",
+};
