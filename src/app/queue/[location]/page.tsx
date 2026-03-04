@@ -291,7 +291,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
 
   useEffect(() => {
     // when identity arrives, load balance once
-    if (identityId) bal.refresh();
+if (identityId) bal.refreshOnce();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identityId]);
 
@@ -337,12 +337,12 @@ export default function QueuePage({ params }: { params: { location: string } }) 
         sfx.playError();
         setMsg(data?.error || "Vote failed.");
         // balance may have changed
-        bal.refresh();
+        bal.refreshOnce();
         return;
       }
 
       sfx.playSuccess();
-      await Promise.all([tickQueue(), bal.refresh()]);
+      await Promise.all([tickQueue(), bal.refreshOnce()]);
     } catch {
       sfx.playError();
       setMsg("Vote failed.");
@@ -378,7 +378,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
               <div className="neonHudValue">
                 <AnimatedBalanceCounter value={typeof bal.balance === "number" ? bal.balance : 0} />
               </div>
-              <button className="neonHudBtn" onClick={() => bal.refresh()}>
+              <button className="neonHudBtn" onClick={() => bal.refreshOnce()}>
                 Refresh
               </button>
             </div>
