@@ -37,6 +37,12 @@ export default function AdminPage({ params }: { params: { location: string } }) 
 
   const [rules, setRules] = useState<any>(null);
   const [queue, setQueue] = useState<{ playNow: QueueItem[]; upNext: QueueItem[] } | null>(null);
+// Redemption codes
+const [codes, setCodes] = useState<any[]>([]);
+const [codeNew, setCodeNew] = useState("");
+const [codePoints, setCodePoints] = useState<number>(10);
+const [codeMaxUses, setCodeMaxUses] = useState<number>(1);
+const [codesMsg, setCodesMsg] = useState("");
 
   // right rail
   const [users, setUsers] = useState<SessionUser[]>([]);
@@ -138,6 +144,75 @@ export default function AdminPage({ params }: { params: { location: string } }) 
 
     setAuthed(true);
   }
+  //----------- load codes ----
+async function loadCodes() {
+  try {
+    const r = await fetch(`/api/admin/redemption-codes/${location}`, { cache: "no-store" });
+    if (!r.ok) return;
+    const d = await r.json();
+    setCodes(d.items || []);
+  } catch {}
+}
+
+async function createCode() {
+  setCodesMsg("");
+  const code = codeNew.trim().toUpperCase();
+  if (!code) { setCodesMsg("Enter a code."); return; }
+  if (!codePoints || codePoints <= 0) { setCodesMsg("Points must be > 0."); return; }
+  if (!codeMaxUses || codeMaxUses < 1) { setCodesMsg("Max uses must be >= 1."); return; }
+
+  const r = await fetch(`/api/admin/redemption-codes/${location}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code, points: codePoints, maxUses: codeMaxUses, source: "manual" })
+  });
+
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.ok) {
+    setCodesMsg(d.error || "Failed to create code.");
+    return;
+  }
+
+  setCodesMsg("✅ Code created.");
+  setCodeNew("");
+  await loadCodes();
+}
+
+async function disableCode(id: string) {
+  setCodesMsg("");
+  const r = await fetch(`/api/admin/redemption-codes/disable`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id })
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.ok) {
+    setCodesMsg(d.error || "Failed to disable code.");
+    return;
+  }
+  setCodesMsg("✅ Code disabled.");
+  await loadCodes();
+}
+
+async function importCodesFile(file: File) {
+  setCodesMsg("");
+  const form = new FormData();
+  form.append("file", file);
+
+  const r = await fetch(`/api/admin/redemption-codes/import/${location}`, {
+    method: "POST",
+    body: form
+  });
+
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.ok) {
+    setCodesMsg(d.error || "Import failed.");
+    return;
+  }
+
+  setCodesMsg(`✅ Imported ${d.created} • Skipped ${d.skipped}`);
+  await loadCodes();
+}
 
   // ---------- data ----------
   async function loadAll() {
@@ -193,6 +268,7 @@ export default function AdminPage({ params }: { params: { location: string } }) 
         setTop10UpdatedAt(d4.updatedAt || "");
       }
     } catch {}
+    await loadCodes();
   }
 
 useEffect(() => {
@@ -513,6 +589,107 @@ style={{
               </>
             )}
           </div>
+          <div style={card}>
+  <div style={h2}>REDEMPTION CODES</div>
+  <div style={{ fontSize: 12, opacity: 0.75, marginTop: -6 }}>
+    Codes expire with the current session automatically.
+  </div>
+
+  <div style={{ height: 12 }} />
+
+  {/* Create */}
+  <div style={{ display: "grid", gridTemplateColumns: "1fr 0.6fr 0.6fr", gap: 10 }}>
+    <label style={{ display: "grid", gap: 6 }}>
+      <span style={{ opacity: 0.85 }}>Code</span>
+      <input
+        value={codeNew}
+        onChange={(e) => setCodeNew(e.target.value.toUpperCase())}
+        placeholder="BDAY2026"
+        style={input}
+      />
+    </label>
+
+    <label style={{ display: "grid", gap: 6 }}>
+      <span style={{ opacity: 0.85 }}>Points</span>
+      <input
+        type="number"
+        value={String(codePoints)}
+        onChange={(e) => setCodePoints(Number(e.target.value))}
+        style={input}
+      />
+    </label>
+
+    <label style={{ display: "grid", gap: 6 }}>
+      <span style={{ opacity: 0.85 }}>Max uses</span>
+      <input
+        type="number"
+        value={String(codeMaxUses)}
+        onChange={(e) => setCodeMaxUses(Number(e.target.value))}
+        style={input}
+      />
+    </label>
+  </div>
+
+  <button onClick={createCode} style={btn}>Create code</button>
+
+  {/* Import */}
+  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #1c1c2a" }}>
+    <div style={{ fontWeight: 900, letterSpacing: 0.6 }}>Import XLSX/CSV</div>
+    <div style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}>
+      Columns: <code>code,points,maxUses</code> (maxUses optional)
+    </div>
+
+    <div style={{ marginTop: 10 }}>
+      <input
+        type="file"
+        accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) importCodesFile(f);
+        }}
+      />
+    </div>
+  </div>
+
+  {codesMsg ? <div style={note}>{codesMsg}</div> : null}
+
+  {/* List */}
+  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #1c1c2a" }}>
+    <div style={{ fontWeight: 900, letterSpacing: 0.6 }}>Current session codes</div>
+
+    {codes.length === 0 ? (
+      <div style={{ opacity: 0.7, marginTop: 10 }}>No codes yet.</div>
+    ) : (
+      <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+        {codes.map((c) => {
+          const disabled = !!c.disabledAt;
+          return (
+            <div key={c.id} style={row}>
+              <div style={{ display: "grid", gap: 2 }}>
+                <div style={{ fontWeight: 900 }}>
+                  {c.code}
+                  {disabled ? <span style={{ marginLeft: 10, opacity: 0.7 }}>DISABLED</span> : null}
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.75 }}>
+                  Points <b>{c.points}</b> • Uses <b>{c.uses}</b>/{c.maxUses} • Expires{" "}
+                  <b>{new Date(c.expiresAt).toLocaleString()}</b>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                {!disabled ? (
+                  <button onClick={() => disableCode(c.id)} style={smallBtnAlt}>Disable</button>
+                ) : (
+                  <button disabled style={{ ...smallBtnAlt, opacity: 0.5, cursor: "not-allowed" }}>Disabled</button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+</div>
         </div>
       ) : null}
 
