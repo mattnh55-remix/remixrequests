@@ -23,13 +23,20 @@ export async function GET(req: Request, { params }: { params: { location: string
 
   const { loc } = await getRulesForLocation(params.location);
   const session = await getOrCreateCurrentSession(loc.id, 4);
+
   const q = await getQueue(loc.id, session.id);
-
   const all = [...q.playNow, ...q.main];
-  const requestIds = all.map(r => r.id);
-  const hashes = Array.from(new Set(all.map(r => r.emailHash)));
 
-  // Votes: counts by requestId & value
+  // Top 10 by score desc, createdAt asc
+  const top = all
+    .slice()
+    .sort((a, b) => (b.score - a.score) || (a.createdAt.getTime() - b.createdAt.getTime()))
+    .slice(0, 10);
+
+  const requestIds = top.map(r => r.id);
+  const hashes = Array.from(new Set(top.map(r => r.emailHash)));
+
+  // votes counts by requestId and value (+1 / -1)
   const voteCounts = await prisma.vote.groupBy({
     by: ["requestId", "value"],
     where: { requestId: { in: requestIds } },
@@ -43,14 +50,14 @@ export async function GET(req: Request, { params }: { params: { location: string
     if (v.value === -1) downByReq.set(v.requestId, n);
   }
 
-  // Identity verification for label
+  // identity verification for requestedByLabel
   const identities = await prisma.identity.findMany({
     where: { locationId: loc.id, emailHash: { in: hashes } },
     select: { emailHash: true, smsVerifiedAt: true }
   });
   const verifiedByHash = new Map<string, boolean>(identities.map(i => [i.emailHash, !!i.smsVerifiedAt]));
 
-  // Redemption code per hash from ledger reason "redeem:CODE"
+  // redemption code per user (latest)
   const redeems = await prisma.creditLedger.findMany({
     where: { locationId: loc.id, emailHash: { in: hashes }, reason: { startsWith: "redeem:" } },
     select: { emailHash: true, reason: true, createdAt: true },
@@ -64,7 +71,7 @@ export async function GET(req: Request, { params }: { params: { location: string
     }
   }
 
-  function mapReq(r: any) {
+  const items = top.map((r) => {
     const verified = verifiedByHash.get(r.emailHash) ?? false;
     const requestedByLabel = `${skaterLabel(r.emailHash)}${verified ? " • VERIFIED" : ""}`;
     const boosted = r.type === "PLAY_NOW";
@@ -84,12 +91,12 @@ export async function GET(req: Request, { params }: { params: { location: string
       downvotes: downByReq.get(r.id) ?? 0,
       redemptionCode: redeemByHash.get(r.emailHash) ?? null
     };
-  }
+  });
 
   return NextResponse.json({
     ok: true,
     sessionId: session.id,
-    playNow: q.playNow.map(mapReq),
-    upNext: q.main.map(mapReq)
+    updatedAt: new Date().toISOString(),
+    items
   });
 }

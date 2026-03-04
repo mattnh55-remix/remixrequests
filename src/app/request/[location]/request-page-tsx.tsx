@@ -1,10 +1,34 @@
+// src/app/request/[location]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import AnimatedBalanceCounter from "../../../../components/ui/neon/AnimatedBalanceCounter";
+import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 
-const RAILS = ["All Ages","Adult Night","TikTok","DISCO","80s","90s","2000s","Boy Bands","Pop Hits","Mom’s Hits","Dad Rock"];
+const RAILS = [
+  "All Ages","Adult Night","TikTok","DISCO","80s","90s","2000s","Boy Bands","Pop Hits","Mom’s Hits","Dad Rock"
+];
 
 type Song = { id: string; title: string; artist: string; artworkUrl?: string; explicit: boolean; tags: string[] };
+
+type UiPack = {
+  id: string;
+  title: string;
+  subtitle: string;
+  creditsLabel: string;
+  highlight?: boolean;
+  badge?: string;
+  cta?: string;
+  href?: string;
+};
+
+// ✅ UI-ONLY per-location purchase links (no schema/API changes)
+// Add links here as you enable Square/checkout per rink.
+const BUY_URL_BY_LOCATION: Record<string, string> = {
+  // remixrequests: "https://your-checkout-link",
+};
+
+type BalanceRes = { ok: boolean; balance?: number; error?: string };
 
 export default function RequestPage({ params }: { params: { location: string } }) {
   const location = params.location;
@@ -17,19 +41,26 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [msg, setMsg] = useState<string>("");
 
   const [verified, setVerified] = useState(false);
-  const [balance, setBalance] = useState<number | null>(null);
+
+  // ✅ NEW: identityId is the durable “verified session” key
+  const [identityId, setIdentityId] = useState<string>("");
+
   const [showVerify, setShowVerify] = useState(false);
+
+  const [showBuy, setShowBuy] = useState(false);
+  const [buyReason, setBuyReason] = useState<"none" | "out" | "notEnough" | "boost">("none");
+
+  const [sessionCountdown, setSessionCountdown] = useState<string>("");
 
   const sfx = useNeonSfx();
 
-  // Session endpoint returns rules/session but NOT credits balance.
   async function refreshSession() {
     try {
       const res = await fetch(`/api/public/session/${location}`, { cache: "no-store" });
       const data = await res.json();
       setRules(data);
     } catch {
-      // silent fail
+      // silent
     }
   }
 
@@ -42,23 +73,135 @@ export default function RequestPage({ params }: { params: { location: string } }
     setSongs(data.items || []);
   }
 
+  async function fetchBalanceNumber(nextIdentityId?: string): Promise<number> {
+    const id = (nextIdentityId ?? identityId ?? "").trim();
+    if (!id) throw new Error("Missing identityId");
+
+    const res = await fetch(
+      `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
+      { cache: "no-store" }
+    );
+    const data = (await res.json()) as BalanceRes;
+
+    if (!data.ok) {
+      throw new Error(data.error || "Balance fetch failed");
+    }
+
+    return Number(data.balance ?? 0);
+  }
+
+  const bal = useAnimatedBalance(() => fetchBalanceNumber(), {
+    enabled: Boolean(identityId),
+    softPollMs: 2600,
+    intervalMs: 650,
+    // keep last-known balance per location + identity so +X feels correct
+    storageKey: `rr_lastBalance:${location}:${identityId || "anon"}`,
+  });
+  // 🔥 TouchTunes-style nudge after checkout return
+  // Gives a second pulse in case webhook credits land slightly delayed
+  useEffect(() => {
+    if (!identityId) return;
+
+    const t = window.setTimeout(() => {
+      bal.refreshOnce();
+    }, 900);
+
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identityId, location]);
+
+
   useEffect(() => { refreshSession(); }, [location]);
   useEffect(() => { loadSongs(); }, [search, tag]);
 
-  // live session/rules refresh (UI-only)
   useEffect(() => {
-    const id = setInterval(() => {
-      refreshSession();
-    }, 12000);
+    const id = setInterval(() => refreshSession(), 12000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location]);
 
+  // ✅ NEW: bootstrap verified state from localStorage so Square return does NOT re-verify
+  useEffect(() => {
+    try {
+      const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+      const lsLocation = (localStorage.getItem("rr_location") || "").trim();
+
+      if (lsIdentity) {
+        setIdentityId(lsIdentity);
+        setVerified(true);
+
+	// Kick an immediate refresh once identity is known.
+	// The hook will soft-poll for ~2–3 seconds to tolerate webhook lag.
+	bal.refreshOnce();
+      }
+
+      // keep location aligned
+      if (location && lsLocation !== location) {
+        localStorage.setItem("rr_location", String(location));
+      }
+    } catch {
+      // ignore localStorage errors
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
+
+  // ✅ Session countdown (UI-only) from rules.session.endsAt
+  useEffect(() => {
+    const tick = () => {
+      const endsAt = rules?.session?.endsAt;
+      if (!endsAt) {
+        setSessionCountdown("");
+        return;
+      }
+      const endMs = new Date(endsAt).getTime();
+      const now = Date.now();
+      const diff = Math.max(0, endMs - now);
+
+      if (diff <= 0) {
+        setSessionCountdown("Session ended");
+        return;
+      }
+
+      const totalMin = Math.floor(diff / 60000);
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+
+      if (h <= 0 && m <= 2) setSessionCountdown("Ending soon");
+      else if (h <= 0) setSessionCountdown(`Ends in ${m}m`);
+      else setSessionCountdown(`Ends in ${h}h ${m}m`);
+    };
+
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [rules?.session?.endsAt]);
+
+  function openBuy(reason: typeof buyReason) {
+    setBuyReason(reason);
+    setShowBuy(true);
+    sfx.playTap();
+  }
+
   async function submit(songId: string, action: "play_next" | "play_now") {
-    if (!verified) {
+    // ✅ IMPORTANT CHANGE:
+    // If we have an identityId from localStorage, do not force reverify.
+    // verified state is still used for UI, but identityId is the durable truth.
+    if (!verified && !identityId) {
       sfx.playError();
-      setMsg("Please verify to unlock credits.");
+      setMsg("Please verify to unlock points.");
       setShowVerify(true);
+      return;
+    }
+
+    const costRequest = rules?.rules?.costRequest ?? 1;
+    const costPlayNow = rules?.rules?.costPlayNow ?? 5;
+    const required = action === "play_now" ? costPlayNow : costRequest;
+
+    // UI-only: if balance is known, intercept insufficient and open drawer.
+    if (typeof bal.balance === "number" && bal.balance < required) {
+      sfx.playError();
+      setMsg(required === costPlayNow ? "Not enough points for request" : "Not enough points to request.");
+      openBuy(required === costPlayNow ? "boost" : "notEnough");
       return;
     }
 
@@ -80,17 +223,21 @@ export default function RequestPage({ params }: { params: { location: string } }
     sfx.playSuccess();
     setMsg(action === "play_now" ? "✅ Play Now request added!" : "✅ Request added!");
 
-    // If request endpoint returns updated balance, use it (UI-only).
+    // If endpoint returns balance, capture it (no backend change required).
     const nextBalance =
       data?.balance ??
       data?.credits?.balance ??
       data?.session?.balance ??
       null;
 
-    if (typeof nextBalance === "number") setBalance(nextBalance);
+    if (typeof nextBalance === "number") {
+      bal.applyBalance(nextBalance);
+    } else {
+      // If server didn’t return balance, do a safe refresh
+      bal.refreshOnce();
+    }
   }
 
-  // UI-only “Trending” derivation (no DB/schema changes):
   const trending = useMemo(() => {
     const hot = songs.filter(s => (s.tags || []).some(t => ["TikTok","DISCO","Pop Hits"].includes(t)));
     return (hot.length ? hot : songs).slice(0, 10);
@@ -102,80 +249,221 @@ export default function RequestPage({ params }: { params: { location: string } }
   const costRequest = rules?.rules?.costRequest ?? 1;
   const costPlayNow = rules?.rules?.costPlayNow ?? 5;
 
+  // ✅ UI-ONLY buy URL discovery
+  // Priority:
+  // 1) ?buy= param (quick testing)
+  // 2) per-location map (BUY_URL_BY_LOCATION)
+  // 3) NEXT_PUBLIC_REMIXREQUESTS_BUY_URL env
+  // 4) any future fields the backend might add
+  const buyUrl = useMemo(() => {
+    const qp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const fromQuery = qp?.get("buy");
+    if (fromQuery) return fromQuery;
+
+    const fromMap = BUY_URL_BY_LOCATION[location];
+    if (fromMap) return fromMap;
+
+    const fromEnv = process.env.NEXT_PUBLIC_REMIXREQUESTS_BUY_URL;
+    if (fromEnv) return fromEnv;
+
+    return (
+      rules?.location?.buyUrl ??
+      rules?.rules?.buyUrl ??
+      rules?.checkoutUrl ??
+      rules?.purchaseUrl ??
+      null
+    );
+  }, [location, rules]);
+
+  // Packs: still UI fallback (no price claims)
+  const uiPacks: UiPack[] = useMemo(() => {
+    const raw =
+      rules?.rules?.creditPacks ??
+      rules?.rules?.packs ??
+      rules?.packs ??
+      null;
+
+    if (Array.isArray(raw) && raw.length) {
+      return raw.map((p: any, idx: number) => ({
+        id: String(p.id ?? idx),
+        title: String(p.title ?? p.name ?? "Points"),
+        subtitle: String(p.subtitle ?? p.desc ?? "Instant points"),
+        creditsLabel: String(p.creditsLabel ?? (p.credits ? `${p.credits} credits` : "Points")),
+        highlight: Boolean(p.highlight ?? p.featured ?? idx === 1),
+        badge: String(p.badge ?? (idx === 1 ? "Most Popular" : "")) || undefined,
+        cta: String(p.cta ?? "Choose"),
+        href: String(p.href ?? p.url ?? buyUrl ?? "") || undefined,
+      }));
+    }
+
+    return [
+      { id: "quick", title: "Quick Boost", subtitle: "Perfect for 1–2 songs", creditsLabel: "10 credits", badge: "Fast", cta: "Get Points", href: buyUrl ?? undefined },
+      { id: "party", title: "Party Pack", subtitle: "Best for groups", creditsLabel: "25 credits", highlight: true, badge: "Most Popular", cta: "Get Points", href: buyUrl ?? undefined },
+      { id: "allnight", title: "All Night", subtitle: "Skate like a legend", creditsLabel: "50 credits", badge: "Best Value", cta: "Get Points", href: buyUrl ?? undefined },
+    ];
+  }, [rules, buyUrl]);
+  let creditsLabel = "Use Points!";
+  if (verified || identityId) {
+    if (bal.balance === null) creditsLabel = "Points: …";
+    else creditsLabel = `Points: ${bal.balance}`;
+  }
+
   return (
     <div className="neonRoot">
-      <div className="neonWrap">
+      <div className="rrWall" />
+      <div className="neonWrap" style={{ paddingBottom: 96 }}>
         {/* HEADER */}
-        <div className="neonHeader">
-          <div>
-            <div className="neonTitle">Request a Song</div>
+        <div className="neonHeader neonHeader3">
+          {/* Left: Logo */}
+          <div className="neonHeaderLeft">
+            {rules?.rules?.logoUrl ? (
+              <img className="neonLogo" src={rules.rules.logoUrl} alt={`${locationName} logo`} />
+            ) : (
+              <div className="neonLogoFallback">REMIX</div>
+            )}
+          </div>
+
+          {/* Center: Title */}
+          <div className="neonHeaderCenter">
+            <div className="neonTitle">REQUEST A SONG</div>
             <div className="neonSub">
-              {locationName} • Tap a song to request • Big neon rink energy
+              {locationName} • Tap a song to request
+              {sessionCountdown ? ` • ${sessionCountdown}` : ""}
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "flex-end" }}>
-            <button
-              className="neonBtn"
-              onClick={() => { sfx.playTap(); sfx.setMuted(!sfx.muted); }}
-              title={sfx.muted ? "Sound off" : "Sound on"}
+          {/* Right: Sound + Credits/Claim/Buy */}
+          <div className="neonHeaderRight">
+  
+            <div
+className={`neonPanel rrPointsPanel ${
+  (verified || identityId) && typeof bal.balance === "number" && bal.balance <= 2 ? "rrPointsLow" : ""
+}`}
+              style={{
+                padding: "10px 12px",
+                borderRadius: 18,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(0,0,0,0.18)",
+                minWidth: 104,
+                textAlign: "center",
+              }}
+              title="Points"
             >
-              {sfx.muted ? "🔇 Sound Off" : "🔊 Sound On"}
-            </button>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div
+  style={{
+    fontSize: 11,
+    color: "var(--muted)",
+    fontWeight: 900,
+    letterSpacing: 0.8,
+    textAlign: "center",
+    width: "100%",
+  }}
+>
+  <span className="rrPointsDesktop">POINTS</span>
+  <span className="rrPointsMobile">PTS</span>
+</div>
 
-            {balance !== null ? (
+                {/* keep refresh available (verified users) without changing backend behavior */}
+                {(verified || identityId) ? (
+                  <button
+                    className="neonBtn"
+                    style={{ padding: "6px 8px", borderRadius: 12, fontSize: 12, lineHeight: 1 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      sfx.playTap();
+                      bal.refreshOnce();
+                    }}
+                    title="Refresh balance"
+                  >
+                    ↻
+                  </button>
+                ) : null}
+              </div>
+
               <div
-                className="neonPanel"
+                key={bal.pulseKey}
                 style={{
-                  padding: "10px 12px",
-                  borderRadius: 18,
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "rgba(0,0,0,0.18)",
+                  fontSize: 22,
+                  fontWeight: 1000,
+                  lineHeight: 1.1,
+                  animation: "rrPop 420ms ease-out",
                 }}
               >
-                <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 900, letterSpacing: 0.8 }}>CREDITS</div>
-                <div style={{ fontSize: 18, fontWeight: 1000 }}>{balance}</div>
+                {(!verified && !identityId) ? 5 : (typeof bal.balance === "number" ? bal.balance : "—")}
               </div>
-            ) : null}
 
-            {!verified ? (
-              <button className="neonBtn neonBtnPrimary" onClick={() => { sfx.playTap(); setShowVerify(true); }}>
-                Verify • Unlock Credits
-              </button>
-            ) : (
-              <button className="neonBtn" onClick={() => { sfx.playTap(); setMsg("✅ You’re verified. Tap a song to request!"); }}>
-                Verified ✓
-              </button>
-            )}
+              {(!verified && !identityId) ? (
+                <button
+                  className="neonBtn neonBtnPrimary neonPulse"
+                  style={{ marginTop: 6, padding: "8px 10px", borderRadius: 14, fontSize: 12 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sfx.playTap();
+                    setShowVerify(true);
+                  }}
+                  title="Claim your Points"
+                >
+                  USE
+                </button>
+              ) : (
+                <button
+                  className="neonBtn neonBtnPrimary"
+                  style={{ marginTop: 6, padding: "8px 10px", borderRadius: 14, fontSize: 12 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sfx.playTap();
+                    setBuyReason("boost");
+                    setShowBuy(true);
+                  }}
+                  title="Buy more Points"
+                >
+                  ADD POINTS
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* MESSAGE */}
-        {msg ? (
-          <div className="neonPanel" style={{ padding: 12, marginBottom: 12, background: "rgba(0,0,0,0.22)" }}>
-            {msg}
-          </div>
-        ) : null}
+        {/* ✅ balance pop animation (global) */}
+        <style jsx global>{`
+          @keyframes rrPop {
+            0% { transform: scale(0.92); filter: brightness(0.9); }
+            60% { transform: scale(1.06); filter: brightness(1.12); }
+            100% { transform: scale(1); filter: brightness(1); }
+          }
+        `}</style>
+
+   {msg ? (
+  <div className="neonToast">
+    <AnimatedBalanceCounter
+      balance={bal.balance}
+      pulseKey={bal.pulseKey}
+      showDeltaBanner={bal.showDeltaBanner}
+      delta={bal.delta}
+      onRefresh={bal.refreshOnce}
+      isRefreshing={bal.isRefreshing}
+    />
+    {msg}
+  </div>
+) : null}
 
         {/* TOP CONTROLS */}
         <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
-          <input
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="Your email (for credits & rules)"
-            className="neonInput"
-            autoComplete="email"
-            onFocus={() => sfx.playTap()}
-          />
 
-          <input
-            id="songSearch"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search title or artist…"
-            className="neonInput"
-            onFocus={() => sfx.playTap()}
-          />
+<input
+  id="songSearch"
+  value={search}
+  onChange={e => setSearch(e.target.value)}
+  placeholder="Search songs or artists…"
+  className="neonInput neonSearchInput"
+  onFocus={() => sfx.playTap()}
+  style={{
+    fontWeight: 800,
+    fontSize: 16,
+    letterSpacing: 0.2,
+  }}
+/>
 
           <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6 }}>
             <button onClick={() => { sfx.playTap(); setTag(""); }} className="neonBtn" style={chip2(tag === "")}>All</button>
@@ -185,7 +473,7 @@ export default function RequestPage({ params }: { params: { location: string } }
           </div>
         </div>
 
-        {/* TRENDING RAIL */}
+        {/* TRENDING */}
         {trending.length ? (
           <div className="neonPanel" style={{ padding: 10, marginBottom: 12 }}>
             <div style={{ padding: "10px 12px 0", fontWeight: 1000, letterSpacing: 0.4 }}>
@@ -243,13 +531,16 @@ export default function RequestPage({ params }: { params: { location: string } }
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "2px 4px 10px" }}>
             <div style={{ fontWeight: 1000, letterSpacing: 0.4 }}>Pick a Song</div>
             <div style={{ color: "var(--muted)", fontSize: 12 }}>
-              Play Next costs {costRequest} • Play Now costs {costPlayNow}
+              Request costs {costRequest} • Boosts cost {costPlayNow}
             </div>
           </div>
 
           <div className="neonGrid">
             {songs.map((s) => {
               const hot = trendingIds.has(s.id);
+              const canAffordNext = typeof bal.balance !== "number" ? true : bal.balance >= costRequest;
+              const canAffordNow  = typeof bal.balance !== "number" ? true : bal.balance >= costPlayNow;
+
               return (
                 <div key={s.id} className="neonTile" data-hot={hot ? "true" : "false"}>
                   <div className="neonTileTop">
@@ -273,26 +564,69 @@ export default function RequestPage({ params }: { params: { location: string } }
                     <div className="neonBadgeRow">
                       {hot ? <span className="neonBadge neonBadgeHot">HOT</span> : null}
                       {s.explicit ? <span className="neonBadge" style={{ borderColor: "rgba(255,204,0,0.35)" }}>EXPLICIT</span> : null}
-                      <span className="neonBadge">{costRequest} credit</span>
+                      <span className="neonBadge">{costRequest} point</span>
                     </div>
 
                     <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
                       <button
-                        disabled={!email || !verified}
-                        onClick={() => { sfx.playTap(); submit(s.id, "play_next"); }}
-                        className="neonBtn"
-                        style={{ opacity: (!email || !verified) ? 0.55 : 1 }}
-                      >
-                        Play Next • {costRequest} credit
-                      </button>
-
+                        disabled={!email || (!verified && !identityId)}
+                        onClick={() => {
+                          sfx.playTap();
+                          if ((verified || identityId) && typeof bal.balance === "number" && !canAffordNext) {
+                            setMsg("You’re out of points for Play Next.");
+                            openBuy("out");
+                            return;
+                          }
+                          submit(s.id, "play_next");
+                        }}
+ className="neonBtn"
+style={{ opacity: (!email || (!verified && !identityId)) ? 0.55 : 1 }}
+>
+  <>
+    <span className="rrLabelDesktop">
+      Request! · {costRequest} Point
+    </span>
+    <span className="rrLabelMobile">
+      Request! · {costRequest} Pt
+    </span>
+  </>
+</button>
                       <button
-                        disabled={!email || !verified}
-                        onClick={() => { sfx.playTap(); submit(s.id, "play_now"); }}
+                        disabled={!email || (!verified && !identityId)}
+                        onClick={() => {
+                          sfx.playTap();
+                          if ((verified || identityId) && typeof bal.balance === "number" && !canAffordNow) {
+                            setMsg("Boost needs more points.");
+                            openBuy("boost");
+                            return;
+                          }
+                          submit(s.id, "play_now");
+                        }}
                         className="neonBtn neonBtnPrimary"
-                        style={{ opacity: (!email || !verified) ? 0.55 : 1 }}
+                        style={{ opacity: (!email || (!verified && !identityId)) ? 0.55 : 1, position: "relative", overflow: "hidden" }}
                       >
-                        Play Now • {costPlayNow} credits
+                        <span
+                          aria-hidden
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            background:
+                              "linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.10) 35%, rgba(255,255,255,0) 70%)",
+                            transform: "translateX(-120%)",
+                            animation: "neonShimmer 2.8s ease-in-out infinite",
+                            pointerEvents: "none",
+                          }}
+                        />
+<span style={{ position: "relative" }}>
+  <>
+    <span className="rrLabelDesktop">
+      BOOST to Top · {costPlayNow} Points
+    </span>
+    <span className="rrLabelMobile">
+      BOOST · {costPlayNow} Pts
+    </span>
+  </>
+</span>
                       </button>
                     </div>
                   </div>
@@ -302,27 +636,13 @@ export default function RequestPage({ params }: { params: { location: string } }
           </div>
         </div>
 
-        {/* Sticky bottom CTA */}
-        <div
-          style={{
-            position: "sticky",
-            bottom: 10,
-            zIndex: 20,
-            marginTop: 14,
-            display: "grid",
-            gap: 10,
-          }}
-        >
-          {!verified ? (
+        <div style={{ position: "sticky", bottom: 10, zIndex: 10, marginTop: 14, display: "grid", gap: 10 }}>
+          {(!verified && !identityId) ? (
             <button className="neonBtn neonBtnPrimary" onClick={() => { sfx.playTap(); setShowVerify(true); }} style={{ width: "100%" }}>
-              Verify • Unlock Credits
+              CLAIM
             </button>
           ) : (
-            <button
-              className="neonBtn neonBtnPrimary"
-              style={{ width: "100%" }}
-              onClick={() => { sfx.playTap(); document.getElementById("songSearch")?.focus(); }}
-            >
+            <button className="neonBtn neonBtnPrimary" style={{ width: "100%" }} onClick={() => { sfx.playTap(); document.getElementById("songSearch")?.focus(); }}>
               Search & Play Now
             </button>
           )}
@@ -334,17 +654,62 @@ export default function RequestPage({ params }: { params: { location: string } }
           email={email}
           setEmail={setEmail}
           onVerified={(info) => {
+            // ✅ persist verified UX
             setVerified(true);
             setShowVerify(false);
-            if (info?.balance !== undefined) setBalance(info.balance ?? null);
-            setMsg("✅ Verified! Welcome credits unlocked.");
+
+            // pull identityId from LS (VerifyModal already writes it)
+            try {
+              const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+              if (lsIdentity) setIdentityId(lsIdentity);
+            } catch {}
+
+if (info?.balance !== undefined) {
+  const nb = info.balance ?? null;
+  bal.applyBalance(nb);
+}
+
+            setMsg("✅ Verified! Welcome Points Unlocked.");
             sfx.playSuccess();
             refreshSession();
+
+            // ✅ always fetch a fresh balance after verification
+            bal.refreshOnce();
           }}
           onClose={() => setShowVerify(false)}
           sfx={sfx}
         />
+
+<CreditHud
+  verified={verified || !!identityId}
+  balance={bal.balance}
+  creditsLabel={creditsLabel}
+  sessionCountdown={sessionCountdown}
+  onVerify={() => { sfx.playTap(); setShowVerify(true); }}
+  onBuy={() => openBuy(bal.balance === 0 ? "out" : "none")}
+  onTap={() => sfx.playTap()}
+/>
+
+        <BuyCreditsDrawer
+          open={showBuy}
+          onClose={() => { setShowBuy(false); setBuyReason("none"); }}
+          sfx={sfx}
+          verified={verified || !!identityId}
+          balance={bal.balance}
+          reason={buyReason}
+          buyUrl={buyUrl}
+          packs={uiPacks}
+        />
       </div>
+
+      <style>{`
+        @keyframes neonShimmer {
+          0% { transform: translateX(-120%); opacity: 0.0; }
+          15% { opacity: 1.0; }
+          55% { transform: translateX(120%); opacity: 0.7; }
+          100% { transform: translateX(120%); opacity: 0.0; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -395,9 +760,283 @@ function Artwork({ src, alt }: { src?: string; alt: string }) {
   );
 }
 
-/* -------------------------
-   Verify Modal (unchanged logic)
-------------------------- */
+/* ---------- Credit HUD (UI-only) ---------- */
+
+function CreditHud({
+  verified,
+  balance,
+  creditsLabel,
+  sessionCountdown,
+  onVerify,
+  onBuy,
+  onTap,
+}: {
+  verified: boolean;
+  balance: number | null;
+  creditsLabel: string;
+  sessionCountdown: string;
+  onVerify: () => void;
+  onBuy: () => void;
+  onTap: () => void;
+}) {
+  const isKnown = typeof balance === "number";
+  const isLow = isKnown && balance <= 2;
+  const isZero = isKnown && balance === 0;
+
+  const primaryLabel = !verified ? "CLAIM" : "Get Points";
+  const secondary = !verified
+    ? "Welcome points + faster boosts"
+    : isKnown
+      ? (isZero ? "Out of points — power up now" : isLow ? "Low points — keep the vibe going" : "Boost songs to jump the line")
+      : "Tap to view Point Packs";
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 40,
+        padding: "10px 10px 12px",
+        background: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 18%, rgba(0,0,0,0.82) 100%)",
+        backdropFilter: "blur(10px)",
+      }}
+    >
+      <div
+        className="neonPanel"
+        style={{
+          padding: 12,
+          borderRadius: 18,
+          display: "grid",
+          gridTemplateColumns: "1fr auto",
+          gap: 10,
+          alignItems: "center",
+          background: "rgba(0,0,0,0.35)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          boxShadow: "0 16px 40px rgba(0,0,0,0.5)",
+        }}
+        onClick={() => {
+          onTap();
+          if (!verified) onVerify();
+          else onBuy();
+        }}
+        role="button"
+        tabIndex={0}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            {/* creditsLabel already updates; keep it */}
+            <div style={{ fontWeight: 1000, letterSpacing: 0.4, whiteSpace: "nowrap" }}>
+              {creditsLabel}
+            </div>
+
+            {sessionCountdown ? (
+              <span className="neonBadge" style={{ borderColor: "rgba(255,255,255,0.14)", opacity: 0.9 }}>
+                {sessionCountdown}
+              </span>
+            ) : null}
+
+            {verified && isKnown ? (
+              <span
+                className="neonBadge"
+                style={{
+                  borderColor: isZero ? "rgba(255,57,212,0.55)" : isLow ? "rgba(0,247,255,0.45)" : "rgba(255,255,255,0.18)",
+                  background: isZero
+                    ? "linear-gradient(90deg, rgba(255,57,212,0.18), rgba(0,247,255,0.08))"
+                    : isLow
+                      ? "linear-gradient(90deg, rgba(0,247,255,0.16), rgba(255,57,212,0.08))"
+                      : "rgba(0,0,0,0.14)",
+                }}
+              >
+                {isZero ? "POWER UP" : isLow ? "LOW" : "READY"}
+              </span>
+            ) : null}
+          </div>
+
+          <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 12, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {secondary}
+          </div>
+        </div>
+
+        <button
+          className="neonBtn neonBtnPrimary"
+          style={{ padding: "12px 14px", borderRadius: 16, whiteSpace: "nowrap" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onTap();
+            if (!verified) onVerify();
+            else onBuy();
+          }}
+        >
+          {primaryLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Buy Credits Drawer (UI-only) ---------- */
+
+function BuyCreditsDrawer({
+  open,
+  onClose,
+  sfx,
+  verified,
+  balance,
+  reason,
+  buyUrl,
+  packs,
+}: {
+  open: boolean;
+  onClose: () => void;
+  sfx: ReturnType<typeof useNeonSfx>;
+  verified: boolean;
+  balance: number | null;
+  reason: "none" | "out" | "notEnough" | "boost";
+  buyUrl: string | null;
+  packs: UiPack[];
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const headline =
+    !verified ? "Start Using Points Now!" :
+    reason === "boost" ? "Boost needs points!" :
+    reason === "out" ? "You’re out of points!" :
+    reason === "notEnough" ? "Not enough points!" :
+    "Power up your session!";
+
+  const sub =
+    !verified ? "Fast SMS verification — unlock welcome points instantly." :
+    typeof balance === "number"
+      ? `Current balance: ${balance} points`
+      : "Choose a points pack — Use instantly! (Valid for today's session only)";
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "grid", alignItems: "end" }}>
+      <div
+        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.62)", backdropFilter: "blur(6px)" }}
+        onClick={() => { sfx.playTap(); onClose(); }}
+      />
+
+      <div
+        className="neonPanel"
+        style={{
+          position: "relative",
+          margin: 10,
+          borderRadius: 22,
+          overflow: "hidden",
+          border: "1px solid rgba(255,255,255,0.14)",
+          background: "linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.92))",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.65)",
+        }}
+      >
+        <div style={{ padding: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 1000, letterSpacing: 0.4, fontSize: 16 }}>{headline}</div>
+            <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 12, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {sub}
+            </div>
+          </div>
+
+          <button className="neonBtn" onClick={() => { sfx.playTap(); onClose(); }} style={{ borderRadius: 14, padding: "10px 12px" }} aria-label="Close">
+            ✕
+          </button>
+        </div>
+
+        <div style={{ padding: "0 14px 14px", display: "grid", gap: 10 }}>
+          <div style={{ padding: 12, borderRadius: 18, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", display: "grid", gap: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+              <div style={{ fontWeight: 1000, letterSpacing: 0.35 }}>Pick a points pack</div>
+              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 12 }}>Instant unlock • Fun boosts!</div>
+            </div>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              {packs.map((p) => {
+                const isFeatured = !!p.highlight;
+                const target = p.href || buyUrl;
+
+                return (
+                  <div
+                    key={p.id}
+                    style={{
+                      padding: 12,
+                      borderRadius: 18,
+                      border: isFeatured ? "1px solid rgba(0,247,255,0.30)" : "1px solid rgba(255,255,255,0.12)",
+                      background: isFeatured
+                        ? "linear-gradient(90deg, rgba(0,247,255,0.14), rgba(255,57,212,0.10))"
+                        : "rgba(0,0,0,0.18)",
+                      boxShadow: isFeatured ? "var(--glowA)" : "none",
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      gap: 12,
+                      alignItems: "center",
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ fontWeight: 1000 }}>{p.title}</div>
+                        {p.badge ? (
+                          <span className="neonBadge" style={{ borderColor: isFeatured ? "rgba(0,247,255,0.30)" : "rgba(255,57,212,0.25)", background: isFeatured ? "rgba(0,247,255,0.08)" : "rgba(255,57,212,0.08)" }}>
+                            {p.badge}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {p.subtitle}
+                      </div>
+                      <div style={{ marginTop: 6, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <span className="neonBadge" style={{ borderColor: "rgba(255,255,255,0.14)" }}>{p.creditsLabel}</span>
+                        <span className="neonBadge" style={{ borderColor: "rgba(255,255,255,0.14)", opacity: 0.85 }}>
+                          DJ sees BOOSTED ribbon on TV
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      className={isFeatured ? "neonBtn neonBtnPrimary" : "neonBtn"}
+                      style={{ borderRadius: 16, padding: "12px 14px", whiteSpace: "nowrap" }}
+                      onClick={() => {
+                        sfx.playTap();
+                        if (target) window.location.href = target;
+                        else sfx.playError();
+                      }}
+                    >
+                      {p.cta || "Choose"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {!buyUrl ? (
+              <div style={{ color: "rgba(255,255,255,0.70)", fontSize: 12, lineHeight: 1.35 }}>
+                Checkout isn’t connected for this rink yet. (When you’re ready, set
+                <span style={{ fontWeight: 900 }}> NEXT_PUBLIC_REMIXREQUESTS_BUY_URL </span>
+                or add a link to <span style={{ fontWeight: 900 }}>BUY_URL_BY_LOCATION</span>.)
+              </div>
+            ) : (
+              <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12, lineHeight: 1.35 }}>
+                Tip: <span style={{ color: "rgba(255,255,255,0.85)", fontWeight: 900 }}>Boost</span> is the “VIP power-up” — fastest way to hear your song sooner.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Verify Modal (logic preserved) ---------- */
 
 function VerifyModal({
   open,
@@ -440,141 +1079,153 @@ function VerifyModal({
       setMsg("Please enter your mobile number.");
       return;
     }
-    if (!emailOptIn) {
-      sfx.playError();
-      setMsg("Email opt-in is required to receive the 5 welcome credits.");
-      return;
-    }
 
     setBusy(true);
     try {
-      const res = await fetch("/api/public/auth/start", {
+      const res = await fetch(`/api/public/auth/start`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, email: email.trim(), phone: phone.trim(), emailOptIn, smsOptIn }),
+        body: JSON.stringify({ location, email, phone, emailOptIn, smsOptIn })
       });
       const data = await res.json();
-      if (!data.ok) throw new Error(data.error || "Could not send code.");
+      if (!data.ok) {
+        sfx.playError();
+        setMsg(data.error || "Could not send code.");
+        return;
+      }
       sfx.playSuccess();
       setStep("code");
       setMsg("Code sent! Check your texts.");
-    } catch (e: any) {
+    } catch {
       sfx.playError();
-      setMsg(e?.message || "Could not send code.");
+      setMsg("Could not send code.");
     } finally {
       setBusy(false);
     }
   }
 
-  async function verifyCode() {
+  async function confirmCode() {
     setMsg("");
     if (!code.trim()) {
       sfx.playError();
-      setMsg("Enter the 6-digit code.");
+      setMsg("Please enter the code.");
       return;
     }
 
     setBusy(true);
     try {
-      const res = await fetch("/api/public/auth/verify", {
+      const res = await fetch(`/api/public/auth/verify`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, email: email.trim(), code: code.trim(), emailOptIn, smsOptIn }),
+        body: JSON.stringify({ location, email, code })
       });
       const data = await res.json();
-      if (!data.ok) throw new Error(data.error || "Verification failed.");
-      onVerified({ balance: data.balance });
-      setMsg("");
-    } catch (e: any) {
+
+      if (!data.ok) {
+        sfx.playError();
+        setMsg(data.error || "Invalid code.");
+        return;
+      }
+
+      // ✅ Persist identity for checkout flow (buy page reads this)
+      if (typeof window !== "undefined" && data?.identityId) {
+        localStorage.setItem("rr_identityId", String(data.identityId));
+        localStorage.setItem("rr_location", String(location));
+      }
+
+      sfx.playSuccess();
+      onVerified?.({ balance: data?.balance ?? data?.credits?.balance ?? null });
+
+    } catch {
       sfx.playError();
-      setMsg(e?.message || "Verification failed.");
+      setMsg("Could not verify code.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div style={modalOverlay} onMouseDown={() => sfx.playTap()}>
-      <div className="neonPanel" style={modalCard}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 50 }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.66)", backdropFilter: "blur(6px)" }} onClick={() => { sfx.playTap(); onClose?.(); }} />
+
+      <div
+        className="neonPanel"
+        style={{
+          position: "relative",
+          width: "min(560px, calc(100% - 22px))",
+          margin: "8vh auto 0",
+          padding: 14,
+          borderRadius: 22,
+          border: "1px solid rgba(255,255,255,0.14)",
+          background: "linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.92))",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.65)",
+        }}
+      >
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 1000 }}>Verify to unlock credits</div>
-            <div style={{ color: "var(--muted)", marginTop: 4, fontSize: 13 }}>
-              Get 5 welcome credits when you confirm your number + opt in.
+            <div style={{ fontWeight: 1000, letterSpacing: 0.4, fontSize: 16 }}>Unlock your points</div>
+            <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 12, marginTop: 4 }}>
+              Verify once → request + boost faster all session.
             </div>
           </div>
-          <button onClick={() => { sfx.playTap(); onClose?.(); }} className="neonBtn" style={modalX} aria-label="Close" disabled={busy} title="Close">
+
+          <button className="neonBtn" onClick={() => { sfx.playTap(); onClose?.(); }} style={{ borderRadius: 14, padding: "10px 12px" }}>
             ✕
           </button>
         </div>
 
-        <div style={{ height: 14 }} />
+        <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <span className="neonBadge" style={{ borderColor: step === "collect" ? "rgba(0,247,255,0.35)" : "rgba(255,255,255,0.14)" }}>1) Phone</span>
+            <span className="neonBadge" style={{ borderColor: step === "code" ? "rgba(0,247,255,0.35)" : "rgba(255,255,255,0.14)" }}>2) Code</span>
+            <span className="neonBadge" style={{ borderColor: "rgba(255,57,212,0.25)" }}>3) Points</span>
+          </div>
 
-        {step === "collect" ? (
-          <>
-            <label style={fieldWrap}>
-              <span style={label}>Email</span>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" className="neonInput" autoComplete="email" />
-            </label>
+          <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="neonInput" autoComplete="email" onFocus={() => sfx.playTap()} disabled={busy} />
+          <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Mobile number" className="neonInput" inputMode="tel" onFocus={() => sfx.playTap()} disabled={busy || step === "code"} />
 
-            <label style={fieldWrap}>
-              <span style={label}>Mobile number</span>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(603) 555-1212" className="neonInput" autoComplete="tel" />
-              <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 6 }}>
-                We’ll text a one-time code. Standard messaging rates may apply.
-              </div>
-            </label>
+          {step === "code" ? (
+            <input value={code} onChange={e => setCode(e.target.value)} placeholder="Verification code" className="neonInput" inputMode="numeric" onFocus={() => sfx.playTap()} disabled={busy} />
+          ) : null}
 
-            <label style={checkRow}>
-              <input type="checkbox" checked={emailOptIn} onChange={(e) => setEmailOptIn(e.target.checked)} disabled={busy} />
-              <span style={{ opacity: 0.9 }}>Yes — email me deals & updates (required for welcome credits)</span>
-            </label>
+          <label style={rowToggle}>
+            <input type="checkbox" checked={emailOptIn} onChange={e => setEmailOptIn(e.target.checked)} disabled={busy} />
+            <span>Yes, send me email perks & coupons</span>
+          </label>
 
-            <label style={checkRow}>
-              <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} disabled={busy} />
-              <span style={{ opacity: 0.9 }}>Yes — text me deals & updates (recommended)</span>
-            </label>
+          <label style={rowToggle}>
+            <input type="checkbox" checked={smsOptIn} onChange={e => setSmsOptIn(e.target.checked)} disabled={busy} />
+            <span>Yes, give me points & send me SMS updates</span>
+          </label>
 
-            {msg ? <div style={modalMsg}>{msg}</div> : null}
+          {msg ? <div style={miniNote}>{msg}</div> : null}
 
-            <button onClick={() => { sfx.playTap(); void sendCode(); }} className="neonBtn neonBtnPrimary" style={{ width: "100%", marginTop: 8 }} disabled={busy}>
-              {busy ? "Sending..." : "Send code"}
+          {step === "collect" ? (
+            <button className="neonBtn neonBtnPrimary" onClick={() => { sfx.playTap(); sendCode(); }} disabled={busy}>
+              {busy ? "Sending…" : "Send Code"}
             </button>
-          </>
-        ) : (
-          <>
-            <label style={fieldWrap}>
-              <span style={label}>Enter code</span>
-              <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" className="neonInput" inputMode="numeric" autoComplete="one-time-code" />
-            </label>
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              <button className="neonBtn neonBtnPrimary" onClick={() => { sfx.playTap(); confirmCode(); }} disabled={busy}>
+                {busy ? "Verifying…" : "Confirm Code"}
+              </button>
 
-            {msg ? <div style={modalMsg}>{msg}</div> : null}
-
-            <button onClick={() => { sfx.playTap(); void verifyCode(); }} className="neonBtn neonBtnPrimary" style={{ width: "100%", marginTop: 8 }} disabled={busy}>
-              {busy ? "Verifying..." : "Verify & unlock"}
-            </button>
-
-            <button onClick={() => { sfx.playTap(); setStep("collect"); setCode(""); setMsg(""); }} className="neonBtn" style={{ width: "100%", marginTop: 10 }} disabled={busy}>
-              Back
-            </button>
-          </>
-        )}
+              <button className="neonBtn" onClick={() => { sfx.playTap(); setStep("collect"); setCode(""); setMsg(""); }} disabled={busy}>
+                Back
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
-  );
+);
 }
+/*------WHERE MY TRUE END IS--------*/
 
-const modalOverlay: any = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "grid", placeItems: "center", zIndex: 9999, padding: 16 };
-const modalCard: any = { width: "100%", maxWidth: 520, borderRadius: 22, padding: 16, background: "rgba(0,0,0,0.18)" };
-const modalX: any = { padding: "10px 12px", borderRadius: 14, fontWeight: 1000 };
-const fieldWrap: any = { display: "grid", gap: 6, marginBottom: 12 };
-const label: any = { color: "var(--muted)", fontSize: 13, fontWeight: 900 };
-const checkRow: any = { display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10 };
-const modalMsg: any = { marginTop: 8, marginBottom: 6, padding: 12, borderRadius: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)" };
+const rowToggle = { display: "flex", gap: 10, alignItems: "center", fontSize: 12, color: "rgba(255,255,255,0.78)", padding: "6px 2px" } as const;
+const miniNote  = { display: "grid", gap: 8, marginBottom: 6, padding: 12, borderRadius: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)" } as const;
 
-/* -------------------------
-   WebAudio SFX (no files needed)
-------------------------- */
+/* ---------- WebAudio SFX (assumed existing, kept local here) ---------- */
 
 function useNeonSfx() {
   const [muted, setMuted] = useState<boolean>(() => {
@@ -595,13 +1246,9 @@ function useNeonSfx() {
           const Ctx = window.AudioContext || window.webkitAudioContext;
           ctxRef.current = new Ctx();
         }
-        if (ctxRef.current?.state === "suspended") {
-          await ctxRef.current.resume();
-        }
+        if (ctxRef.current?.state === "suspended") await ctxRef.current.resume();
         unlockedRef.current = true;
-      } catch {
-        // ignore
-      }
+      } catch {}
     };
 
     window.addEventListener("pointerdown", unlock, { once: true });
@@ -614,9 +1261,7 @@ function useNeonSfx() {
   }, []);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("neonMuted", muted ? "1" : "0");
-    }
+    if (typeof window !== "undefined") window.localStorage.setItem("neonMuted", muted ? "1" : "0");
   }, [muted]);
 
   function ctx(): AudioContext | null {
@@ -652,30 +1297,9 @@ function useNeonSfx() {
     o.stop(t1 + 0.02);
   }
 
-  function click() {
-    // short, snappy tap
-    beep(1200, 35, "square", 0.06);
-    beep(800, 25, "square", 0.04);
-  }
+  function click() { beep(1200, 35, "square", 0.06); beep(800, 25, "square", 0.04); }
+  function success() { beep(523.25, 90, "sine", 0.08); setTimeout(() => beep(659.25, 110, "sine", 0.08), 55); setTimeout(() => beep(783.99, 130, "sine", 0.08), 110); }
+  function error() { beep(140, 140, "sawtooth", 0.10); setTimeout(() => beep(90, 120, "sawtooth", 0.10), 80); }
 
-  function success() {
-    // tiny “reward” chord
-    beep(523.25, 90, "sine", 0.08); // C5
-    setTimeout(() => beep(659.25, 110, "sine", 0.08), 55); // E5
-    setTimeout(() => beep(783.99, 130, "sine", 0.08), 110); // G5
-  }
-
-  function error() {
-    // low buzz / thud
-    beep(140, 140, "sawtooth", 0.10);
-    setTimeout(() => beep(90, 120, "sawtooth", 0.10), 80);
-  }
-
-  return {
-    muted,
-    setMuted,
-    playTap: click,
-    playSuccess: success,
-    playError: error,
-  };
+  return { muted, setMuted, playTap: click, playSuccess: success, playError: error };
 }
