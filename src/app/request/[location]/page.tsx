@@ -593,8 +593,41 @@ className={`neonPanel rrPointsPanel ${
               const canAffordNow  = typeof bal.balance !== "number" ? true : bal.balance >= costPlayNow;
 
               return (
-                <div key={s.id} className="neonTile" data-hot={hot ? "true" : "false"}>
-                  <div className="neonTileTop">
+<div
+  key={s.id}
+  className="neonTile"
+  data-hot={hot ? "true" : "false"}
+  role="button"
+  tabIndex={0}
+  title="Tap to request (Play Next)"
+  onClick={() => {
+    sfx.playTap();
+
+    if (!email) {
+      setMsg("Missing fields.");
+      return;
+    }
+    if (!verified && !identityId) {
+      setMsg("Please verify to unlock points.");
+      setShowVerify(true);
+      return;
+    }
+
+    if ((verified || identityId) && typeof bal.balance === "number" && !canAffordNext) {
+      setMsg("You’re out of points for Play Next.");
+      openBuy("out");
+      return;
+    }
+
+    submit(s.id, "play_next");
+  }}
+  onKeyDown={(e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      (e.currentTarget as HTMLDivElement).click();
+    }
+  }}
+>                  <div className="neonTileTop">
                     <div className="neonTilePulse" />
                     <Artwork src={s.artworkUrl} alt={s.title} />
                   </div>
@@ -621,7 +654,8 @@ className={`neonPanel rrPointsPanel ${
                     <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
                       <button
                         disabled={!email || (!verified && !identityId)}
-                        onClick={() => {
+                        onClick={(e) => {
+  			    e.stopPropagation();
                           sfx.playTap();
                           if ((verified || identityId) && typeof bal.balance === "number" && !canAffordNext) {
                             setMsg("You’re out of points for Play Next.");
@@ -644,7 +678,9 @@ style={{ opacity: (!email || (!verified && !identityId)) ? 0.55 : 1 }}
 </button>
                       <button
                         disabled={!email || (!verified && !identityId)}
-                        onClick={() => {
+			onClick={(e) => {
+  			e.stopPropagation();
+  			sfx.playTap();
                           sfx.playTap();
                           if ((verified || identityId) && typeof bal.balance === "number" && !canAffordNow) {
                             setMsg("Boost needs more points.");
