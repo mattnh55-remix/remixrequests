@@ -335,14 +335,7 @@ export default function RequestPage({ params }: { params: { location: string } }
 
           {/* Right: Sound + Credits/Claim/Buy */}
           <div className="neonHeaderRight">
-            <button
-              className="neonBtn"
-              onClick={() => { sfx.playTap(); sfx.setMuted(!sfx.muted); }}
-              title={sfx.muted ? "Sound off" : "Sound on"}
-            >
-              {sfx.muted ? "🔇 Sound Off" : "🔊 Sound On"}
-            </button>
-
+  
             <div
               className="neonPanel"
               style={{
@@ -356,7 +349,19 @@ export default function RequestPage({ params }: { params: { location: string } }
               title="Credits"
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 900, letterSpacing: 0.8 }}>CREDITS</div>
+                <div
+  style={{
+    fontSize: 11,
+    color: "var(--muted)",
+    fontWeight: 900,
+    letterSpacing: 0.8,
+    textAlign: "center",
+    width: "100%",
+  }}
+>
+  <span className="rrPointsDesktop">POINTS</span>
+  <span className="rrPointsMobile">PTS</span>
+</div>
 
                 {/* keep refresh available (verified users) without changing backend behavior */}
                 {(verified || identityId) ? (
@@ -398,7 +403,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                   }}
                   title="Claim your credits"
                 >
-                  CLAIM
+                  USE
                 </button>
               ) : (
                 <button
@@ -412,7 +417,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                   }}
                   title="Buy more credits"
                 >
-                  Buy More
+                  ADD POINTS
                 </button>
               )}
             </div>

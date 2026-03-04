@@ -91,9 +91,9 @@
 .neonHeaderRight { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
 
 .neonLogo {
-  height: 46px;
+  height: 56px;
   width: auto;
-  max-width: 180px;
+  max-width: 200px;
   object-fit: contain;
   border-radius: 14px;
   filter: drop-shadow(0 0 14px rgba(0,247,255,0.25));
@@ -505,4 +505,35 @@
 
 .neonChip:active {
   transform: scale(0.97);
+}
+
+@media (max-width: 520px) {
+  .neonLogo {
+    width: 80px;
+    height: 80px;
+    max-width: 80px;
+  }
+
+  .neonLogoFallback {
+    width: 80px;
+    height: 80px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+
+  .neonHeader {
+    grid-template-columns: 80px 1fr auto;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .neonSub { display: none; }
+}
+
+.rrPointsMobile { display: none; }
+
+@media (max-width: 520px) {
+  .rrPointsDesktop { display: none; }
+  .rrPointsMobile { display: inline; }
 }
