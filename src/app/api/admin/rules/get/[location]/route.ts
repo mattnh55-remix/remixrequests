@@ -1,3 +1,5 @@
+// src/app/api/admin/rules/get/[location]/route.ts
+
 import { NextResponse } from "next/server";
 import { getRulesForLocation } from "@/lib/rules";
 import { isAdminFromCookie } from "@/lib/adminAuth";

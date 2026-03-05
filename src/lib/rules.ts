@@ -1,3 +1,4 @@
+// src/lib/rules.ts
 import { prisma } from "./db";
 
 export async function getRulesForLocation(locationSlug: string) {

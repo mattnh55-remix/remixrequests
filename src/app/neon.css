@@ -642,3 +642,8 @@
   50% { transform: translateY(-1px) scale(1.02); filter: brightness(1.08); }
   100% { transform: translateY(0) scale(1); filter: brightness(1); }
 }
+@keyframes rrGradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}

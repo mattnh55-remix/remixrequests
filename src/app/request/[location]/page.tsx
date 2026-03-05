@@ -16,6 +16,7 @@ type UiPack = {
   title: string;
   subtitle: string;
   creditsLabel: string;
+  priceCents?: number; // NEW: for "$X.XX • BUY"
   highlight?: boolean;
   badge?: string;
   cta?: string;
@@ -287,25 +288,89 @@ export default function RequestPage({ params }: { params: { location: string } }
   }, [location, rules]);
 
   const uiPacks: UiPack[] = useMemo(() => {
-    const raw = rules?.rules?.creditPacks ?? rules?.rules?.packs ?? rules?.packs ?? null;
-    if (Array.isArray(raw) && raw.length) {
-      return raw.map((p: any, idx: number) => ({
-        id: String(p.id ?? idx),
-        title: String(p.title ?? p.name ?? "Points"),
-        subtitle: String(p.subtitle ?? p.desc ?? "Instant points"),
-        creditsLabel: String(p.creditsLabel ?? (p.credits ? `${p.credits} credits` : "Points")),
-        highlight: Boolean(p.highlight ?? p.featured ?? idx === 1),
-        badge: String(p.badge ?? (idx === 1 ? "Most Popular" : "")) || undefined,
-        cta: String(p.cta ?? "Choose"),
-        href: String(p.href ?? p.url ?? buyUrl ?? "") || undefined,
-      }));
-    }
-    return [
-      { id: "quick", title: "Quick Boost", subtitle: "Perfect for 1–2 songs", creditsLabel: "10 credits", badge: "Fast", cta: "Get Points", href: buyUrl ?? undefined },
-      { id: "party", title: "Party Pack", subtitle: "Best for groups", creditsLabel: "25 credits", highlight: true, badge: "Most Popular", cta: "Get Points", href: buyUrl ?? undefined },
-      { id: "allnight", title: "All Night", subtitle: "Skate like a legend", creditsLabel: "50 credits", badge: "Best Value", cta: "Get Points", href: buyUrl ?? undefined },
-    ];
-  }, [rules, buyUrl]);
+  const raw = rules?.rules?.creditPacks ?? rules?.rules?.packs ?? rules?.packs ?? null;
+
+  // Global Rules pricing (cents)
+  const priceQuick = Number(rules?.rules?.packQuickPriceCents ?? 1000);
+  const priceParty = Number(rules?.rules?.packPartyPriceCents ?? 2500);
+  const priceAllNight = Number(rules?.rules?.packAllNightPriceCents ?? 5000);
+
+  function normalizePriceCents(p: any, idx: number): number {
+    // Prefer explicit values if present in pack config
+    const direct =
+      p?.priceCents ??
+      p?.amountCents ??
+      p?.cents ??
+      (typeof p?.price === "number" ? Math.round(p.price * 100) : null) ??
+      (typeof p?.amount === "number" ? Math.round(p.amount * 100) : null);
+
+    if (typeof direct === "number" && Number.isFinite(direct) && direct >= 0) return Math.floor(direct);
+
+    // Otherwise infer by id/name or fallback by index
+    const id = String(p?.id ?? "").toLowerCase();
+    const title = String(p?.title ?? p?.name ?? "").toLowerCase();
+
+    const key = `${id} ${title}`;
+    if (key.includes("quick") || key.includes("boost") || key.includes("10")) return priceQuick;
+    if (key.includes("party") || key.includes("25")) return priceParty;
+    if (key.includes("all") || key.includes("night") || key.includes("50")) return priceAllNight;
+
+    // index fallback (matches your default ordering)
+    if (idx === 0) return priceQuick;
+    if (idx === 1) return priceParty;
+    return priceAllNight;
+  }
+
+  if (Array.isArray(raw) && raw.length) {
+    return raw.map((p: any, idx: number) => ({
+      id: String(p.id ?? idx),
+      title: String(p.title ?? p.name ?? "Points"),
+      subtitle: String(p.subtitle ?? p.desc ?? "Instant points"),
+      creditsLabel: String(p.creditsLabel ?? (p.credits ? `${p.credits} credits` : "Points")),
+      highlight: Boolean(p.highlight ?? p.featured ?? idx === 1),
+      badge: String(p.badge ?? (idx === 1 ? "Most Popular" : "")) || undefined,
+      cta: String(p.cta ?? "Choose"),
+      href: String(p.href ?? p.url ?? buyUrl ?? "") || undefined,
+
+      // NEW: used for "$X.XX • BUY"
+      priceCents: normalizePriceCents(p, idx),
+    }));
+  }
+
+  return [
+    {
+      id: "quick",
+      title: "Quick Boost",
+      subtitle: "Perfect for 1–2 songs",
+      creditsLabel: "10 credits",
+      badge: "Fast",
+      cta: "Get Points",
+      href: buyUrl ?? undefined,
+      priceCents: priceQuick,
+    },
+    {
+      id: "party",
+      title: "Party Pack",
+      subtitle: "Best for groups",
+      creditsLabel: "25 credits",
+      highlight: true,
+      badge: "Most Popular",
+      cta: "Get Points",
+      href: buyUrl ?? undefined,
+      priceCents: priceParty,
+    },
+    {
+      id: "allnight",
+      title: "All Night",
+      subtitle: "Skate like a legend",
+      creditsLabel: "50 credits",
+      badge: "Best Value",
+      cta: "Get Points",
+      href: buyUrl ?? undefined,
+      priceCents: priceAllNight,
+    },
+  ];
+}, [rules, buyUrl]);
 
   let creditsLabel = "Use Points!";
   if (verified || identityId) {
@@ -549,6 +614,7 @@ export default function RequestPage({ params }: { params: { location: string } }
           packs={uiPacks}
           redeemBusy={redeemBusy}
           onRedeem={(code: string) => redeem(code)}
+          
         />
       </div>
     </div>
@@ -566,6 +632,7 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
     const [emailOptIn, setEmailOptIn] = useState(true);
   const [smsOptIn, setSmsOptIn] = useState(true);
     const [redeemCode, setRedeemCode] = useState("");
+    const [showRedeem, setShowRedeem] = useState(false);
 
   if (!open) return null;
 
@@ -610,25 +677,80 @@ body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn })
         <input className="neonInput" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone" />
         <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
   <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>Have a redemption code?</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              className="neonInput"
-              placeholder="Enter code"
-              value={redeemCode}
-              onChange={(e) => setRedeemCode(e.target.value)}
-              style={{ flex: 1 }}
-            />
-            <button
-              className="neonBtn"
-              disabled={!!redeemBusy}
-              onClick={() => onRedeem(redeemCode)}
-            >
-              {redeemBusy ? "..." : "Redeem"}
-            </button>
-          </div>
-        </div>
+                    {/* Redeem (compact flip) */}
+<div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+  <div style={{ fontWeight: 900, marginBottom: 6 }}>Have a redemption code?</div>
+
+  <div
+    style={{
+      perspective: 900,
+    }}
+  >
+    <div
+      style={{
+        position: "relative",
+        height: 44,
+        transformStyle: "preserve-3d",
+        transition: "transform 420ms cubic-bezier(.2,.8,.2,1)",
+        transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
+      }}
+    >
+      {/* Front: button */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          backfaceVisibility: "hidden",
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
+        <button
+          className="neonBtn neonBtnPrimary"
+          style={{ width: "100%" }}
+          onClick={() => {
+            sfx?.playTap?.();
+            setShowRedeem(true);
+          }}
+        >
+          Redeem Code
+        </button>
+      </div>
+
+      {/* Back: input + redeem */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          backfaceVisibility: "hidden",
+          transform: "rotateY(180deg)",
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+        }}
+      >
+        <input
+          className="neonInput"
+          placeholder="Enter code"
+          value={redeemCode}
+          onChange={(e) => setRedeemCode(e.target.value)}
+          style={{ flex: 1, height: 44 }}
+        />
+        <button
+          className="neonBtn neonBtnPrimary"
+          disabled={!!redeemBusy}
+          onClick={() => {
+            sfx?.playTap?.();
+            onRedeem?.(redeemCode);
+          }}
+          style={{ whiteSpace: "nowrap", height: 44 }}
+        >
+          {redeemBusy ? "..." : "Redeem"}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
     <input
       type="checkbox"
       checked={emailOptIn}
@@ -657,8 +779,11 @@ body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn })
   </div>
 </div>
         {step === "code" && <input className="neonInput" value={code} onChange={e => setCode(e.target.value)} placeholder="Code" />}
-        <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode}>{busy ? "..." : "Submit"}</button>
-        <button className="neonBtn" onClick={onClose}>Close</button>
+        <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+</div>
+
+        <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode}  style={{ width: "100%" }}>{busy ? "..." : "Submit"}</button>
+        <button className="neonBtn neonBtnPrimary" onClick={onClose} style={{ width: "100%" }}>Close</button>
         {msg && <p>{msg}</p>}
       </div>
     </div>
@@ -698,6 +823,14 @@ function CreditHud({ verified, balance, creditsLabel, sessionCountdown, onVerify
 
 function BuyCreditsDrawer({ open, onClose, sfx, packs, buyUrl, onRedeem, redeemBusy }: any) {
   const [redeemCode, setRedeemCode] = useState("");
+  const [showRedeem, setShowRedeem] = useState(false);
+  const gradBtn: React.CSSProperties = {
+  backgroundImage:
+    "linear-gradient(90deg, rgba(0,240,255,0.85), rgba(180,0,255,0.85), rgba(0,240,255,0.85))",
+  backgroundSize: "200% 200%",
+  animation: "rrGradientShift 2.4s ease infinite",
+  border: "1px solid rgba(255,255,255,0.18)",
+};
 
   if (!open) return null;
 
@@ -715,39 +848,81 @@ function BuyCreditsDrawer({ open, onClose, sfx, packs, buyUrl, onRedeem, redeemB
       <div className="neonPanel" style={{ width: "100%", padding: 20 }}>
         <h3>Get Points</h3>
 
-        {/* Redeem Code (shown once, above packs) */}
-        <div
-          style={{
-            marginTop: 12,
-            marginBottom: 14,
-            padding: 12,
-            borderRadius: 14,
-            border: "1px solid rgba(255,255,255,0.12)",
+        {/* Redeem (compact flip) - below buy options */}
+<div
+  style={{
+    marginTop: 14,
+    paddingTop: 14,
+    borderTop: "1px solid rgba(255,255,255,0.10)",
+  }}
+>
+  <div style={{ fontWeight: 900, marginBottom: 8 }}>Redeem Code</div>
+
+  <div style={{ perspective: 900 }}>
+    <div
+      style={{
+        position: "relative",
+        height: 44,
+        transformStyle: "preserve-3d",
+        transition: "transform 420ms cubic-bezier(.2,.8,.2,1)",
+        transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          backfaceVisibility: "hidden",
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
+        <button
+          className="neonBtn neonBtnPrimary"
+          style={{ width: "100%" }}
+          onClick={() => {
+            sfx?.playTap?.();
+            setShowRedeem(true);
           }}
         >
-          <div style={{ fontWeight: 900, marginBottom: 8 }}>Redeem Code</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              className="neonInput"
-              placeholder="Enter code"
-              value={redeemCode}
-              onChange={(e) => setRedeemCode(e.target.value)}
-              style={{ flex: 1 }}
-            />
-            <button
-              className="neonBtn"
-              disabled={!!redeemBusy}
-              onClick={() => {
-                sfx?.playTap?.();
-                onRedeem?.(redeemCode);
-                setRedeemCode("");
-              }}
-              style={{ whiteSpace: "nowrap" }}
-            >
-              {redeemBusy ? "..." : "Redeem"}
-            </button>
-          </div>
-        </div>
+          Redeem Code
+        </button>
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          backfaceVisibility: "hidden",
+          transform: "rotateY(180deg)",
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+        }}
+      >
+        <input
+          className="neonInput"
+          placeholder="Enter code"
+          value={redeemCode}
+          onChange={(e) => setRedeemCode(e.target.value)}
+          style={{ flex: 1, height: 44 }}
+        />
+        <button
+          className="neonBtn neonBtnPrimary"
+          disabled={!!redeemBusy}
+          onClick={() => {
+            sfx?.playTap?.();
+            onRedeem?.(redeemCode);
+            setRedeemCode("");
+          }}
+          style={{ whiteSpace: "nowrap", height: 44 }}
+        >
+          {redeemBusy ? "..." : "Redeem"}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
         {/* Packs */}
         {packs.map((p: any) => (
@@ -766,7 +941,7 @@ function BuyCreditsDrawer({ open, onClose, sfx, packs, buyUrl, onRedeem, redeemB
             </span>
 
             <button
-              className="neonBtn"
+              className="neonBtn neonBtnGradient"
               onClick={() => {
                 const href = p.href || buyUrl;
                 if (href) window.location.href = href;

@@ -141,10 +141,6 @@ model Ruleset {
   costUpvote   Int @default(1)
   costDownvote Int @default(1)
   costPlayNow  Int @default(5)
-  // Pack pricing (cents)
-  packQuickPriceCents   Int @default(1000) // $10.00
-  packPartyPriceCents   Int @default(2500) // $25.00
-  packAllNightPriceCents Int @default(5000) // $50.00
   
   logoUrl String?
 

@@ -13,7 +13,6 @@ export async function POST(req: Request, { params }: { params: { location: strin
   if (!isAdminFromCookie(req.headers.get("cookie"))) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
-
   const { loc, rules } = await getRulesForLocation(params.location);
   const body = await req.json();
 
@@ -24,14 +23,7 @@ export async function POST(req: Request, { params }: { params: { location: strin
       costUpvote: int(body.costUpvote, rules.costUpvote),
       costDownvote: int(body.costDownvote, rules.costDownvote),
       costPlayNow: int(body.costPlayNow, rules.costPlayNow),
-
-      // NEW: pack prices (cents)
-      packQuickPriceCents: int(body.packQuickPriceCents, rules.packQuickPriceCents),
-      packPartyPriceCents: int(body.packPartyPriceCents, rules.packPartyPriceCents),
-      packAllNightPriceCents: int(body.packAllNightPriceCents, rules.packAllNightPriceCents),
-
       logoUrl: body.logoUrl ?? null,
-
       maxRequestsPerSession: int(body.maxRequestsPerSession, rules.maxRequestsPerSession),
       maxVotesPerSession: int(body.maxVotesPerSession, rules.maxVotesPerSession),
       minSecondsBetweenActions: int(body.minSecondsBetweenActions, rules.minSecondsBetweenActions),
@@ -47,8 +39,8 @@ export async function POST(req: Request, { params }: { params: { location: strin
       msgAlreadyRequested: String(body.msgAlreadyRequested ?? rules.msgAlreadyRequested),
       msgArtistCooldown: String(body.msgArtistCooldown ?? rules.msgArtistCooldown),
       msgSongCooldown: String(body.msgSongCooldown ?? rules.msgSongCooldown),
-      msgNoCredits: String(body.msgNoCredits ?? rules.msgNoCredits),
-    },
+      msgNoCredits: String(body.msgNoCredits ?? rules.msgNoCredits)
+    }
   });
 
   return NextResponse.json({ ok: true, rules: updated });
