@@ -510,19 +510,13 @@ className={`neonPanel rrPointsPanel ${
 
         {/* TOP CONTROLS */}
         <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
-{(verified || identityId) && !email ? (
-  <div className="neonPanel" style={{ padding: 12, border: "1px solid rgba(255,255,255,0.12)" }}>
-    <div style={{ fontWeight: 900, letterSpacing: 0.3, marginBottom: 6 }}>
-      Finish setup
-    </div>
-    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+<div style={{ display: "flex", justifyContent: "flex-end" }}>
   <div className="flipWrap">
     <div
       className={`flipCard ${showQueueFlip ? "isFlipped" : ""}`}
       onClick={() => {
         sfx.playTap();
         setShowQueueFlip(true);
-        // give the flip a moment, then navigate
         setTimeout(() => {
           window.location.href = `/queue/${location}`;
         }, 220);
@@ -548,6 +542,11 @@ className={`neonPanel rrPointsPanel ${
     </div>
   </div>
 </div>
+{(verified || identityId) && !email ? (
+  <div className="neonPanel" style={{ padding: 12, border: "1px solid rgba(255,255,255,0.12)" }}>
+    <div style={{ fontWeight: 900, letterSpacing: 0.3, marginBottom: 6 }}>
+      Finish setup
+    </div>
     <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 10 }}>
       Enter your email to unlock song requests on this device.
     </div>
