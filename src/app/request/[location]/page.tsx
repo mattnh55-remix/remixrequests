@@ -375,7 +375,7 @@ export default function RequestPage({ params }: { params: { location: string } }
             </div>
           </div>
         ) : null}
-
+<div style={{ marginBottom: 5 }}>
         <input
           id="songSearch"
           value={search}
@@ -383,9 +383,9 @@ export default function RequestPage({ params }: { params: { location: string } }
           placeholder="Search songs or artists…"
           className="neonInput neonSearchInput"
           style={{ fontWeight: 800, fontSize: 16, letterSpacing: 0.2 }}
-        />
+        /></div>
 
-        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6 }}>
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingLeft: 6, paddingRight: 6, paddingBottom: 6 }}>
           <button onClick={() => { sfx.playTap(); setTag(""); }} className="neonBtn" style={chip2(tag === "")}>All</button>
           {RAILS.map(r => (
             <button key={r} onClick={() => { sfx.playTap(); setTag(r); }} className="neonBtn" style={chip2(tag === r)}>{r}</button>
@@ -395,12 +395,24 @@ export default function RequestPage({ params }: { params: { location: string } }
         {trending.length ? (
           <div className="neonPanel" style={{ padding: 10, marginBottom: 12 }}>
             <div style={{ padding: "10px 12px 0", fontWeight: 1000, letterSpacing: 0.4 }}>Trending at Remix</div>
-            <div className="neonRail">
+            <div className="neonRail" style={{
+    maskImage: "linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent)",
+    WebkitMaskImage: "linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent)"
+  }}
+>
               {trending.map((s) => (
                 <button
                   key={s.id}
                   className="neonChip"
-                  onClick={() => { sfx.playTap(); submit(s.id, "play_next"); }}
+                 onClick={(e) => {
+  const el = e.currentTarget;
+  el.classList.add("requestPulse");
+
+  setTimeout(() => el.classList.remove("requestPulse"), 350);
+
+  sfx.playTap();
+  submit(s.id, "play_next");
+}}
                   style={{ textAlign: "left" }}
                 >
                   <div className="neonArt"><Artwork src={s.artworkUrl} alt={s.title} /></div>
