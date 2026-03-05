@@ -306,13 +306,6 @@ export default function RequestPage({ params }: { params: { location: string } }
                   <span className="rrPointsDesktop">POINTS</span>
                   <span className="rrPointsMobile">PTS</span>
                 </div>
-                {(verified || identityId) ? (
-                  <button
-                    className="neonBtn"
-                    style={{ padding: "6px 8px", borderRadius: 12, fontSize: 12, lineHeight: 1 }}
-                    onClick={(e) => { e.stopPropagation(); sfx.playTap(); bal.refreshOnce(); }}
-                  >↻</button>
-                ) : null}
               </div>
 
               <div key={bal.pulseKey} style={{ fontSize: 22, fontWeight: 1000, lineHeight: 1.1, animation: "rrPop 420ms ease-out" }}>
@@ -344,7 +337,9 @@ export default function RequestPage({ params }: { params: { location: string } }
           }
         `}</style>
 
-        {msg ? <div className="neonToast">{msg}</div> : null}
+        {msg ? <div className="neonToast" style={{ textAlign: "center", padding: "10px 14px" }}>
+  {msg}
+</div> : null}
 
         <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
           {(() => {
@@ -354,10 +349,10 @@ export default function RequestPage({ params }: { params: { location: string } }
             return (
               <button
                 className="neonBtn neonBtnPrimary"
-                style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, padding: "14px 16px", borderRadius: 16 }}
+                style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6, textAlign: "center", alignItems: "center", padding: "14px 16px", borderRadius: 16 }}
                 onClick={() => { sfx.playTap(); window.location.href = `/queue/${location}`; }}
               >
-                <div style={{ fontWeight: 900, fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ fontWeight: 900, fontSize: 16, display: "flex", alignItems: "center",  justifyContent: "center", gap: 8 }}>
                   <span>View the Queue</span>
                   <span style={{ fontSize: 16 }}>➡️</span>
                 </div>
@@ -444,7 +439,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                       <span className="neonBadge">{costRequest}pt</span>
                     </div>
                     <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
-                      <button className="neonBtn" onClick={(e) => { e.stopPropagation(); sfx.playTap(); submit(s.id, "play_next"); }}>Request</button>
+                      <button className="neonBtn" onClick={(e) => { e.stopPropagation(); sfx.playTap(); submit(s.id, "play_next"); }}>Request!</button>
                       <button className="neonBtn neonBtnPrimary" onClick={(e) => { e.stopPropagation(); sfx.playTap(); submit(s.id, "play_now"); }}>BOOST</button>
                     </div>
                   </div>
@@ -559,13 +554,28 @@ function VerifyModal({ open, location, email, setEmail, onVerified, onClose, sfx
 
 function CreditHud({ verified, balance, creditsLabel, sessionCountdown, onVerify, onBuy, onTap }: any) {
   return (
-    <div style={{ position: "fixed", bottom: 0, width: "100%", padding: 10, background: "rgba(0,0,0,0.9)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
+    <div
+      style={{
+        position: "fixed",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: "100%",
+        boxSizing: "border-box",
+        padding: "10px 12px",
+        background: "rgba(0,0,0,0.9)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 900 }}>{creditsLabel}</div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>{sessionCountdown}</div>
         </div>
-        <button className="neonBtn neonBtnPrimary" onClick={!verified ? onVerify : onBuy}>
+        <button
+          className="neonBtn neonBtnPrimary"
+          onClick={!verified ? onVerify : onBuy}
+          style={{ whiteSpace: "nowrap" }}
+        >
           {!verified ? "CLAIM" : "ADD POINTS"}
         </button>
       </div>
