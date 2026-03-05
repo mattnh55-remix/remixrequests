@@ -40,6 +40,8 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [rules, setRules] = useState<any>(null);
   const [msg, setMsg] = useState<string>("");
 
+  const [queuePreview, setQueuePreview] = useState<{ playNow: any[]; upNext: any[] }>({ playNow: [], upNext: [] });
+
   const [verified, setVerified] = useState(false);
 
   // ✅ NEW: identityId is the durable “verified session” key
@@ -53,7 +55,7 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [sessionCountdown, setSessionCountdown] = useState<string>("");
 
   const sfx = useNeonSfx();
-const [showQueueFlip, setShowQueueFlip] = useState(false);
+  const [showQueueFlip, setShowQueueFlip] = useState(false);
 // Persist email so verified users don't "lose" ability to tap after reload/Square return
 useEffect(() => {
   try {
@@ -75,6 +77,20 @@ useEffect(() => {
       // silent
     }
   }
+
+async function refreshQueuePreview() {
+  try {
+    const res = await fetch(`/api/public/queue/${location}`, { cache: "no-store" });
+    const data = await res.json();
+    setQueuePreview({
+      playNow: Array.isArray(data?.playNow) ? data.playNow : [],
+      upNext: Array.isArray(data?.upNext) ? data.upNext : [],
+    });
+  } catch {
+    // silent
+  }
+}
+
 
   async function loadSongs() {
     const qs = new URLSearchParams();
@@ -123,7 +139,8 @@ useEffect(() => {
   }, [identityId, location]);
 
 
-  useEffect(() => { refreshSession(); }, [location]);
+  useEffect(() => { refreshSession();
+      refreshQueuePreview(); }, [location]);
   useEffect(() => { loadSongs(); }, [search, tag]);
 
   useEffect(() => {
@@ -194,6 +211,39 @@ useEffect(() => {
     setShowBuy(true);
     sfx.playTap();
   }
+
+// Allow other pages (like /queue) to deep-link into Verify/Buy modals with query params.
+useEffect(() => {
+  if (typeof window === "undefined") return;
+  try {
+    const sp = new URLSearchParams(window.location.search);
+    const wantVerify = sp.get("verify") === "1";
+    const wantBuy = sp.get("buy") === "1";
+    const reason = (sp.get("reason") || "none") as any;
+
+    if (wantVerify) {
+      setShowVerify(true);
+      setMsg("");
+    }
+
+    if (wantBuy) {
+      // reason can be: none | out | notEnough | boost
+      if (reason === "out" || reason === "notEnough" || reason === "boost" || reason === "none") {
+        openBuy(reason);
+      } else {
+        openBuy("none");
+      }
+    }
+
+    if (wantVerify || wantBuy) {
+      // clean URL so refresh doesn't reopen
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  } catch {
+    // ignore
+  }
+}, []);
+
 
   async function submit(songId: string, action: "play_next" | "play_now") {
     // ✅ IMPORTANT CHANGE:
@@ -324,53 +374,7 @@ useEffect(() => {
   return (
 
     <div className="neonRoot">
-      <style>{`
-  .flipWrap {
-    perspective: 900px;
-  }
-  .flipCard {
-    width: 170px;
-    height: 44px;
-    position: relative;
-    transform-style: preserve-3d;
-    transition: transform 260ms ease;
-  }
-  .flipCard.isFlipped {
-    transform: rotateY(180deg);
-  }
-  .flipFace {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.14);
-    background: linear-gradient(135deg, rgba(0,255,200,0.10), rgba(255,0,180,0.10));
-    box-shadow: 0 0 18px rgba(0,255,200,0.12), 0 0 18px rgba(255,0,180,0.10);
-    backface-visibility: hidden;
-    cursor: pointer;
-    user-select: none;
-    font-weight: 900;
-    letter-spacing: 0.3px;
-  }
-  .flipFace:hover {
-    transform: translateY(-1px);
-  }
-  .flipFront {}
-  .flipBack {
-    transform: rotateY(180deg);
-    background: linear-gradient(135deg, rgba(255,0,180,0.12), rgba(0,255,200,0.08));
-  }
-  .flipTiny {
-    font-size: 12px;
-    opacity: 0.75;
-    font-weight: 800;
-    letter-spacing: 0.8px;
-  }
-`}</style>
-      <div className="rrWall" />
+            <div className="rrWall" />
       <div className="neonWrap" style={{ paddingBottom: 96 }}>
         {/* HEADER */}
         <div className="neonHeader neonHeader3">
@@ -510,6 +514,56 @@ className={`neonPanel rrPointsPanel ${
 
         {/* TOP CONTROLS */}
         <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
+
+{(() => {
+  const next = (queuePreview.upNext?.[0] || null) as any;
+  const hasActive = (queuePreview.upNext?.length || 0) > 0 || (queuePreview.playNow?.length || 0) > 0;
+  if (!hasActive) return null;
+
+  const title = String(next?.title || next?.song?.title || "");
+  const artist = String(next?.artist || next?.song?.artist || "");
+  const who =
+    String(next?.requestedBy || next?.requesterName || next?.requestedByName || next?.username || "").trim();
+
+  return (
+    <button
+      className="neonBtn neonBtnPrimary"
+      style={{
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: 6,
+        padding: "14px 16px",
+        borderRadius: 16,
+      }}
+      onClick={() => {
+        sfx.playTap();
+        window.location.href = `/queue/${location}`;
+      }}
+    >
+      <div style={{ fontWeight: 900, fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+        <span>View the Queue</span>
+        <span style={{ fontSize: 16 }}>➡️</span>
+      </div>
+
+      <div style={{ fontSize: 13, opacity: 0.92 }}>
+        Coming up soon:{" "}
+        <b>{title || "—"}</b> by <b>{artist || "—"}</b>
+        {who ? (
+          <>
+            {" "}
+            • Requested by <b>{who}</b>
+          </>
+        ) : null}
+      </div>
+
+      <div style={{ fontSize: 12, opacity: 0.75 }}>
+        Upvote or Downvote you and your friends&apos; songs in the queue with your points!
+      </div>
+    </button>
+  );
+})()}
 <div style={{ display: "flex", justifyContent: "flex-end" }}>
   <div className="flipWrap">
     <div
@@ -615,9 +669,9 @@ className={`neonPanel rrPointsPanel ${
                 <button
                   key={s.id}
                   className="neonChip"
-                  onClick={() => { sfx.playTap(); submit(s.id, "play_now"); }}
+                  onClick={() => { sfx.playTap(); submit(s.id, "play_next"); }}
                   style={{ textAlign: "left" }}
-                  title="Tap to Play Now"
+                  title="Tap to Request"
                 >
                   <div className="neonArt" style={{ overflow: "hidden" }}>
                     <Artwork src={s.artworkUrl} alt={s.title} />
@@ -648,7 +702,7 @@ className={`neonPanel rrPointsPanel ${
                         textOverflow: "ellipsis"
                       }}
                     >
-                      {s.artist} • Play Now
+                      {s.artist} • Request • 1pt
                     </div>
                   </div>
                 </button>

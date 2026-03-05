@@ -297,7 +297,7 @@ if (identityId) bal.refreshOnce();
 
   const locationName = sessionInfo?.location?.name || "Remix Skate & Event Center";
 
-  const rules = sessionInfo?.rules;
+    const rules = sessionInfo?.rules;
   const enableVoting = rules?.enableVoting !== false;
   const costUpvote = Number(rules?.costUpvote ?? 1);
   const costDownvote = Number(rules?.costDownvote ?? 1);
@@ -305,6 +305,8 @@ if (identityId) bal.refreshOnce();
   const canVote = useMemo(() => !!email && (verified || !!identityId), [email, verified, identityId]);
 
   async function doVote(requestId: string, dir: "up" | "down") {
+    const needed = dir === "up" ? costUpvote : costDownvote;
+
     setMsg("");
 
     if (!email) {
@@ -314,12 +316,20 @@ if (identityId) bal.refreshOnce();
     }
     if (!verified && !identityId) {
       sfx.playError();
-      setMsg("Please verify to unlock voting.");
+      // Send them to Request page and open Verify modal
+      window.location.href = `/request/${location}?verify=1`;
       return;
     }
     if (!enableVoting) {
       sfx.playError();
       setMsg("Voting is disabled right now.");
+      return;
+    }
+
+    if ((bal.balance ?? 0) < needed) {
+      sfx.playError();
+      // Send them to Request page and open Buy modal
+      window.location.href = `/request/${location}?buy=1&reason=notEnough`;
       return;
     }
 
@@ -376,12 +386,7 @@ if (identityId) bal.refreshOnce();
             <div className="neonHud">
               <div className="neonHudLabel">POINTS</div>
 <div className="neonHudValue">
-  <AnimatedBalanceCounter
-    balance={typeof bal.balance === "number" ? bal.balance : 0}
-    pulseKey={bal.pulseKey}
-    delta={bal.delta}
-    showDeltaBanner={bal.showDeltaBanner}
-  />
+  <AnimatedBalanceCounter balance={typeof bal.balance === "number" ? bal.balance : 0} pulseKey={bal.pulseKey} delta={bal.delta} showDeltaBanner={bal.showDeltaBanner} />
 </div>
               <button className="neonHudBtn" onClick={() => bal.refreshOnce()}>
                 Refresh
@@ -440,7 +445,7 @@ if (identityId) bal.refreshOnce();
         {/* NOW PLAYING */}
         <div className="neonPanel" style={{ padding: 14, marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
-            <div style={{ fontWeight: 900, letterSpacing: 0.3 }}>Now Playing</div>
+            <div style={{ fontWeight: 900, letterSpacing: 0.3 }}>Boosted</div>
             <div style={{ color: "var(--muted)", fontSize: 12 }}>{loading ? "Loading…" : ""}</div>
           </div>
 
