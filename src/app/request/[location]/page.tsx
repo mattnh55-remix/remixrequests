@@ -677,79 +677,79 @@ body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn })
         <input className="neonInput" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone" />
         <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
   <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
-                    {/* Redeem (compact flip) */}
+ {/* Redeem (compact reveal, no clunk) */}
 <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
   <div style={{ fontWeight: 900, marginBottom: 6 }}>Have a redemption code?</div>
 
-  <div
-    style={{
-      perspective: 900,
-    }}
-  >
+  <div style={{ position: "relative", height: 48 }}>
+    {/* Collapsed: single button */}
     <div
       style={{
-        position: "relative",
-        height: 44,
-        transformStyle: "preserve-3d",
-        transition: "transform 420ms cubic-bezier(.2,.8,.2,1)",
-        transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
+        position: "absolute",
+        inset: 0,
+        transition: "opacity 180ms ease, transform 220ms cubic-bezier(.2,.8,.2,1)",
+        opacity: showRedeem ? 0 : 1,
+        transform: showRedeem ? "translateY(-4px) scale(0.99)" : "translateY(0px) scale(1)",
+        pointerEvents: showRedeem ? "none" : "auto",
       }}
     >
-      {/* Front: button */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backfaceVisibility: "hidden",
-          display: "flex",
-          alignItems: "center",
+      <button
+        className="neonBtn neonBtnPrimary"
+        style={{ width: "100%", height: 48 }}
+        onClick={() => {
+          sfx?.playTap?.();
+          setShowRedeem(true);
         }}
       >
-        <button
-          className="neonBtn neonBtnPrimary"
-          style={{ width: "100%" }}
-          onClick={() => {
-            sfx?.playTap?.();
-            setShowRedeem(true);
-          }}
-        >
-          Redeem Code
-        </button>
-      </div>
+        Redeem Code
+      </button>
+    </div>
 
-      {/* Back: input + redeem */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backfaceVisibility: "hidden",
-          transform: "rotateY(180deg)",
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
+    {/* Expanded: input + redeem */}
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        gap: 8,
+        alignItems: "center",
+        transition: "opacity 180ms ease, transform 220ms cubic-bezier(.2,.8,.2,1)",
+        opacity: showRedeem ? 1 : 0,
+        transform: showRedeem ? "translateY(0px) scale(1)" : "translateY(4px) scale(0.99)",
+        pointerEvents: showRedeem ? "auto" : "none",
+      }}
+    >
+      <input
+        className="neonInput"
+        placeholder="Enter code"
+        value={redeemCode}
+        onChange={(e) => setRedeemCode(e.target.value)}
+        style={{ flex: 1, height: 48 }}
+      />
+      <button
+        className="neonBtn neonBtnPrimary"
+        disabled={!!redeemBusy}
+        onClick={() => {
+          sfx?.playTap?.();
+          onRedeem?.(redeemCode);
         }}
+        style={{ height: 48, whiteSpace: "nowrap" }}
       >
-        <input
-          className="neonInput"
-          placeholder="Enter code"
-          value={redeemCode}
-          onChange={(e) => setRedeemCode(e.target.value)}
-          style={{ flex: 1, height: 44 }}
-        />
-        <button
-          className="neonBtn neonBtnPrimary"
-          disabled={!!redeemBusy}
-          onClick={() => {
-            sfx?.playTap?.();
-            onRedeem?.(redeemCode);
-          }}
-          style={{ whiteSpace: "nowrap", height: 44 }}
-        >
-          {redeemBusy ? "..." : "Redeem"}
-        </button>
-      </div>
+        {redeemBusy ? "..." : "Redeem"}
+      </button>
     </div>
   </div>
+
+  {/* Optional: tiny “back” link so user can collapse it */}
+  {showRedeem ? (
+    <button
+      className="neonBtn"
+      onClick={() => setShowRedeem(false)}
+      style={{ marginTop: 8, width: "100%", opacity: 0.9 }}
+    >
+      Never mind
+    </button>
+  ) : null}
 </div>
     <input
       type="checkbox"
@@ -835,129 +835,129 @@ function BuyCreditsDrawer({ open, onClose, sfx, packs, buyUrl, onRedeem, redeemB
   if (!open) return null;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 110,
-        background: "rgba(0,0,0,0.8)",
-        display: "flex",
-        alignItems: "flex-end",
-      }}
-    >
-      <div className="neonPanel" style={{ width: "100%", padding: 20 }}>
-        <h3>Get Points</h3>
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      zIndex: 110,
+      background: "rgba(0,0,0,0.8)",
+      display: "flex",
+      alignItems: "flex-end",
+    }}
+  >
+    <div className="neonPanel" style={{ width: "100%", padding: 20 }}>
+      <h3>Get Points</h3>
 
-        {/* Redeem (compact flip) - below buy options */}
-<div
-  style={{
-    marginTop: 14,
-    paddingTop: 14,
-    borderTop: "1px solid rgba(255,255,255,0.10)",
-  }}
->
-  <div style={{ fontWeight: 900, marginBottom: 8 }}>Redeem Code</div>
-
-  <div style={{ perspective: 900 }}>
-    <div
-      style={{
-        position: "relative",
-        height: 44,
-        transformStyle: "preserve-3d",
-        transition: "transform 420ms cubic-bezier(.2,.8,.2,1)",
-        transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backfaceVisibility: "hidden",
-          display: "flex",
-          alignItems: "center",
-        }}
-      >
-        <button
-          className="neonBtn neonBtnPrimary"
-          style={{ width: "100%" }}
-          onClick={() => {
-            sfx?.playTap?.();
-            setShowRedeem(true);
+      {/* Packs */}
+      {packs.map((p: any) => (
+        <div
+          key={p.id}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            margin: "10px 0",
+            gap: 12,
           }}
         >
-          Redeem Code
-        </button>
-      </div>
+          <span>
+            {p.title} ({p.creditsLabel})
+          </span>
 
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backfaceVisibility: "hidden",
-          transform: "rotateY(180deg)",
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-        }}
-      >
-        <input
-          className="neonInput"
-          placeholder="Enter code"
-          value={redeemCode}
-          onChange={(e) => setRedeemCode(e.target.value)}
-          style={{ flex: 1, height: 44 }}
-        />
-        <button
-          className="neonBtn neonBtnPrimary"
-          disabled={!!redeemBusy}
-          onClick={() => {
-            sfx?.playTap?.();
-            onRedeem?.(redeemCode);
-            setRedeemCode("");
-          }}
-          style={{ whiteSpace: "nowrap", height: 44 }}
-        >
-          {redeemBusy ? "..." : "Redeem"}
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-        {/* Packs */}
-        {packs.map((p: any) => (
-          <div
-            key={p.id}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              margin: "10px 0",
-              gap: 12,
+          <button
+            className="neonBtn neonBtnGradient"
+            onClick={() => {
+              const href = p.href || buyUrl;
+              if (href) window.location.href = href;
             }}
           >
-            <span>
-              {p.title} ({p.creditsLabel})
-            </span>
+            Buy
+          </button>
+        </div>
+      ))}
 
-            <button
-              className="neonBtn neonBtnGradient"
-              onClick={() => {
-                const href = p.href || buyUrl;
-                if (href) window.location.href = href;
+      {/* Redeem (compact flip) - below buy options */}
+      <div
+        style={{
+          marginTop: 14,
+          paddingTop: 14,
+          borderTop: "1px solid rgba(255,255,255,0.10)",
+        }}
+      >
+        <div style={{ fontWeight: 900, marginBottom: 8 }}>Redeem Code</div>
+
+        <div style={{ perspective: 900 }}>
+          <div
+            style={{
+              position: "relative",
+              height: 44,
+              transformStyle: "preserve-3d",
+              transition: "transform 420ms cubic-bezier(.2,.8,.2,1)",
+              transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backfaceVisibility: "hidden",
+                display: "flex",
+                alignItems: "center",
               }}
             >
-              Buy
-            </button>
-          </div>
-        ))}
+              <button
+                className="neonBtn neonBtnPrimary"
+                style={{ width: "100%" }}
+                onClick={() => {
+                  sfx?.playTap?.();
+                  setShowRedeem(true);
+                }}
+              >
+                Redeem Code
+              </button>
+            </div>
 
-        <button className="neonBtn" onClick={onClose} style={{ width: "100%" }}>
-          Close
-        </button>
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backfaceVisibility: "hidden",
+                transform: "rotateY(180deg)",
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+              }}
+            >
+              <input
+                className="neonInput"
+                placeholder="Enter code"
+                value={redeemCode}
+                onChange={(e) => setRedeemCode(e.target.value)}
+                style={{ flex: 1, height: 44 }}
+              />
+              <button
+                className="neonBtn neonBtnPrimary"
+                disabled={!!redeemBusy}
+                onClick={() => {
+                  sfx?.playTap?.();
+                  onRedeem?.(redeemCode);
+                  setRedeemCode("");
+                }}
+                style={{ whiteSpace: "nowrap", height: 44 }}
+              >
+                {redeemBusy ? "..." : "Redeem"}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <button className="neonBtn" onClick={onClose} style={{ width: "100%" }}>
+        Close
+      </button>
     </div>
-  );
+  </div>
+);
 }
 
 function Artwork({ src, alt }: { src?: string; alt: string }) {
