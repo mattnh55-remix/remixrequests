@@ -43,6 +43,51 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [identityId, setIdentityId] = useState<string>("");
   const [showVerify, setShowVerify] = useState(false);
   const [showBuy, setShowBuy] = useState(false);
+    const [redeemCode, setRedeemCode] = useState("");
+  const [redeemBusy, setRedeemBusy] = useState(false);
+
+  async function redeem(codeInput?: string) {
+    const code = String(codeInput ?? redeemCode ?? "").trim();
+    if (!code) { sfx.playError(); setMsg("Enter a redemption code."); return; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      sfx.playError();
+      setMsg("Enter a valid email first.");
+      return;
+    }
+    if (!verified && !identityId) {
+      sfx.playError();
+      setMsg("Please verify to redeem a code.");
+      setShowVerify(true);
+      return;
+    }
+
+    setRedeemBusy(true);
+    try {
+      const res = await fetch(`/api/public/redeem/${location}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        sfx.playError();
+        setMsg(data.error || "Could not redeem code.");
+        return;
+      }
+
+      sfx.playSuccess();
+      setMsg(`✅ Redeemed +${data.pointsAdded ?? ""} points!`);
+      setRedeemCode("");
+      const nextBalance = data?.balance ?? null;
+      if (typeof nextBalance === "number") bal.applyBalance(nextBalance);
+      else bal.refreshOnce();
+    } catch {
+      sfx.playError();
+      setMsg("Could not redeem code.");
+    } finally {
+      setRedeemBusy(false);
+    }
+  }
   const [buyReason, setBuyReason] = useState<"none" | "out" | "notEnough" | "boost">("none");
   const [sessionCountdown, setSessionCountdown] = useState<string>("");
 
@@ -466,6 +511,8 @@ export default function RequestPage({ params }: { params: { location: string } }
           location={location}
           email={email}
           setEmail={setEmail}
+            onRedeem={(code: string) => redeem(code)}
+  redeemBusy={redeemBusy}
           onVerified={() => {
               setVerified(true);
             setShowVerify(false);
@@ -500,6 +547,8 @@ export default function RequestPage({ params }: { params: { location: string } }
           reason={buyReason}
           buyUrl={buyUrl}
           packs={uiPacks}
+          redeemBusy={redeemBusy}
+          onRedeem={(code: string) => redeem(code)}
         />
       </div>
     </div>
@@ -508,12 +557,15 @@ export default function RequestPage({ params }: { params: { location: string } }
 
 // Helper components & logic below (VerifyModal, CreditHud, etc.)
 
-function VerifyModal({ open, location, email, setEmail, onVerified, onClose, sfx }: any) {
+function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, onVerified, onClose, sfx }: any) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"collect" | "code">("collect");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+    const [emailOptIn, setEmailOptIn] = useState(true);
+  const [smsOptIn, setSmsOptIn] = useState(true);
+    const [redeemCode, setRedeemCode] = useState("");
 
   if (!open) return null;
 
@@ -523,8 +575,8 @@ function VerifyModal({ open, location, email, setEmail, onVerified, onClose, sfx
       const res = await fetch(`/api/public/auth/start`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, email, phone })
-      });
+body: JSON.stringify({ location, email, phone, emailOptIn, smsOptIn })
+     });
       const data = await res.json();
       if (data.ok) setStep("code");
       else setMsg(data.error || "Error");
@@ -538,7 +590,7 @@ function VerifyModal({ open, location, email, setEmail, onVerified, onClose, sfx
       const res = await fetch(`/api/public/auth/verify`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, email, code })
+body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn })
       });
       const data = await res.json();
       if (data.ok) {
@@ -553,8 +605,57 @@ function VerifyModal({ open, location, email, setEmail, onVerified, onClose, sfx
     <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.8)" }}>
       <div className="neonPanel" style={{ padding: 20, width: 320 }}>
         <h3>Verify</h3>
+
         <input className="neonInput" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" />
         <input className="neonInput" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone" />
+        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+  <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+          <div style={{ fontWeight: 900, marginBottom: 6 }}>Have a redemption code?</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              className="neonInput"
+              placeholder="Enter code"
+              value={redeemCode}
+              onChange={(e) => setRedeemCode(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <button
+              className="neonBtn"
+              disabled={!!redeemBusy}
+              onClick={() => onRedeem(redeemCode)}
+            >
+              {redeemBusy ? "..." : "Redeem"}
+            </button>
+          </div>
+        </div>
+    <input
+      type="checkbox"
+      checked={emailOptIn}
+      onChange={(e) => setEmailOptIn(e.target.checked)}
+      style={{ marginTop: 3 }}
+    />
+    <span>
+      Yes — email me deals &amp; updates <span style={{ color: "var(--muted)" }}>(required for welcome credits)</span>
+    </span>
+  </label>
+
+  <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
+    <input
+      type="checkbox"
+      checked={smsOptIn}
+      onChange={(e) => setSmsOptIn(e.target.checked)}
+      style={{ marginTop: 3 }}
+    />
+    <span>
+      Yes — text me deals &amp; updates <span style={{ color: "var(--muted)" }}>(recommended)</span>
+    </span>
+  </label>
+
+  <div style={{ fontSize: 12, color: "var(--muted)" }}>
+    We’ll text a one-time code. Standard messaging rates may apply.
+  </div>
+</div>
         {step === "code" && <input className="neonInput" value={code} onChange={e => setCode(e.target.value)} placeholder="Code" />}
         <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode}>{busy ? "..." : "Submit"}</button>
         <button className="neonBtn" onClick={onClose}>Close</button>
@@ -595,19 +696,90 @@ function CreditHud({ verified, balance, creditsLabel, sessionCountdown, onVerify
   );
 }
 
-function BuyCreditsDrawer({ open, onClose, sfx, packs, buyUrl }: any) {
+function BuyCreditsDrawer({ open, onClose, sfx, packs, buyUrl, onRedeem, redeemBusy }: any) {
+  const [redeemCode, setRedeemCode] = useState("");
+
   if (!open) return null;
+
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "flex-end" }}>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 110,
+        background: "rgba(0,0,0,0.8)",
+        display: "flex",
+        alignItems: "flex-end",
+      }}
+    >
       <div className="neonPanel" style={{ width: "100%", padding: 20 }}>
         <h3>Get Points</h3>
+
+        {/* Redeem Code (shown once, above packs) */}
+        <div
+          style={{
+            marginTop: 12,
+            marginBottom: 14,
+            padding: 12,
+            borderRadius: 14,
+            border: "1px solid rgba(255,255,255,0.12)",
+          }}
+        >
+          <div style={{ fontWeight: 900, marginBottom: 8 }}>Redeem Code</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              className="neonInput"
+              placeholder="Enter code"
+              value={redeemCode}
+              onChange={(e) => setRedeemCode(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <button
+              className="neonBtn"
+              disabled={!!redeemBusy}
+              onClick={() => {
+                sfx?.playTap?.();
+                onRedeem?.(redeemCode);
+                setRedeemCode("");
+              }}
+              style={{ whiteSpace: "nowrap" }}
+            >
+              {redeemBusy ? "..." : "Redeem"}
+            </button>
+          </div>
+        </div>
+
+        {/* Packs */}
         {packs.map((p: any) => (
-          <div key={p.id} style={{ display: "flex", justifyContent: "space-between", margin: "10px 0" }}>
-            <span>{p.title} ({p.creditsLabel})</span>
-            <button className="neonBtn" onClick={() => { if (p.href || buyUrl) window.location.href = p.href || buyUrl; }}>Buy</button>
+          <div
+            key={p.id}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              margin: "10px 0",
+              gap: 12,
+            }}
+          >
+            <span>
+              {p.title} ({p.creditsLabel})
+            </span>
+
+            <button
+              className="neonBtn"
+              onClick={() => {
+                const href = p.href || buyUrl;
+                if (href) window.location.href = href;
+              }}
+            >
+              Buy
+            </button>
           </div>
         ))}
-        <button className="neonBtn" onClick={onClose} style={{ width: "100%" }}>Close</button>
+
+        <button className="neonBtn" onClick={onClose} style={{ width: "100%" }}>
+          Close
+        </button>
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+//--- src/lib/security.ts
 import crypto from "crypto";
 
 export function normalizeArtistKey(artist: string) {

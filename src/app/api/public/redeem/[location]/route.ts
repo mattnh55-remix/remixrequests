@@ -1,78 +1,60 @@
+// src/app/api/public/redeem/[location]/route.ts
+
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
-import { getOrCreateCurrentSession } from "@/lib/validators";
-
-// TODO(you): import your real email->hash helper
-// Example: import { emailToHash } from "@/lib/hash";
-function emailToHash_TODO(email: string) {
-  // IMPORTANT: replace this with your real hashing (must match existing identities)
-  // Do NOT ship with this placeholder.
-  return email.trim().toLowerCase();
-}
-
-// TODO(you): implement your real “marketing opt-in” check
-function isMarketingOptedIn_TODO(identity: any) {
-  // Replace with your actual field(s), e.g.:
-  // return !!identity.mailchimpOptInAt;
-  // return !!identity.marketingOptInAt;
-  // return identity.marketingOptIn === true;
-  return false;
-}
+import { getCreditBalance, secondsSinceLastAction } from "@/lib/validators";
+import { hashEmail } from "@/lib/security";
 
 function jsonFail(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request, { params }: { params: { location: string } }) {
   const body = await req.json().catch(() => null);
-  const codeRaw = (body?.code || "").toString().trim();
-  const email = (body?.email || "").toString().trim();
+
+  const codeRaw = String(body?.code || "").trim();
+  const emailRaw = String(body?.email || "").trim().toLowerCase();
 
   if (!codeRaw) return jsonFail("Missing code.");
-  if (!email) return jsonFail("Missing email.");
+  if (!emailRaw) return jsonFail("Missing email.");
 
   const code = codeRaw.toUpperCase();
+
   const { loc } = await getRulesForLocation(params.location);
-  const session = await getOrCreateCurrentSession(loc.id, 4);
+  const emailHash = hashEmail(emailRaw);
 
-  const emailHash = emailToHash_TODO(email);
-
-  // Identity gate: verified + marketing opt-in
+  // Identity gate: verified + email opt-in required
   const identity = await prisma.identity.findUnique({
     where: { locationId_emailHash: { locationId: loc.id, emailHash } },
     select: {
-      emailHash: true,
       smsVerifiedAt: true,
-      // include the opt-in field(s) you actually have:
-      // mailchimpOptInAt: true,
-      // marketingOptInAt: true,
-      // marketingOptIn: true,
-    } as any
+      emailOptInAt: true,
+    },
   });
 
   if (!identity?.smsVerifiedAt) {
     return jsonFail("Please verify your phone to redeem a code.", 403);
   }
-  if (!isMarketingOptedIn_TODO(identity)) {
-    return jsonFail("Please opt into SMS marketing to redeem a code.", 403);
+  if (!identity?.emailOptInAt) {
+    return jsonFail("Please opt into email updates to redeem a code.", 403);
   }
 
-  // Rate limit: prevent spam attempts (10 seconds)
-  const lastLedger = await prisma.creditLedger.findFirst({
-    where: { locationId: loc.id, emailHash },
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true }
-  });
-  if (lastLedger) {
-    const seconds = (Date.now() - lastLedger.createdAt.getTime()) / 1000;
-    if (seconds < 10) return jsonFail("Please wait a moment and try again.", 429);
+  // Rate limit (10 seconds between any actions)
+  try {
+    const secs = await secondsSinceLastAction(loc.id, emailHash);
+    if (secs < 10) return jsonFail("Please wait a moment and try again.", 429);
+  } catch {
+    // if the helper fails for any reason, fail open (non-fatal)
   }
 
-  // Lookup code (must be for current session, not expired, not disabled)
+  // Lookup code
   const now = new Date();
   const rc = await prisma.redemptionCode.findUnique({
-    where: { locationId_code: { locationId: loc.id, code } }
+    where: { locationId_code: { locationId: loc.id, code } },
   });
 
   if (!rc) return jsonFail("Invalid code.");
@@ -80,36 +62,37 @@ export async function POST(req: Request, { params }: { params: { location: strin
   if (rc.expiresAt && rc.expiresAt <= now) return jsonFail("This code has expired.");
   if (rc.uses >= rc.maxUses) return jsonFail("This code has reached its limit.");
 
-  // Redeem atomically: prevent double use + enforce maxUses
+  // Redeem atomically
   try {
     const result = await prisma.$transaction(async (tx) => {
       // prevent multiple redeems by same user
       const existing = await tx.redemptionCodeUse.findUnique({
-        where: { codeId_emailHash: { codeId: rc.id, emailHash } }
+        where: { codeId_emailHash: { codeId: rc.id, emailHash } },
       });
       if (existing) throw new Error("ALREADY_USED");
 
-      // re-check capacity inside tx
+      // re-check inside txn
       const fresh = await tx.redemptionCode.findUnique({ where: { id: rc.id } });
       if (!fresh) throw new Error("INVALID");
       if (fresh.disabledAt) throw new Error("DISABLED");
       if (fresh.expiresAt && fresh.expiresAt <= now) throw new Error("EXPIRED");
       if (fresh.uses >= fresh.maxUses) throw new Error("LIMIT");
 
-      const promoExpiresAt = new Date(Date.now() + fresh.redeemWindowMinutes * 60 * 1000);
+const minutes = Math.max(0, Number(fresh.redeemWindowMinutes ?? 0));
+const promoExpiresAt = new Date(Date.now() + minutes * 60 * 1000);
 
-      await tx.redemptionCodeUse.create({
-        data: {
-          locationId: loc.id,
-          codeId: rc.id,
-          emailHash,
-          expiresAt: promoExpiresAt
-        }
-      });
+await tx.redemptionCodeUse.create({
+  data: {
+    locationId: loc.id,
+    codeId: fresh.id,
+    emailHash,
+    expiresAt: promoExpiresAt,
+  },
+});
 
       await tx.redemptionCode.update({
-        where: { id: rc.id },
-        data: { uses: { increment: 1 } }
+        where: { id: fresh.id },
+        data: { uses: { increment: 1 } },
       });
 
       await tx.creditLedger.create({
@@ -118,14 +101,21 @@ export async function POST(req: Request, { params }: { params: { location: strin
           emailHash,
           delta: fresh.points,
           reason: `redeem:${code}`,
-          expiresAt: promoExpiresAt
-        }
+          expiresAt: promoExpiresAt,
+        },
       });
 
-      return { pointsAdded: fresh.points, expiresAt: promoExpiresAt.toISOString() };
+return { pointsAdded: fresh.points, expiresAt: promoExpiresAt.toISOString() };
     });
 
-    return NextResponse.json({ ok: true, pointsAdded: result.pointsAdded, expiresAt: result.expiresAt });
+    const balance = await getCreditBalance(loc.id, emailHash);
+
+    return NextResponse.json({
+      ok: true,
+      pointsAdded: result.pointsAdded,
+      expiresAt: result.expiresAt,
+      balance,
+    });
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg === "ALREADY_USED") return jsonFail("You already used this code.", 409);

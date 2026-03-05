@@ -1,3 +1,5 @@
+//--- src/lib/mailchimp.ts
+
 import mailchimp from "@mailchimp/mailchimp_marketing";
 
 mailchimp.setConfig({

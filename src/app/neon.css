@@ -285,7 +285,15 @@
               rgba(255,255,255,0.06);
   box-shadow: 0 0 14px rgba(0,247,255,0.15);
 }
+@keyframes requestPulse {
+  0% { box-shadow: 0 0 0 rgba(0,255,200,0); }
+  50% { box-shadow: 0 0 16px rgba(0,255,200,0.7); }
+  100% { box-shadow: 0 0 0 rgba(0,255,200,0); }
+}
 
+.neonChip.requestPulse {
+  animation: requestPulse 0.35s ease;
+}
 /* Grid tiles */
 .neonGrid {
   display: grid;
@@ -526,12 +534,30 @@
 }
 
 .neonTile:active {
-  transform: scale(0.985);
+  transform: scale(0.985); translateY:(0px)
 }
 
 .neonChip:active {
   transform: scale(0.97);
 }
+.neonChip {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.neonChip:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+  transform: scale(1.06);
+}
+
+.neonChip:active {
+  transform: translateY(0px) scale(0.97);
+}
+
+.neonArt img {
+  transition: transform 0.15s ease;
+}
+
 
 @media (max-width: 520px) {
   .neonLogo {

@@ -290,7 +290,7 @@ model RedemptionCodeUse {
   createdAt  DateTime @default(now())
 
   // Per-user expiry (activation time + window). Useful for audit/UX.
-  expiresAt  DateTime
+  expiresAt  DateTime?
 
   code RedemptionCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
 

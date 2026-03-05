@@ -1,3 +1,4 @@
+//--- src/lib/validators.ts
 import { prisma } from "./db";
 
 export async function getOrCreateCurrentSession(locationId: string, sessionHours: number) {

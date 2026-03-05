@@ -1,3 +1,5 @@
+//--- src/app/api/public/auth/start/route.ts
+
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/db";
