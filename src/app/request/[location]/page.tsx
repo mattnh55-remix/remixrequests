@@ -39,8 +39,7 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [songs, setSongs] = useState<Song[]>([]);
   const [rules, setRules] = useState<any>(null);
   const [msg, setMsg] = useState<string>("");
-
-  const [queuePreview, setQueuePreview] = useState<{ playNow: any[]; upNext: any[] }>({ playNow: [], upNext: [] });
+const [queuePreview, setQueuePreview] = useState<{ playNow: any[]; upNext: any[] }>({ playNow: [], upNext: [] });
 
   const [verified, setVerified] = useState(false);
 
@@ -55,7 +54,6 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [sessionCountdown, setSessionCountdown] = useState<string>("");
 
   const sfx = useNeonSfx();
-  const [showQueueFlip, setShowQueueFlip] = useState(false);
 // Persist email so verified users don't "lose" ability to tap after reload/Square return
 useEffect(() => {
   try {
@@ -78,19 +76,19 @@ useEffect(() => {
     }
   }
 
-async function refreshQueuePreview() {
-  try {
-    const res = await fetch(`/api/public/queue/${location}`, { cache: "no-store" });
-    const data = await res.json();
-    setQueuePreview({
-      playNow: Array.isArray(data?.playNow) ? data.playNow : [],
-      upNext: Array.isArray(data?.upNext) ? data.upNext : [],
-    });
-  } catch {
-    // silent
-  }
-}
 
+  async function refreshQueuePreview() {
+    try {
+      const res = await fetch(`/api/public/queue/${location}`, { cache: "no-store" });
+      const data = await res.json();
+      setQueuePreview({
+        playNow: Array.isArray(data?.playNow) ? data.playNow : [],
+        upNext: Array.isArray(data?.upNext) ? data.upNext : [],
+      });
+    } catch {
+      // silent
+    }
+  }
 
   async function loadSongs() {
     const qs = new URLSearchParams();
@@ -139,8 +137,7 @@ async function refreshQueuePreview() {
   }, [identityId, location]);
 
 
-  useEffect(() => { refreshSession();
-      refreshQueuePreview(); }, [location]);
+  useEffect(() => { refreshSession(); }, [location]);
   useEffect(() => { loadSongs(); }, [search, tag]);
 
   useEffect(() => {
@@ -206,44 +203,21 @@ async function refreshQueuePreview() {
     return () => window.clearInterval(id);
   }, [rules?.session?.endsAt]);
 
+
+// Keep a small preview of the live queue so we can show a "View the Queue" teaser card.
+useEffect(() => {
+  refreshQueuePreview();
+  const id = window.setInterval(refreshQueuePreview, 12000);
+  return () => window.clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [location]);
+
+
   function openBuy(reason: typeof buyReason) {
     setBuyReason(reason);
     setShowBuy(true);
     sfx.playTap();
   }
-
-// Allow other pages (like /queue) to deep-link into Verify/Buy modals with query params.
-useEffect(() => {
-  if (typeof window === "undefined") return;
-  try {
-    const sp = new URLSearchParams(window.location.search);
-    const wantVerify = sp.get("verify") === "1";
-    const wantBuy = sp.get("buy") === "1";
-    const reason = (sp.get("reason") || "none") as any;
-
-    if (wantVerify) {
-      setShowVerify(true);
-      setMsg("");
-    }
-
-    if (wantBuy) {
-      // reason can be: none | out | notEnough | boost
-      if (reason === "out" || reason === "notEnough" || reason === "boost" || reason === "none") {
-        openBuy(reason);
-      } else {
-        openBuy("none");
-      }
-    }
-
-    if (wantVerify || wantBuy) {
-      // clean URL so refresh doesn't reopen
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  } catch {
-    // ignore
-  }
-}, []);
-
 
   async function submit(songId: string, action: "play_next" | "play_now") {
     // ✅ IMPORTANT CHANGE:
@@ -374,7 +348,7 @@ useEffect(() => {
   return (
 
     <div className="neonRoot">
-            <div className="rrWall" />
+      <div className="rrWall" />
       <div className="neonWrap" style={{ paddingBottom: 96 }}>
         {/* HEADER */}
         <div className="neonHeader neonHeader3">
@@ -516,14 +490,14 @@ className={`neonPanel rrPointsPanel ${
         <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
 
 {(() => {
-  const next = (queuePreview.upNext?.[0] || null) as any;
-  const hasActive = (queuePreview.upNext?.length || 0) > 0 || (queuePreview.playNow?.length || 0) > 0;
+  const hasActive =
+    (queuePreview?.upNext?.length || 0) > 0 || (queuePreview?.playNow?.length || 0) > 0;
   if (!hasActive) return null;
 
-  const title = String(next?.title || next?.song?.title || "");
-  const artist = String(next?.artist || next?.song?.artist || "");
-  const who =
-    String(next?.requestedBy || next?.requesterName || next?.requestedByName || next?.username || "").trim();
+  const next = (queuePreview.upNext?.[0] || queuePreview.playNow?.[0] || null) as any;
+  const title = String(next?.title || next?.song?.title || "").trim();
+  const artist = String(next?.artist || next?.song?.artist || "").trim();
+  const who = String(next?.requestedBy || next?.requesterName || next?.username || "").trim();
 
   return (
     <button
@@ -547,9 +521,8 @@ className={`neonPanel rrPointsPanel ${
         <span style={{ fontSize: 16 }}>➡️</span>
       </div>
 
-      <div style={{ fontSize: 13, opacity: 0.92 }}>
-        Coming up soon:{" "}
-        <b>{title || "—"}</b> by <b>{artist || "—"}</b>
+      <div style={{ fontSize: 13, opacity: 0.9 }}>
+        Coming up soon: <b>{title || "—"}</b> by <b>{artist || "—"}</b>
         {who ? (
           <>
             {" "}
@@ -558,43 +531,12 @@ className={`neonPanel rrPointsPanel ${
         ) : null}
       </div>
 
-      <div style={{ fontSize: 12, opacity: 0.75 }}>
+      <div style={{ fontSize: 12, opacity: 0.72 }}>
         Upvote or Downvote you and your friends&apos; songs in the queue with your points!
       </div>
     </button>
   );
 })()}
-<div style={{ display: "flex", justifyContent: "flex-end" }}>
-  <div className="flipWrap">
-    <div
-      className={`flipCard ${showQueueFlip ? "isFlipped" : ""}`}
-      onClick={() => {
-        sfx.playTap();
-        setShowQueueFlip(true);
-        setTimeout(() => {
-          window.location.href = `/queue/${location}`;
-        }, 220);
-      }}
-      title="View the live queue and vote"
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          (e.currentTarget as HTMLDivElement).click();
-        }
-      }}
-    >
-      <div className="flipFace flipFront">
-        <span>View the Queue!</span>
-        <span style={{ fontSize: 16 }}>➡️</span>
-      </div>
-
-      <div className="flipFace flipBack">
-        <span className="flipTiny">QUEUE & VOTING</span>
-      </div>
-    </div>
-  </div>
 </div>
 {(verified || identityId) && !email ? (
   <div className="neonPanel" style={{ padding: 12, border: "1px solid rgba(255,255,255,0.12)" }}>
@@ -668,7 +610,7 @@ className={`neonPanel rrPointsPanel ${
               {trending.map((s) => (
                 <button
                   key={s.id}
-                  className="neonChip"
+                  className="neonChip"submit
                   onClick={() => { sfx.playTap(); submit(s.id, "play_next"); }}
                   style={{ textAlign: "left" }}
                   title="Tap to Request"
