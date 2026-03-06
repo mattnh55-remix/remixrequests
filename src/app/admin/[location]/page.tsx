@@ -620,6 +620,7 @@ export default function AdminPage({ params }: { params: { location: string } }) 
                   <Toggle label="Enforce song cooldown" checked={rules.enforceSongCooldown} onChange={(c) => setRules({ ...rules, enforceSongCooldown: c })} />
                   <Field label="Artist cooldown minutes" value={rules.artistCooldownMinutes} onChange={(v) => setRules({ ...rules, artistCooldownMinutes: v })} />
                   <Field label="Song cooldown minutes" value={rules.songCooldownMinutes} onChange={(v) => setRules({ ...rules, songCooldownMinutes: v })} />
+                  <Field label="Max songs by same artist in queue (0 = unlimited)" value={rules.maxArtistInQueue ?? 0} onChange={(v) => setRules({ ...rules, maxArtistInQueue: v })} />
 
                   <Toggle label="Enable voting" checked={rules.enableVoting} onChange={(c) => setRules({ ...rules, enableVoting: c })} />
 
@@ -650,6 +651,7 @@ export default function AdminPage({ params }: { params: { location: string } }) 
                   <Text label="Already requested message" value={rules.msgAlreadyRequested} onChange={(t) => setRules({ ...rules, msgAlreadyRequested: t })} />
                   <Text label="Artist cooldown message" value={rules.msgArtistCooldown} onChange={(t) => setRules({ ...rules, msgArtistCooldown: t })} />
                   <Text label="Song cooldown message" value={rules.msgSongCooldown} onChange={(t) => setRules({ ...rules, msgSongCooldown: t })} />
+                  <Text label="Artist already queued message" value={rules.msgArtistAlreadyQueued || ""} onChange={(t) => setRules({ ...rules, msgArtistAlreadyQueued: t })} />
                   {/* Still maps to msgNoCredits in DB, but label is Points */}
                   <Text label="Not enough points message" value={rules.msgNoCredits} onChange={(t) => setRules({ ...rules, msgNoCredits: t })} />
                 </div>

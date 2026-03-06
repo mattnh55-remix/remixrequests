@@ -31,7 +31,7 @@ export async function POST(req: Request) {
 
   const song = await prisma.song.findFirst({
     where: { id: songId, locationId: loc.id },
-    select: { id: true, locationId: true, explicit: true, artistKey: true },
+    select: { id: true, locationId: true, explicit: true, artistKey: true, artist: true },
   });
 
   if (!song) return jsonFail("Song not found.", 404);
@@ -40,6 +40,7 @@ export async function POST(req: Request) {
   const isPlayNow = action === "play_now";
   const cost = isPlayNow ? rules.costPlayNow : rules.costRequest;
   const alreadyQueuedMsg = rules.msgAlreadyRequested || "That song is already on the list already.";
+  const artistQueueTemplate = rules.msgArtistAlreadyQueued || "Sorry, $artist is already queued up on the request list!";
 
   try {
     const result = await prisma.$transaction(
@@ -72,6 +73,29 @@ export async function POST(req: Request) {
 
         if (alreadyQueued) {
           throw new Error(`INQUEUE:${alreadyQueuedMsg}`);
+        }
+
+        // 2b) limit how many songs by the same artist can exist in the queue
+        const maxArtistInQueue = Math.max(0, Number(rules.maxArtistInQueue ?? 0));
+        if (maxArtistInQueue > 0) {
+          const artistCount = await tx.request.count({
+            where: {
+              locationId: loc.id,
+              sessionId: session.id,
+              status: "APPROVED",
+              song: {
+                artistKey: song.artistKey,
+              },
+            },
+          });
+
+          if (artistCount >= maxArtistInQueue) {
+            const artistName = String(song.artist || "This artist").trim() || "This artist";
+            const artistQueueMsg = String(artistQueueTemplate).includes("$artist")
+              ? String(artistQueueTemplate).replace(/\$artist/g, artistName)
+              : `${artistName} is already queued up on the request list!`;
+            throw new Error(`ARTISTQUEUE:${artistQueueMsg}`);
+          }
         }
 
         // 3) block recently played artist based on rules
@@ -158,6 +182,7 @@ export async function POST(req: Request) {
     const msg = String(e?.message || "");
     if (msg.startsWith("LIMIT:")) return jsonFail(msg.slice("LIMIT:".length), 400);
     if (msg.startsWith("INQUEUE:")) return jsonFail(msg.slice("INQUEUE:".length), 400);
+    if (msg.startsWith("ARTISTQUEUE:")) return jsonFail(msg.slice("ARTISTQUEUE:".length), 400);
     if (msg.startsWith("ARTIST:")) return jsonFail(msg.slice("ARTIST:".length), 400);
     if (msg.startsWith("SONG:")) return jsonFail(msg.slice("SONG:".length), 400);
     if (msg.startsWith("NOCREDITS:")) return jsonFail(msg.slice("NOCREDITS:".length), 400);
