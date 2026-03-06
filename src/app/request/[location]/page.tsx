@@ -47,6 +47,7 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [songs, setSongs] = useState<Song[]>([]);
   const [rules, setRules] = useState<any>(null);
   const [msg, setMsg] = useState<string>("");
+  const [toastOpen, setToastOpen] = useState(false);
   const [queuePreview, setQueuePreview] = useState<{ playNow: any[]; upNext: any[] }>({ playNow: [], upNext: [] });
 
   const [verified, setVerified] = useState(false);
@@ -67,6 +68,7 @@ export default function RequestPage({ params }: { params: { location: string } }
   const flyTimerRef = useRef<number | null>(null);
   const tileSuccessTimerRef = useRef<number | null>(null);
   const queuePulseTimerRef = useRef<number | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
   const flyKeyRef = useRef(0);
 
   const sfx = useNeonSfx();
@@ -76,8 +78,40 @@ export default function RequestPage({ params }: { params: { location: string } }
       if (flyTimerRef.current != null) window.clearTimeout(flyTimerRef.current);
       if (tileSuccessTimerRef.current != null) window.clearTimeout(tileSuccessTimerRef.current);
       if (queuePulseTimerRef.current != null) window.clearTimeout(queuePulseTimerRef.current);
+      if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!msg) {
+      setToastOpen(false);
+      if (toastTimerRef.current != null) {
+        window.clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+      return;
+    }
+
+    setToastOpen(true);
+    if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastOpen(false);
+      window.setTimeout(() => setMsg(""), 220);
+    }, 3400);
+
+    return () => {
+      if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
+    };
+  }, [msg]);
+
+  function dismissToast() {
+    setToastOpen(false);
+    if (toastTimerRef.current != null) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    window.setTimeout(() => setMsg(""), 220);
+  }
 
   useEffect(() => {
     try {
@@ -98,8 +132,26 @@ export default function RequestPage({ params }: { params: { location: string } }
 
   async function refreshQueuePreview() {
     try {
+      const prevUserRequestsRef = useRef<Set<string>>(new Set());
       const res = await fetch(`/api/public/queue/${location}`, { cache: "no-store" });
       const data = await res.json();
+      const currentIds = new Set<string>();
+
+for (const q of [...data.playNow, ...data.upNext]) {
+  if (q.requestedByMe) currentIds.add(q.id);
+}
+
+if (prevUserRequestsRef.current.size) {
+  for (const id of prevUserRequestsRef.current) {
+    if (!currentIds.has(id)) {
+      setMsg("Your request couldn't be played. Points have been returned.");
+      break;
+    }
+  }
+}
+
+prevUserRequestsRef.current = currentIds;
+
       setQueuePreview({
         playNow: Array.isArray(data?.playNow) ? data.playNow : [],
         upNext: Array.isArray(data?.upNext) ? data.upNext : [],
@@ -418,6 +470,7 @@ export default function RequestPage({ params }: { params: { location: string } }
   return (
     <div className="neonRoot">
       <div className="rrWall" />
+      <OverlayToast open={toastOpen} message={msg} onDismiss={dismissToast} />
       <div className="neonWrap" style={{ paddingBottom: 96 }}>
         <div className="neonHeader neonHeader3">
           <div className="neonHeaderLeft">
@@ -452,7 +505,6 @@ export default function RequestPage({ params }: { params: { location: string } }
           </div>
         </div>
 
-        {msg ? <div className="neonToast" style={{ textAlign: "center", padding: "10px 14px" }}>{msg}</div> : null}
 
         <div ref={queueTargetRef} style={{ display: "grid", gap: 12, marginBottom: 12 }}>
           {hasActiveQueue ? (
@@ -871,6 +923,123 @@ function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, 
   );
 }
 
+
+function OverlayToast({ open, message, onDismiss }: { open: boolean; message: string; onDismiss: () => void }) {
+  const startYRef = useRef<number | null>(null);
+  const deltaYRef = useRef(0);
+  const [dragY, setDragY] = useState(0);
+
+  useEffect(() => {
+    if (!open) setDragY(0);
+  }, [open]);
+
+  if (!message) return null;
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    startYRef.current = e.clientY;
+    deltaYRef.current = 0;
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (startYRef.current == null) return;
+    const delta = e.clientY - startYRef.current;
+    deltaYRef.current = delta;
+    if (delta < 0) setDragY(delta);
+  }
+
+  function onPointerUp() {
+    if (deltaYRef.current < -38) {
+      onDismiss();
+    } else {
+      setDragY(0);
+    }
+    startYRef.current = null;
+    deltaYRef.current = 0;
+  }
+
+  return (
+    <div
+      className={`rrOverlayToastWrap ${open ? "rrOverlayToastWrapOpen" : "rrOverlayToastWrapClosed"}`}
+      style={{ transform: `translate(-50%, calc(0px + ${dragY}px))` }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+    >
+      <div className="rrOverlayToast">
+        <div className="rrOverlayToastHandle" />
+        <div className="rrOverlayToastText">{message}</div>
+        <button type="button" className="rrOverlayToastClose" onClick={onDismiss} aria-label="Dismiss message">✕</button>
+      </div>
+      <style jsx global>{`
+        .rrOverlayToastWrap {
+          position: fixed;
+          left: 50%;
+          top: max(14px, env(safe-area-inset-top));
+          z-index: 1200;
+          width: min(92vw, 520px);
+          transition: opacity 220ms ease, transform 220ms ease;
+          touch-action: none;
+        }
+        .rrOverlayToastWrapOpen {
+          opacity: 1;
+        }
+        .rrOverlayToastWrapClosed {
+          opacity: 0;
+          pointer-events: none;
+        }
+        .rrOverlayToast {
+          position: relative;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-height: 62px;
+          padding: 16px 18px 14px;
+          border-radius: 22px;
+          border: 1px solid rgba(255,255,255,0.18);
+          background: linear-gradient(90deg, rgba(0,247,255,0.18), rgba(255,57,212,0.16)), rgba(8,10,26,0.94);
+          box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 10px 35px rgba(0,0,0,0.42), 0 0 22px rgba(0,247,255,0.18), 0 0 18px rgba(255,57,212,0.14);
+          backdrop-filter: blur(18px);
+          animation: rrOverlayToastIn 220ms ease-out;
+        }
+        .rrOverlayToastHandle {
+          position: absolute;
+          top: 7px;
+          left: 50%;
+          width: 42px;
+          height: 4px;
+          margin-left: -21px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.28);
+        }
+        .rrOverlayToastText {
+          flex: 1;
+          font-size: 15px;
+          font-weight: 900;
+          line-height: 1.25;
+          color: rgba(255,255,255,0.96);
+          text-align: center;
+          text-shadow: 0 0 10px rgba(0,247,255,0.12);
+        }
+        .rrOverlayToastClose {
+          flex: 0 0 auto;
+          width: 34px;
+          height: 34px;
+          border: 1px solid rgba(255,255,255,0.14);
+          border-radius: 999px;
+          background: rgba(255,255,255,0.06);
+          color: rgba(255,255,255,0.92);
+          font-weight: 900;
+          cursor: pointer;
+        }
+        @keyframes rrOverlayToastIn {
+          0% { opacity: 0; transform: translateY(-12px) scale(0.98); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
 
 function CountUpNumber({ value, pulseKey }: { value: number; pulseKey?: number }) {
   const [display, setDisplay] = useState<number>(Number.isFinite(value) ? value : 0);
