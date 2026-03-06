@@ -799,15 +799,18 @@ if (!open) return null;
               <span style={{ fontWeight: 800 }}>{p.title}</span>
               <span style={{ fontSize: 12, color: "var(--muted)" }}>{p.creditsLabel}</span>
             </div>
-            <button className="neonBtn neonBtnGradient" onClick={() => { if (p.href || buyUrl) window.location.href = p.href || buyUrl; }}>
-              Buy
-            </button>
+<button
+  className="neonBtn neonBtnPrimary"
+  onClick={() => {
+    if (p.href || buyUrl) window.location.href = p.href || buyUrl;
+  }}
+>
+  {`BUY • $${((p.priceCents ?? 0) / 100).toFixed(2)}`}
+</button>
           </div>
         ))}
 
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
-          <div style={{ fontWeight: 900, marginBottom: 8 }}>Redeem Code</div>
-
           <div style={{ perspective: 1000 }}>
             <div
               style={{
