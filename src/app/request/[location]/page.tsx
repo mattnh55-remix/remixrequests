@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import AnimatedBalanceCounter from "../../../../components/ui/neon/AnimatedBalanceCounter";
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 
 const RAILS = [
@@ -85,7 +86,7 @@ export default function RequestPage({ params }: { params: { location: string } }
       if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
         localStorage.setItem("rr_email", e);
       }
-    } catch { /* ignore */ }
+    } catch {}
   }, [email]);
 
   async function refreshSession() {
@@ -93,7 +94,7 @@ export default function RequestPage({ params }: { params: { location: string } }
       const res = await fetch(`/api/public/session/${location}`, { cache: "no-store" });
       const data = await res.json();
       setRules(data);
-    } catch { /* silent */ }
+    } catch {}
   }
 
   async function refreshQueuePreview() {
@@ -104,7 +105,7 @@ export default function RequestPage({ params }: { params: { location: string } }
         playNow: Array.isArray(data?.playNow) ? data.playNow : [],
         upNext: Array.isArray(data?.upNext) ? data.upNext : [],
       });
-    } catch { /* silent */ }
+    } catch {}
   }
 
   async function loadSongs() {
@@ -166,7 +167,7 @@ export default function RequestPage({ params }: { params: { location: string } }
       if (location && lsLocation !== location) {
         localStorage.setItem("rr_location", String(location));
       }
-    } catch { /* ignore */ }
+    } catch {}
   }, [location]);
 
   useEffect(() => {
@@ -205,6 +206,15 @@ export default function RequestPage({ params }: { params: { location: string } }
     setBuyReason(reason);
     setShowBuy(true);
     sfx.playTap();
+  }
+
+  function handleCornerHudAction() {
+    sfx.playTap();
+    if (!verified && !identityId) {
+      setShowVerify(true);
+      return;
+    }
+    openBuy("boost");
   }
 
   async function redeem(codeInput?: string) {
@@ -266,11 +276,7 @@ export default function RequestPage({ params }: { params: { location: string } }
       const res = await fetch("/api/square/create-checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          location,
-          identityId,
-          packageKey,
-        }),
+        body: JSON.stringify({ location, identityId, packageKey }),
       });
 
       const data = await res.json();
@@ -291,15 +297,11 @@ export default function RequestPage({ params }: { params: { location: string } }
   function triggerSuccessVisuals(song: Song, sourceEl?: HTMLElement | null) {
     setSuccessTileId(song.id);
     if (tileSuccessTimerRef.current != null) window.clearTimeout(tileSuccessTimerRef.current);
-    tileSuccessTimerRef.current = window.setTimeout(() => {
-      setSuccessTileId(null);
-    }, 650);
+    tileSuccessTimerRef.current = window.setTimeout(() => setSuccessTileId(null), 650);
 
     setQueuePulseOn(true);
     if (queuePulseTimerRef.current != null) window.clearTimeout(queuePulseTimerRef.current);
-    queuePulseTimerRef.current = window.setTimeout(() => {
-      setQueuePulseOn(false);
-    }, 800);
+    queuePulseTimerRef.current = window.setTimeout(() => setQueuePulseOn(false), 800);
 
     if (!sourceEl) return;
 
@@ -307,11 +309,10 @@ export default function RequestPage({ params }: { params: { location: string } }
     const targetEl = queueButtonRef.current || queueTargetRef.current;
     const targetRect = targetEl?.getBoundingClientRect();
 
-    const startX = sourceRect.left + (sourceRect.width / 2);
-    const startY = sourceRect.top + (sourceRect.height / 2);
-
-    const endX = targetRect ? targetRect.left + (targetRect.width / 2) : window.innerWidth - 84;
-    const endY = targetRect ? targetRect.top + (targetRect.height / 2) : 150;
+    const startX = sourceRect.left + sourceRect.width / 2;
+    const startY = sourceRect.top + sourceRect.height / 2;
+    const endX = targetRect ? targetRect.left + targetRect.width / 2 : window.innerWidth - 84;
+    const endY = targetRect ? targetRect.top + targetRect.height / 2 : 150;
 
     flyKeyRef.current += 1;
     setFlyAnim({
@@ -324,9 +325,7 @@ export default function RequestPage({ params }: { params: { location: string } }
     });
 
     if (flyTimerRef.current != null) window.clearTimeout(flyTimerRef.current);
-    flyTimerRef.current = window.setTimeout(() => {
-      setFlyAnim(null);
-    }, 900);
+    flyTimerRef.current = window.setTimeout(() => setFlyAnim(null), 900);
   }
 
   async function submit(song: Song, action: "play_next" | "play_now", sourceEl?: HTMLElement | null) {
@@ -352,7 +351,7 @@ export default function RequestPage({ params }: { params: { location: string } }
     const res = await fetch(`/api/public/request`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ location, email, songId: song.id, action })
+      body: JSON.stringify({ location, email, songId: song.id, action }),
     });
 
     const data = await res.json();
@@ -367,29 +366,23 @@ export default function RequestPage({ params }: { params: { location: string } }
     setMsg(action === "play_now" ? "✅ Play Now request added!" : "✅ Request added!");
 
     const nextBalance = data?.balance ?? data?.credits?.balance ?? data?.session?.balance ?? null;
-    if (typeof nextBalance === "number") {
-      bal.applyBalance(nextBalance);
-    } else {
-      bal.refreshOnce();
-    }
+    if (typeof nextBalance === "number") bal.applyBalance(nextBalance);
+    else bal.refreshOnce();
 
     triggerSuccessVisuals(song, sourceEl);
-    window.setTimeout(() => {
-      refreshQueuePreview();
-    }, 120);
+    window.setTimeout(() => refreshQueuePreview(), 120);
 
     return true;
   }
 
   const trending = useMemo(() => {
-    const hot = songs.filter(s => (s.tags || []).some(t => ["TikTok", "DISCO", "Pop Hits"].includes(t)));
+    const hot = songs.filter((s) => (s.tags || []).some((t) => ["TikTok", "DISCO", "Pop Hits"].includes(t)));
     return (hot.length ? hot : songs).slice(0, 10);
   }, [songs]);
 
-  const trendingIds = useMemo(() => new Set(trending.map(t => t.id)), [trending]);
+  const trendingIds = useMemo(() => new Set(trending.map((t) => t.id)), [trending]);
   const locationName = rules?.location?.name || location;
   const costRequest = rules?.rules?.costRequest ?? 1;
-  const costPlayNow = rules?.rules?.costPlayNow ?? 5;
 
   const buyUrl = useMemo(() => {
     const qp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
@@ -409,62 +402,19 @@ export default function RequestPage({ params }: { params: { location: string } }
     const priceTier4 = Number(rules?.rules?.packTier4PriceCents ?? 2000);
 
     return [
-      {
-        id: "tier1",
-        title: "Quick Boost",
-        subtitle: "Perfect for 1–2 songs",
-        creditsLabel: "10 credits",
-        badge: "Fast",
-        cta: "Get Points",
-        href: buyUrl ?? undefined,
-        priceCents: priceTier1,
-        packageKey: "5_10",
-      },
-      {
-        id: "tier2",
-        title: "Party Pack",
-        subtitle: "Best for groups",
-        creditsLabel: "25 credits",
-        highlight: true,
-        badge: "Most Popular",
-        cta: "Get Points",
-        href: buyUrl ?? undefined,
-        priceCents: priceTier2,
-        packageKey: "10_25",
-      },
-      {
-        id: "tier3",
-        title: "Bonus Pack",
-        subtitle: "More songs, more fun",
-        creditsLabel: "35 credits",
-        badge: "Hot Deal",
-        cta: "Get Points",
-        href: buyUrl ?? undefined,
-        priceCents: priceTier3,
-        packageKey: "15_35",
-      },
-      {
-        id: "tier4",
-        title: "All Night",
-        subtitle: "Skate like a legend",
-        creditsLabel: "50 credits",
-        badge: "Best Value",
-        cta: "Get Points",
-        href: buyUrl ?? undefined,
-        priceCents: priceTier4,
-        packageKey: "20_50",
-      },
+      { id: "tier1", title: "Quick Boost", subtitle: "Perfect for 1–2 songs", creditsLabel: "10 credits", badge: "Fast", cta: "Get Points", href: buyUrl ?? undefined, priceCents: priceTier1, packageKey: "5_10" },
+      { id: "tier2", title: "Party Pack", subtitle: "Best for groups", creditsLabel: "25 credits", highlight: true, badge: "Most Popular", cta: "Get Points", href: buyUrl ?? undefined, priceCents: priceTier2, packageKey: "10_25" },
+      { id: "tier3", title: "Bonus Pack", subtitle: "More songs, more fun", creditsLabel: "35 credits", badge: "Hot Deal", cta: "Get Points", href: buyUrl ?? undefined, priceCents: priceTier3, packageKey: "15_35" },
+      { id: "tier4", title: "All Night", subtitle: "Skate like a legend", creditsLabel: "50 credits", badge: "Best Value", cta: "Get Points", href: buyUrl ?? undefined, priceCents: priceTier4, packageKey: "20_50" },
     ];
   }, [rules, buyUrl]);
 
   let creditsLabel = "Use Points!";
-  if (verified || identityId) {
-    if (bal.balance === null) creditsLabel = "Points: …";
-    else creditsLabel = `Points: ${bal.balance}`;
-  }
+  if (verified || identityId) creditsLabel = bal.balance === null ? "Points: …" : `Points: ${bal.balance}`;
 
   const hasActiveQueue = (queuePreview?.upNext?.length || 0) > 0 || (queuePreview?.playNow?.length || 0) > 0;
   const nextQueueItem = (queuePreview.upNext?.[0] || queuePreview.playNow?.[0] || null) as any;
+  const hudBalance = !verified && !identityId ? 5 : typeof bal.balance === "number" ? bal.balance : 0;
 
   return (
     <div className="neonRoot">
@@ -488,56 +438,27 @@ export default function RequestPage({ params }: { params: { location: string } }
           </div>
 
           <div className="neonHeaderRight">
-            <div
-              className={`neonPanel rrPointsPanel ${(verified || identityId) && typeof bal.balance === "number" && bal.balance <= 2 ? "rrPointsLow" : ""}`}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 18,
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "rgba(0,0,0,0.18)",
-                minWidth: 104,
-                textAlign: "center",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 900, letterSpacing: 0.8, textAlign: "center", width: "100%" }}>
-                  <span className="rrPointsDesktop">POINTS</span>
-                  <span className="rrPointsMobile">PTS</span>
-                </div>
+            <div className={`rrCornerHud ${(verified || identityId) && typeof bal.balance === "number" && bal.balance <= 2 ? "rrCornerHudLow" : ""}`}>
+              <div className="rrCornerHudLabel">
+                <span className="rrPointsDesktop">POINTS</span>
+                <span className="rrPointsMobile">PTS</span>
               </div>
-
-              <div key={bal.pulseKey} style={{ fontSize: 22, fontWeight: 1000, lineHeight: 1.1, animation: "rrPop 420ms ease-out" }}>
-                {(!verified && !identityId) ? 5 : (typeof bal.balance === "number" ? bal.balance : "—")}
+              <div className="rrCornerHudValue">
+                <AnimatedBalanceCounter
+                  balance={hudBalance}
+                  pulseKey={bal.pulseKey}
+                  delta={bal.delta}
+                  showDeltaBanner={bal.showDeltaBanner}
+                />
               </div>
-
-              {(!verified && !identityId) ? (
-                <button
-                  className="neonBtn neonBtnPrimary neonPulse"
-                  style={{ marginTop: 6, padding: "8px 10px", borderRadius: 14, fontSize: 12 }}
-                  onClick={(e) => { e.stopPropagation(); sfx.playTap(); setShowVerify(true); }}
-                >USE</button>
-              ) : (
-                <button
-                  className="neonBtn neonBtnPrimary"
-                  style={{ marginTop: 6, padding: "8px 10px", borderRadius: 14, fontSize: 12 }}
-                  onClick={(e) => { e.stopPropagation(); sfx.playTap(); setBuyReason("boost"); setShowBuy(true); }}
-                >ADD POINTS</button>
-              )}
+              <button className={`neonBtn neonBtnPrimary rrCornerHudBtn ${!verified && !identityId ? "neonPulse" : ""}`} onClick={handleCornerHudAction}>
+                {!verified && !identityId ? "USE" : "ADD POINTS"}
+              </button>
             </div>
           </div>
         </div>
 
-        <style jsx global>{`
-          @keyframes rrPop {
-            0% { transform: scale(0.92); filter: brightness(0.9); }
-            60% { transform: scale(1.06); filter: brightness(1.12); }
-            100% { transform: scale(1); filter: brightness(1); }
-          }
-        `}</style>
-
-        {msg ? <div className="neonToast" style={{ textAlign: "center", padding: "10px 14px" }}>
-          {msg}
-        </div> : null}
+        {msg ? <div className="neonToast" style={{ textAlign: "center", padding: "10px 14px" }}>{msg}</div> : null}
 
         <div ref={queueTargetRef} style={{ display: "grid", gap: 12, marginBottom: 12 }}>
           {hasActiveQueue ? (
@@ -574,7 +495,7 @@ export default function RequestPage({ params }: { params: { location: string } }
           <input
             id="songSearch"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search songs or artists…"
             className="neonInput neonSearchInput"
             style={{ fontWeight: 800, fontSize: 16, letterSpacing: 0.2 }}
@@ -583,7 +504,7 @@ export default function RequestPage({ params }: { params: { location: string } }
 
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingLeft: 6, paddingRight: 6, paddingBottom: 6 }}>
           <button onClick={() => { sfx.playTap(); setTag(""); }} className="neonBtn" style={chip2(tag === "")}>All</button>
-          {RAILS.map(r => (
+          {RAILS.map((r) => (
             <button key={r} onClick={() => { sfx.playTap(); setTag(r); }} className="neonBtn" style={chip2(tag === r)}>{r}</button>
           ))}
         </div>
@@ -591,18 +512,9 @@ export default function RequestPage({ params }: { params: { location: string } }
         {trending.length ? (
           <div className="neonPanel" style={{ padding: 10, marginBottom: 12 }}>
             <div style={{ padding: "10px 12px 0", fontWeight: 1000, letterSpacing: 0.4 }}>Trending at Remix</div>
-            <div className="neonRail" style={{
-              maskImage: "linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent)",
-              WebkitMaskImage: "linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent)"
-            }}>
+            <div className="neonRail" style={{ maskImage: "linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent)", WebkitMaskImage: "linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent)" }}>
               {trending.map((s) => (
-                <DelayedTapButton
-                  key={s.id}
-                  holdMs={450}
-                  sfx={sfx}
-                  onConfirm={(buttonEl?: HTMLElement | null) => submit(s, "play_next", buttonEl)}
-                  style={{ textAlign: "left" }}
-                >
+                <DelayedTapButton key={s.id} holdMs={450} sfx={sfx} onConfirm={(buttonEl?: HTMLElement | null) => submit(s, "play_next", buttonEl)} style={{ textAlign: "left" }}>
                   <div className="neonArt"><Artwork src={s.artworkUrl} alt={s.title} /></div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 900, fontSize: 14, color: "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
@@ -618,7 +530,6 @@ export default function RequestPage({ params }: { params: { location: string } }
           <div className="neonGrid">
             {songs.map((s) => {
               const hot = trendingIds.has(s.id);
-
               return (
                 <div key={s.id} className={`neonTile ${successTileId === s.id ? "rrRequestTilePulse" : ""}`}>
                   <div className="neonTileTop rrArtworkStatic"><Artwork src={s.artworkUrl} alt={s.title} /></div>
@@ -631,22 +542,8 @@ export default function RequestPage({ params }: { params: { location: string } }
                       <span className="neonBadge">{costRequest}pt</span>
                     </div>
                     <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
-                      <HoldToConfirmButton
-                        idleLabel="REQUEST!"
-                        successLabel="✓ REQUEST ADDED"
-                        holdMs={1800}
-                        onConfirm={(buttonEl?: HTMLElement | null) => submit(s, "play_next", buttonEl)}
-                        sfx={sfx}
-                      />
-
-                      <HoldToConfirmButton
-                        className="neonBtnPrimary"
-                        idleLabel="BOOST"
-                        successLabel="✓ BOOST ADDED"
-                        holdMs={1800}
-                        onConfirm={(buttonEl?: HTMLElement | null) => submit(s, "play_now", buttonEl)}
-                        sfx={sfx}
-                      />
+                      <HoldToConfirmButton idleLabel="REQUEST!" successLabel="✓ REQUEST ADDED" holdMs={1800} onConfirm={(buttonEl?: HTMLElement | null) => submit(s, "play_next", buttonEl)} sfx={sfx} />
+                      <HoldToConfirmButton className="neonBtnPrimary" idleLabel="BOOST" successLabel="✓ BOOST ADDED" holdMs={1800} onConfirm={(buttonEl?: HTMLElement | null) => submit(s, "play_now", buttonEl)} sfx={sfx} />
                     </div>
                   </div>
                 </div>
@@ -668,7 +565,7 @@ export default function RequestPage({ params }: { params: { location: string } }
             try {
               const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
               if (lsIdentity) setIdentityId(lsIdentity);
-            } catch { /* ignore */ }
+            } catch {}
             setMsg("✅ Verified!");
             sfx.playSuccess();
             bal.refreshOnce();
@@ -677,24 +574,13 @@ export default function RequestPage({ params }: { params: { location: string } }
           sfx={sfx}
         />
 
-        <CreditHud
-          verified={verified || !!identityId}
-          balance={bal.balance}
-          creditsLabel={creditsLabel}
-          sessionCountdown={sessionCountdown}
-          onVerify={() => setShowVerify(true)}
-          onBuy={() => openBuy(bal.balance === 0 ? "out" : "none")}
-        />
+        <CreditHud verified={verified || !!identityId} creditsLabel={creditsLabel} sessionCountdown={sessionCountdown} onVerify={() => setShowVerify(true)} onBuy={() => openBuy(bal.balance === 0 ? "out" : "none")} />
 
         <BuyCreditsDrawer
           open={showBuy}
           onClose={() => { setShowBuy(false); setBuyReason("none"); }}
-          sfx={sfx}
-          verified={verified || !!identityId}
-          balance={bal.balance}
-          reason={buyReason}
-          buyUrl={buyUrl}
           packs={uiPacks}
+          buyUrl={buyUrl}
           redeemBusy={redeemBusy}
           onRedeem={(code: string) => redeem(code)}
           onBuy={(packageKey: "5_10" | "10_25" | "15_35" | "20_50") => startCheckout(packageKey)}
@@ -702,16 +588,7 @@ export default function RequestPage({ params }: { params: { location: string } }
       </div>
 
       {flyAnim ? (
-        <div
-          key={flyAnim.key}
-          className="rrFlyCard"
-          style={{
-            left: flyAnim.startX,
-            top: flyAnim.startY,
-            ["--rr-fly-x" as any]: `${Math.round(flyAnim.deltaX)}px`,
-            ["--rr-fly-y" as any]: `${Math.round(flyAnim.deltaY)}px`,
-          }}
-        >
+        <div key={flyAnim.key} className="rrFlyCard" style={{ left: flyAnim.startX, top: flyAnim.startY, ["--rr-fly-x" as any]: `${Math.round(flyAnim.deltaX)}px`, ["--rr-fly-y" as any]: `${Math.round(flyAnim.deltaY)}px` }}>
           <div className="rrFlyCardInner">
             <Artwork src={flyAnim.src} alt="Requested song artwork" />
           </div>
@@ -721,15 +598,7 @@ export default function RequestPage({ params }: { params: { location: string } }
   );
 }
 
-function HoldToConfirmButton({
-  className = "",
-  idleLabel,
-  successLabel,
-  holdMs = 1800,
-  onConfirm,
-  disabled,
-  sfx,
-}: any) {
+function HoldToConfirmButton({ className = "", idleLabel, successLabel, holdMs = 1800, onConfirm, disabled, sfx }: any) {
   const fillRef = useRef<HTMLDivElement | null>(null);
   const labelRef = useRef<HTMLSpanElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -740,13 +609,8 @@ function HoldToConfirmButton({
   const [holding, setHolding] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  function setLabel(text: string) {
-    if (labelRef.current) labelRef.current.textContent = text;
-  }
-
-  function setFill(p: number) {
-    if (fillRef.current) fillRef.current.style.height = `${Math.max(0, Math.min(100, p * 100))}%`;
-  }
+  function setLabel(text: string) { if (labelRef.current) labelRef.current.textContent = text; }
+  function setFill(p: number) { if (fillRef.current) fillRef.current.style.height = `${Math.max(0, Math.min(100, p * 100))}%`; }
 
   function hardReset() {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -765,43 +629,28 @@ function HoldToConfirmButton({
     setLabel("REQUESTING...");
 
     let ok = false;
-    try {
-      ok = Boolean(await Promise.resolve(onConfirm?.(buttonRef.current)));
-    } catch {
-      ok = false;
-    }
-
-    if (!ok) {
-      hardReset();
-      return;
-    }
+    try { ok = Boolean(await Promise.resolve(onConfirm?.(buttonRef.current))); } catch { ok = false; }
+    if (!ok) return hardReset();
 
     setSuccess(true);
     setLabel(successLabel);
-
-    window.setTimeout(() => {
-      hardReset();
-    }, 700);
+    window.setTimeout(() => hardReset(), 700);
   }
 
   function tick(ts: number) {
     if (startRef.current == null) startRef.current = ts;
     const elapsed = ts - startRef.current;
     const p = Math.min(elapsed / holdMs, 1);
-
     setFill(p);
-
     if (p < 0.35) setLabel("HOLD TO CONFIRM");
     else if (p < 0.8) setLabel("KEEP HOLDING...");
     else setLabel("ALMOST THERE...");
-
     if (p >= 1) {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
       void completeHold();
       return;
     }
-
     rafRef.current = requestAnimationFrame(tick);
   }
 
@@ -809,7 +658,6 @@ function HoldToConfirmButton({
     e.preventDefault();
     e.stopPropagation();
     if (disabled || lockedRef.current) return;
-
     sfx?.playTap?.();
     setHolding(true);
     startRef.current = null;
@@ -830,53 +678,25 @@ function HoldToConfirmButton({
     setLabel(idleLabel);
   }
 
-  useEffect(() => {
-    return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
+  useEffect(() => () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current); }, []);
 
   return (
-    <button
-      ref={buttonRef}
-      type="button"
-      className={`neonBtn rrHoldLiquidBtn ${className} ${holding ? "rrHolding" : ""} ${success ? "rrSuccess" : ""}`}
-      disabled={disabled}
-      onPointerDown={startHold}
-      onPointerUp={cancelHold}
-      onPointerLeave={cancelHold}
-      onPointerCancel={cancelHold}
-      onContextMenu={(e) => e.preventDefault()}
-      style={{ width: "100%" }}
-    >
-      <div ref={fillRef} className="rrHoldLiquidFill">
-        <div className="rrHoldLiquidSurface" />
-      </div>
+    <button ref={buttonRef} type="button" className={`neonBtn rrHoldLiquidBtn ${className} ${holding ? "rrHolding" : ""} ${success ? "rrSuccess" : ""}`} disabled={disabled} onPointerDown={startHold} onPointerUp={cancelHold} onPointerLeave={cancelHold} onPointerCancel={cancelHold} onContextMenu={(e) => e.preventDefault()} style={{ width: "100%" }}>
+      <div ref={fillRef} className="rrHoldLiquidFill"><div className="rrHoldLiquidSurface" /></div>
       <span ref={labelRef}>{idleLabel}</span>
     </button>
   );
 }
 
-function DelayedTapButton({
-  children,
-  className = "",
-  holdMs = 450,
-  onConfirm,
-  sfx,
-  style,
-}: any) {
+function DelayedTapButton({ children, className = "", holdMs = 450, onConfirm, sfx, style }: any) {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const fillRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number | null>(null);
   const doneRef = useRef(false);
-
   const [holding, setHolding] = useState(false);
 
-  function setFill(p: number) {
-    if (fillRef.current) fillRef.current.style.width = `${Math.max(0, Math.min(100, p * 100))}%`;
-  }
-
+  function setFill(p: number) { if (fillRef.current) fillRef.current.style.width = `${Math.max(0, Math.min(100, p * 100))}%`; }
   function reset() {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
@@ -889,11 +709,8 @@ function DelayedTapButton({
   async function complete() {
     doneRef.current = true;
     setHolding(false);
-    try {
-      await Promise.resolve(onConfirm?.(buttonRef.current));
-    } finally {
-      window.setTimeout(() => reset(), 120);
-    }
+    try { await Promise.resolve(onConfirm?.(buttonRef.current)); }
+    finally { window.setTimeout(() => reset(), 120); }
   }
 
   function tick(ts: number) {
@@ -901,14 +718,12 @@ function DelayedTapButton({
     const elapsed = ts - startRef.current;
     const p = Math.min(elapsed / holdMs, 1);
     setFill(p);
-
     if (p >= 1) {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
       void complete();
       return;
     }
-
     rafRef.current = requestAnimationFrame(tick);
   }
 
@@ -930,24 +745,10 @@ function DelayedTapButton({
     reset();
   }
 
-  useEffect(() => {
-    return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
+  useEffect(() => () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current); }, []);
 
   return (
-    <button
-      ref={buttonRef}
-      type="button"
-      className={`neonChip rrDelayedTapBtn ${className} ${holding ? "rrDelayedTapHolding" : ""}`}
-      onPointerDown={startHold}
-      onPointerUp={cancelHold}
-      onPointerLeave={cancelHold}
-      onPointerCancel={cancelHold}
-      onContextMenu={(e) => e.preventDefault()}
-      style={style}
-    >
+    <button ref={buttonRef} type="button" className={`neonChip rrDelayedTapBtn ${className} ${holding ? "rrDelayedTapHolding" : ""}`} onPointerDown={startHold} onPointerUp={cancelHold} onPointerLeave={cancelHold} onPointerCancel={cancelHold} onContextMenu={(e) => e.preventDefault()} style={style}>
       <div ref={fillRef} className="rrDelayedTapFill" />
       {children}
     </button>
@@ -964,20 +765,14 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
   const [smsOptIn, setSmsOptIn] = useState(true);
   const [redeemCode, setRedeemCode] = useState("");
   const [showRedeem, setShowRedeem] = useState(false);
-
   if (!open) return null;
 
   async function sendCode() {
     setBusy(true);
     try {
-      const res = await fetch(`/api/public/auth/start`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, email, phone, emailOptIn, smsOptIn })
-      });
+      const res = await fetch(`/api/public/auth/start`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ location, email, phone, emailOptIn, smsOptIn }) });
       const data = await res.json();
-      if (data.ok) setStep("code");
-      else setMsg(data.error || "Error");
+      if (data.ok) setStep("code"); else setMsg(data.error || "Error");
     } catch { setMsg("Error"); }
     finally { setBusy(false); }
   }
@@ -985,16 +780,10 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
   async function confirmCode() {
     setBusy(true);
     try {
-      const res = await fetch(`/api/public/auth/verify`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn })
-      });
+      const res = await fetch(`/api/public/auth/verify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn }) });
       const data = await res.json();
-      if (data.ok) {
-        localStorage.setItem("rr_identityId", data.identityId);
-        onVerified({ balance: data.balance });
-      } else setMsg(data.error || "Invalid code");
+      if (data.ok) { localStorage.setItem("rr_identityId", data.identityId); onVerified({ balance: data.balance }); }
+      else setMsg(data.error || "Invalid code");
     } catch { setMsg("Error"); }
     finally { setBusy(false); }
   }
@@ -1003,100 +792,34 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
     <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.8)" }}>
       <div className="neonPanel" style={{ padding: 20, width: 320 }}>
         <h3 style={{ marginTop: 0, marginBottom: 15 }}>Verify</h3>
-
         <div style={{ display: "grid", gap: 10 }}>
-          <input className="neonInput" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" />
-          <input className="neonInput" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone" />
-
+          <input className="neonInput" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+          <input className="neonInput" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
           <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
-            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
-              <input type="checkbox" checked={emailOptIn} onChange={(e) => setEmailOptIn(e.target.checked)} style={{ marginTop: 3 }} />
-              <span>Yes — email deals & updates <span style={{ color: "var(--muted)" }}>(required for credits)</span></span>
-            </label>
-
-            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
-              <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} style={{ marginTop: 3 }} />
-              <span>Yes — text deals & updates <span style={{ color: "var(--muted)" }}>(recommended)</span></span>
-            </label>
+            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}><input type="checkbox" checked={emailOptIn} onChange={(e) => setEmailOptIn(e.target.checked)} style={{ marginTop: 3 }} /><span>Yes — email deals & updates <span style={{ color: "var(--muted)" }}>(required for credits)</span></span></label>
+            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}><input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} style={{ marginTop: 3 }} /><span>Yes — text deals & updates <span style={{ color: "var(--muted)" }}>(recommended)</span></span></label>
           </div>
-
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
             <div style={{ fontWeight: 900, marginBottom: 8, fontSize: 14 }}>Have a redemption code?</div>
-
             <div style={{ perspective: 1000 }}>
-              <div
-                style={{
-                  position: "relative",
-                  height: 48,
-                  transformStyle: "preserve-3d",
-                  transition: "transform 0.6s cubic-bezier(.2,.8,.2,1)",
-                  transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
-                  willChange: "transform"
-                }}
-              >
-                <div style={{
-                  position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
-                  transform: "translateZ(0.1px)", display: "flex", alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased"
-                }}>
-                  <button
-                    className="neonBtn"
-                    style={{ width: "100%", height: "100%", opacity: 0.8 }}
-                    onClick={() => { sfx?.playTap?.(); setShowRedeem(true); }}
-                  >
-                    Redeem Code
-                  </button>
+              <div style={{ position: "relative", height: 48, transformStyle: "preserve-3d", transition: "transform 0.6s cubic-bezier(.2,.8,.2,1)", transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)", willChange: "transform" }}>
+                <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "translateZ(0.1px)", display: "flex", alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased" }}>
+                  <button className="neonBtn" style={{ width: "100%", height: "100%", opacity: 0.8 }} onClick={() => { sfx?.playTap?.(); setShowRedeem(true); }}>Redeem Code</button>
                 </div>
-
-                <div style={{
-                  position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
-                  transform: "rotateY(180deg) translateZ(0.1px)", display: "flex", gap: 8, alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased"
-                }}>
-                  <input
-                    className="neonInput"
-                    placeholder="Code"
-                    value={redeemCode}
-                    onChange={(e) => setRedeemCode(e.target.value)}
-                    style={{ flex: 1, height: "100%" }}
-                  />
-                  <button
-                    className="neonBtn neonBtnPrimary"
-                    disabled={!!redeemBusy}
-                    onClick={() => { sfx?.playTap?.(); onRedeem?.(redeemCode); }}
-                    style={{ height: "100%" }}
-                  >
-                    {redeemBusy ? "..." : "Apply"}
-                  </button>
+                <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg) translateZ(0.1px)", display: "flex", gap: 8, alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased" }}>
+                  <input className="neonInput" placeholder="Code" value={redeemCode} onChange={(e) => setRedeemCode(e.target.value)} style={{ flex: 1, height: "100%" }} />
+                  <button className="neonBtn neonBtnPrimary" disabled={!!redeemBusy} onClick={() => { sfx?.playTap?.(); onRedeem?.(redeemCode); }} style={{ height: "100%" }}>{redeemBusy ? "..." : "Apply"}</button>
                 </div>
               </div>
             </div>
-
-            {showRedeem && (
-              <div style={{ textAlign: "center", marginTop: 8 }}>
-                <button
-                  onClick={() => setShowRedeem(false)}
-                  style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}
-                >
-                  cancel code
-                </button>
-              </div>
-            )}
+            {showRedeem && <div style={{ textAlign: "center", marginTop: 8 }}><button onClick={() => setShowRedeem(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>cancel code</button></div>}
           </div>
-
-          <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic", marginTop: 5 }}>
-            We’ll text a one-time code. Standard rates may apply.
-          </div>
-
-          {step === "code" && (
-            <input className="neonInput" value={code} onChange={e => setCode(e.target.value)} placeholder="Enter 6-digit Code" style={{ border: "1px solid cyan", marginTop: 5 }} />
-          )}
-
+          <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic", marginTop: 5 }}>We’ll text a one-time code. Standard rates may apply.</div>
+          {step === "code" && <input className="neonInput" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter 6-digit Code" style={{ border: "1px solid cyan", marginTop: 5 }} />}
           <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-            <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode} style={{ width: "100%", height: 48 }}>
-              {busy ? "..." : "Submit"}
-            </button>
+            <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode} style={{ width: "100%", height: 48 }}>{busy ? "..." : "Submit"}</button>
             <button className="neonBtn" onClick={onClose} style={{ width: "100%", opacity: 0.6 }}>Close</button>
           </div>
-
           {msg && <p style={{ color: "#ff4444", fontSize: 12, textAlign: "center", margin: 0 }}>{msg}</p>}
         </div>
       </div>
@@ -1106,28 +829,13 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
 
 function CreditHud({ verified, creditsLabel, sessionCountdown, onVerify, onBuy }: any) {
   return (
-    <div
-      style={{
-        position: "fixed",
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: "100%",
-        boxSizing: "border-box",
-        padding: "10px 12px",
-        background: "rgba(0,0,0,0.9)",
-      }}
-    >
+    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, width: "100%", boxSizing: "border-box", padding: "10px 12px", background: "rgba(0,0,0,0.9)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 900 }}>{creditsLabel}</div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>{sessionCountdown}</div>
         </div>
-        <button
-          className="neonBtn neonBtnPrimary"
-          onClick={!verified ? onVerify : onBuy}
-          style={{ whiteSpace: "nowrap" }}
-        >
+        <button className="neonBtn neonBtnPrimary" onClick={!verified ? onVerify : onBuy} style={{ whiteSpace: "nowrap" }}>
           {!verified ? "CLAIM" : "ADD POINTS"}
         </button>
       </div>
@@ -1138,84 +846,32 @@ function CreditHud({ verified, creditsLabel, sessionCountdown, onVerify, onBuy }
 function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, onBuy }: any) {
   const [redeemCode, setRedeemCode] = useState("");
   const [showRedeem, setShowRedeem] = useState(false);
-
   if (!open) return null;
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "flex-end" }}>
       <div className="neonPanel" style={{ width: "100%", padding: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
         <h3 style={{ marginTop: 0 }}>Get Points</h3>
-
         {packs.map((p: any) => (
           <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "12px 0", gap: 12 }}>
-            <div style={{ display: "grid" }}>
-              <span style={{ fontWeight: 800 }}>{p.title}</span>
-              <span style={{ fontSize: 12, color: "var(--muted)" }}>{p.creditsLabel}</span>
-            </div>
-            <button
-              className="neonBtn neonBtnPrimary"
-              onClick={() => {
-                if (p.packageKey) {
-                  onBuy?.(p.packageKey);
-                  return;
-                }
-                if (p.href || buyUrl) window.location.href = p.href || buyUrl;
-              }}
-            >
-              {`BUY • $${((p.priceCents ?? 0) / 100).toFixed(2)}`}
-            </button>
+            <div style={{ display: "grid" }}><span style={{ fontWeight: 800 }}>{p.title}</span><span style={{ fontSize: 12, color: "var(--muted)" }}>{p.creditsLabel}</span></div>
+            <button className="neonBtn neonBtnPrimary" onClick={() => { if (p.packageKey) return onBuy?.(p.packageKey); if (p.href || buyUrl) window.location.href = p.href || buyUrl; }}>{`BUY • $${((p.priceCents ?? 0) / 100).toFixed(2)}`}</button>
           </div>
         ))}
-
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
           <div style={{ perspective: 1000 }}>
-            <div
-              style={{
-                position: "relative",
-                height: 48,
-                transformStyle: "preserve-3d",
-                transition: "transform 0.4s cubic-bezier(.2,.8,.2,1)",
-                transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
-              }}
-            >
-              <div style={{
-                position: "absolute", inset: 0, backfaceVisibility: "hidden",
-                transform: "translateZ(1px)",
-                display: "flex", alignItems: "center"
-              }}>
-                <button className="neonBtn neonBtnPrimary" style={{ width: "100%", height: "100%" }} onClick={() => setShowRedeem(true)}>
-                  Redeem Code
-                </button>
+            <div style={{ position: "relative", height: 48, transformStyle: "preserve-3d", transition: "transform 0.4s cubic-bezier(.2,.8,.2,1)", transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)" }}>
+              <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "translateZ(1px)", display: "flex", alignItems: "center" }}>
+                <button className="neonBtn neonBtnPrimary" style={{ width: "100%", height: "100%" }} onClick={() => setShowRedeem(true)}>Redeem Code</button>
               </div>
-
-              <div style={{
-                position: "absolute", inset: 0, backfaceVisibility: "hidden",
-                transform: "rotateY(180deg) translateZ(1px)",
-                display: "flex", gap: 8, alignItems: "center"
-              }}>
-                <input
-                  className="neonInput"
-                  placeholder="Code"
-                  value={redeemCode}
-                  onChange={(e) => setRedeemCode(e.target.value)}
-                  style={{ flex: 1, height: "100%" }}
-                />
-                <button
-                  className="neonBtn neonBtnPrimary"
-                  disabled={!!redeemBusy}
-                  onClick={() => { onRedeem?.(redeemCode); setRedeemCode(""); }}
-                  style={{ whiteSpace: "nowrap", height: "100%" }}
-                >
-                  {redeemBusy ? "..." : "Apply"}
-                </button>
+              <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "rotateY(180deg) translateZ(1px)", display: "flex", gap: 8, alignItems: "center" }}>
+                <input className="neonInput" placeholder="Code" value={redeemCode} onChange={(e) => setRedeemCode(e.target.value)} style={{ flex: 1, height: "100%" }} />
+                <button className="neonBtn neonBtnPrimary" disabled={!!redeemBusy} onClick={() => { onRedeem?.(redeemCode); setRedeemCode(""); }} style={{ whiteSpace: "nowrap", height: "100%" }}>{redeemBusy ? "..." : "Apply"}</button>
               </div>
             </div>
           </div>
         </div>
-
-        <button className="neonBtn" onClick={onClose} style={{ width: "100%", marginTop: 16, opacity: 0.5 }}>
-          Close
-        </button>
+        <button className="neonBtn" onClick={onClose} style={{ width: "100%", marginTop: 16, opacity: 0.5 }}>Close</button>
       </div>
     </div>
   );
@@ -1266,6 +922,6 @@ function useNeonSfx() {
     muted, setMuted,
     playTap: () => play(800),
     playSuccess: () => play(1000),
-    playError: () => play(200)
+    playError: () => play(200),
   };
 }
