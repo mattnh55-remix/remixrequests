@@ -3,7 +3,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
-import { getCreditBalance, secondsSinceLastAction } from "@/lib/validators";
+import {
+  getCreditBalance,
+  getOrCreateCurrentSession,
+  secondsSinceLastAction,
+} from "@/lib/validators";
 import { hashEmail } from "@/lib/security";
 
 function jsonFail(message: string, status = 400) {
@@ -48,8 +52,11 @@ export async function POST(req: Request, { params }: { params: { location: strin
     const secs = await secondsSinceLastAction(loc.id, emailHash);
     if (secs < 10) return jsonFail("Please wait a moment and try again.", 429);
   } catch {
-    // if the helper fails for any reason, fail open (non-fatal)
+    // fail open if helper has an issue
   }
+
+  // Current session is used for default promo expiry when redeemWindowMinutes is 0/blank.
+  const session = await getOrCreateCurrentSession(loc.id, 4);
 
   // Lookup code
   const now = new Date();
@@ -62,33 +69,37 @@ export async function POST(req: Request, { params }: { params: { location: strin
   if (rc.expiresAt && rc.expiresAt <= now) return jsonFail("This code has expired.");
   if (rc.uses >= rc.maxUses) return jsonFail("This code has reached its limit.");
 
-  // Redeem atomically
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // prevent multiple redeems by same user
+      // Same user cannot ever redeem the same code twice.
       const existing = await tx.redemptionCodeUse.findUnique({
         where: { codeId_emailHash: { codeId: rc.id, emailHash } },
       });
       if (existing) throw new Error("ALREADY_USED");
 
-      // re-check inside txn
+      // Re-check code inside txn.
       const fresh = await tx.redemptionCode.findUnique({ where: { id: rc.id } });
       if (!fresh) throw new Error("INVALID");
+
+      const txnNow = new Date();
       if (fresh.disabledAt) throw new Error("DISABLED");
-      if (fresh.expiresAt && fresh.expiresAt <= now) throw new Error("EXPIRED");
+      if (fresh.expiresAt && fresh.expiresAt <= txnNow) throw new Error("EXPIRED");
       if (fresh.uses >= fresh.maxUses) throw new Error("LIMIT");
 
-const minutes = Math.max(0, Number(fresh.redeemWindowMinutes ?? 0));
-const promoExpiresAt = new Date(Date.now() + minutes * 60 * 1000);
+      const redeemWindowMinutes = Number(fresh.redeemWindowMinutes ?? 0);
+      const promoExpiresAt =
+        Number.isFinite(redeemWindowMinutes) && redeemWindowMinutes > 0
+          ? new Date(Date.now() + redeemWindowMinutes * 60 * 1000)
+          : session.endsAt;
 
-await tx.redemptionCodeUse.create({
-  data: {
-    locationId: loc.id,
-    codeId: fresh.id,
-    emailHash,
-    expiresAt: promoExpiresAt,
-  },
-});
+      await tx.redemptionCodeUse.create({
+        data: {
+          locationId: loc.id,
+          codeId: fresh.id,
+          emailHash,
+          expiresAt: promoExpiresAt,
+        },
+      });
 
       await tx.redemptionCode.update({
         where: { id: fresh.id },
@@ -105,7 +116,10 @@ await tx.redemptionCodeUse.create({
         },
       });
 
-return { pointsAdded: fresh.points, expiresAt: promoExpiresAt.toISOString() };
+      return {
+        pointsAdded: fresh.points,
+        expiresAt: promoExpiresAt.toISOString(),
+      };
     });
 
     const balance = await getCreditBalance(loc.id, emailHash);
@@ -122,6 +136,8 @@ return { pointsAdded: fresh.points, expiresAt: promoExpiresAt.toISOString() };
     if (msg === "LIMIT") return jsonFail("This code has reached its limit.");
     if (msg === "EXPIRED") return jsonFail("This code has expired.");
     if (msg === "DISABLED") return jsonFail("This code is disabled.");
+    if (msg === "INVALID") return jsonFail("Invalid code.");
+    console.error("[redeem] POST failed", e);
     return jsonFail("Could not redeem code. Try again.", 500);
   }
 }

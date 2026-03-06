@@ -304,9 +304,9 @@ export default function QueuePage({ params }: { params: { location: string } }) 
         ) : null}
 
         {msg ? <div className="neonPanel" style={{ padding: 10, marginBottom: 12 }}>{msg}</div> : null}
-            <button className="neonBtn neonBtnPrimary" onClick={goBackToRequests} style={{ width: "100%" }}>
+            <div style={{ padding: 10, marginBottom: 12 }}><button className="neonBtn neonBtnPrimary" onClick={goBackToRequests} style={{ width: "100%" }}>
             🎶 🎶 Back to Requests 🎶 🎶
-            </button>
+            </button></div>
 
 
         <div className="neonPanel" style={{ padding: 14 }}>
