@@ -671,7 +671,7 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.8)" }}>
       <div className="neonPanel" style={{ padding: 20, width: 320 }}>
-        <h3 style={{ marginTop: 0 }}>Verify</h3>
+        <h3 style={{ marginTop: 0, marginBottom: 15 }}>Verify</h3>
 
         <div style={{ display: "grid", gap: 10 }}>
           <input className="neonInput" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" />
@@ -690,47 +690,82 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
             </label>
           </div>
 
-          <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic" }}>
-            We’ll text a one-time code. Standard rates may apply.
-          </div>
-
-          {/* Redeem Code Section - Moved to Bottom & Full Width */}
+          {/* REDEEM CODE FLIP SECTION */}
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
             <div style={{ fontWeight: 900, marginBottom: 8, fontSize: 14 }}>Have a redemption code?</div>
-            {!showRedeem ? (
-              <button 
-                className="neonBtn" 
-                style={{ width: "100%", opacity: 0.8 }} 
-                onClick={() => { sfx?.playTap?.(); setShowRedeem(true); }}
+            
+            <div style={{ perspective: 1000 }}>
+              <div
+                style={{
+                  position: "relative",
+                  height: 48,
+                  transformStyle: "preserve-3d",
+                  transition: "transform 0.6s cubic-bezier(.2,.8,.2,1)",
+                  transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
+                  willChange: "transform"
+                }}
               >
-                Redeem Code
-              </button>
-            ) : (
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  className="neonInput"
-                  placeholder="Code"
-                  value={redeemCode}
-                  onChange={(e) => setRedeemCode(e.target.value)}
-                  style={{ flex: 1 }}
-                />
-                <button
-                  className="neonBtn neonBtnPrimary"
-                  disabled={!!redeemBusy}
-                  onClick={() => onRedeem?.(redeemCode)}
+                {/* Front: The Button */}
+                <div style={{
+                  position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
+                  transform: "translateZ(0.1px)", display: "flex", alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased"
+                }}>
+                  <button 
+                    className="neonBtn" 
+                    style={{ width: "100%", height: "100%", opacity: 0.8 }} 
+                    onClick={() => { sfx?.playTap?.(); setShowRedeem(true); }}
+                  >
+                    Redeem Code
+                  </button>
+                </div>
+
+                {/* Back: The Input + Apply */}
+                <div style={{
+                  position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
+                  transform: "rotateY(180deg) translateZ(0.1px)", display: "flex", gap: 8, alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased"
+                }}>
+                  <input
+                    className="neonInput"
+                    placeholder="Code"
+                    value={redeemCode}
+                    onChange={(e) => setRedeemCode(e.target.value)}
+                    style={{ flex: 1, height: "100%" }}
+                  />
+                  <button
+                    className="neonBtn neonBtnPrimary"
+                    disabled={!!redeemBusy}
+                    onClick={() => { sfx?.playTap?.(); onRedeem?.(redeemCode); }}
+                    style={{ height: "100%" }}
+                  >
+                    {redeemBusy ? "..." : "Apply"}
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Optional "Back" button to flip it back if they change their mind */}
+            {showRedeem && (
+              <div style={{ textAlign: "center", marginTop: 8 }}>
+                <button 
+                  onClick={() => setShowRedeem(false)} 
+                  style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}
                 >
-                  {redeemBusy ? "..." : "Apply"}
+                  cancel code
                 </button>
               </div>
             )}
           </div>
 
+          <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic", marginTop: 5 }}>
+            We’ll text a one-time code. Standard rates may apply.
+          </div>
+
           {step === "code" && (
-            <input className="neonInput" value={code} onChange={e => setCode(e.target.value)} placeholder="Enter 6-digit Code" style={{ border: "1px solid var(--primary)" }} />
+            <input className="neonInput" value={code} onChange={e => setCode(e.target.value)} placeholder="Enter 6-digit Code" style={{ border: "1px solid cyan", marginTop: 5 }} />
           )}
 
           <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-            <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode} style={{ width: "100%" }}>
+            <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode} style={{ width: "100%", height: 48 }}>
               {busy ? "..." : "Submit"}
             </button>
             <button className="neonBtn" onClick={onClose} style={{ width: "100%", opacity: 0.6 }}>Close</button>
