@@ -103,6 +103,46 @@ function useNeonSfx() {
   };
 }
 
+
+function CountUpNumber({ value, pulseKey }: { value: number; pulseKey?: number }) {
+  const [display, setDisplay] = useState<number>(Number.isFinite(value) ? value : 0);
+  const prevRef = useRef<number>(Number.isFinite(value) ? value : 0);
+
+  useEffect(() => {
+    const next = Number.isFinite(value) ? value : 0;
+    const start = prevRef.current;
+    if (start === next) {
+      setDisplay(next);
+      return;
+    }
+
+    const duration = 420;
+    const startedAt = performance.now();
+    let raf = 0;
+
+    const step = (now: number) => {
+      const t = Math.min((now - startedAt) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const current = start + (next - start) * eased;
+      setDisplay(next >= start ? Math.floor(current) : Math.ceil(current));
+      if (t < 1) raf = window.requestAnimationFrame(step);
+      else {
+        setDisplay(next);
+        prevRef.current = next;
+      }
+    };
+
+    raf = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(raf);
+  }, [value, pulseKey]);
+
+  return (
+    <div key={pulseKey} className="rrCornerHudNumber" style={{ animation: "rrPop 420ms ease-out" }}>
+      {display}
+    </div>
+  );
+}
+
 function formatCountdown(endsAtIso?: string | null) {
   if (!endsAtIso) return "";
   const endsAt = new Date(endsAtIso);
@@ -276,9 +316,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
                 <span className="rrPointsMobile">PTS</span>
               </div>
               <div className="rrCornerHudValue">
-                <div key={bal.pulseKey} className="rrCornerHudNumber" style={{ animation: "rrPop 420ms ease-out" }}>
-                  {hudBalance}
-                </div>
+                <CountUpNumber value={hudBalance} pulseKey={bal.pulseKey} />
               </div>
               <button className={`neonBtn neonBtnPrimary rrCornerHudBtn ${!verified && !identityId ? "neonPulse" : ""}`} onClick={handleCornerHudAction}>
                 {!verified && !identityId ? "USE" : "ADD POINTS"}
