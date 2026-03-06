@@ -629,12 +629,12 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
   const [step, setStep] = useState<"collect" | "code">("collect");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-    const [emailOptIn, setEmailOptIn] = useState(true);
+  const [emailOptIn, setEmailOptIn] = useState(true);
   const [smsOptIn, setSmsOptIn] = useState(true);
-    const [redeemCode, setRedeemCode] = useState("");
-    const [showRedeem, setShowRedeem] = useState(false);
+  const [redeemCode, setRedeemCode] = useState("");
+  const [showRedeem, setShowRedeem] = useState(false);
 
-  if (!open) return null;
+ if (!open) return null;
 
   async function sendCode() {
     setBusy(true);
@@ -642,8 +642,8 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
       const res = await fetch(`/api/public/auth/start`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-body: JSON.stringify({ location, email, phone, emailOptIn, smsOptIn })
-     });
+        body: JSON.stringify({ location, email, phone, emailOptIn, smsOptIn })
+      });
       const data = await res.json();
       if (data.ok) setStep("code");
       else setMsg(data.error || "Error");
@@ -657,7 +657,7 @@ body: JSON.stringify({ location, email, phone, emailOptIn, smsOptIn })
       const res = await fetch(`/api/public/auth/verify`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn })
+        body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn })
       });
       const data = await res.json();
       if (data.ok) {
@@ -671,120 +671,73 @@ body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn })
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.8)" }}>
       <div className="neonPanel" style={{ padding: 20, width: 320 }}>
-        <h3>Verify</h3>
+        <h3 style={{ marginTop: 0 }}>Verify</h3>
 
-        <input className="neonInput" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" />
-        <input className="neonInput" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone" />
-        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-  <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
- {/* Redeem (compact reveal, no clunk) */}
-<div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
-  <div style={{ fontWeight: 900, marginBottom: 6 }}>Have a redemption code?</div>
+        <div style={{ display: "grid", gap: 10 }}>
+          <input className="neonInput" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" />
+          <input className="neonInput" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone" />
 
-  <div style={{ position: "relative", height: 48 }}>
-    {/* Collapsed: single button */}
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        transition: "opacity 180ms ease, transform 220ms cubic-bezier(.2,.8,.2,1)",
-        opacity: showRedeem ? 0 : 1,
-        transform: showRedeem ? "translateY(-4px) scale(0.99)" : "translateY(0px) scale(1)",
-        pointerEvents: showRedeem ? "none" : "auto",
-      }}
-    >
-      <button
-        className="neonBtn neonBtnPrimary"
-        style={{ width: "100%", height: 48 }}
-        onClick={() => {
-          sfx?.playTap?.();
-          setShowRedeem(true);
-        }}
-      >
-        Redeem Code
-      </button>
-    </div>
+          {/* Opt-ins */}
+          <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
+            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
+              <input type="checkbox" checked={emailOptIn} onChange={(e) => setEmailOptIn(e.target.checked)} style={{ marginTop: 3 }} />
+              <span>Yes — email deals & updates <span style={{ color: "var(--muted)" }}>(required for credits)</span></span>
+            </label>
 
-    {/* Expanded: input + redeem */}
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        display: "flex",
-        gap: 8,
-        alignItems: "center",
-        transition: "opacity 180ms ease, transform 220ms cubic-bezier(.2,.8,.2,1)",
-        opacity: showRedeem ? 1 : 0,
-        transform: showRedeem ? "translateY(0px) scale(1)" : "translateY(4px) scale(0.99)",
-        pointerEvents: showRedeem ? "auto" : "none",
-      }}
-    >
-      <input
-        className="neonInput"
-        placeholder="Enter code"
-        value={redeemCode}
-        onChange={(e) => setRedeemCode(e.target.value)}
-        style={{ flex: 1, height: 48 }}
-      />
-      <button
-        className="neonBtn neonBtnPrimary"
-        disabled={!!redeemBusy}
-        onClick={() => {
-          sfx?.playTap?.();
-          onRedeem?.(redeemCode);
-        }}
-        style={{ height: 48, whiteSpace: "nowrap" }}
-      >
-        {redeemBusy ? "..." : "Redeem"}
-      </button>
-    </div>
-  </div>
+            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
+              <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} style={{ marginTop: 3 }} />
+              <span>Yes — text deals & updates <span style={{ color: "var(--muted)" }}>(recommended)</span></span>
+            </label>
+          </div>
 
-  {/* Optional: tiny “back” link so user can collapse it */}
-  {showRedeem ? (
-    <button
-      className="neonBtn"
-      onClick={() => setShowRedeem(false)}
-      style={{ marginTop: 8, width: "100%", opacity: 0.9 }}
-    >
-      Never mind
-    </button>
-  ) : null}
-</div>
-    <input
-      type="checkbox"
-      checked={emailOptIn}
-      onChange={(e) => setEmailOptIn(e.target.checked)}
-      style={{ marginTop: 3 }}
-    />
-    <span>
-      Yes — email me deals &amp; updates <span style={{ color: "var(--muted)" }}>(required for welcome credits)</span>
-    </span>
-  </label>
+          <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic" }}>
+            We’ll text a one-time code. Standard rates may apply.
+          </div>
 
-  <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
-    <input
-      type="checkbox"
-      checked={smsOptIn}
-      onChange={(e) => setSmsOptIn(e.target.checked)}
-      style={{ marginTop: 3 }}
-    />
-    <span>
-      Yes — text me deals &amp; updates <span style={{ color: "var(--muted)" }}>(recommended)</span>
-    </span>
-  </label>
+          {/* Redeem Code Section - Moved to Bottom & Full Width */}
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+            <div style={{ fontWeight: 900, marginBottom: 8, fontSize: 14 }}>Have a redemption code?</div>
+            {!showRedeem ? (
+              <button 
+                className="neonBtn" 
+                style={{ width: "100%", opacity: 0.8 }} 
+                onClick={() => { sfx?.playTap?.(); setShowRedeem(true); }}
+              >
+                Redeem Code
+              </button>
+            ) : (
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  className="neonInput"
+                  placeholder="Code"
+                  value={redeemCode}
+                  onChange={(e) => setRedeemCode(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  className="neonBtn neonBtnPrimary"
+                  disabled={!!redeemBusy}
+                  onClick={() => onRedeem?.(redeemCode)}
+                >
+                  {redeemBusy ? "..." : "Apply"}
+                </button>
+              </div>
+            )}
+          </div>
 
-  <div style={{ fontSize: 12, color: "var(--muted)" }}>
-    We’ll text a one-time code. Standard messaging rates may apply.
-  </div>
-</div>
-        {step === "code" && <input className="neonInput" value={code} onChange={e => setCode(e.target.value)} placeholder="Code" />}
-        <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-</div>
+          {step === "code" && (
+            <input className="neonInput" value={code} onChange={e => setCode(e.target.value)} placeholder="Enter 6-digit Code" style={{ border: "1px solid var(--primary)" }} />
+          )}
 
-        <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode}  style={{ width: "100%" }}>{busy ? "..." : "Submit"}</button>
-        <button className="neonBtn neonBtnPrimary" onClick={onClose} style={{ width: "100%" }}>Close</button>
-        {msg && <p>{msg}</p>}
+          <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+            <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode} style={{ width: "100%" }}>
+              {busy ? "..." : "Submit"}
+            </button>
+            <button className="neonBtn" onClick={onClose} style={{ width: "100%", opacity: 0.6 }}>Close</button>
+          </div>
+
+          {msg && <p style={{ color: "#ff4444", fontSize: 12, textAlign: "center", margin: 0 }}>{msg}</p>}
+        </div>
       </div>
     </div>
   );
@@ -832,132 +785,82 @@ function BuyCreditsDrawer({ open, onClose, sfx, packs, buyUrl, onRedeem, redeemB
   border: "1px solid rgba(255,255,255,0.18)",
 };
 
-  if (!open) return null;
+if (!open) return null;
 
   return (
-  <div
-    style={{
-      position: "fixed",
-      inset: 0,
-      zIndex: 110,
-      background: "rgba(0,0,0,0.8)",
-      display: "flex",
-      alignItems: "flex-end",
-    }}
-  >
-    <div className="neonPanel" style={{ width: "100%", padding: 20 }}>
-      <h3>Get Points</h3>
+    <div style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "flex-end" }}>
+      <div className="neonPanel" style={{ width: "100%", padding: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
+        <h3 style={{ marginTop: 0 }}>Get Points</h3>
 
-      {/* Packs */}
-      {packs.map((p: any) => (
-        <div
-          key={p.id}
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            margin: "10px 0",
-            gap: 12,
-          }}
-        >
-          <span>
-            {p.title} ({p.creditsLabel})
-          </span>
-
-          <button
-            className="neonBtn neonBtnGradient"
-            onClick={() => {
-              const href = p.href || buyUrl;
-              if (href) window.location.href = href;
-            }}
-          >
-            Buy
-          </button>
-        </div>
-      ))}
-
-      {/* Redeem (compact flip) - below buy options */}
-      <div
-        style={{
-          marginTop: 14,
-          paddingTop: 14,
-          borderTop: "1px solid rgba(255,255,255,0.10)",
-        }}
-      >
-        <div style={{ fontWeight: 900, marginBottom: 8 }}>Redeem Code</div>
-
-        <div style={{ perspective: 900 }}>
-          <div
-            style={{
-              position: "relative",
-              height: 44,
-              transformStyle: "preserve-3d",
-              transition: "transform 420ms cubic-bezier(.2,.8,.2,1)",
-              transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                backfaceVisibility: "hidden",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              <button
-                className="neonBtn neonBtnPrimary"
-                style={{ width: "100%" }}
-                onClick={() => {
-                  sfx?.playTap?.();
-                  setShowRedeem(true);
-                }}
-              >
-                Redeem Code
-              </button>
+        {/* Packs list unchanged... */}
+        {packs.map((p: any) => (
+          <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "12px 0", gap: 12 }}>
+            <div style={{ display: "grid" }}>
+              <span style={{ fontWeight: 800 }}>{p.title}</span>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>{p.creditsLabel}</span>
             </div>
+            <button className="neonBtn neonBtnGradient" onClick={() => { if (p.href || buyUrl) window.location.href = p.href || buyUrl; }}>
+              Buy
+            </button>
+          </div>
+        ))}
 
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+          <div style={{ fontWeight: 900, marginBottom: 8 }}>Redeem Code</div>
+
+          <div style={{ perspective: 1000 }}>
             <div
               style={{
-                position: "absolute",
-                inset: 0,
-                backfaceVisibility: "hidden",
-                transform: "rotateY(180deg)",
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
+                position: "relative",
+                height: 48,
+                transformStyle: "preserve-3d",
+                transition: "transform 0.4s cubic-bezier(.2,.8,.2,1)",
+                transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
               }}
             >
-              <input
-                className="neonInput"
-                placeholder="Enter code"
-                value={redeemCode}
-                onChange={(e) => setRedeemCode(e.target.value)}
-                style={{ flex: 1, height: 44 }}
-              />
-              <button
-                className="neonBtn neonBtnPrimary"
-                disabled={!!redeemBusy}
-                onClick={() => {
-                  sfx?.playTap?.();
-                  onRedeem?.(redeemCode);
-                  setRedeemCode("");
-                }}
-                style={{ whiteSpace: "nowrap", height: 44 }}
-              >
-                {redeemBusy ? "..." : "Redeem"}
-              </button>
+              {/* Front Side */}
+              <div style={{
+                position: "absolute", inset: 0, backfaceVisibility: "hidden", 
+                transform: "translateZ(1px)", // Fixes haziness
+                display: "flex", alignItems: "center"
+              }}>
+                <button className="neonBtn neonBtnPrimary" style={{ width: "100%", height: "100%" }} onClick={() => setShowRedeem(true)}>
+                  Redeem Code
+                </button>
+              </div>
+
+              {/* Back Side */}
+              <div style={{
+                position: "absolute", inset: 0, backfaceVisibility: "hidden",
+                transform: "rotateY(180deg) translateZ(1px)", // Fixes haziness
+                display: "flex", gap: 8, alignItems: "center"
+              }}>
+                <input
+                  className="neonInput"
+                  placeholder="Code"
+                  value={redeemCode}
+                  onChange={(e) => setRedeemCode(e.target.value)}
+                  style={{ flex: 1, height: "100%" }}
+                />
+                <button
+                  className="neonBtn neonBtnPrimary"
+                  disabled={!!redeemBusy}
+                  onClick={() => { onRedeem?.(redeemCode); setRedeemCode(""); }}
+                  style={{ whiteSpace: "nowrap", height: "100%" }}
+                >
+                  {redeemBusy ? "..." : "Apply"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <button className="neonBtn" onClick={onClose} style={{ width: "100%" }}>
-        Close
-      </button>
+        <button className="neonBtn" onClick={onClose} style={{ width: "100%", marginTop: 16, opacity: 0.5 }}>
+          Close
+        </button>
+      </div>
     </div>
-  </div>
-);
+  );
 }
 
 function Artwork({ src, alt }: { src?: string; alt: string }) {
