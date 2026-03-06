@@ -47,18 +47,25 @@ export async function POST(req: Request) {
       async (tx) => {
         const now = new Date();
 
-        // 1) block if this user has already hit the per-session request cap
-        const existingCount = await tx.request.count({
-          where: {
-            locationId: loc.id,
-            sessionId: session.id,
-            emailHash,
-          },
-        });
+// 1) block if this user already has too many active songs in the queue
+const activeQueueLimit = (rules as any).maxActiveRequestsPerUser ?? 0;
 
-        if (existingCount >= rules.maxRequestsPerSession) {
-          throw new Error(`LIMIT:${rules.msgAlreadyRequested}`);
-        }
+if (activeQueueLimit > 0) {
+  const activeCount = await tx.request.count({
+    where: {
+      locationId: loc.id,
+      sessionId: session.id,
+      emailHash,
+      status: "APPROVED",
+    },
+  });
+
+  if (activeCount >= activeQueueLimit) {
+    throw new Error(
+      `ACTIVEQUEUE:${(rules as any).msgTooManyActiveRequests || "You already have songs waiting in the queue."}`
+    );
+  }
+}
 
         // 2) block duplicates already sitting in the current queue/session
         const alreadyQueued = await tx.request.findFirst({
@@ -180,6 +187,7 @@ export async function POST(req: Request) {
     });
   } catch (e: any) {
     const msg = String(e?.message || "");
+if (msg.startsWith("ACTIVEQUEUE:")) return jsonFail(msg.slice("ACTIVEQUEUE:".length), 400);
     if (msg.startsWith("LIMIT:")) return jsonFail(msg.slice("LIMIT:".length), 400);
     if (msg.startsWith("INQUEUE:")) return jsonFail(msg.slice("INQUEUE:".length), 400);
     if (msg.startsWith("ARTISTQUEUE:")) return jsonFail(msg.slice("ARTISTQUEUE:".length), 400);

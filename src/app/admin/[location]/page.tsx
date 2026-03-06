@@ -648,6 +648,18 @@ export default function AdminPage({ params }: { params: { location: string } }) 
 
                 <div style={{ borderTop: "1px solid #1c1c2a", paddingTop: 12, marginTop: 12, display: "grid", gap: 10 }}>
                   <Text label="Explicit message" value={rules.msgExplicit} onChange={(t) => setRules({ ...rules, msgExplicit: t })} />
+<Field
+  label="Max active songs per user in queue (0 = unlimited)"
+  value={rules.maxActiveRequestsPerUser ?? 2}
+  onChange={(v) => setRules({ ...rules, maxActiveRequestsPerUser: v })}
+/>
+
+<Text
+  label="Sorry! You already have songs waiting in the queue!"
+  value={rules.msgTooManyActiveRequests || ""}
+  onChange={(t) => setRules({ ...rules, msgTooManyActiveRequests: t })}
+/>
+
                   <Text label="Already requested message" value={rules.msgAlreadyRequested} onChange={(t) => setRules({ ...rules, msgAlreadyRequested: t })} />
                   <Text label="Artist cooldown message" value={rules.msgArtistCooldown} onChange={(t) => setRules({ ...rules, msgArtistCooldown: t })} />
                   <Text label="Song cooldown message" value={rules.msgSongCooldown} onChange={(t) => setRules({ ...rules, msgSongCooldown: t })} />

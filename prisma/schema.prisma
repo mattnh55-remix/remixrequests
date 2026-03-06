@@ -157,6 +157,8 @@ model Ruleset {
   enforceSongCooldown   Boolean @default(true)
   artistCooldownMinutes Int     @default(15)
   songCooldownMinutes   Int     @default(120)
+maxActiveRequestsPerUser Int    @default(2)
+msgTooManyActiveRequests String @default("You already have songs waiting in the queue.")
 
   enableVoting Boolean @default(true)
 
