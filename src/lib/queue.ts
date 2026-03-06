@@ -1,3 +1,5 @@
+// src/lib/queue.ts
+
 import { prisma } from "./db";
 
 export async function getQueue(locationId: string, sessionId: string) {

@@ -1,3 +1,5 @@
+// src/app/api/public/queue/[location]/route.ts
+
 import { NextResponse } from "next/server";
 import { getRulesForLocation } from "@/lib/rules";
 import { getOrCreateCurrentSession } from "@/lib/validators";

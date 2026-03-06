@@ -304,23 +304,15 @@ export default function QueuePage({ params }: { params: { location: string } }) 
         ) : null}
 
         {msg ? <div className="neonPanel" style={{ padding: 10, marginBottom: 12 }}>{msg}</div> : null}
-
-        <div className="neonPanel" style={{ padding: 14, marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontWeight: 900, letterSpacing: 0.3, fontSize: 16 }}>Now Playing</div>
-              <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>{loading ? "Loading…" : "Return to requests to add another song."}</div>
-            </div>
-            <button className="neonBtn neonBtnPrimary" onClick={goBackToRequests} style={{ whiteSpace: "nowrap" }}>
-              ← Back to Requests
+            <button className="neonBtn neonBtnPrimary" onClick={goBackToRequests} style={{ width: "100%" }}>
+            🎶 🎶 Back to Requests 🎶 🎶
             </button>
-          </div>
-        </div>
+
 
         <div className="neonPanel" style={{ padding: 14 }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10, gap: 10, flexWrap: "wrap" }}>
-            <div style={{ fontWeight: 900, letterSpacing: 0.3, fontSize: 16 }}>Up Next</div>
-            <div style={{ color: "var(--muted)", fontSize: 12 }}>{enableVoting ? `Upvote costs ${costUpvote} • Downvote costs ${costDownvote}` : "Voting disabled"}</div>
+            <div style={{ fontWeight: 900, letterSpacing: 0.3, fontSize: 16 }}>Coming Up</div>
+            <div style={{ color: "var(--muted)", fontSize: 12 }}>{enableVoting ? `Upvote: ${costUpvote}pt • Downvote: ${costDownvote}pt` : "Voting disabled"}</div>
           </div>
           {upNext.length ? (
             <div style={{ display: "grid", gap: 12 }}>
@@ -356,7 +348,6 @@ export default function QueuePage({ params }: { params: { location: string } }) 
               })}
             </div>
           ) : <div style={{ color: "var(--muted)", fontSize: 13 }}>No pending requests yet.</div>}
-          <div style={{ marginTop: 12, color: "var(--muted)", fontSize: 12 }}>Tip: Add <code>/queue/{location}</code> as a QR code on the tables so guests can vote from their phones.</div>
         </div>
       </div>
     </div>

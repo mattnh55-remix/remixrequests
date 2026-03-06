@@ -12,12 +12,13 @@ function jsonFail(message: string, status = 400) {
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const locationSlug = String(body.location || "");
-  const songId = String(body.songId || "");
-  const action = String(body.action || "play_next"); // play_next | play_now
-  const email = String(body.email || "");
+  const locationSlug = String(body.location || "").trim();
+  const songId = String(body.songId || "").trim();
+  const action = String(body.action || "play_next").trim(); // play_next | play_now
+  const email = String(body.email || "").trim();
 
   if (!locationSlug || !songId || !email) return jsonFail("Missing fields.", 400);
+  if (action !== "play_next" && action !== "play_now") return jsonFail("Invalid action.", 400);
 
   const { loc, rules } = await getRulesForLocation(locationSlug);
   const session = await getOrCreateCurrentSession(loc.id, 4);
@@ -28,47 +29,86 @@ export async function POST(req: Request) {
     return jsonFail(`Please wait ${Math.ceil(rules.minSecondsBetweenActions - secs)}s.`, 400);
   }
 
-  const song = await prisma.song.findFirst({ where: { id: songId, locationId: loc.id } });
+  const song = await prisma.song.findFirst({
+    where: { id: songId, locationId: loc.id },
+    select: { id: true, locationId: true, explicit: true, artistKey: true },
+  });
+
   if (!song) return jsonFail("Song not found.", 404);
   if (song.explicit) return jsonFail(rules.msgExplicit, 400);
 
   const isPlayNow = action === "play_now";
   const cost = isPlayNow ? rules.costPlayNow : rules.costRequest;
-
-  // cooldown checks (safe outside txn)
-  if (isPlayNow) {
-    const now = new Date();
-
-    if (rules.enforceArtistCooldown) {
-      const since = new Date(now.getTime() - rules.artistCooldownMinutes * 60 * 1000);
-      const recentArtist = await prisma.playHistory.findFirst({
-        where: { locationId: loc.id, artistKey: song.artistKey, playedAt: { gte: since } },
-      });
-      if (recentArtist) return jsonFail(rules.msgArtistCooldown, 400);
-    }
-
-    if (rules.enforceSongCooldown) {
-      const since = new Date(now.getTime() - rules.songCooldownMinutes * 60 * 1000);
-      const recentSong = await prisma.playHistory.findFirst({
-        where: { locationId: loc.id, songId: song.id, playedAt: { gte: since } },
-      });
-      if (recentSong) return jsonFail(rules.msgSongCooldown, 400);
-    }
-  }
+  const alreadyQueuedMsg = rules.msgAlreadyRequested || "That song is already on the list already.";
 
   try {
-    const reqRow = await prisma.$transaction(
+    const result = await prisma.$transaction(
       async (tx) => {
-        // enforce per-session request limit INSIDE txn (prevents concurrency bypass)
+        const now = new Date();
+
+        // 1) block if this user has already hit the per-session request cap
         const existingCount = await tx.request.count({
-          where: { locationId: loc.id, sessionId: session.id, emailHash },
+          where: {
+            locationId: loc.id,
+            sessionId: session.id,
+            emailHash,
+          },
         });
+
         if (existingCount >= rules.maxRequestsPerSession) {
           throw new Error(`LIMIT:${rules.msgAlreadyRequested}`);
         }
 
-        // atomic balance check INSIDE txn (prevents double-spend)
-        const now = new Date();
+        // 2) block duplicates already sitting in the current queue/session
+        const alreadyQueued = await tx.request.findFirst({
+          where: {
+            locationId: loc.id,
+            sessionId: session.id,
+            songId: song.id,
+            status: "APPROVED",
+          },
+          select: { id: true },
+        });
+
+        if (alreadyQueued) {
+          throw new Error(`INQUEUE:${alreadyQueuedMsg}`);
+        }
+
+        // 3) block recently played artist based on rules
+        if (rules.enforceArtistCooldown) {
+          const artistSince = new Date(now.getTime() - rules.artistCooldownMinutes * 60 * 1000);
+          const recentArtist = await tx.playHistory.findFirst({
+            where: {
+              locationId: loc.id,
+              artistKey: song.artistKey,
+              playedAt: { gte: artistSince },
+            },
+            select: { id: true },
+          });
+
+          if (recentArtist) {
+            throw new Error(`ARTIST:${rules.msgArtistCooldown}`);
+          }
+        }
+
+        // 4) block recently played song based on rules
+        if (rules.enforceSongCooldown) {
+          const songSince = new Date(now.getTime() - rules.songCooldownMinutes * 60 * 1000);
+          const recentSong = await tx.playHistory.findFirst({
+            where: {
+              locationId: loc.id,
+              songId: song.id,
+              playedAt: { gte: songSince },
+            },
+            select: { id: true },
+          });
+
+          if (recentSong) {
+            throw new Error(`SONG:${rules.msgSongCooldown}`);
+          }
+        }
+
+        // 5) atomic balance check before any deduction
         const agg = await tx.creditLedger.aggregate({
           _sum: { delta: true },
           where: {
@@ -77,11 +117,13 @@ export async function POST(req: Request) {
             OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
           },
         });
+
         const balance = agg._sum.delta ?? 0;
         if (balance < cost) {
           throw new Error(`NOCREDITS:${rules.msgNoCredits}`);
         }
 
+        // 6) deduct only after all validation passes
         await tx.creditLedger.create({
           data: {
             locationId: loc.id,
@@ -91,7 +133,7 @@ export async function POST(req: Request) {
           },
         });
 
-        return await tx.request.create({
+        const reqRow = await tx.request.create({
           data: {
             locationId: loc.id,
             sessionId: session.id,
@@ -101,17 +143,25 @@ export async function POST(req: Request) {
             status: "APPROVED",
           },
         });
+
+        return { reqRow, balanceAfter: balance - cost };
       },
       { isolationLevel: "Serializable" }
     );
 
-    return NextResponse.json({ ok: true, requestId: reqRow.id });
+    return NextResponse.json({
+      ok: true,
+      requestId: result.reqRow.id,
+      balance: result.balanceAfter,
+    });
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg.startsWith("LIMIT:")) return jsonFail(msg.slice("LIMIT:".length), 400);
+    if (msg.startsWith("INQUEUE:")) return jsonFail(msg.slice("INQUEUE:".length), 400);
+    if (msg.startsWith("ARTIST:")) return jsonFail(msg.slice("ARTIST:".length), 400);
+    if (msg.startsWith("SONG:")) return jsonFail(msg.slice("SONG:".length), 400);
     if (msg.startsWith("NOCREDITS:")) return jsonFail(msg.slice("NOCREDITS:".length), 400);
 
-    // Serializable retries can surface as generic errors; don't leak internals
     return jsonFail("Could not submit request. Please try again.", 400);
   }
 }
