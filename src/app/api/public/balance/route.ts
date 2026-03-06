@@ -18,7 +18,6 @@ export async function GET(req: Request) {
       );
     }
 
-    // 1) Resolve locationId from slug
     const loc = await prisma.location.findUnique({
       where: { slug: locationSlug },
       select: { id: true },
@@ -31,9 +30,6 @@ export async function GET(req: Request) {
       );
     }
 
-    // 2) Resolve emailHash from identityId
-    // NOTE: This assumes your Identity model has an `emailHash` field, which is very likely
-    // given you store credits keyed by emailHash.
     const ident = await prisma.identity.findUnique({
       where: { id: identityId },
       select: { emailHash: true },
@@ -46,11 +42,13 @@ export async function GET(req: Request) {
       );
     }
 
-    // 3) Sum ledger deltas by (locationId, emailHash)
+    const now = new Date();
+
     const agg = await prisma.creditLedger.aggregate({
       where: {
         locationId: loc.id,
         emailHash: ident.emailHash,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
       },
       _sum: { delta: true },
     });
