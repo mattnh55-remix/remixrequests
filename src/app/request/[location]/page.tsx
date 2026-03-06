@@ -552,26 +552,22 @@ export default function RequestPage({ params }: { params: { location: string } }
   }}
 >
               {trending.map((s) => (
-                <button
-                  key={s.id}
-                  className="neonChip"
-                 onClick={(e) => {
-  const el = e.currentTarget;
-  el.classList.add("requestPulse");
-
-  setTimeout(() => el.classList.remove("requestPulse"), 350);
-
-  sfx.playTap();
-  submit(s.id, "play_next");
-}}
-                  style={{ textAlign: "left" }}
-                >
+                <DelayedTapButton
+  key={s.id}
+  holdMs={450}
+  sfx={sfx}
+  onConfirm={async () => {
+    const ok = await submit(s.id, "play_next");
+    return ok;
+  }}
+  style={{ textAlign: "left" }}
+>
                   <div className="neonArt"><Artwork src={s.artworkUrl} alt={s.title} /></div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 900, fontSize: 14, color: "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
                     <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{s.artist} • 1pt</div>
                   </div>
-                </button>
+                </DelayedTapButton>
               ))}
             </div>
           </div>
@@ -586,7 +582,7 @@ export default function RequestPage({ params }: { params: { location: string } }
 
               return (
                 <div key={s.id} className="neonTile">
-                  <div className="neonTileTop"><Artwork src={s.artworkUrl} alt={s.title} /></div>
+<div className="neonTileTop rrArtworkStatic"><Artwork src={s.artworkUrl} alt={s.title} /></div>
                   <div className="neonTileBody">
                     <div className="neonTileTitle">{s.title}</div>
                     <div className="neonTileMeta">{s.artist}</div>
@@ -804,7 +800,100 @@ function HoldToConfirmButton({
     </button>
   );
 }
+function DelayedTapButton({
+  children,
+  className = "",
+  holdMs = 450,
+  onConfirm,
+  sfx,
+  style,
+}: any) {
+  const fillRef = useRef<HTMLDivElement | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const startRef = useRef<number | null>(null);
+  const doneRef = useRef(false);
 
+  const [holding, setHolding] = useState(false);
+
+  function setFill(p: number) {
+    if (fillRef.current) fillRef.current.style.width = `${Math.max(0, Math.min(100, p * 100))}%`;
+  }
+
+  function reset() {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    startRef.current = null;
+    doneRef.current = false;
+    setHolding(false);
+    setFill(0);
+  }
+
+  async function complete() {
+    doneRef.current = true;
+    setHolding(false);
+    try {
+      await Promise.resolve(onConfirm?.());
+    } finally {
+      window.setTimeout(() => reset(), 120);
+    }
+  }
+
+  function tick(ts: number) {
+    if (startRef.current == null) startRef.current = ts;
+    const elapsed = ts - startRef.current;
+    const p = Math.min(elapsed / holdMs, 1);
+    setFill(p);
+
+    if (p >= 1) {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      void complete();
+      return;
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+  }
+
+  function startHold(e: any) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (doneRef.current) return;
+    sfx?.playTap?.();
+    setHolding(true);
+    startRef.current = null;
+    setFill(0);
+    rafRef.current = requestAnimationFrame(tick);
+  }
+
+  function cancelHold(e?: any) {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (doneRef.current) return;
+    reset();
+  }
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  return (
+    <button
+      type="button"
+      className={`neonChip rrDelayedTapBtn ${className} ${holding ? "rrDelayedTapHolding" : ""}`}
+      onPointerDown={startHold}
+      onPointerUp={cancelHold}
+      onPointerLeave={cancelHold}
+      onPointerCancel={cancelHold}
+      onContextMenu={(e) => e.preventDefault()}
+      style={style}
+    >
+      <div ref={fillRef} className="rrDelayedTapFill" />
+      {children}
+    </button>
+  );
+}
 function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, onVerified, onClose, sfx }: any) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
