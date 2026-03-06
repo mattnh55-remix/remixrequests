@@ -26,9 +26,10 @@ export async function POST(req: Request, { params }: { params: { location: strin
       costPlayNow: int(body.costPlayNow, rules.costPlayNow),
 
       // NEW: pack prices (cents)
-      packQuickPriceCents: int(body.packQuickPriceCents, rules.packQuickPriceCents),
-      packPartyPriceCents: int(body.packPartyPriceCents, rules.packPartyPriceCents),
-      packAllNightPriceCents: int(body.packAllNightPriceCents, rules.packAllNightPriceCents),
+packTier1PriceCents: int(body.packTier1PriceCents, rules.packTier1PriceCents),
+packTier2PriceCents: int(body.packTier2PriceCents, rules.packTier2PriceCents),
+packTier3PriceCents: int(body.packTier3PriceCents, rules.packTier3PriceCents),
+packTier4PriceCents: int(body.packTier4PriceCents, rules.packTier4PriceCents),
 
       logoUrl: body.logoUrl ?? null,
 

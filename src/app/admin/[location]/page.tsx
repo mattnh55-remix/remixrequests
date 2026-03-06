@@ -593,21 +593,25 @@ export default function AdminPage({ params }: { params: { location: string } }) 
 
                   {/* NEW: Pack pricing (stored in cents, edited in dollars) */}
                   <MoneyField
-                    label="Pack Quick Price ($)"
-                    centsValue={rules.packQuickPriceCents ?? 1000}
-                    onChangeCents={(c) => setRules({ ...rules, packQuickPriceCents: c })}
-                  />
-                  <MoneyField
-                    label="Pack Party Price ($)"
-                    centsValue={rules.packPartyPriceCents ?? 2500}
-                    onChangeCents={(c) => setRules({ ...rules, packPartyPriceCents: c })}
-                  />
-                  <MoneyField
-                    label="Pack All Night Price ($)"
-                    centsValue={rules.packAllNightPriceCents ?? 5000}
-                    onChangeCents={(c) => setRules({ ...rules, packAllNightPriceCents: c })}
-                  />
-
+  label="Tier 1 Price ($) — 10 credits"
+  centsValue={rules.packTier1PriceCents ?? 500}
+  onChangeCents={(c) => setRules({ ...rules, packTier1PriceCents: c })}
+/>
+<MoneyField
+  label="Tier 2 Price ($) — 25 credits"
+  centsValue={rules.packTier2PriceCents ?? 1000}
+  onChangeCents={(c) => setRules({ ...rules, packTier2PriceCents: c })}
+/>
+<MoneyField
+  label="Tier 3 Price ($) — 35 credits"
+  centsValue={rules.packTier3PriceCents ?? 1500}
+  onChangeCents={(c) => setRules({ ...rules, packTier3PriceCents: c })}
+/>
+<MoneyField
+  label="Tier 4 Price ($) — 50 credits"
+  centsValue={rules.packTier4PriceCents ?? 2000}
+  onChangeCents={(c) => setRules({ ...rules, packTier4PriceCents: c })}
+/>
                   <Field label="Max requests per user per session" value={rules.maxRequestsPerSession} onChange={(v) => setRules({ ...rules, maxRequestsPerSession: v })} />
                   <Field label="Max votes per user per session" value={rules.maxVotesPerSession} onChange={(v) => setRules({ ...rules, maxVotesPerSession: v })} />
                   <Field label="Min seconds between actions" value={rules.minSecondsBetweenActions} onChange={(v) => setRules({ ...rules, minSecondsBetweenActions: v })} />

@@ -1,3 +1,4 @@
+// src/lib/packages.ts
 export type PackageKey = "5_10" | "10_25" | "15_35" | "20_50";
 
 export const PACKAGES: Record<

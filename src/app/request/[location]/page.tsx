@@ -16,7 +16,8 @@ type UiPack = {
   title: string;
   subtitle: string;
   creditsLabel: string;
-  priceCents?: number; // NEW: for "$X.XX • BUY"
+  priceCents?: number;
+  packageKey?: "5_10" | "10_25" | "15_35" | "20_50";
   highlight?: boolean;
   badge?: string;
   cta?: string;
@@ -62,6 +63,40 @@ export default function RequestPage({ params }: { params: { location: string } }
       return;
     }
 
+    async function startCheckout(packageKey: "5_10" | "10_25" | "15_35" | "20_50") {
+  if (!identityId) {
+    sfx.playError();
+    setMsg("Please verify before buying points.");
+    setShowVerify(true);
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/square/create-checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        location,
+        identityId,
+        packageKey,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!data?.ok || !data?.checkoutUrl) {
+      sfx.playError();
+      setMsg(data?.error || "Could not start checkout.");
+      return;
+    }
+
+    window.location.href = data.checkoutUrl;
+  } catch {
+    sfx.playError();
+    setMsg("Could not start checkout.");
+  }
+}
+
     setRedeemBusy(true);
     try {
       const res = await fetch(`/api/public/redeem/${location}`, {
@@ -89,6 +124,39 @@ export default function RequestPage({ params }: { params: { location: string } }
       setRedeemBusy(false);
     }
   }
+  async function startCheckout(packageKey: "5_10" | "10_25" | "15_35" | "20_50") {
+  if (!identityId) {
+    sfx.playError();
+    setMsg("Please verify before buying points.");
+    setShowVerify(true);
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/square/create-checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        location,
+        identityId,
+        packageKey,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!data?.ok || !data?.checkoutUrl) {
+      sfx.playError();
+      setMsg(data?.error || "Could not start checkout.");
+      return;
+    }
+
+    window.location.href = data.checkoutUrl;
+  } catch {
+    sfx.playError();
+    setMsg("Could not start checkout.");
+  }
+}
   const [buyReason, setBuyReason] = useState<"none" | "out" | "notEnough" | "boost">("none");
   const [sessionCountdown, setSessionCountdown] = useState<string>("");
 
@@ -288,68 +356,25 @@ export default function RequestPage({ params }: { params: { location: string } }
   }, [location, rules]);
 
   const uiPacks: UiPack[] = useMemo(() => {
-  const raw = rules?.rules?.creditPacks ?? rules?.rules?.packs ?? rules?.packs ?? null;
-
-  // Global Rules pricing (cents)
-  const priceQuick = Number(rules?.rules?.packQuickPriceCents ?? 1000);
-  const priceParty = Number(rules?.rules?.packPartyPriceCents ?? 2500);
-  const priceAllNight = Number(rules?.rules?.packAllNightPriceCents ?? 5000);
-
-  function normalizePriceCents(p: any, idx: number): number {
-    // Prefer explicit values if present in pack config
-    const direct =
-      p?.priceCents ??
-      p?.amountCents ??
-      p?.cents ??
-      (typeof p?.price === "number" ? Math.round(p.price * 100) : null) ??
-      (typeof p?.amount === "number" ? Math.round(p.amount * 100) : null);
-
-    if (typeof direct === "number" && Number.isFinite(direct) && direct >= 0) return Math.floor(direct);
-
-    // Otherwise infer by id/name or fallback by index
-    const id = String(p?.id ?? "").toLowerCase();
-    const title = String(p?.title ?? p?.name ?? "").toLowerCase();
-
-    const key = `${id} ${title}`;
-    if (key.includes("quick") || key.includes("boost") || key.includes("10")) return priceQuick;
-    if (key.includes("party") || key.includes("25")) return priceParty;
-    if (key.includes("all") || key.includes("night") || key.includes("50")) return priceAllNight;
-
-    // index fallback (matches your default ordering)
-    if (idx === 0) return priceQuick;
-    if (idx === 1) return priceParty;
-    return priceAllNight;
-  }
-
-  if (Array.isArray(raw) && raw.length) {
-    return raw.map((p: any, idx: number) => ({
-      id: String(p.id ?? idx),
-      title: String(p.title ?? p.name ?? "Points"),
-      subtitle: String(p.subtitle ?? p.desc ?? "Instant points"),
-      creditsLabel: String(p.creditsLabel ?? (p.credits ? `${p.credits} credits` : "Points")),
-      highlight: Boolean(p.highlight ?? p.featured ?? idx === 1),
-      badge: String(p.badge ?? (idx === 1 ? "Most Popular" : "")) || undefined,
-      cta: String(p.cta ?? "Choose"),
-      href: String(p.href ?? p.url ?? buyUrl ?? "") || undefined,
-
-      // NEW: used for "$X.XX • BUY"
-      priceCents: normalizePriceCents(p, idx),
-    }));
-  }
+  const priceTier1 = Number(rules?.rules?.packTier1PriceCents ?? 500);   // 10 credits
+  const priceTier2 = Number(rules?.rules?.packTier2PriceCents ?? 1000);  // 25 credits
+  const priceTier3 = Number(rules?.rules?.packTier3PriceCents ?? 1500);  // 35 credits
+  const priceTier4 = Number(rules?.rules?.packTier4PriceCents ?? 2000);  // 50 credits
 
   return [
     {
-      id: "quick",
+      id: "tier1",
       title: "Quick Boost",
       subtitle: "Perfect for 1–2 songs",
       creditsLabel: "10 credits",
       badge: "Fast",
       cta: "Get Points",
       href: buyUrl ?? undefined,
-      priceCents: priceQuick,
+      priceCents: priceTier1,
+      packageKey: "5_10",
     },
     {
-      id: "party",
+      id: "tier2",
       title: "Party Pack",
       subtitle: "Best for groups",
       creditsLabel: "25 credits",
@@ -357,17 +382,30 @@ export default function RequestPage({ params }: { params: { location: string } }
       badge: "Most Popular",
       cta: "Get Points",
       href: buyUrl ?? undefined,
-      priceCents: priceParty,
+      priceCents: priceTier2,
+      packageKey: "10_25",
     },
     {
-      id: "allnight",
+      id: "tier3",
+      title: "Bonus Pack",
+      subtitle: "More songs, more fun",
+      creditsLabel: "35 credits",
+      badge: "Hot Deal",
+      cta: "Get Points",
+      href: buyUrl ?? undefined,
+      priceCents: priceTier3,
+      packageKey: "15_35",
+    },
+    {
+      id: "tier4",
       title: "All Night",
       subtitle: "Skate like a legend",
       creditsLabel: "50 credits",
       badge: "Best Value",
       cta: "Get Points",
       href: buyUrl ?? undefined,
-      priceCents: priceAllNight,
+      priceCents: priceTier4,
+      packageKey: "20_50",
     },
   ];
 }, [rules, buyUrl]);
@@ -603,19 +641,19 @@ export default function RequestPage({ params }: { params: { location: string } }
           onTap={() => sfx.playTap()}
         />
 
-        <BuyCreditsDrawer
-          open={showBuy}
-          onClose={() => { setShowBuy(false); setBuyReason("none"); }}
-          sfx={sfx}
-          verified={verified || !!identityId}
-          balance={bal.balance}
-          reason={buyReason}
-          buyUrl={buyUrl}
-          packs={uiPacks}
-          redeemBusy={redeemBusy}
-          onRedeem={(code: string) => redeem(code)}
-          
-        />
+<BuyCreditsDrawer
+  open={showBuy}
+  onClose={() => { setShowBuy(false); setBuyReason("none"); }}
+  sfx={sfx}
+  verified={verified || !!identityId}
+  balance={bal.balance}
+  reason={buyReason}
+  buyUrl={buyUrl}
+  packs={uiPacks}
+  redeemBusy={redeemBusy}
+  onRedeem={(code: string) => redeem(code)}
+  onBuy={(packageKey: "5_10" | "10_25" | "15_35" | "20_50") => startCheckout(packageKey)}
+/>
       </div>
     </div>
   );
@@ -809,7 +847,7 @@ function CreditHud({ verified, balance, creditsLabel, sessionCountdown, onVerify
   );
 }
 
-function BuyCreditsDrawer({ open, onClose, sfx, packs, buyUrl, onRedeem, redeemBusy }: any) {
+function BuyCreditsDrawer({ open, onClose, sfx, packs, buyUrl, onRedeem, redeemBusy, onBuy }: any) {
   const [redeemCode, setRedeemCode] = useState("");
   const [showRedeem, setShowRedeem] = useState(false);
   const gradBtn: React.CSSProperties = {
@@ -837,6 +875,10 @@ if (!open) return null;
 <button
   className="neonBtn neonBtnPrimary"
   onClick={() => {
+    if (p.packageKey) {
+      onBuy?.(p.packageKey);
+      return;
+    }
     if (p.href || buyUrl) window.location.href = p.href || buyUrl;
   }}
 >
