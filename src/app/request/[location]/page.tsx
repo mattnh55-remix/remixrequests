@@ -291,48 +291,51 @@ export default function RequestPage({ params }: { params: { location: string } }
   }
 
   async function submit(songId: string, action: "play_next" | "play_now") {
-    if (!verified && !identityId) {
-      sfx.playError();
-      setMsg("Please verify to unlock points.");
-      setShowVerify(true);
-      return;
-    }
-
-    const costRequest = rules?.rules?.costRequest ?? 1;
-    const costPlayNow = rules?.rules?.costPlayNow ?? 5;
-    const required = action === "play_now" ? costPlayNow : costRequest;
-
-    if (typeof bal.balance === "number" && bal.balance < required) {
-      sfx.playError();
-      setMsg(required === costPlayNow ? "Not enough points for request" : "Not enough points to request.");
-      openBuy(required === costPlayNow ? "boost" : "notEnough");
-      return;
-    }
-
-    setMsg("");
-    const res = await fetch(`/api/public/request`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ location, email, songId, action })
-    });
-    const data = await res.json();
-
-    if (!data.ok) {
-      sfx.playError();
-      setMsg(data.error || "Something went wrong.");
-      return;
-    }
-
-    sfx.playSuccess();
-    setMsg(action === "play_now" ? "✅ Play Now request added!" : "✅ Request added!");
-
-    const nextBalance = data?.balance ?? data?.credits?.balance ?? data?.session?.balance ?? null;
-    if (typeof nextBalance === "number") {
-      bal.applyBalance(nextBalance);
-    } else {
-      bal.refreshOnce();
-    }
+  if (!verified && !identityId) {
+    sfx.playError();
+    setMsg("Please verify to unlock points.");
+    setShowVerify(true);
+    return false;
   }
+
+  const costRequest = rules?.rules?.costRequest ?? 1;
+  const costPlayNow = rules?.rules?.costPlayNow ?? 5;
+  const required = action === "play_now" ? costPlayNow : costRequest;
+
+  if (typeof bal.balance === "number" && bal.balance < required) {
+    sfx.playError();
+    setMsg(required === costPlayNow ? "Not enough points for request" : "Not enough points to request.");
+    openBuy(required === costPlayNow ? "boost" : "notEnough");
+    return false;
+  }
+
+  setMsg("");
+  const res = await fetch(`/api/public/request`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ location, email, songId, action })
+  });
+
+  const data = await res.json();
+
+  if (!data.ok) {
+    sfx.playError();
+    setMsg(data.error || "Something went wrong.");
+    return false;
+  }
+
+  sfx.playSuccess();
+  setMsg(action === "play_now" ? "✅ Play Now request added!" : "✅ Request added!");
+
+  const nextBalance = data?.balance ?? data?.credits?.balance ?? data?.session?.balance ?? null;
+  if (typeof nextBalance === "number") {
+    bal.applyBalance(nextBalance);
+  } else {
+    bal.refreshOnce();
+  }
+
+  return true;
+}
 
   const trending = useMemo(() => {
     const hot = songs.filter(s => (s.tags || []).some(t => ["TikTok", "DISCO", "Pop Hits"].includes(t)));
@@ -582,13 +585,7 @@ export default function RequestPage({ params }: { params: { location: string } }
               const canAffordNow = typeof bal.balance !== "number" ? true : bal.balance >= costPlayNow;
 
               return (
-                <div key={s.id} className="neonTile" onClick={() => {
-                  sfx.playTap();
-                  if (!email) { setMsg("Missing email."); return; }
-                  if (!verified && !identityId) { setShowVerify(true); return; }
-                  if ((verified || identityId) && typeof bal.balance === "number" && !canAffordNext) { openBuy("out"); return; }
-                  submit(s.id, "play_next");
-                }}>
+                <div key={s.id} className="neonTile">
                   <div className="neonTileTop"><Artwork src={s.artworkUrl} alt={s.title} /></div>
                   <div className="neonTileBody">
                     <div className="neonTileTitle">{s.title}</div>
@@ -598,10 +595,24 @@ export default function RequestPage({ params }: { params: { location: string } }
                       {s.explicit && <span className="neonBadge">E</span>}
                       <span className="neonBadge">{costRequest}pt</span>
                     </div>
-                    <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
-                      <button className="neonBtn" onClick={(e) => { e.stopPropagation(); sfx.playTap(); submit(s.id, "play_next"); }}>Request!</button>
-                      <button className="neonBtn neonBtnPrimary" onClick={(e) => { e.stopPropagation(); sfx.playTap(); submit(s.id, "play_now"); }}>BOOST</button>
-                    </div>
+<div style={{ display: "grid", gap: 8, marginTop: 4 }}>
+  <HoldToConfirmButton
+    idleLabel="REQUEST!"
+    successLabel="✓ REQUEST ADDED"
+    holdMs={1800}
+    onConfirm={() => submit(s.id, "play_next")}
+    sfx={sfx}
+  />
+
+  <HoldToConfirmButton
+    className="neonBtnPrimary"
+    idleLabel="BOOST"
+    successLabel="✓ BOOST ADDED"
+    holdMs={1800}
+    onConfirm={() => submit(s.id, "play_now")}
+    sfx={sfx}
+  />
+</div>
                   </div>
                 </div>
               );
@@ -660,6 +671,139 @@ export default function RequestPage({ params }: { params: { location: string } }
 }
 
 // Helper components & logic below (VerifyModal, CreditHud, etc.)
+function HoldToConfirmButton({
+  className = "",
+  idleLabel,
+  successLabel,
+  holdMs = 1800,
+  onConfirm,
+  disabled,
+  sfx,
+}: any) {
+  const fillRef = useRef<HTMLDivElement | null>(null);
+  const labelRef = useRef<HTMLSpanElement | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const startRef = useRef<number | null>(null);
+  const lockedRef = useRef(false);
+
+  const [holding, setHolding] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  function setLabel(text: string) {
+    if (labelRef.current) labelRef.current.textContent = text;
+  }
+
+  function setFill(p: number) {
+    if (fillRef.current) fillRef.current.style.height = `${Math.max(0, Math.min(100, p * 100))}%`;
+  }
+
+  function hardReset() {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    startRef.current = null;
+    lockedRef.current = false;
+    setHolding(false);
+    setSuccess(false);
+    setFill(0);
+    setLabel(idleLabel);
+  }
+
+  async function completeHold() {
+    lockedRef.current = true;
+    setHolding(false);
+    setLabel("REQUESTING...");
+
+    let ok = false;
+    try {
+      ok = Boolean(await Promise.resolve(onConfirm?.()));
+    } catch {
+      ok = false;
+    }
+
+    if (!ok) {
+      hardReset();
+      return;
+    }
+
+    setSuccess(true);
+    setLabel(successLabel);
+
+    window.setTimeout(() => {
+      hardReset();
+    }, 700);
+  }
+
+  function tick(ts: number) {
+    if (startRef.current == null) startRef.current = ts;
+    const elapsed = ts - startRef.current;
+    const p = Math.min(elapsed / holdMs, 1);
+
+    setFill(p);
+
+    if (p < 0.35) setLabel("HOLD TO CONFIRM");
+    else if (p < 0.8) setLabel("KEEP HOLDING...");
+    else setLabel("ALMOST THERE...");
+
+    if (p >= 1) {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      void completeHold();
+      return;
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+  }
+
+  function startHold(e: any) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled || lockedRef.current) return;
+
+    sfx?.playTap?.();
+    setHolding(true);
+    startRef.current = null;
+    setFill(0);
+    setLabel("HOLD TO CONFIRM");
+    rafRef.current = requestAnimationFrame(tick);
+  }
+
+  function cancelHold(e?: any) {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (lockedRef.current) return;
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    startRef.current = null;
+    setHolding(false);
+    setFill(0);
+    setLabel(idleLabel);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  return (
+    <button
+      type="button"
+      className={`neonBtn rrHoldLiquidBtn ${className} ${holding ? "rrHolding" : ""} ${success ? "rrSuccess" : ""}`}
+      disabled={disabled}
+      onPointerDown={startHold}
+      onPointerUp={cancelHold}
+      onPointerLeave={cancelHold}
+      onPointerCancel={cancelHold}
+      onContextMenu={(e) => e.preventDefault()}
+      style={{ width: "100%" }}
+    >
+      <div ref={fillRef} className="rrHoldLiquidFill">
+        <div className="rrHoldLiquidSurface" />
+      </div>
+      <span ref={labelRef}>{idleLabel}</span>
+    </button>
+  );
+}
 
 function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, onVerified, onClose, sfx }: any) {
   const [phone, setPhone] = useState("");
