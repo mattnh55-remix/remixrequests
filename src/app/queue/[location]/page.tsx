@@ -103,46 +103,6 @@ function useNeonSfx() {
   };
 }
 
-
-function CountUpNumber({ value, pulseKey }: { value: number; pulseKey?: number }) {
-  const [display, setDisplay] = useState<number>(Number.isFinite(value) ? value : 0);
-  const prevRef = useRef<number>(Number.isFinite(value) ? value : 0);
-
-  useEffect(() => {
-    const next = Number.isFinite(value) ? value : 0;
-    const start = prevRef.current;
-    if (start === next) {
-      setDisplay(next);
-      return;
-    }
-
-    const duration = 420;
-    const startedAt = performance.now();
-    let raf = 0;
-
-    const step = (now: number) => {
-      const t = Math.min((now - startedAt) / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const current = start + (next - start) * eased;
-      setDisplay(next >= start ? Math.floor(current) : Math.ceil(current));
-      if (t < 1) raf = window.requestAnimationFrame(step);
-      else {
-        setDisplay(next);
-        prevRef.current = next;
-      }
-    };
-
-    raf = window.requestAnimationFrame(step);
-    return () => window.cancelAnimationFrame(raf);
-  }, [value, pulseKey]);
-
-  return (
-    <div key={pulseKey} className="rrCornerHudNumber" style={{ animation: "rrPop 420ms ease-out" }}>
-      {display}
-    </div>
-  );
-}
-
 function formatCountdown(endsAtIso?: string | null) {
   if (!endsAtIso) return "";
   const endsAt = new Date(endsAtIso);
@@ -252,6 +212,11 @@ export default function QueuePage({ params }: { params: { location: string } }) 
     window.location.href = `/request/${location}?buy=1&reason=boost`;
   }
 
+  function goBackToRequests() {
+    sfx.playTap();
+    window.location.href = `/request/${location}`;
+  }
+
   async function doVote(requestId: string, dir: "up" | "down") {
     const needed = dir === "up" ? costUpvote : costDownvote;
     setMsg("");
@@ -316,7 +281,9 @@ export default function QueuePage({ params }: { params: { location: string } }) 
                 <span className="rrPointsMobile">PTS</span>
               </div>
               <div className="rrCornerHudValue">
-                <CountUpNumber value={hudBalance} pulseKey={bal.pulseKey} />
+                <div key={bal.pulseKey} className="rrCornerHudNumber" style={{ animation: "rrPop 420ms ease-out" }}>
+                  {hudBalance}
+                </div>
               </div>
               <button className={`neonBtn neonBtnPrimary rrCornerHudBtn ${!verified && !identityId ? "neonPulse" : ""}`} onClick={handleCornerHudAction}>
                 {!verified && !identityId ? "USE" : "ADD POINTS"}
@@ -339,28 +306,15 @@ export default function QueuePage({ params }: { params: { location: string } }) 
         {msg ? <div className="neonPanel" style={{ padding: 10, marginBottom: 12 }}>{msg}</div> : null}
 
         <div className="neonPanel" style={{ padding: 14, marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
-            <div style={{ fontWeight: 900, letterSpacing: 0.3, fontSize: 16 }}>Boosted</div>
-            <div style={{ color: "var(--muted)", fontSize: 12 }}>{loading ? "Loading…" : ""}</div>
-          </div>
-          {playNow.length ? (
-            <div style={{ display: "grid", gap: 10 }}>
-              {playNow.map((x, idx) => {
-                const title = getTitle(x) || "—";
-                const artist = getArtist(x) || "";
-                const art = getArtwork(x);
-                return (
-                  <div key={`${getRequestId(x) || idx}`} className="neonPanel" style={{ padding: 12, display: "flex", gap: 12, alignItems: "center", border: "1px solid rgba(255,255,255,0.10)", background: "linear-gradient(135deg, rgba(0,255,200,0.06), rgba(255,0,180,0.06))" }}>
-                    <div style={{ width: 54, height: 54, borderRadius: 12, overflow: "hidden", flex: "0 0 auto" }}><AlbumArt src={art} alt={title} /></div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 900, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
-                      <div style={{ color: "var(--muted)", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{artist}</div>
-                    </div>
-                  </div>
-                );
-              })}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontWeight: 900, letterSpacing: 0.3, fontSize: 16 }}>Now Playing</div>
+              <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>{loading ? "Loading…" : "Return to requests to add another song."}</div>
             </div>
-          ) : <div style={{ color: "var(--muted)", fontSize: 13 }}>Nothing playing right now.</div>}
+            <button className="neonBtn neonBtnPrimary" onClick={goBackToRequests} style={{ whiteSpace: "nowrap" }}>
+              ← Back to Requests
+            </button>
+          </div>
         </div>
 
         <div className="neonPanel" style={{ padding: 14 }}>
@@ -376,8 +330,15 @@ export default function QueuePage({ params }: { params: { location: string } }) 
                 const artist = getArtist(x) || "";
                 const art = getArtwork(x);
                 const score = typeof x.score === "number" ? x.score : 0;
+                const isBoostedTop = idx === 0 && playNow.length > 0;
                 return (
-                  <div key={`${requestId || idx}`} className="neonPanel" style={{ padding: 12, display: "grid", gridTemplateColumns: "54px minmax(0, 1fr) auto", gap: 12, alignItems: "center", border: "1px solid rgba(255,255,255,0.12)", background: "linear-gradient(135deg, rgba(0,255,200,0.05), rgba(255,0,180,0.05))" }}>
+                  <div key={`${requestId || idx}`} className="neonPanel" style={{ padding: 12, display: "grid", gridTemplateColumns: "54px minmax(0, 1fr) auto", gap: 12, alignItems: "center", border: "1px solid rgba(255,255,255,0.12)", background: "linear-gradient(135deg, rgba(0,255,200,0.05), rgba(255,0,180,0.05))", position: "relative", overflow: "visible" }}>
+                    {isBoostedTop ? (
+                      <div style={{ position: "absolute", left: -6, top: -9, background: "linear-gradient(180deg, #ff4b4b, #d91515)", color: "#fff", fontSize: 11, fontWeight: 1000, letterSpacing: 0.3, padding: "3px 8px", borderRadius: 6, boxShadow: "0 6px 16px rgba(217,21,21,0.35)", textTransform: "uppercase", zIndex: 3 }}>
+                        Boosted!
+                      </div>
+                    ) : null}
+
                     <div style={{ width: 54, height: 54, borderRadius: 12, overflow: "hidden" }}><AlbumArt src={art} alt={title} /></div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 900, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
