@@ -142,11 +142,11 @@ model Ruleset {
   costDownvote Int @default(1)
   costPlayNow  Int @default(5)
   // Pack pricing (cents)
-packTier1PriceCents Int @default(500)
-packTier2PriceCents Int @default(1000)
-packTier3PriceCents Int @default(1500)
-packTier4PriceCents Int @default(2000)
-  
+  packTier1PriceCents Int @default(500)
+  packTier2PriceCents Int @default(1000)
+  packTier3PriceCents Int @default(1500)
+  packTier4PriceCents Int @default(2000)
+
   logoUrl String?
 
   maxRequestsPerSession    Int @default(1)
@@ -165,7 +165,9 @@ packTier4PriceCents Int @default(2000)
   msgArtistCooldown   String @default("Sorry — this artist has played in the last 15 minutes.")
   msgSongCooldown     String @default("Sorry — this song has already been played in the last 2 hours.")
   msgNoCredits        String @default("Not enough credits.")
-
+  maxArtistInQueue      Int    @default(0)
+  msgArtistAlreadyQueued String @default("Sorry, $artist is already queued up on the request list!")
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
