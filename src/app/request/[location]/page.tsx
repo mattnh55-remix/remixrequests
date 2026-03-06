@@ -39,6 +39,9 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [songs, setSongs] = useState<Song[]>([]);
   const [rules, setRules] = useState<any>(null);
   const [msg, setMsg] = useState<string>("");
+  const [successTile, setSuccessTile] = useState<string | null>(null);
+  
+  const [queuePulse, setQueuePulse] = useState(false);
   const [queuePreview, setQueuePreview] = useState<{ playNow: any[]; upNext: any[] }>({ playNow: [], upNext: [] });
 
   const [verified, setVerified] = useState(false);
@@ -47,6 +50,7 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [showBuy, setShowBuy] = useState(false);
     const [redeemCode, setRedeemCode] = useState("");
   const [redeemBusy, setRedeemBusy] = useState(false);
+  const [flyArt, setFlyArt] = useState<{src?:string,x:number,y:number}|null>(null);
 
   async function redeem(codeInput?: string) {
     const code = String(codeInput ?? redeemCode ?? "").trim();
@@ -95,6 +99,17 @@ export default function RequestPage({ params }: { params: { location: string } }
     sfx.playError();
     setMsg("Could not start checkout.");
   }
+  {flyArt && (
+  <div
+    className="rrFlyArt"
+    style={{
+      left: flyArt.x,
+      top: flyArt.y
+    }}
+  >
+    <img src={flyArt.src} />
+  </div>
+)}
 }
 
     setRedeemBusy(true);
@@ -290,7 +305,7 @@ export default function RequestPage({ params }: { params: { location: string } }
     sfx.playTap();
   }
 
-  async function submit(songId: string, action: "play_next" | "play_now") {
+async function submit(songId: string, action: "play_next" | "play_now", el?: HTMLElement) {
   if (!verified && !identityId) {
     sfx.playError();
     setMsg("Please verify to unlock points.");
@@ -326,16 +341,35 @@ export default function RequestPage({ params }: { params: { location: string } }
 
   sfx.playSuccess();
   setMsg(action === "play_now" ? "✅ Play Now request added!" : "✅ Request added!");
+setSuccessTile(songId);
 
+setTimeout(() => {
+  setSuccessTile(null);
+}, 600);
   const nextBalance = data?.balance ?? data?.credits?.balance ?? data?.session?.balance ?? null;
   if (typeof nextBalance === "number") {
     bal.applyBalance(nextBalance);
   } else {
     bal.refreshOnce();
   }
+if (el) {
+  const rect = el.getBoundingClientRect();
 
+  setFlyArt({
+    src: el.querySelector("img")?.getAttribute("src") || undefined,
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2
+  });
+
+  setTimeout(() => setFlyArt(null), 700);
+}
   return true;
 }
+setQueuePulse(true);
+
+setTimeout(() => {
+  setQueuePulse(false);
+}, 700);
 
   const trending = useMemo(() => {
     const hot = songs.filter(s => (s.tags || []).some(t => ["TikTok", "DISCO", "Pop Hits"].includes(t)));
@@ -470,8 +504,8 @@ export default function RequestPage({ params }: { params: { location: string } }
                   onClick={(e) => { e.stopPropagation(); sfx.playTap(); setShowVerify(true); }}
                 >USE</button>
               ) : (
-                <button
-                  className="neonBtn neonBtnPrimary"
+<button
+  className={`neonBtn neonBtnPrimary ${queuePulse ? "rrQueuePulse" : ""}`}
                   style={{ marginTop: 6, padding: "8px 10px", borderRadius: 14, fontSize: 12 }}
                   onClick={(e) => { e.stopPropagation(); sfx.playTap(); setBuyReason("boost"); setShowBuy(true); }}
                 >ADD POINTS</button>
@@ -581,8 +615,12 @@ export default function RequestPage({ params }: { params: { location: string } }
               const canAffordNow = typeof bal.balance !== "number" ? true : bal.balance >= costPlayNow;
 
               return (
-                <div key={s.id} className="neonTile">
-<div className="neonTileTop rrArtworkStatic"><Artwork src={s.artworkUrl} alt={s.title} /></div>
+<div
+  key={s.id}
+  className={`neonTile ${successTile === s.id ? "rrRequestSuccess" : ""}`}
+>
+  
+  <div className="neonTileTop rrArtworkStatic"><Artwork src={s.artworkUrl} alt={s.title} /></div>
                   <div className="neonTileBody">
                     <div className="neonTileTitle">{s.title}</div>
                     <div className="neonTileMeta">{s.artist}</div>
@@ -596,7 +634,7 @@ export default function RequestPage({ params }: { params: { location: string } }
     idleLabel="REQUEST!"
     successLabel="✓ REQUEST ADDED"
     holdMs={1800}
-    onConfirm={() => submit(s.id, "play_next")}
+onConfirm={(e:any) => submit(s.id, "play_next", e?.currentTarget)}
     sfx={sfx}
   />
 
@@ -605,7 +643,7 @@ export default function RequestPage({ params }: { params: { location: string } }
     idleLabel="BOOST"
     successLabel="✓ BOOST ADDED"
     holdMs={1800}
-    onConfirm={() => submit(s.id, "play_now")}
+    onConfirm={(e:any) => submit(s.id, "play_now", e?.currentTarget)}
     sfx={sfx}
   />
 </div>
@@ -1173,7 +1211,9 @@ if (!open) return null;
         </button>
       </div>
     </div>
+    
   );
+  
 }
 
 function Artwork({ src, alt }: { src?: string; alt: string }) {
