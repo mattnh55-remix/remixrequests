@@ -2,7 +2,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-// import AnimatedBalanceCounter from "../../../../components/ui/neon/AnimatedBalanceCounter"; // Unused in this snippet but kept for your imports
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 
 const RAILS = [
@@ -24,6 +23,15 @@ type UiPack = {
   href?: string;
 };
 
+type FlyAnim = {
+  key: number;
+  src?: string;
+  startX: number;
+  startY: number;
+  deltaX: number;
+  deltaY: number;
+};
+
 const BUY_URL_BY_LOCATION: Record<string, string> = {
   // remixrequests: "https://your-checkout-link",
 };
@@ -39,143 +47,37 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [songs, setSongs] = useState<Song[]>([]);
   const [rules, setRules] = useState<any>(null);
   const [msg, setMsg] = useState<string>("");
-  const [successTile, setSuccessTile] = useState<string | null>(null);
-  
-  const [queuePulse, setQueuePulse] = useState(false);
   const [queuePreview, setQueuePreview] = useState<{ playNow: any[]; upNext: any[] }>({ playNow: [], upNext: [] });
 
   const [verified, setVerified] = useState(false);
   const [identityId, setIdentityId] = useState<string>("");
   const [showVerify, setShowVerify] = useState(false);
   const [showBuy, setShowBuy] = useState(false);
-    const [redeemCode, setRedeemCode] = useState("");
+  const [redeemCode, setRedeemCode] = useState("");
   const [redeemBusy, setRedeemBusy] = useState(false);
-  const [flyArt, setFlyArt] = useState<{src?:string,x:number,y:number}|null>(null);
-
-  async function redeem(codeInput?: string) {
-    const code = String(codeInput ?? redeemCode ?? "").trim();
-    if (!code) { sfx.playError(); setMsg("Enter a redemption code."); return; }
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      sfx.playError();
-      setMsg("Enter a valid email first.");
-      return;
-    }
-    if (!verified && !identityId) {
-      sfx.playError();
-      setMsg("Please verify to redeem a code.");
-      setShowVerify(true);
-      return;
-    }
-
-    async function startCheckout(packageKey: "5_10" | "10_25" | "15_35" | "20_50") {
-  if (!identityId) {
-    sfx.playError();
-    setMsg("Please verify before buying points.");
-    setShowVerify(true);
-    return;
-  }
-
-  try {
-    const res = await fetch("/api/square/create-checkout", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        location,
-        identityId,
-        packageKey,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!data?.ok || !data?.checkoutUrl) {
-      sfx.playError();
-      setMsg(data?.error || "Could not start checkout.");
-      return;
-    }
-
-    window.location.href = data.checkoutUrl;
-  } catch {
-    sfx.playError();
-    setMsg("Could not start checkout.");
-  }
-  {flyArt && (
-  <div
-    className="rrFlyArt"
-    style={{
-      left: flyArt.x,
-      top: flyArt.y
-    }}
-  >
-    <img src={flyArt.src} />
-  </div>
-)}
-}
-
-    setRedeemBusy(true);
-    try {
-      const res = await fetch(`/api/public/redeem/${location}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, code }),
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        sfx.playError();
-        setMsg(data.error || "Could not redeem code.");
-        return;
-      }
-
-      sfx.playSuccess();
-      setMsg(`✅ Redeemed +${data.pointsAdded ?? ""} points!`);
-      setRedeemCode("");
-      const nextBalance = data?.balance ?? null;
-      if (typeof nextBalance === "number") bal.applyBalance(nextBalance);
-      else bal.refreshOnce();
-    } catch {
-      sfx.playError();
-      setMsg("Could not redeem code.");
-    } finally {
-      setRedeemBusy(false);
-    }
-  }
-  async function startCheckout(packageKey: "5_10" | "10_25" | "15_35" | "20_50") {
-  if (!identityId) {
-    sfx.playError();
-    setMsg("Please verify before buying points.");
-    setShowVerify(true);
-    return;
-  }
-
-  try {
-    const res = await fetch("/api/square/create-checkout", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        location,
-        identityId,
-        packageKey,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!data?.ok || !data?.checkoutUrl) {
-      sfx.playError();
-      setMsg(data?.error || "Could not start checkout.");
-      return;
-    }
-
-    window.location.href = data.checkoutUrl;
-  } catch {
-    sfx.playError();
-    setMsg("Could not start checkout.");
-  }
-}
   const [buyReason, setBuyReason] = useState<"none" | "out" | "notEnough" | "boost">("none");
   const [sessionCountdown, setSessionCountdown] = useState<string>("");
 
+  const [successTileId, setSuccessTileId] = useState<string | null>(null);
+  const [queuePulseOn, setQueuePulseOn] = useState(false);
+  const [flyAnim, setFlyAnim] = useState<FlyAnim | null>(null);
+
+  const queueTargetRef = useRef<HTMLDivElement | null>(null);
+  const queueButtonRef = useRef<HTMLButtonElement | null>(null);
+  const flyTimerRef = useRef<number | null>(null);
+  const tileSuccessTimerRef = useRef<number | null>(null);
+  const queuePulseTimerRef = useRef<number | null>(null);
+  const flyKeyRef = useRef(0);
+
   const sfx = useNeonSfx();
+
+  useEffect(() => {
+    return () => {
+      if (flyTimerRef.current != null) window.clearTimeout(flyTimerRef.current);
+      if (tileSuccessTimerRef.current != null) window.clearTimeout(tileSuccessTimerRef.current);
+      if (queuePulseTimerRef.current != null) window.clearTimeout(queuePulseTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -305,71 +207,179 @@ export default function RequestPage({ params }: { params: { location: string } }
     sfx.playTap();
   }
 
-async function submit(songId: string, action: "play_next" | "play_now", el?: HTMLElement) {
-  if (!verified && !identityId) {
-    sfx.playError();
-    setMsg("Please verify to unlock points.");
-    setShowVerify(true);
-    return false;
+  async function redeem(codeInput?: string) {
+    const code = String(codeInput ?? redeemCode ?? "").trim();
+    if (!code) {
+      sfx.playError();
+      setMsg("Enter a redemption code.");
+      return;
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      sfx.playError();
+      setMsg("Enter a valid email first.");
+      return;
+    }
+    if (!verified && !identityId) {
+      sfx.playError();
+      setMsg("Please verify to redeem a code.");
+      setShowVerify(true);
+      return;
+    }
+
+    setRedeemBusy(true);
+    try {
+      const res = await fetch(`/api/public/redeem/${location}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        sfx.playError();
+        setMsg(data.error || "Could not redeem code.");
+        return;
+      }
+
+      sfx.playSuccess();
+      setMsg(`✅ Redeemed +${data.pointsAdded ?? ""} points!`);
+      setRedeemCode("");
+      const nextBalance = data?.balance ?? null;
+      if (typeof nextBalance === "number") bal.applyBalance(nextBalance);
+      else bal.refreshOnce();
+    } catch {
+      sfx.playError();
+      setMsg("Could not redeem code.");
+    } finally {
+      setRedeemBusy(false);
+    }
   }
 
-  const costRequest = rules?.rules?.costRequest ?? 1;
-  const costPlayNow = rules?.rules?.costPlayNow ?? 5;
-  const required = action === "play_now" ? costPlayNow : costRequest;
+  async function startCheckout(packageKey: "5_10" | "10_25" | "15_35" | "20_50") {
+    if (!identityId) {
+      sfx.playError();
+      setMsg("Please verify before buying points.");
+      setShowVerify(true);
+      return;
+    }
 
-  if (typeof bal.balance === "number" && bal.balance < required) {
-    sfx.playError();
-    setMsg(required === costPlayNow ? "Not enough points for request" : "Not enough points to request.");
-    openBuy(required === costPlayNow ? "boost" : "notEnough");
-    return false;
+    try {
+      const res = await fetch("/api/square/create-checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          location,
+          identityId,
+          packageKey,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data?.ok || !data?.checkoutUrl) {
+        sfx.playError();
+        setMsg(data?.error || "Could not start checkout.");
+        return;
+      }
+
+      window.location.href = data.checkoutUrl;
+    } catch {
+      sfx.playError();
+      setMsg("Could not start checkout.");
+    }
   }
 
-  setMsg("");
-  const res = await fetch(`/api/public/request`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ location, email, songId, action })
-  });
+  function triggerSuccessVisuals(song: Song, sourceEl?: HTMLElement | null) {
+    setSuccessTileId(song.id);
+    if (tileSuccessTimerRef.current != null) window.clearTimeout(tileSuccessTimerRef.current);
+    tileSuccessTimerRef.current = window.setTimeout(() => {
+      setSuccessTileId(null);
+    }, 650);
 
-  const data = await res.json();
+    setQueuePulseOn(true);
+    if (queuePulseTimerRef.current != null) window.clearTimeout(queuePulseTimerRef.current);
+    queuePulseTimerRef.current = window.setTimeout(() => {
+      setQueuePulseOn(false);
+    }, 800);
 
-  if (!data.ok) {
-    sfx.playError();
-    setMsg(data.error || "Something went wrong.");
-    return false;
+    if (!sourceEl) return;
+
+    const sourceRect = sourceEl.getBoundingClientRect();
+    const targetEl = queueButtonRef.current || queueTargetRef.current;
+    const targetRect = targetEl?.getBoundingClientRect();
+
+    const startX = sourceRect.left + (sourceRect.width / 2);
+    const startY = sourceRect.top + (sourceRect.height / 2);
+
+    const endX = targetRect ? targetRect.left + (targetRect.width / 2) : window.innerWidth - 84;
+    const endY = targetRect ? targetRect.top + (targetRect.height / 2) : 150;
+
+    flyKeyRef.current += 1;
+    setFlyAnim({
+      key: flyKeyRef.current,
+      src: song.artworkUrl,
+      startX,
+      startY,
+      deltaX: endX - startX,
+      deltaY: endY - startY,
+    });
+
+    if (flyTimerRef.current != null) window.clearTimeout(flyTimerRef.current);
+    flyTimerRef.current = window.setTimeout(() => {
+      setFlyAnim(null);
+    }, 900);
   }
 
-  sfx.playSuccess();
-  setMsg(action === "play_now" ? "✅ Play Now request added!" : "✅ Request added!");
-setSuccessTile(songId);
+  async function submit(song: Song, action: "play_next" | "play_now", sourceEl?: HTMLElement | null) {
+    if (!verified && !identityId) {
+      sfx.playError();
+      setMsg("Please verify to unlock points.");
+      setShowVerify(true);
+      return false;
+    }
 
-setTimeout(() => {
-  setSuccessTile(null);
-}, 600);
-  const nextBalance = data?.balance ?? data?.credits?.balance ?? data?.session?.balance ?? null;
-  if (typeof nextBalance === "number") {
-    bal.applyBalance(nextBalance);
-  } else {
-    bal.refreshOnce();
+    const costRequest = rules?.rules?.costRequest ?? 1;
+    const costPlayNow = rules?.rules?.costPlayNow ?? 5;
+    const required = action === "play_now" ? costPlayNow : costRequest;
+
+    if (typeof bal.balance === "number" && bal.balance < required) {
+      sfx.playError();
+      setMsg(required === costPlayNow ? "Not enough points for request" : "Not enough points to request.");
+      openBuy(required === costPlayNow ? "boost" : "notEnough");
+      return false;
+    }
+
+    setMsg("");
+    const res = await fetch(`/api/public/request`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ location, email, songId: song.id, action })
+    });
+
+    const data = await res.json();
+
+    if (!data.ok) {
+      sfx.playError();
+      setMsg(data.error || "Something went wrong.");
+      return false;
+    }
+
+    sfx.playSuccess();
+    setMsg(action === "play_now" ? "✅ Play Now request added!" : "✅ Request added!");
+
+    const nextBalance = data?.balance ?? data?.credits?.balance ?? data?.session?.balance ?? null;
+    if (typeof nextBalance === "number") {
+      bal.applyBalance(nextBalance);
+    } else {
+      bal.refreshOnce();
+    }
+
+    triggerSuccessVisuals(song, sourceEl);
+    window.setTimeout(() => {
+      refreshQueuePreview();
+    }, 120);
+
+    return true;
   }
-if (el) {
-  const rect = el.getBoundingClientRect();
-
-  setFlyArt({
-    src: el.querySelector("img")?.getAttribute("src") || undefined,
-    x: rect.left + rect.width / 2,
-    y: rect.top + rect.height / 2
-  });
-
-  setTimeout(() => setFlyArt(null), 700);
-}
-  return true;
-}
-setQueuePulse(true);
-
-setTimeout(() => {
-  setQueuePulse(false);
-}, 700);
 
   const trending = useMemo(() => {
     const hot = songs.filter(s => (s.tags || []).some(t => ["TikTok", "DISCO", "Pop Hits"].includes(t)));
@@ -393,65 +403,68 @@ setTimeout(() => {
   }, [location, rules]);
 
   const uiPacks: UiPack[] = useMemo(() => {
-  const priceTier1 = Number(rules?.rules?.packTier1PriceCents ?? 500);   // 10 credits
-  const priceTier2 = Number(rules?.rules?.packTier2PriceCents ?? 1000);  // 25 credits
-  const priceTier3 = Number(rules?.rules?.packTier3PriceCents ?? 1500);  // 35 credits
-  const priceTier4 = Number(rules?.rules?.packTier4PriceCents ?? 2000);  // 50 credits
+    const priceTier1 = Number(rules?.rules?.packTier1PriceCents ?? 500);
+    const priceTier2 = Number(rules?.rules?.packTier2PriceCents ?? 1000);
+    const priceTier3 = Number(rules?.rules?.packTier3PriceCents ?? 1500);
+    const priceTier4 = Number(rules?.rules?.packTier4PriceCents ?? 2000);
 
-  return [
-    {
-      id: "tier1",
-      title: "Quick Boost",
-      subtitle: "Perfect for 1–2 songs",
-      creditsLabel: "10 credits",
-      badge: "Fast",
-      cta: "Get Points",
-      href: buyUrl ?? undefined,
-      priceCents: priceTier1,
-      packageKey: "5_10",
-    },
-    {
-      id: "tier2",
-      title: "Party Pack",
-      subtitle: "Best for groups",
-      creditsLabel: "25 credits",
-      highlight: true,
-      badge: "Most Popular",
-      cta: "Get Points",
-      href: buyUrl ?? undefined,
-      priceCents: priceTier2,
-      packageKey: "10_25",
-    },
-    {
-      id: "tier3",
-      title: "Bonus Pack",
-      subtitle: "More songs, more fun",
-      creditsLabel: "35 credits",
-      badge: "Hot Deal",
-      cta: "Get Points",
-      href: buyUrl ?? undefined,
-      priceCents: priceTier3,
-      packageKey: "15_35",
-    },
-    {
-      id: "tier4",
-      title: "All Night",
-      subtitle: "Skate like a legend",
-      creditsLabel: "50 credits",
-      badge: "Best Value",
-      cta: "Get Points",
-      href: buyUrl ?? undefined,
-      priceCents: priceTier4,
-      packageKey: "20_50",
-    },
-  ];
-}, [rules, buyUrl]);
+    return [
+      {
+        id: "tier1",
+        title: "Quick Boost",
+        subtitle: "Perfect for 1–2 songs",
+        creditsLabel: "10 credits",
+        badge: "Fast",
+        cta: "Get Points",
+        href: buyUrl ?? undefined,
+        priceCents: priceTier1,
+        packageKey: "5_10",
+      },
+      {
+        id: "tier2",
+        title: "Party Pack",
+        subtitle: "Best for groups",
+        creditsLabel: "25 credits",
+        highlight: true,
+        badge: "Most Popular",
+        cta: "Get Points",
+        href: buyUrl ?? undefined,
+        priceCents: priceTier2,
+        packageKey: "10_25",
+      },
+      {
+        id: "tier3",
+        title: "Bonus Pack",
+        subtitle: "More songs, more fun",
+        creditsLabel: "35 credits",
+        badge: "Hot Deal",
+        cta: "Get Points",
+        href: buyUrl ?? undefined,
+        priceCents: priceTier3,
+        packageKey: "15_35",
+      },
+      {
+        id: "tier4",
+        title: "All Night",
+        subtitle: "Skate like a legend",
+        creditsLabel: "50 credits",
+        badge: "Best Value",
+        cta: "Get Points",
+        href: buyUrl ?? undefined,
+        priceCents: priceTier4,
+        packageKey: "20_50",
+      },
+    ];
+  }, [rules, buyUrl]);
 
   let creditsLabel = "Use Points!";
   if (verified || identityId) {
     if (bal.balance === null) creditsLabel = "Points: …";
     else creditsLabel = `Points: ${bal.balance}`;
   }
+
+  const hasActiveQueue = (queuePreview?.upNext?.length || 0) > 0 || (queuePreview?.playNow?.length || 0) > 0;
+  const nextQueueItem = (queuePreview.upNext?.[0] || queuePreview.playNow?.[0] || null) as any;
 
   return (
     <div className="neonRoot">
@@ -504,8 +517,8 @@ setTimeout(() => {
                   onClick={(e) => { e.stopPropagation(); sfx.playTap(); setShowVerify(true); }}
                 >USE</button>
               ) : (
-<button
-  className={`neonBtn neonBtnPrimary ${queuePulse ? "rrQueuePulse" : ""}`}
+                <button
+                  className="neonBtn neonBtnPrimary"
                   style={{ marginTop: 6, padding: "8px 10px", borderRadius: 14, fontSize: 12 }}
                   onClick={(e) => { e.stopPropagation(); sfx.playTap(); setBuyReason("boost"); setShowBuy(true); }}
                 >ADD POINTS</button>
@@ -523,31 +536,27 @@ setTimeout(() => {
         `}</style>
 
         {msg ? <div className="neonToast" style={{ textAlign: "center", padding: "10px 14px" }}>
-  {msg}
-</div> : null}
+          {msg}
+        </div> : null}
 
-        <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
-          {(() => {
-            const hasActive = (queuePreview?.upNext?.length || 0) > 0 || (queuePreview?.playNow?.length || 0) > 0;
-            if (!hasActive) return null;
-            const next = (queuePreview.upNext?.[0] || queuePreview.playNow?.[0] || null) as any;
-            return (
-              <button
-                className="neonBtn neonBtnPrimary"
-                style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6, textAlign: "center", alignItems: "center", padding: "14px 16px", borderRadius: 16 }}
-                onClick={() => { sfx.playTap(); window.location.href = `/queue/${location}`; }}
-              >
-                <div style={{ fontWeight: 900, fontSize: 16, display: "flex", alignItems: "center",  justifyContent: "center", gap: 8 }}>
-                  <span>View the Queue</span>
-                  <span style={{ fontSize: 16 }}>➡️</span>
-                </div>
-                <div style={{ fontSize: 13, opacity: 0.9 }}>
-                  Coming up: <b>{next?.title || next?.song?.title || "—"}</b> by <b>{next?.artist || next?.song?.artist || "—"}</b>
-                </div>
-                <div style={{ fontSize: 12, opacity: 0.72 }}>Upvote or Downvote songs in the queue!</div>
-              </button>
-            );
-          })()}
+        <div ref={queueTargetRef} style={{ display: "grid", gap: 12, marginBottom: 12 }}>
+          {hasActiveQueue ? (
+            <button
+              ref={queueButtonRef}
+              className={`neonBtn neonBtnPrimary ${queuePulseOn ? "rrQueuePulse" : ""}`}
+              style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6, textAlign: "center", alignItems: "center", padding: "14px 16px", borderRadius: 16 }}
+              onClick={() => { sfx.playTap(); window.location.href = `/queue/${location}`; }}
+            >
+              <div style={{ fontWeight: 900, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <span>View the Queue</span>
+                <span style={{ fontSize: 16 }}>➡️</span>
+              </div>
+              <div style={{ fontSize: 13, opacity: 0.9 }}>
+                Coming up: <b>{nextQueueItem?.title || nextQueueItem?.song?.title || "—"}</b> by <b>{nextQueueItem?.artist || nextQueueItem?.song?.artist || "—"}</b>
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.72 }}>Upvote or Downvote songs in the queue!</div>
+            </button>
+          ) : null}
         </div>
 
         {(verified || identityId) && !email ? (
@@ -560,15 +569,17 @@ setTimeout(() => {
             </div>
           </div>
         ) : null}
-<div style={{ marginBottom: 5 }}>
-        <input
-          id="songSearch"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search songs or artists…"
-          className="neonInput neonSearchInput"
-          style={{ fontWeight: 800, fontSize: 16, letterSpacing: 0.2 }}
-        /></div>
+
+        <div style={{ marginBottom: 5 }}>
+          <input
+            id="songSearch"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search songs or artists…"
+            className="neonInput neonSearchInput"
+            style={{ fontWeight: 800, fontSize: 16, letterSpacing: 0.2 }}
+          />
+        </div>
 
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingLeft: 6, paddingRight: 6, paddingBottom: 6 }}>
           <button onClick={() => { sfx.playTap(); setTag(""); }} className="neonBtn" style={chip2(tag === "")}>All</button>
@@ -581,21 +592,17 @@ setTimeout(() => {
           <div className="neonPanel" style={{ padding: 10, marginBottom: 12 }}>
             <div style={{ padding: "10px 12px 0", fontWeight: 1000, letterSpacing: 0.4 }}>Trending at Remix</div>
             <div className="neonRail" style={{
-    maskImage: "linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent)",
-    WebkitMaskImage: "linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent)"
-  }}
->
+              maskImage: "linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent)",
+              WebkitMaskImage: "linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent)"
+            }}>
               {trending.map((s) => (
                 <DelayedTapButton
-  key={s.id}
-  holdMs={450}
-  sfx={sfx}
-  onConfirm={async () => {
-    const ok = await submit(s.id, "play_next");
-    return ok;
-  }}
-  style={{ textAlign: "left" }}
->
+                  key={s.id}
+                  holdMs={450}
+                  sfx={sfx}
+                  onConfirm={(buttonEl?: HTMLElement | null) => submit(s, "play_next", buttonEl)}
+                  style={{ textAlign: "left" }}
+                >
                   <div className="neonArt"><Artwork src={s.artworkUrl} alt={s.title} /></div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 900, fontSize: 14, color: "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
@@ -611,16 +618,10 @@ setTimeout(() => {
           <div className="neonGrid">
             {songs.map((s) => {
               const hot = trendingIds.has(s.id);
-              const canAffordNext = typeof bal.balance !== "number" ? true : bal.balance >= costRequest;
-              const canAffordNow = typeof bal.balance !== "number" ? true : bal.balance >= costPlayNow;
 
               return (
-<div
-  key={s.id}
-  className={`neonTile ${successTile === s.id ? "rrRequestSuccess" : ""}`}
->
-  
-  <div className="neonTileTop rrArtworkStatic"><Artwork src={s.artworkUrl} alt={s.title} /></div>
+                <div key={s.id} className={`neonTile ${successTileId === s.id ? "rrRequestTilePulse" : ""}`}>
+                  <div className="neonTileTop rrArtworkStatic"><Artwork src={s.artworkUrl} alt={s.title} /></div>
                   <div className="neonTileBody">
                     <div className="neonTileTitle">{s.title}</div>
                     <div className="neonTileMeta">{s.artist}</div>
@@ -629,24 +630,24 @@ setTimeout(() => {
                       {s.explicit && <span className="neonBadge">E</span>}
                       <span className="neonBadge">{costRequest}pt</span>
                     </div>
-<div style={{ display: "grid", gap: 8, marginTop: 4 }}>
-  <HoldToConfirmButton
-    idleLabel="REQUEST!"
-    successLabel="✓ REQUEST ADDED"
-    holdMs={1800}
-onConfirm={(e:any) => submit(s.id, "play_next", e?.currentTarget)}
-    sfx={sfx}
-  />
+                    <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
+                      <HoldToConfirmButton
+                        idleLabel="REQUEST!"
+                        successLabel="✓ REQUEST ADDED"
+                        holdMs={1800}
+                        onConfirm={(buttonEl?: HTMLElement | null) => submit(s, "play_next", buttonEl)}
+                        sfx={sfx}
+                      />
 
-  <HoldToConfirmButton
-    className="neonBtnPrimary"
-    idleLabel="BOOST"
-    successLabel="✓ BOOST ADDED"
-    holdMs={1800}
-    onConfirm={(e:any) => submit(s.id, "play_now", e?.currentTarget)}
-    sfx={sfx}
-  />
-</div>
+                      <HoldToConfirmButton
+                        className="neonBtnPrimary"
+                        idleLabel="BOOST"
+                        successLabel="✓ BOOST ADDED"
+                        holdMs={1800}
+                        onConfirm={(buttonEl?: HTMLElement | null) => submit(s, "play_now", buttonEl)}
+                        sfx={sfx}
+                      />
+                    </div>
                   </div>
                 </div>
               );
@@ -659,10 +660,10 @@ onConfirm={(e:any) => submit(s.id, "play_next", e?.currentTarget)}
           location={location}
           email={email}
           setEmail={setEmail}
-            onRedeem={(code: string) => redeem(code)}
-  redeemBusy={redeemBusy}
+          onRedeem={(code: string) => redeem(code)}
+          redeemBusy={redeemBusy}
           onVerified={() => {
-              setVerified(true);
+            setVerified(true);
             setShowVerify(false);
             try {
               const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
@@ -683,28 +684,43 @@ onConfirm={(e:any) => submit(s.id, "play_next", e?.currentTarget)}
           sessionCountdown={sessionCountdown}
           onVerify={() => setShowVerify(true)}
           onBuy={() => openBuy(bal.balance === 0 ? "out" : "none")}
-          onTap={() => sfx.playTap()}
         />
 
-<BuyCreditsDrawer
-  open={showBuy}
-  onClose={() => { setShowBuy(false); setBuyReason("none"); }}
-  sfx={sfx}
-  verified={verified || !!identityId}
-  balance={bal.balance}
-  reason={buyReason}
-  buyUrl={buyUrl}
-  packs={uiPacks}
-  redeemBusy={redeemBusy}
-  onRedeem={(code: string) => redeem(code)}
-  onBuy={(packageKey: "5_10" | "10_25" | "15_35" | "20_50") => startCheckout(packageKey)}
-/>
+        <BuyCreditsDrawer
+          open={showBuy}
+          onClose={() => { setShowBuy(false); setBuyReason("none"); }}
+          sfx={sfx}
+          verified={verified || !!identityId}
+          balance={bal.balance}
+          reason={buyReason}
+          buyUrl={buyUrl}
+          packs={uiPacks}
+          redeemBusy={redeemBusy}
+          onRedeem={(code: string) => redeem(code)}
+          onBuy={(packageKey: "5_10" | "10_25" | "15_35" | "20_50") => startCheckout(packageKey)}
+        />
       </div>
+
+      {flyAnim ? (
+        <div
+          key={flyAnim.key}
+          className="rrFlyCard"
+          style={{
+            left: flyAnim.startX,
+            top: flyAnim.startY,
+            ["--rr-fly-x" as any]: `${Math.round(flyAnim.deltaX)}px`,
+            ["--rr-fly-y" as any]: `${Math.round(flyAnim.deltaY)}px`,
+          }}
+        >
+          <div className="rrFlyCardInner">
+            <Artwork src={flyAnim.src} alt="Requested song artwork" />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-// Helper components & logic below (VerifyModal, CreditHud, etc.)
 function HoldToConfirmButton({
   className = "",
   idleLabel,
@@ -716,6 +732,7 @@ function HoldToConfirmButton({
 }: any) {
   const fillRef = useRef<HTMLDivElement | null>(null);
   const labelRef = useRef<HTMLSpanElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number | null>(null);
   const lockedRef = useRef(false);
@@ -749,7 +766,7 @@ function HoldToConfirmButton({
 
     let ok = false;
     try {
-      ok = Boolean(await Promise.resolve(onConfirm?.()));
+      ok = Boolean(await Promise.resolve(onConfirm?.(buttonRef.current)));
     } catch {
       ok = false;
     }
@@ -821,6 +838,7 @@ function HoldToConfirmButton({
 
   return (
     <button
+      ref={buttonRef}
       type="button"
       className={`neonBtn rrHoldLiquidBtn ${className} ${holding ? "rrHolding" : ""} ${success ? "rrSuccess" : ""}`}
       disabled={disabled}
@@ -838,6 +856,7 @@ function HoldToConfirmButton({
     </button>
   );
 }
+
 function DelayedTapButton({
   children,
   className = "",
@@ -846,6 +865,7 @@ function DelayedTapButton({
   sfx,
   style,
 }: any) {
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
   const fillRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number | null>(null);
@@ -870,7 +890,7 @@ function DelayedTapButton({
     doneRef.current = true;
     setHolding(false);
     try {
-      await Promise.resolve(onConfirm?.());
+      await Promise.resolve(onConfirm?.(buttonRef.current));
     } finally {
       window.setTimeout(() => reset(), 120);
     }
@@ -918,6 +938,7 @@ function DelayedTapButton({
 
   return (
     <button
+      ref={buttonRef}
       type="button"
       className={`neonChip rrDelayedTapBtn ${className} ${holding ? "rrDelayedTapHolding" : ""}`}
       onPointerDown={startHold}
@@ -932,6 +953,7 @@ function DelayedTapButton({
     </button>
   );
 }
+
 function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, onVerified, onClose, sfx }: any) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -943,7 +965,7 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
   const [redeemCode, setRedeemCode] = useState("");
   const [showRedeem, setShowRedeem] = useState(false);
 
- if (!open) return null;
+  if (!open) return null;
 
   async function sendCode() {
     setBusy(true);
@@ -986,7 +1008,6 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
           <input className="neonInput" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" />
           <input className="neonInput" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone" />
 
-          {/* Opt-ins */}
           <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
             <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
               <input type="checkbox" checked={emailOptIn} onChange={(e) => setEmailOptIn(e.target.checked)} style={{ marginTop: 3 }} />
@@ -999,10 +1020,9 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
             </label>
           </div>
 
-          {/* REDEEM CODE FLIP SECTION */}
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
             <div style={{ fontWeight: 900, marginBottom: 8, fontSize: 14 }}>Have a redemption code?</div>
-            
+
             <div style={{ perspective: 1000 }}>
               <div
                 style={{
@@ -1014,21 +1034,19 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
                   willChange: "transform"
                 }}
               >
-                {/* Front: The Button */}
                 <div style={{
                   position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
                   transform: "translateZ(0.1px)", display: "flex", alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased"
                 }}>
-                  <button 
-                    className="neonBtn" 
-                    style={{ width: "100%", height: "100%", opacity: 0.8 }} 
+                  <button
+                    className="neonBtn"
+                    style={{ width: "100%", height: "100%", opacity: 0.8 }}
                     onClick={() => { sfx?.playTap?.(); setShowRedeem(true); }}
                   >
                     Redeem Code
                   </button>
                 </div>
 
-                {/* Back: The Input + Apply */}
                 <div style={{
                   position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
                   transform: "rotateY(180deg) translateZ(0.1px)", display: "flex", gap: 8, alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased"
@@ -1051,12 +1069,11 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
                 </div>
               </div>
             </div>
-            
-            {/* Optional "Back" button to flip it back if they change their mind */}
+
             {showRedeem && (
               <div style={{ textAlign: "center", marginTop: 8 }}>
-                <button 
-                  onClick={() => setShowRedeem(false)} 
+                <button
+                  onClick={() => setShowRedeem(false)}
                   style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}
                 >
                   cancel code
@@ -1087,7 +1104,7 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
   );
 }
 
-function CreditHud({ verified, balance, creditsLabel, sessionCountdown, onVerify, onBuy, onTap }: any) {
+function CreditHud({ verified, creditsLabel, sessionCountdown, onVerify, onBuy }: any) {
   return (
     <div
       style={{
@@ -1118,43 +1135,35 @@ function CreditHud({ verified, balance, creditsLabel, sessionCountdown, onVerify
   );
 }
 
-function BuyCreditsDrawer({ open, onClose, sfx, packs, buyUrl, onRedeem, redeemBusy, onBuy }: any) {
+function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, onBuy }: any) {
   const [redeemCode, setRedeemCode] = useState("");
   const [showRedeem, setShowRedeem] = useState(false);
-  const gradBtn: React.CSSProperties = {
-  backgroundImage:
-    "linear-gradient(90deg, rgba(0,240,255,0.85), rgba(180,0,255,0.85), rgba(0,240,255,0.85))",
-  backgroundSize: "200% 200%",
-  animation: "rrGradientShift 2.4s ease infinite",
-  border: "1px solid rgba(255,255,255,0.18)",
-};
 
-if (!open) return null;
+  if (!open) return null;
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "flex-end" }}>
       <div className="neonPanel" style={{ width: "100%", padding: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
         <h3 style={{ marginTop: 0 }}>Get Points</h3>
 
-        {/* Packs list unchanged... */}
         {packs.map((p: any) => (
           <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "12px 0", gap: 12 }}>
             <div style={{ display: "grid" }}>
               <span style={{ fontWeight: 800 }}>{p.title}</span>
               <span style={{ fontSize: 12, color: "var(--muted)" }}>{p.creditsLabel}</span>
             </div>
-<button
-  className="neonBtn neonBtnPrimary"
-  onClick={() => {
-    if (p.packageKey) {
-      onBuy?.(p.packageKey);
-      return;
-    }
-    if (p.href || buyUrl) window.location.href = p.href || buyUrl;
-  }}
->
-  {`BUY • $${((p.priceCents ?? 0) / 100).toFixed(2)}`}
-</button>
+            <button
+              className="neonBtn neonBtnPrimary"
+              onClick={() => {
+                if (p.packageKey) {
+                  onBuy?.(p.packageKey);
+                  return;
+                }
+                if (p.href || buyUrl) window.location.href = p.href || buyUrl;
+              }}
+            >
+              {`BUY • $${((p.priceCents ?? 0) / 100).toFixed(2)}`}
+            </button>
           </div>
         ))}
 
@@ -1169,10 +1178,9 @@ if (!open) return null;
                 transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
               }}
             >
-              {/* Front Side */}
               <div style={{
-                position: "absolute", inset: 0, backfaceVisibility: "hidden", 
-                transform: "translateZ(1px)", // Fixes haziness
+                position: "absolute", inset: 0, backfaceVisibility: "hidden",
+                transform: "translateZ(1px)",
                 display: "flex", alignItems: "center"
               }}>
                 <button className="neonBtn neonBtnPrimary" style={{ width: "100%", height: "100%" }} onClick={() => setShowRedeem(true)}>
@@ -1180,10 +1188,9 @@ if (!open) return null;
                 </button>
               </div>
 
-              {/* Back Side */}
               <div style={{
                 position: "absolute", inset: 0, backfaceVisibility: "hidden",
-                transform: "rotateY(180deg) translateZ(1px)", // Fixes haziness
+                transform: "rotateY(180deg) translateZ(1px)",
                 display: "flex", gap: 8, alignItems: "center"
               }}>
                 <input
@@ -1211,9 +1218,7 @@ if (!open) return null;
         </button>
       </div>
     </div>
-    
   );
-  
 }
 
 function Artwork({ src, alt }: { src?: string; alt: string }) {
@@ -1233,15 +1238,14 @@ const chip2 = (active: boolean) => ({
 function useNeonSfx() {
   const [muted, setMuted] = useState(false);
   const ctxRef = useRef<AudioContext | null>(null);
-  const unlockedRef = useRef(false);
 
   useEffect(() => {
     const unlock = () => {
       const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
       if (Ctx) ctxRef.current = new Ctx();
-      unlockedRef.current = true;
     };
     window.addEventListener("pointerdown", unlock, { once: true });
+    return () => window.removeEventListener("pointerdown", unlock);
   }, []);
 
   const play = (freq: number) => {
@@ -1249,10 +1253,13 @@ function useNeonSfx() {
     const osc = ctxRef.current.createOscillator();
     const g = ctxRef.current.createGain();
     osc.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, ctxRef.current.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.05, ctxRef.current.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctxRef.current.currentTime + 0.10);
     osc.connect(g);
     g.connect(ctxRef.current.destination);
     osc.start();
-    osc.stop(ctxRef.current.currentTime + 0.1);
+    osc.stop(ctxRef.current.currentTime + 0.11);
   };
 
   return {
