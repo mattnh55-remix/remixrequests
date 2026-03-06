@@ -1,4 +1,3 @@
-// src/app/queue/[location]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -6,8 +5,8 @@ import AnimatedBalanceCounter from "../../../../components/ui/neon/AnimatedBalan
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 
 type QueueItem = {
-  id?: string;        // request id (some payloads)
-  requestId?: string; // request id (other payloads)
+  id?: string;
+  requestId?: string;
   songId?: string;
   title?: string;
   artist?: string;
@@ -26,7 +25,6 @@ type SessionRes = {
     costDownvote?: number;
     logoUrl?: string | null;
   };
-  // some builds nest rules under rules.rules
   rulesObj?: any;
   [key: string]: any;
 };
@@ -44,7 +42,6 @@ function getArtwork(x: QueueItem) {
   return String(x.artworkUrl || x.song?.artworkUrl || "");
 }
 
-/* ---------- Album art with safe fallback ---------- */
 function AlbumArt({ src, alt }: { src?: string; alt?: string }) {
   const [bad, setBad] = useState(false);
   const real = (src || "").trim();
@@ -89,7 +86,6 @@ function AlbumArt({ src, alt }: { src?: string; alt?: string }) {
   );
 }
 
-/* ---------- WebAudio SFX (same approach as request page) ---------- */
 function useNeonSfx() {
   const [muted, setMuted] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -97,7 +93,6 @@ function useNeonSfx() {
   });
 
   const ctxRef = useRef<AudioContext | null>(null);
-  const unlockedRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -112,7 +107,6 @@ function useNeonSfx() {
         if (ctxRef.current?.state === "suspended") {
           await ctxRef.current.resume();
         }
-        unlockedRef.current = true;
       } catch {
         // ignore
       }
@@ -200,7 +194,6 @@ export default function QueuePage({ params }: { params: { location: string } }) 
 
   const sfx = useNeonSfx();
 
-  // animated points (same system as request page)
   const bal = useAnimatedBalance(async () => {
     const id = (identityId || "").trim();
     if (!id) throw new Error("Missing identityId");
@@ -213,7 +206,6 @@ export default function QueuePage({ params }: { params: { location: string } }) 
     return Number(data.balance || 0);
   });
 
-  // bootstrap identity + email
   useEffect(() => {
     try {
       const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
@@ -223,19 +215,17 @@ export default function QueuePage({ params }: { params: { location: string } }) 
       if (lsLocation && lsLocation !== location) {
         setIdentityId(null);
         setVerified(false);
-      } else {
-        if (lsIdentity) {
-          setIdentityId(lsIdentity);
-          setVerified(true);
-        }
+      } else if (lsIdentity) {
+        setIdentityId(lsIdentity);
+        setVerified(true);
       }
+
       if (lsEmail) setEmail(lsEmail);
     } catch {
       // ignore
     }
   }, [location]);
 
-  // persist email
   useEffect(() => {
     try {
       const e = email.trim();
@@ -250,10 +240,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
       const res = await fetch(`/api/public/session/${encodeURIComponent(location)}`, { cache: "no-store" });
       const data = await res.json();
       setSessionInfo(data);
-
-      // try to align with request page structure
-      const endsAt = data?.session?.endsAt;
-      setSessionCountdown(formatCountdown(endsAt || null));
+      setSessionCountdown(formatCountdown(data?.session?.endsAt || null));
     } catch {
       // silent
     }
@@ -279,8 +266,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
     tickQueue();
     const t = setInterval(tickQueue, 2500);
     const t2 = setInterval(() => {
-      const endsAt = sessionInfo?.session?.endsAt;
-      setSessionCountdown(formatCountdown(endsAt || null));
+      setSessionCountdown(formatCountdown(sessionInfo?.session?.endsAt || null));
     }, 15000);
     return () => {
       clearInterval(t);
@@ -290,14 +276,12 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   }, [location]);
 
   useEffect(() => {
-    // when identity arrives, load balance once
-if (identityId) bal.refreshOnce();
+    if (identityId) bal.refreshOnce();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identityId]);
 
   const locationName = sessionInfo?.location?.name || "Remix Skate & Event Center";
-
-    const rules = sessionInfo?.rules;
+  const rules = sessionInfo?.rules;
   const enableVoting = rules?.enableVoting !== false;
   const costUpvote = Number(rules?.costUpvote ?? 1);
   const costDownvote = Number(rules?.costDownvote ?? 1);
@@ -316,7 +300,6 @@ if (identityId) bal.refreshOnce();
     }
     if (!verified && !identityId) {
       sfx.playError();
-      // Send them to Request page and open Verify modal
       window.location.href = `/request/${location}?verify=1`;
       return;
     }
@@ -328,7 +311,6 @@ if (identityId) bal.refreshOnce();
 
     if ((bal.balance ?? 0) < needed) {
       sfx.playError();
-      // Send them to Request page and open Buy modal
       window.location.href = `/request/${location}?buy=1&reason=notEnough`;
       return;
     }
@@ -346,7 +328,6 @@ if (identityId) bal.refreshOnce();
       if (!res.ok || !data?.ok) {
         sfx.playError();
         setMsg(data?.error || "Vote failed.");
-        // balance may have changed
         bal.refreshOnce();
         return;
       }
@@ -361,11 +342,9 @@ if (identityId) bal.refreshOnce();
 
   return (
     <div className="neonRoot">
-      {/* Matches request page wallpaper layer */}
       <div className="rrWall" />
 
       <div className="neonWrap" style={{ paddingBottom: 40 }}>
-        {/* HEADER (mirrors request page) */}
         <div className="neonHeader neonHeader3">
           <div className="neonHeaderLeft">
             {rules?.logoUrl ? (
@@ -385,9 +364,14 @@ if (identityId) bal.refreshOnce();
           <div className="neonHeaderRight">
             <div className="neonHud">
               <div className="neonHudLabel">POINTS</div>
-<div className="neonHudValue">
-  <AnimatedBalanceCounter balance={typeof bal.balance === "number" ? bal.balance : 0} pulseKey={bal.pulseKey} delta={bal.delta} showDeltaBanner={bal.showDeltaBanner} />
-</div>
+              <div className="neonHudValue">
+                <AnimatedBalanceCounter
+                  balance={typeof bal.balance === "number" ? bal.balance : 0}
+                  pulseKey={bal.pulseKey}
+                  delta={bal.delta}
+                  showDeltaBanner={bal.showDeltaBanner}
+                />
+              </div>
               <button className="neonHudBtn" onClick={() => bal.refreshOnce()}>
                 Refresh
               </button>
@@ -395,7 +379,6 @@ if (identityId) bal.refreshOnce();
           </div>
         </div>
 
-        {/* Finish setup (same concept as request page) */}
         {(verified || identityId) && !email ? (
           <div className="neonPanel" style={{ padding: 12, border: "1px solid rgba(255,255,255,0.12)", marginBottom: 14 }}>
             <div style={{ fontWeight: 900, letterSpacing: 0.3, marginBottom: 6 }}>Finish setup</div>
@@ -442,7 +425,6 @@ if (identityId) bal.refreshOnce();
           </div>
         ) : null}
 
-        {/* NOW PLAYING */}
         <div className="neonPanel" style={{ padding: 14, marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
             <div style={{ fontWeight: 900, letterSpacing: 0.3 }}>Boosted</div>
@@ -456,7 +438,18 @@ if (identityId) bal.refreshOnce();
                 const artist = getArtist(x) || "";
                 const art = getArtwork(x);
                 return (
-                  <div key={`${getRequestId(x) || idx}`} style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <div
+                    key={`${getRequestId(x) || idx}`}
+                    className="neonPanel"
+                    style={{
+                      padding: 12,
+                      display: "flex",
+                      gap: 12,
+                      alignItems: "center",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      background: "linear-gradient(135deg, rgba(0,255,200,0.06), rgba(255,0,180,0.06))",
+                    }}
+                  >
                     <div style={{ width: 54, height: 54, borderRadius: 12, overflow: "hidden", flex: "0 0 auto" }}>
                       <AlbumArt src={art} alt={title} />
                     </div>
@@ -476,9 +469,8 @@ if (identityId) bal.refreshOnce();
           )}
         </div>
 
-        {/* UP NEXT */}
         <div className="neonPanel" style={{ padding: 14 }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10, gap: 10, flexWrap: "wrap" }}>
             <div style={{ fontWeight: 900, letterSpacing: 0.3 }}>Up Next</div>
             <div style={{ color: "var(--muted)", fontSize: 12 }}>
               {enableVoting ? `Upvote costs ${costUpvote} • Downvote costs ${costDownvote}` : "Voting disabled"}
@@ -486,13 +478,13 @@ if (identityId) bal.refreshOnce();
           </div>
 
           {upNext.length ? (
-            <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gap: 12 }}>
               {upNext.map((x, idx) => {
                 const requestId = getRequestId(x);
                 const title = getTitle(x) || "—";
                 const artist = getArtist(x) || "";
                 const art = getArtwork(x);
-                const score = typeof x.score === "number" ? x.score : undefined;
+                const score = typeof x.score === "number" ? x.score : 0;
 
                 return (
                   <div
@@ -500,48 +492,58 @@ if (identityId) bal.refreshOnce();
                     className="neonPanel"
                     style={{
                       padding: 12,
-                      display: "flex",
+                      display: "grid",
+                      gridTemplateColumns: "54px minmax(0, 1fr) auto",
                       gap: 12,
                       alignItems: "center",
                       border: "1px solid rgba(255,255,255,0.12)",
                       background: "linear-gradient(135deg, rgba(0,255,200,0.05), rgba(255,0,180,0.05))",
                     }}
                   >
-                    <div style={{ width: 54, height: 54, borderRadius: 12, overflow: "hidden", flex: "0 0 auto" }}>
+                    <div style={{ width: 54, height: 54, borderRadius: 12, overflow: "hidden" }}>
                       <AlbumArt src={art} alt={title} />
                     </div>
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                        <div style={{ fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
-                        {typeof score === "number" ? (
-                          <div style={{ fontSize: 12, color: "var(--muted)", flex: "0 0 auto" }}>Score {score}</div>
-                        ) : null}
-                      </div>
-                      <div style={{ color: "var(--muted)", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
+                      <div style={{ color: "var(--muted)", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 3 }}>
                         {artist}
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <button
-                        className="neonBtn"
-                        disabled={!canVote || !enableVoting || !requestId}
-                        onClick={() => doVote(requestId, "down")}
-                        title={`Downvote (-${costDownvote})`}
-                        style={{ paddingInline: 12 }}
+                    <div style={{ display: "grid", gap: 8, justifyItems: "center", minWidth: 76 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "var(--muted)",
+                          fontWeight: 800,
+                          letterSpacing: 0.2,
+                          textAlign: "center",
+                        }}
                       >
-                        👎
-                      </button>
-                      <button
-                        className="neonBtn neonBtnPrimary"
-                        disabled={!canVote || !enableVoting || !requestId}
-                        onClick={() => doVote(requestId, "up")}
-                        title={`Upvote (-${costUpvote})`}
-                        style={{ paddingInline: 12 }}
-                      >
-                        👍
-                      </button>
+                        Score <span style={{ color: "var(--text)", fontSize: 15, fontWeight: 1000 }}>{score}</span>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <button
+                          className="neonBtn"
+                          disabled={!canVote || !enableVoting || !requestId}
+                          onClick={() => doVote(requestId, "down")}
+                          title={`Downvote (-${costDownvote})`}
+                          style={{ width: 40, minWidth: 40, height: 40, padding: 0, display: "grid", placeItems: "center" }}
+                        >
+                          👎
+                        </button>
+                        <button
+                          className="neonBtn neonBtnPrimary"
+                          disabled={!canVote || !enableVoting || !requestId}
+                          onClick={() => doVote(requestId, "up")}
+                          title={`Upvote (-${costUpvote})`}
+                          style={{ width: 40, minWidth: 40, height: 40, padding: 0, display: "grid", placeItems: "center" }}
+                        >
+                          👍
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -556,6 +558,54 @@ if (identityId) bal.refreshOnce();
           </div>
         </div>
       </div>
+
+      <style jsx global>{`
+        .neonHud {
+          min-width: 108px;
+          padding: 10px 12px;
+          border-radius: 18px;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(0,0,0,0.22);
+          text-align: center;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+        }
+
+        .neonHudLabel {
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.8px;
+          color: var(--muted);
+          margin-bottom: 4px;
+        }
+
+        .neonHudValue {
+          font-size: 24px;
+          font-weight: 1000;
+          line-height: 1.05;
+          margin-bottom: 8px;
+        }
+
+        .neonHudBtn {
+          border: 1px solid rgba(255,255,255,0.16);
+          background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+          color: var(--text);
+          border-radius: 12px;
+          padding: 7px 10px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        @media (max-width: 560px) {
+          .neonHud {
+            min-width: 96px;
+            padding: 8px 10px;
+          }
+
+          .neonHudValue {
+            font-size: 22px;
+          }
+        }
+      `}</style>
     </div>
   );
 }
