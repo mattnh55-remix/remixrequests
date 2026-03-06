@@ -2,7 +2,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import AnimatedBalanceCounter from "../../../../components/ui/neon/AnimatedBalanceCounter";
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 
 type QueueItem = {
@@ -272,9 +271,14 @@ export default function QueuePage({ params }: { params: { location: string } }) 
 
           <div className="neonHeaderRight">
             <div className={`rrCornerHud ${(verified || identityId) && typeof bal.balance === "number" && bal.balance <= 2 ? "rrCornerHudLow" : ""}`}>
-              <div className="rrCornerHudLabel">POINTS</div>
+              <div className="rrCornerHudLabel">
+                <span className="rrPointsDesktop">POINTS</span>
+                <span className="rrPointsMobile">PTS</span>
+              </div>
               <div className="rrCornerHudValue">
-                <AnimatedBalanceCounter balance={hudBalance} pulseKey={bal.pulseKey} delta={bal.delta} showDeltaBanner={bal.showDeltaBanner} />
+                <div key={bal.pulseKey} className="rrCornerHudNumber" style={{ animation: "rrPop 420ms ease-out" }}>
+                  {hudBalance}
+                </div>
               </div>
               <button className={`neonBtn neonBtnPrimary rrCornerHudBtn ${!verified && !identityId ? "neonPulse" : ""}`} onClick={handleCornerHudAction}>
                 {!verified && !identityId ? "USE" : "ADD POINTS"}

@@ -444,12 +444,9 @@ export default function RequestPage({ params }: { params: { location: string } }
                 <span className="rrPointsMobile">PTS</span>
               </div>
               <div className="rrCornerHudValue">
-                <AnimatedBalanceCounter
-                  balance={hudBalance}
-                  pulseKey={bal.pulseKey}
-                  delta={bal.delta}
-                  showDeltaBanner={bal.showDeltaBanner}
-                />
+                <div key={bal.pulseKey} className="rrCornerHudNumber" style={{ animation: "rrPop 420ms ease-out" }}>
+                  {hudBalance}
+                </div>
               </div>
               <button className={`neonBtn neonBtnPrimary rrCornerHudBtn ${!verified && !identityId ? "neonPulse" : ""}`} onClick={handleCornerHudAction}>
                 {!verified && !identityId ? "USE" : "ADD POINTS"}
