@@ -44,16 +44,20 @@ export async function GET(req: Request) {
 
     const now = new Date();
 
-    const agg = await prisma.creditLedger.aggregate({
-      where: {
-        locationId: loc.id,
-        emailHash: ident.emailHash,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-      },
-      _sum: { delta: true },
-    });
+const agg = await prisma.creditLedger.aggregate({
+  where: {
+    locationId: loc.id,
+    emailHash: ident.emailHash,
+    OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+  },
+  _sum: { delta: true },
+});
 
-    const balance = Number(agg._sum.delta || 0);
+let balance = Number(agg._sum.delta || 0);
+
+// Never allow negative display balances
+if (balance < 0) balance = 0;
+
 
     return NextResponse.json(
       { ok: true, balance },
