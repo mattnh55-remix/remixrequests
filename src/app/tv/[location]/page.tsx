@@ -96,7 +96,6 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
   const nowPlaying = playNow?.[0] || upNext?.[0] || null;
   const queueList = upNext.slice(0, 6);
-  const totalQueue = useMemo(() => upNext.length + playNow.length, [upNext, playNow]);
 
   const topIsBoosted = Boolean(
     nowPlaying &&
@@ -149,14 +148,12 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
       <div className="tv2Wrap">
         <section className="neonPanel tv2Left">
-<div className="tv2FeatureHeader">
-  <div className="tv2FeatureTitle">{featuredMessage.title}</div>
-</div>
+          <div className="tv2FeatureHeader">
+            <div className="tv2FeatureTitle">{featuredMessage.title}</div>
+          </div>
 
-<div
-  key={featuredMessage.id}
-  className={`tv2Bubble tv2Bubble--${featuredMessage.accent || "cyan"}`}
->            <div className="tv2BubbleInner">
+          <div key={featuredMessage.id} className={`tv2Bubble tv2Bubble--${featuredMessage.accent || "cyan"}`}>
+            <div className="tv2BubbleInner">
               <div className="tv2MessageMedia">
                 <FeatureMedia src={featuredMessage.imageUrl} />
               </div>
@@ -220,9 +217,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
             <div className="tv2QueueList">
               {queueList.length === 0 ? (
-                <div className="tv2EmptyState">
-                  No requests yet — scan the QR and start the vibe.
-                </div>
+                <div className="tv2EmptyState">No requests yet — scan the QR and start the vibe.</div>
               ) : (
                 queueList.map((q, i) => (
                   <div className="tv2QueueRow" key={q.id}>
@@ -312,6 +307,17 @@ export default function TvPage({ params }: { params: { location: string } }) {
           100% { transform: translate3d(0, 0, 0) scale(1); }
         }
 
+        @keyframes tv2BubbleFloat {
+          0% { transform: translateY(0px) scale(1); }
+          50% { transform: translateY(-4px) scale(1.003); }
+          100% { transform: translateY(0px) scale(1); }
+        }
+
+        @keyframes tv2BubbleIn {
+          0% { opacity: 0; transform: translateY(14px) scale(0.985); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
         .tv2Wrap {
           position: relative;
           z-index: 2;
@@ -331,10 +337,11 @@ export default function TvPage({ params }: { params: { location: string } }) {
         }
 
         .tv2Left {
-          padding: 14px 14px 14px;
+          padding: 14px 14px 18px;
           display: grid;
           grid-template-rows: auto 1fr;
           gap: 12px;
+          overflow: visible;
         }
 
         .tv2Right {
@@ -349,14 +356,14 @@ export default function TvPage({ params }: { params: { location: string } }) {
           gap: 12px;
         }
 
-.tv2FeatureHeader {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  position: relative;
-  z-index: 2;
-  padding: 2px 4px 0;
-}
+        .tv2FeatureHeader {
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+          position: relative;
+          z-index: 2;
+          padding: 2px 4px 0;
+        }
 
         .tv2FeatureTitle {
           font-size: 28px;
@@ -370,62 +377,61 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-overflow: ellipsis;
         }
 
-.tv2Bubble {
-  position: relative;
-  min-height: 0;
-  border-radius: 34px 34px 34px 14px;
-  padding: 18px 18px 22px;
-  display: flex;
-  align-items: stretch;
-  z-index: 2;
-  border: none;
-  box-shadow:
-    0 10px 24px rgba(0,0,0,0.14),
-    inset 0 1px 0 rgba(255,255,255,0.20);
-  overflow: visible;
-animation: tv2BubbleFloat 6s ease-in-out infinite;
-animation:
-  tv2BubbleIn 420ms ease-out,
-  tv2BubbleFloat 6s ease-in-out 420ms infinite;
-}
+        .tv2Bubble {
+          position: relative;
+          min-height: 0;
+          border-radius: 34px 34px 34px 14px;
+          padding: 18px 18px 22px;
+          display: flex;
+          align-items: stretch;
+          z-index: 2;
+          border: none;
+          box-shadow:
+            0 10px 24px rgba(0,0,0,0.14),
+            inset 0 1px 0 rgba(255,255,255,0.20);
+          overflow: visible;
+          animation:
+            tv2BubbleIn 420ms ease-out,
+            tv2BubbleFloat 6s ease-in-out 420ms infinite;
+        }
 
         .tv2Bubble--gold {
           background: linear-gradient(180deg, #e8e39b 0%, #e1dc92 100%);
           color: #090909;
         }
 
-.tv2Bubble--cyan {
-  background: linear-gradient(180deg, #bde8fb 0%, #a9ddf5 100%);
-  color: #05070c;
-}
+        .tv2Bubble--cyan {
+          background: linear-gradient(180deg, #bde8fb 0%, #a9ddf5 100%);
+          color: #05070c;
+        }
 
         .tv2Bubble--pink {
           background: linear-gradient(180deg, #ffc4ee 0%, #f6aadf 100%);
           color: #160811;
         }
 
-.tv2BubbleInner {
-  display: grid;
-  grid-template-columns: minmax(340px, 42%) 1fr;
-  gap: 20px;
-  width: 100%;
-  align-items: stretch;
-  min-height: 0;
-}
+        .tv2BubbleInner {
+          display: grid;
+          grid-template-columns: minmax(340px, 42%) 1fr;
+          gap: 20px;
+          width: 100%;
+          align-items: stretch;
+          min-height: 0;
+        }
 
         .tv2MessageMedia {
           min-height: 0;
           display: flex;
         }
 
-.tv2MessageTextCol {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 12px 10px 8px 2px;
-}
+        .tv2MessageTextCol {
+          min-width: 0;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          padding: 12px 10px 8px 2px;
+        }
 
         .tv2MessageBody {
           font-size: clamp(40px, 4.9vw, 72px);
@@ -452,17 +458,18 @@ animation:
           text-overflow: ellipsis;
         }
 
-.tv2BubbleTail {
-  position: absolute;
-  right: 22px;
-  bottom: -10px;
-  width: 36px;
-  height: 36px;
-  background: inherit;
-  border-radius: 0 0 20px 0;
-  transform: rotate(45deg);
-  z-index: 1;
-}
+        .tv2BubbleTail {
+          position: absolute;
+          right: 18px;
+          bottom: -8px;
+          width: 38px;
+          height: 38px;
+          background: inherit;
+          border-radius: 0 0 30px 0;
+          transform: rotate(135deg);
+          z-index: 1;
+          box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.08);
+        }
 
         .tv2QueueHeader {
           display: flex;
@@ -832,6 +839,7 @@ function FeatureMedia({ src }: { src?: string | null }) {
             border: 1px solid rgba(255,255,255,0.25);
             position: relative;
             overflow: hidden;
+            border-radius: 26px;
           }
 
           .tv2FeaturePlaceholderX {
@@ -843,15 +851,7 @@ function FeatureMedia({ src }: { src?: string | null }) {
             background: rgba(255,255,255,0.5);
             transform-origin: center;
           }
-@keyframes tv2BubbleFloat {
-  0% { transform: translateY(0px) scale(1); }
-  50% { transform: translateY(-4px) scale(1.003); }
-  100% { transform: translateY(0px) scale(1); }
-}
-  @keyframes tv2BubbleIn {
-  0% { opacity: 0; transform: translateY(14px) scale(0.985); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
+
           .tv2FeaturePlaceholderX1 { transform: rotate(33deg); }
           .tv2FeaturePlaceholderX2 { transform: rotate(-33deg); }
 
@@ -900,18 +900,18 @@ function FeatureMedia({ src }: { src?: string | null }) {
       />
 
       <style jsx global>{`
-.tv2FeatureMediaShell {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  overflow: hidden;
-  background: rgba(0,0,0,0.16);
-  border: none;
-  border-radius: 26px;
-}
+        .tv2FeatureMediaShell {
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          display: flex;
+          align-items: stretch;
+          justify-content: center;
+          overflow: hidden;
+          background: rgba(0,0,0,0.16);
+          border: none;
+          border-radius: 26px;
+        }
 
         .tv2FeatureMediaShell--portrait {
           align-items: center;
