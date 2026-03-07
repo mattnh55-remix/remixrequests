@@ -406,34 +406,32 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-overflow: ellipsis;
         }
 
-        .tv2Bubble {
-          position: relative;
-          min-height: 0;
-          border-radius: 34px 34px 34px 20px;
-          padding: 18px 18px 22px;
-          display: flex;
-          align-items: stretch;
-          z-index: 2;
-          border: none;
-          box-shadow:
-            0 10px 24px rgba(0, 0, 0, 0.14),
-            inset 0 1px 0 rgba(255, 255, 255, 0.2);
-          overflow: visible;
-          animation:
-            tv2BubbleSendIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1),
-            tv2BubbleFloat 6s ease-in-out 360ms infinite;
-          transform-origin: 86% 100%;
-        }
-
+/* Updated iMessage-style Bubble */
+.tv2Bubble {
+  position: relative;
+  min-height: 0;
+  /* iOS bubbles have larger rounding on the outside, tighter on the tail side */
+  border-radius: 45px; 
+  padding: 24px 30px;
+  display: flex;
+  align-items: stretch;
+  z-index: 2;
+  /* Smoother gradients for iMessage look */
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  overflow: visible;
+  animation: tv2BubbleSendIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1);
+  tv2BubbleFloat 6s ease-in-out 360ms infinite; transform-origin: 86% 100%;
+}
         .tv2Bubble--gold {
           background: linear-gradient(180deg, #e8e39b 0%, #e1dc92 100%);
           color: #090909;
         }
 
-        .tv2Bubble--cyan {
-          background: linear-gradient(180deg, #bde8fb 0%, #a9ddf5 100%);
-          color: #05070c;
-        }
+ .tv2Bubble--cyan {
+  background-color: #007aff; /* Classic iMessage Blue */
+  background: linear-gradient(180deg, #3291ff 0%, #007aff 100%);
+  color: #ffffff;
+}
 
         .tv2Bubble--pink {
           background: linear-gradient(180deg, #ffc4ee 0%, #f6aadf 100%);
@@ -488,32 +486,29 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-overflow: ellipsis;
         }
 
-        .tv2BubbleTail {
-          position: absolute;
-          right: 28px;
-          bottom: -14px;
-          width: 30px;
-          height: 30px;
-          background: inherit;
-          border-radius: 0 0 18px 0;
-          z-index: 1;
-          box-shadow: none;
-          transform: rotate(45deg) scale(0.96);
-          transform-origin: 50% 50%;
-          animation: tv2TailIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1);
-        }
+/* Redone Tail: Using a pseudo-element for a seamless "hook" */
+.tv2BubbleTail {
+  position: absolute;
+  bottom: 0;
+  right: -10px; /* Moves tail to the right side */
+  width: 20px;
+  height: 25px;
+  background-color: inherit;
+  /* This creates the concave curve of an iMessage tail */
+  border-bottom-left-radius: 16px 14px; 
+  z-index: -1;
+}
 
-        .tv2Bubble::after {
-          content: "";
-          position: absolute;
-          right: 22px;
-          bottom: 0;
-          width: 40px;
-          height: 40px;
-          background: inherit;
-          border-radius: 50%;
-          z-index: 0;
-        }
+.tv2BubbleTail::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -20px;
+  width: 20px;
+  height: 25px;
+  background-color: #050814; /* Match your background color */
+  border-bottom-left-radius: 10px;
+}
 
         .tv2QueueHeader {
           display: flex;
