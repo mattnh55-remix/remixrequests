@@ -365,12 +365,14 @@ export default function TvPage({ params }: { params: { location: string } }) {
           min-height: 0;
         }
 
-        .tv2Left {
-          padding: 14px 14px 18px;
-          display: grid;
-          grid-template-rows: auto 1fr;
-          gap: 12px;
-          overflow: visible;
+.tv2Left {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          /* Top: 40px, Right: 50px, Bottom: 40px, Left: 40px */
+          padding: 40px 50px 40px 40px; 
+          min-width: 0;
+          gap: 30px;
         }
 
         .tv2Right {
@@ -406,54 +408,63 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-overflow: ellipsis;
         }
 
- .tv2Bubble {
+ /* 1. THE MAIN MESSAGE BOX */
+        .tv2Bubble {
           position: relative;
           min-height: 0;
-          border-radius: 40px; /* Slightly more rounded for iMessage look */
+          width: fit-content; 
+          max-width: 100%;
+          overflow: visible; /* Keeps tail from being cut off */
+          border-radius: 40px; 
           padding: 30px 40px;
           display: flex;
           align-items: stretch;
           z-index: 2;
-          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-          overflow: visible; /* Required so the tail isn't cut off */
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+          /* overflow: visible is critical so the tail shows outside the box */
+          overflow: visible; 
           animation: tv2BubbleSendIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1);
         }
 
-        .tv2Bubble--gold {
-          background-color: #febd2e;
-          color: #000;
+        .tv2Bubble--gold { background-color: #febd2e; color: #000; }
+        .tv2Bubble--cyan { background-color: #007aff; color: #fff; }
+        .tv2Bubble--pink { background-color: #ff2d55; color: #fff; }
+
+        /* THE TAIL BASE */
+        .tv2BubbleTail {
+          position: absolute;
+          bottom: 0;
+          /* right: -10px puts it into the 50px padding gutter */
+          right: -10px; 
+          width: 25px;
+          height: 20px;
+          background-color: inherit; 
+          border-bottom-left-radius: 16px 14px;
+          z-index: -1;
         }
 
-        .tv2Bubble--cyan {
-          background-color: #007aff; /* Standard iMessage Blue */
-          color: #fff;
+        /* THE SCOOP (MASK) */
+        .tv2BubbleTail::after {
+          content: "";
+          position: absolute;
+          bottom: 0;
+          /* right: -14px is key - it must be more negative than the tail */
+          right: -14px; 
+          width: 20px;
+          height: 26px;
+          background-color: #050814; 
+          border-bottom-left-radius: 12px;
         }
 
-        .tv2Bubble--pink {
-          background-color: #ff2d55;
-          color: #fff;
+        /* 4. FONT PROTECTION */
+        /* Forces the TV browser to render text clearly on top of the bubble colors */
+        .tv2MessageBody {
+          position: relative;
+          z-index: 5;
+          -webkit-font-smoothing: antialiased;
+          text-rendering: optimizeLegibility;
         }
-
-      /* THE NEW DYNAMIC TAIL */
-.tv2BubbleTail {
-  position: absolute;
-  bottom: -1px; /* Ties it to the very bottom */
-  right: -9px;  /* Extends it perfectly outside the bubble */
-  width: 20px;
-  height: 20px;
-  background-color: inherit; /* Matches Blue/Gold/Pink automatically */
-  
-  /* The Secret Sauce: This SVG shape defines the tail perfectly */
-  /* No more "teardrops" because the mask doesn't exist inside the bubble */
-  mask-image: url('data:image/svg+xml;utf8,<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 20C12.1224 20 5.42435 14.8647 0 10.1538V20H20Z" fill="black"/></svg>');
-  mask-size: contain;
-  mask-repeat: no-repeat;
-  -webkit-mask-image: url('data:image/svg+xml;utf8,<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 20C12.1224 20 5.42435 14.8647 0 10.1538V20H20Z" fill="black"/></svg>');
-  -webkit-mask-size: contain;
-}
-     
-
-        .tv2BubbleInner {
+             .tv2BubbleInner {
           display: grid;
           grid-template-columns: minmax(340px, 42%) 1fr;
           gap: 20px;
