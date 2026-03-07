@@ -405,62 +405,41 @@ export default function TvPage({ params }: { params: { location: string } }) {
           overflow: hidden;
           text-overflow: ellipsis;
         }
-/* The Main Bubble Container */
+/* --- THE BUBBLE CONTAINER --- */
 .tv2Bubble {
   position: relative;
-  border-radius: 25px; 
+  border-radius: 25px;
   padding: 20px;
   display: flex;
-  flex-direction: column; /* Stacks image and text for iMessage look */
+  flex-direction: column; /* Stack image and text */
   z-index: 2;
-  margin-right: 15px; /* Creates space for the tail */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   animation: tv2BubbleSendIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1);
-  max-width: 90%;
-  align-self: flex-end;
+
+  /* KEY CHANGE: Force the bubble to occupy the full width of its parent (.tv2Left) */
+  width: 100%;
+  margin-right: 0; /* Reset previous margin */
 }
 
-/* Authentic iMessage Colors */
+/* Authentic iMessage Blue */
 .tv2Bubble--cyan {
-  background: #007aff; /* Apple Blue */
+  background: #007aff; 
   color: #ffffff;
 }
 
+/* Authentic iMessage Yellow/Gold */
 .tv2Bubble--gold {
-  background: #febd2e; /* Apple Gold/Yellow */
+  background: #ffcc00;
   color: #000000;
 }
 
+/* Authentic iMessage Pink */
 .tv2Bubble--pink {
-  background: #ff2d55; /* Apple Pink */
+  background: #ff2d55;
   color: #ffffff;
 }
 
-/* The Tail Logic */
-.tv2BubbleTail {
-  position: absolute;
-  right: -10px;
-  bottom: 0;
-  width: 20px;
-  height: 20px;
-  background-color: inherit; /* Matches bubble color automatically */
-  border-bottom-left-radius: 15px;
-  z-index: -1;
-}
-
-/* The "Mask" that creates the curve */
-.tv2BubbleTail::after {
-  content: "";
-  position: absolute;
-  right: -12px;
-  bottom: 0;
-  width: 15px;
-  height: 25px;
-  background-color: #050814; /* MUST match your background: .tv2Root color */
-  border-bottom-left-radius: 12px;
-}
-
-/* Layout adjustment to stack image and text */
+/* KEY CHANGE: Force image to remain large */
 .tv2BubbleInner {
   display: flex;
   flex-direction: column; 
@@ -468,19 +447,40 @@ export default function TvPage({ params }: { params: { location: string } }) {
   width: 100%;
 }
 
-        .tv2BubbleInner {
-          display: grid;
-          grid-template-columns: minmax(340px, 42%) 1fr;
-          gap: 20px;
-          width: 100%;
-          align-items: stretch;
-          min-height: 0;
-        }
+.tv2MessageMedia {
+  /* This ensures the image placeholder remains large and square within the bubble */
+  width: 100%;
+  aspect-ratio: 1/1; /* Keeps the placeholder a large square */
+  border-radius: 18px;
+  overflow: hidden;
+  display: block;
+}
 
-        .tv2MessageMedia {
-          min-height: 0;
-          display: flex;
-        }
+/* --- THE TAIL CONSTRUCTION --- */
+.tv2BubbleTail {
+  position: absolute;
+  /* KEY CHANGE: We are shifting the whole tail mechanism to the left using percentages and pixels */
+  right: calc(0% - 15px); /* Start it just off the right edge, then nudge it back left with negative margin if needed */
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  background-color: inherit; /* Matches bubble color automatically */
+  border-bottom-left-radius: 15px;
+  z-index: -1;
+  transform: translateX(-5px); /* Nudges the tail slightly leftward over the bubble boundary */
+}
+
+/* The "Mask" that creates the signature curve */
+.tv2BubbleTail::after {
+  content: "";
+  position: absolute;
+  right: -12px;
+  bottom: 0;
+  width: 15px;
+  height: 25px;
+  background-color: #050814; /* MUST match your .tv2Root background color */
+  border-bottom-left-radius: 12px;
+}
 
         .tv2MessageTextCol {
           min-width: 0;
