@@ -54,15 +54,13 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
   const [playNow, setPlayNow] = useState<QItem[]>([]);
   const [upNext, setUpNext] = useState<QItem[]>([]);
-
-  const prevTopId = useRef<string | null>(null);
   const [boostFlash, setBoostFlash] = useState(false);
-
   const [artA, setArtA] = useState<string | null>(null);
   const [artB, setArtB] = useState<string | null>(null);
   const [showA, setShowA] = useState(true);
-
   const [messageIndex, setMessageIndex] = useState(0);
+
+  const prevTopId = useRef<string | null>(null);
 
   const requestUrl = useMemo(() => `https://skateremix.com/request/${location}`, [location]);
 
@@ -72,6 +70,11 @@ export default function TvPage({ params }: { params: { location: string } }) {
   }, [requestUrl]);
 
   const featuredMessage = PLACEHOLDER_MESSAGES[messageIndex % PLACEHOLDER_MESSAGES.length];
+  const nowPlaying = playNow[0] || upNext[0] || null;
+  const queueList = upNext.slice(0, 6);
+  const topIsBoosted = Boolean(
+    nowPlaying && (nowPlaying.isBoosted || nowPlaying.boosted || nowPlaying.wasBoosted)
+  );
 
   async function tick() {
     const res = await fetch(`/api/public/queue/${location}`, { cache: "no-store" });
@@ -94,18 +97,8 @@ export default function TvPage({ params }: { params: { location: string } }) {
     return () => clearInterval(id);
   }, []);
 
-  const nowPlaying = playNow?.[0] || upNext?.[0] || null;
-  const queueList = upNext.slice(0, 6);
-
-  const topIsBoosted = Boolean(
-    nowPlaying &&
-      ((nowPlaying as QItem).isBoosted ||
-        (nowPlaying as QItem).boosted ||
-        (nowPlaying as QItem).wasBoosted)
-  );
-
   useEffect(() => {
-    const topId = playNow?.[0]?.id ?? null;
+    const topId = playNow[0]?.id ?? null;
     if (!topId) return;
 
     if (prevTopId.current && prevTopId.current !== topId) {
@@ -137,8 +130,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
       setArtA(next);
       requestAnimationFrame(() => setShowA(true));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nowPlaying?.artworkUrl]);
+  }, [nowPlaying?.artworkUrl, artA, artB, showA]);
 
   return (
     <div className={`neonRoot tv2Root ${boostFlash ? "tvFlash" : ""}`}>
@@ -309,13 +301,50 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
         @keyframes tv2BubbleFloat {
           0% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-4px) scale(1.003); }
+          50% { transform: translateY(-2px) scale(1.003); }
           100% { transform: translateY(0px) scale(1); }
         }
 
-        @keyframes tv2BubbleIn {
-          0% { opacity: 0; transform: translateY(14px) scale(0.985); }
-          100% { opacity: 1; transform: translateY(0) scale(1); }
+        @keyframes tv2BubbleSendIn {
+          0% {
+            opacity: 0;
+            transform: translateY(18px) scale(0.92);
+          }
+          55% {
+            opacity: 1;
+            transform: translateY(-2px) scale(1.02);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes tv2TailIn {
+          0% {
+            opacity: 0;
+            transform: rotate(45deg) translateY(8px) scale(0.82);
+          }
+          55% {
+            opacity: 1;
+            transform: rotate(45deg) translateY(-1px) scale(1.03);
+          }
+          100% {
+            opacity: 1;
+            transform: rotate(45deg) translateY(0) scale(0.96);
+          }
+        }
+
+        @keyframes tv2Pulse {
+          0% { transform: scale(1); opacity: 0.8; }
+          50% { transform: scale(1.09); opacity: 0.35; }
+          100% { transform: scale(1); opacity: 0.8; }
+        }
+
+        @keyframes tvFlashAnim {
+          0% { opacity: 0; }
+          18% { opacity: 1; }
+          100% { opacity: 0; }
         }
 
         .tv2Wrap {
@@ -371,7 +400,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
           letter-spacing: 0.3px;
           font-style: italic;
           text-transform: uppercase;
-          text-shadow: 0 0 18px rgba(255,255,255,0.18);
+          text-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -380,19 +409,20 @@ export default function TvPage({ params }: { params: { location: string } }) {
         .tv2Bubble {
           position: relative;
           min-height: 0;
-          border-radius: 34px 34px 34px 14px;
+          border-radius: 34px 34px 34px 20px;
           padding: 18px 18px 22px;
           display: flex;
           align-items: stretch;
           z-index: 2;
           border: none;
           box-shadow:
-            0 10px 24px rgba(0,0,0,0.14),
-            inset 0 1px 0 rgba(255,255,255,0.20);
+            0 10px 24px rgba(0, 0, 0, 0.14),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
           overflow: visible;
           animation:
-            tv2BubbleIn 420ms ease-out,
-            tv2BubbleFloat 6s ease-in-out 420ms infinite;
+            tv2BubbleSendIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1),
+            tv2BubbleFloat 6s ease-in-out 360ms infinite;
+          transform-origin: 86% 100%;
         }
 
         .tv2Bubble--gold {
@@ -460,15 +490,29 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
         .tv2BubbleTail {
           position: absolute;
-          right: 18px;
-          bottom: -8px;
-          width: 38px;
-          height: 38px;
+          right: 28px;
+          bottom: -14px;
+          width: 30px;
+          height: 30px;
           background: inherit;
-          border-radius: 0 0 30px 0;
-          transform: rotate(135deg);
+          border-radius: 0 0 18px 0;
           z-index: 1;
-          box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.08);
+          box-shadow: none;
+          transform: rotate(45deg) scale(0.96);
+          transform-origin: 50% 50%;
+          animation: tv2TailIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1);
+        }
+
+        .tv2Bubble::after {
+          content: "";
+          position: absolute;
+          right: 22px;
+          bottom: 0;
+          width: 40px;
+          height: 40px;
+          background: inherit;
+          border-radius: 50%;
+          z-index: 0;
         }
 
         .tv2QueueHeader {
@@ -493,9 +537,8 @@ export default function TvPage({ params }: { params: { location: string } }) {
           gap: 16px;
           padding: 12px;
           border-radius: 24px;
-          border: 1px solid rgba(255,255,255,0.10);
-          background:
-            linear-gradient(90deg, rgba(8,16,40,0.92), rgba(12,26,56,0.76), rgba(31,15,50,0.66));
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: linear-gradient(90deg, rgba(8, 16, 40, 0.92), rgba(12, 26, 56, 0.76), rgba(31, 15, 50, 0.66));
           min-height: 126px;
           position: relative;
           overflow: hidden;
@@ -516,8 +559,8 @@ export default function TvPage({ params }: { params: { location: string } }) {
           border-radius: 26px;
           overflow: hidden;
           position: relative;
-          border: 1px solid rgba(255,255,255,0.18);
-          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          background: rgba(255, 255, 255, 0.05);
           box-shadow: var(--glowA), var(--shadow);
         }
 
@@ -531,20 +574,14 @@ export default function TvPage({ params }: { params: { location: string } }) {
           position: absolute;
           inset: -40%;
           background:
-            radial-gradient(circle at 30% 25%, rgba(0,247,255,0.24), transparent 55%),
-            radial-gradient(circle at 75% 80%, rgba(255,57,212,0.20), transparent 62%);
+            radial-gradient(circle at 30% 25%, rgba(0, 247, 255, 0.24), transparent 55%),
+            radial-gradient(circle at 75% 80%, rgba(255, 57, 212, 0.2), transparent 62%);
           animation: tv2Pulse 4.5s ease-in-out infinite;
           filter: blur(20px);
           opacity: 0.85;
           z-index: 2;
           pointer-events: none;
           mix-blend-mode: screen;
-        }
-
-        @keyframes tv2Pulse {
-          0% { transform: scale(1); opacity: 0.8; }
-          50% { transform: scale(1.09); opacity: 0.35; }
-          100% { transform: scale(1); opacity: 0.8; }
         }
 
         .tv2HeroRibbon {
@@ -554,7 +591,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
           transform: rotate(-17deg);
           padding: 5px 36px;
           border-radius: 999px;
-          background: linear-gradient(90deg, rgba(255,57,212,0.9), rgba(0,247,255,0.72));
+          background: linear-gradient(90deg, rgba(255, 57, 212, 0.9), rgba(0, 247, 255, 0.72));
           color: #07070c;
           font-size: 11px;
           font-weight: 1000;
@@ -579,7 +616,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          text-shadow: 0 0 12px rgba(255,255,255,0.12);
+          text-shadow: 0 0 12px rgba(255, 255, 255, 0.12);
         }
 
         .tv2HeroArtist {
@@ -622,10 +659,9 @@ export default function TvPage({ params }: { params: { location: string } }) {
           align-items: center;
           padding: 12px 14px;
           border-radius: 20px;
-          border: 1px solid rgba(255,255,255,0.10);
-          background:
-            linear-gradient(90deg, rgba(28,16,48,0.72), rgba(16,18,45,0.68), rgba(40,13,54,0.58));
-          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: linear-gradient(90deg, rgba(28, 16, 48, 0.72), rgba(16, 18, 45, 0.68), rgba(40, 13, 54, 0.58));
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
         }
 
         .tv2QueuePos {
@@ -667,8 +703,8 @@ export default function TvPage({ params }: { params: { location: string } }) {
           place-items: center;
           font-size: 14px;
           font-weight: 1000;
-          background: rgba(0,247,255,0.09);
-          border: 1px solid rgba(0,247,255,0.24);
+          background: rgba(0, 247, 255, 0.09);
+          border: 1px solid rgba(0, 247, 255, 0.24);
           box-shadow: var(--glowA);
         }
 
@@ -679,7 +715,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
         }
 
         .tv2BottomCta {
-          border-top: 1px solid rgba(255,255,255,0.12);
+          border-top: 1px solid rgba(255, 255, 255, 0.12);
           margin-top: 2px;
           padding-top: 12px;
           display: grid;
@@ -704,8 +740,8 @@ export default function TvPage({ params }: { params: { location: string } }) {
           justify-self: end;
           padding: 4px;
           border-radius: 16px;
-          border: 1px solid rgba(255,255,255,0.14);
-          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          background: rgba(255, 255, 255, 0.04);
         }
 
         .tv2BottomQr {
@@ -721,18 +757,12 @@ export default function TvPage({ params }: { params: { location: string } }) {
           position: fixed;
           inset: 0;
           background:
-            radial-gradient(circle at 50% 40%, rgba(255,57,212,0.18), transparent 55%),
-            radial-gradient(circle at 40% 60%, rgba(0,247,255,0.14), transparent 60%);
+            radial-gradient(circle at 50% 40%, rgba(255, 57, 212, 0.18), transparent 55%),
+            radial-gradient(circle at 40% 60%, rgba(0, 247, 255, 0.14), transparent 60%);
           animation: tvFlashAnim 950ms ease-out 1;
           pointer-events: none;
           z-index: 9999;
           mix-blend-mode: screen;
-        }
-
-        @keyframes tvFlashAnim {
-          0% { opacity: 0; }
-          18% { opacity: 1; }
-          100% { opacity: 0; }
         }
 
         @media (max-width: 1200px) and (orientation: landscape) {
@@ -808,14 +838,16 @@ function FeatureMedia({ src }: { src?: string | null }) {
 
   if (!src || bad) {
     return (
-      <div className="tv2FeatureMediaShell tv2FeatureMediaShell--placeholder">
-        <div className="tv2FeaturePlaceholder">
-          <div className="tv2FeaturePlaceholderX tv2FeaturePlaceholderX1" />
-          <div className="tv2FeaturePlaceholderX tv2FeaturePlaceholderX2" />
-          <div className="tv2FeaturePlaceholderText">
-            UPLOADED IMAGE
-            <br />
-            PLACEHOLDER
+      <>
+        <div className="tv2FeatureMediaShell tv2FeatureMediaShell--placeholder">
+          <div className="tv2FeaturePlaceholder">
+            <div className="tv2FeaturePlaceholderX tv2FeaturePlaceholderX1" />
+            <div className="tv2FeaturePlaceholderX tv2FeaturePlaceholderX2" />
+            <div className="tv2FeaturePlaceholderText">
+              UPLOADED IMAGE
+              <br />
+              PLACEHOLDER
+            </div>
           </div>
         </div>
 
@@ -825,6 +857,12 @@ function FeatureMedia({ src }: { src?: string | null }) {
             height: 100%;
             min-height: 0;
             display: flex;
+            align-items: stretch;
+            justify-content: center;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.16);
+            border: none;
+            border-radius: 26px;
           }
 
           .tv2FeatureMediaShell--placeholder {
@@ -836,7 +874,7 @@ function FeatureMedia({ src }: { src?: string | null }) {
             height: 100%;
             min-height: 0;
             background: #000;
-            border: 1px solid rgba(255,255,255,0.25);
+            border: 1px solid rgba(255, 255, 255, 0.25);
             position: relative;
             overflow: hidden;
             border-radius: 26px;
@@ -848,7 +886,7 @@ function FeatureMedia({ src }: { src?: string | null }) {
             margin: auto;
             width: 1px;
             height: 132%;
-            background: rgba(255,255,255,0.5);
+            background: rgba(255, 255, 255, 0.5);
             transform-origin: center;
           }
 
@@ -870,34 +908,36 @@ function FeatureMedia({ src }: { src?: string | null }) {
             padding: 24px;
           }
         `}</style>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className={`tv2FeatureMediaShell tv2FeatureMediaShell--${mode}`}>
-      <img
-        src={src}
-        alt=""
-        referrerPolicy="no-referrer"
-        className={`tv2FeatureMediaImg tv2FeatureMediaImg--${mode}`}
-        onError={() => setBad(true)}
-        onLoad={(e) => {
-          const img = e.currentTarget;
-          const w = img.naturalWidth || 0;
-          const h = img.naturalHeight || 0;
+    <>
+      <div className={`tv2FeatureMediaShell tv2FeatureMediaShell--${mode}`}>
+        <img
+          src={src}
+          alt=""
+          referrerPolicy="no-referrer"
+          className={`tv2FeatureMediaImg tv2FeatureMediaImg--${mode}`}
+          onError={() => setBad(true)}
+          onLoad={(e) => {
+            const img = e.currentTarget;
+            const w = img.naturalWidth || 0;
+            const h = img.naturalHeight || 0;
 
-          if (!w || !h) {
-            setMode("unknown");
-            return;
-          }
+            if (!w || !h) {
+              setMode("unknown");
+              return;
+            }
 
-          const ratio = w / h;
-          if (ratio > 1.15) setMode("landscape");
-          else if (ratio < 0.85) setMode("portrait");
-          else setMode("square");
-        }}
-      />
+            const ratio = w / h;
+            if (ratio > 1.15) setMode("landscape");
+            else if (ratio < 0.85) setMode("portrait");
+            else setMode("square");
+          }}
+        />
+      </div>
 
       <style jsx global>{`
         .tv2FeatureMediaShell {
@@ -908,7 +948,7 @@ function FeatureMedia({ src }: { src?: string | null }) {
           align-items: stretch;
           justify-content: center;
           overflow: hidden;
-          background: rgba(0,0,0,0.16);
+          background: rgba(0, 0, 0, 0.16);
           border: none;
           border-radius: 26px;
         }
@@ -945,6 +985,6 @@ function FeatureMedia({ src }: { src?: string | null }) {
           object-fit: cover;
         }
       `}</style>
-    </div>
+    </>
   );
 }
