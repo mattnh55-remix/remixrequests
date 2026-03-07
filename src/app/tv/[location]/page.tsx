@@ -434,31 +434,24 @@ export default function TvPage({ params }: { params: { location: string } }) {
           color: #fff;
         }
 
-       /* THE FIXED TAIL */
-        .tv2BubbleTail {
-          position: absolute;
-          bottom: 0;
-          right: 5px; /* Keep your preferred position */
-          width: 25px;
-          height: 20px;
-          background-color: inherit; 
-          border-bottom-left-radius: 16px 14px;
-          z-index: -1;
-        }
-
-        /* The 'Mask' - Adjusted to stop the "teardrop" effect */
-        .tv2BubbleTail::after {
-          content: "";
-          position: absolute;
-          bottom: 0;
-          /* Move this further RIGHT than the 5px above */
-          /* If tail is at 5px, mask should be at -5px or -10px */
-          right: -12px; 
-          width: 20px;
-          height: 25px;
-          background-color: #050814; 
-          border-bottom-left-radius: 12px;
-        }
+      /* THE NEW DYNAMIC TAIL */
+.tv2BubbleTail {
+  position: absolute;
+  bottom: -1px; /* Ties it to the very bottom */
+  right: -9px;  /* Extends it perfectly outside the bubble */
+  width: 20px;
+  height: 20px;
+  background-color: inherit; /* Matches Blue/Gold/Pink automatically */
+  
+  /* The Secret Sauce: This SVG shape defines the tail perfectly */
+  /* No more "teardrops" because the mask doesn't exist inside the bubble */
+  mask-image: url('data:image/svg+xml;utf8,<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 20C12.1224 20 5.42435 14.8647 0 10.1538V20H20Z" fill="black"/></svg>');
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  -webkit-mask-image: url('data:image/svg+xml;utf8,<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 20C12.1224 20 5.42435 14.8647 0 10.1538V20H20Z" fill="black"/></svg>');
+  -webkit-mask-size: contain;
+}
+     
 
         .tv2BubbleInner {
           display: grid;
