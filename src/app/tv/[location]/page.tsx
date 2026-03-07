@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type QItem = { id: string; title: string; artist: string; artworkUrl?: string; score: number };
+type QItem = {
+  id: string;
+  title: string;
+  artist: string;
+  artworkUrl?: string;
+  score: number;
+  isBoosted?: boolean;
+  boosted?: boolean;
+  wasBoosted?: boolean;
+};
 
 type PlaceholderMessage = {
   id: string;
@@ -17,27 +26,27 @@ const PLACEHOLDER_MESSAGES: PlaceholderMessage[] = [
   {
     id: "msg1",
     title: "REMIX SHOUT OUTS!",
-    body: "Happy birthday, Ava! Thanks for celebrating at Remix tonight. Skate hard, laugh loud, and make it a night to remember.",
-    fromName: "— Mom, Dad & Mason",
+    body: "Happy Birthday Taylor and Hunter!",
+    fromName: "-$name",
     imageUrl: null,
-    accent: "gold"
+    accent: "cyan",
   },
   {
     id: "msg2",
     title: "REMIX SHOUT OUTS!",
-    body: "Shout out to the Salem Blue Devils! Great job this week. Keep rolling strong and have an awesome night at the rink.",
-    fromName: "— Your biggest fans",
+    body: "Congrats to our birthday crew tonight. Thanks for celebrating at Remix!",
+    fromName: "-$name",
     imageUrl: null,
-    accent: "cyan"
+    accent: "gold",
   },
   {
     id: "msg3",
     title: "REMIX SHOUT OUTS!",
-    body: "Date night at Remix 💜 Thanks for choosing us for your Friday fun. Scan the code, request a song, and own the floor.",
-    fromName: "— Remix Skate & Event Center",
+    body: "Welcome to Remix! Scan the code, request your song, and send a shout out.",
+    fromName: "-$name",
     imageUrl: null,
-    accent: "pink"
-  }
+    accent: "pink",
+  },
 ];
 
 export default function TvPage({ params }: { params: { location: string } }) {
@@ -46,7 +55,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
   const [playNow, setPlayNow] = useState<QItem[]>([]);
   const [upNext, setUpNext] = useState<QItem[]>([]);
 
-  const prevTopBoostId = useRef<string | null>(null);
+  const prevTopId = useRef<string | null>(null);
   const [boostFlash, setBoostFlash] = useState(false);
 
   const [artA, setArtA] = useState<string | null>(null);
@@ -89,18 +98,25 @@ export default function TvPage({ params }: { params: { location: string } }) {
   const queueList = upNext.slice(0, 6);
   const totalQueue = useMemo(() => upNext.length + playNow.length, [upNext, playNow]);
 
+  const topIsBoosted = Boolean(
+    nowPlaying &&
+      ((nowPlaying as QItem).isBoosted ||
+        (nowPlaying as QItem).boosted ||
+        (nowPlaying as QItem).wasBoosted)
+  );
+
   useEffect(() => {
     const topId = playNow?.[0]?.id ?? null;
     if (!topId) return;
 
-    if (prevTopBoostId.current && prevTopBoostId.current !== topId) {
+    if (prevTopId.current && prevTopId.current !== topId) {
       setBoostFlash(true);
       const t = setTimeout(() => setBoostFlash(false), 950);
-      prevTopBoostId.current = topId;
+      prevTopId.current = topId;
       return () => clearTimeout(t);
     }
 
-    prevTopBoostId.current = topId;
+    prevTopId.current = topId;
   }, [playNow]);
 
   useEffect(() => {
@@ -127,39 +143,24 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
   return (
     <div className={`neonRoot tv2Root ${boostFlash ? "tvFlash" : ""}`}>
+      <div className="tv2BgOrb tv2BgOrbA" />
+      <div className="tv2BgOrb tv2BgOrbB" />
+      <div className="tv2BgOrb tv2BgOrbC" />
+
       <div className="tv2Wrap">
-        {/* LEFT FEATURE / MESSAGE */}
         <section className="neonPanel tv2Left">
           <div className="tv2FeatureHeader">
-            <div className="tv2FeatureTopBar" />
+            <div className="tv2FeatureBar" />
             <div className="tv2FeatureTitle">{featuredMessage.title}</div>
           </div>
 
-          <div className={`tv2Bubble tv2Bubble--${featuredMessage.accent || "gold"}`}>
+          <div className={`tv2Bubble tv2Bubble--${featuredMessage.accent || "cyan"}`}>
             <div className="tv2BubbleInner">
               <div className="tv2MessageMedia">
-                {featuredMessage.imageUrl ? (
-                  <img
-                    src={featuredMessage.imageUrl}
-                    alt=""
-                    className="tv2MessageImage"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="tv2ImagePlaceholder">
-                    <div className="tv2ImagePlaceholderX tv2ImagePlaceholderX1" />
-                    <div className="tv2ImagePlaceholderX tv2ImagePlaceholderX2" />
-                    <div className="tv2ImagePlaceholderText">
-                      UPLOADED IMAGE
-                      <br />
-                      PLACEHOLDER
-                    </div>
-                  </div>
-                )}
+                <FeatureMedia src={featuredMessage.imageUrl} />
               </div>
 
               <div className="tv2MessageTextCol">
-                <div className="tv2MessageHeadline">$MESSAGE CONTENTS HERE</div>
                 <div className="tv2MessageBody">{featuredMessage.body}</div>
                 <div className="tv2MessageFrom">{featuredMessage.fromName}</div>
               </div>
@@ -167,20 +168,15 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
             <div className="tv2BubbleTail" />
           </div>
-
-          <div className="tv2Ambient tv2AmbientA" />
-          <div className="tv2Ambient tv2AmbientB" />
         </section>
 
-        {/* RIGHT SIDE */}
         <section className="tv2Right">
           <div className="neonPanel tv2QueuePanel">
             <div className="tv2QueueHeader">
               <div className="tv2QueueTitle">Queued Up</div>
-              <div className="tv2QueueMeta">{totalQueue ? `${totalQueue} live` : "Be the first!"}</div>
             </div>
 
-            <div className={`tv2Hero ${playNow.length ? "tv2HeroBoosted" : ""}`}>
+            <div className={`tv2Hero ${topIsBoosted ? "tv2HeroBoosted" : ""}`}>
               <div className="tv2HeroArtWrap">
                 <div className="tv2HeroArtFrame">
                   <div className="tv2HeroArtPulse" />
@@ -191,7 +187,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
                     <Artwork src={artB} alt="" />
                   </div>
 
-                  {playNow.length ? <div className="tv2HeroRibbon">BOOSTED</div> : null}
+                  {topIsBoosted ? <div className="tv2HeroRibbon">BOOSTED</div> : null}
                 </div>
               </div>
 
@@ -244,8 +240,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
             <div className="tv2BottomCta">
               <div className="tv2BottomCtaText">
-                <div>COOL AD TO</div>
-                <div>DASHBOARD TO</div>
+                <div>SCAN TO</div>
                 <div>REQUEST SONG OR</div>
                 <div>SEND MESSAGE</div>
               </div>
@@ -264,14 +259,67 @@ export default function TvPage({ params }: { params: { location: string } }) {
       </div>
 
       <style jsx global>{`
+        .tv2Root {
+          position: relative;
+          overflow: hidden;
+          background:
+            radial-gradient(circle at 20% 20%, rgba(0, 247, 255, 0.06), transparent 30%),
+            radial-gradient(circle at 80% 15%, rgba(255, 57, 212, 0.06), transparent 28%),
+            radial-gradient(circle at 70% 78%, rgba(0, 247, 255, 0.05), transparent 30%),
+            #050814;
+        }
+
+        .tv2BgOrb {
+          position: absolute;
+          border-radius: 999px;
+          filter: blur(70px);
+          opacity: 0.22;
+          pointer-events: none;
+          mix-blend-mode: screen;
+          animation: tv2OrbFloat 18s ease-in-out infinite;
+        }
+
+        .tv2BgOrbA {
+          width: 40vw;
+          height: 40vw;
+          left: -8vw;
+          top: -10vw;
+          background: radial-gradient(circle, rgba(0, 247, 255, 0.45), transparent 70%);
+        }
+
+        .tv2BgOrbB {
+          width: 34vw;
+          height: 34vw;
+          right: -8vw;
+          top: 8vh;
+          background: radial-gradient(circle, rgba(255, 57, 212, 0.38), transparent 70%);
+          animation-delay: -6s;
+        }
+
+        .tv2BgOrbC {
+          width: 36vw;
+          height: 36vw;
+          left: 32vw;
+          bottom: -18vw;
+          background: radial-gradient(circle, rgba(69, 126, 255, 0.28), transparent 72%);
+          animation-delay: -10s;
+        }
+
+        @keyframes tv2OrbFloat {
+          0% { transform: translate3d(0, 0, 0) scale(1); }
+          50% { transform: translate3d(1.6vw, -1.4vw, 0) scale(1.08); }
+          100% { transform: translate3d(0, 0, 0) scale(1); }
+        }
+
         .tv2Wrap {
+          position: relative;
+          z-index: 2;
           display: grid;
           grid-template-columns: 1.38fr 0.95fr;
           gap: 14px;
           padding: 14px;
           height: 100vh;
           box-sizing: border-box;
-          background: #050814;
         }
 
         .tv2Left,
@@ -282,7 +330,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
         }
 
         .tv2Left {
-          padding: 14px 14px 16px;
+          padding: 14px 14px 14px;
           display: grid;
           grid-template-rows: auto 1fr;
           gap: 12px;
@@ -302,43 +350,45 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
         .tv2FeatureHeader {
           display: grid;
-          grid-template-columns: 230px 1fr;
+          grid-template-columns: 140px 1fr;
           align-items: center;
-          gap: 20px;
+          gap: 14px;
           position: relative;
           z-index: 2;
         }
 
-        .tv2FeatureTopBar {
-          height: 38px;
+        .tv2FeatureBar {
+          height: 28px;
           border-radius: 0;
-          background:
-            linear-gradient(90deg, rgba(53, 18, 77, 0.9), rgba(28, 34, 94, 0.6)),
-            rgba(255,255,255,0.05);
+          background: linear-gradient(90deg, rgba(53,18,77,0.9), rgba(28,34,94,0.6));
           border: 1px solid rgba(255,255,255,0.06);
         }
 
         .tv2FeatureTitle {
-          font-size: 34px;
+          font-size: 28px;
           font-weight: 1000;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.3px;
           font-style: italic;
           text-transform: uppercase;
           text-shadow: 0 0 18px rgba(255,255,255,0.18);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .tv2Bubble {
           position: relative;
           min-height: 0;
-          border-radius: 56px;
-          padding: 26px;
+          border-radius: 40px;
+          padding: 18px 18px 20px;
           display: flex;
           align-items: stretch;
           z-index: 2;
-          border: 1px solid rgba(255,255,255,0.18);
+          border: 1px solid rgba(255,255,255,0.16);
           box-shadow:
-            0 20px 60px rgba(0,0,0,0.35),
+            0 20px 60px rgba(0,0,0,0.32),
             0 0 0 1px rgba(255,255,255,0.05) inset;
+          overflow: hidden;
         }
 
         .tv2Bubble--gold {
@@ -347,8 +397,8 @@ export default function TvPage({ params }: { params: { location: string } }) {
         }
 
         .tv2Bubble--cyan {
-          background: linear-gradient(180deg, #a2f4ff 0%, #82d9f0 100%);
-          color: #041018;
+          background: linear-gradient(180deg, #aad7e8 0%, #9ecddd 100%);
+          color: #05070c;
         }
 
         .tv2Bubble--pink {
@@ -358,80 +408,35 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
         .tv2BubbleInner {
           display: grid;
-          grid-template-columns: 300px 1fr;
-          gap: 28px;
+          grid-template-columns: minmax(320px, 42%) 1fr;
+          gap: 18px;
           width: 100%;
-          align-items: center;
+          align-items: stretch;
+          min-height: 0;
         }
 
         .tv2MessageMedia {
           min-height: 0;
-        }
-
-        .tv2MessageImage,
-        .tv2ImagePlaceholder {
-          width: 100%;
-          aspect-ratio: 1 / 1.3;
-          object-fit: cover;
-          display: block;
-          border-radius: 0;
-        }
-
-        .tv2ImagePlaceholder {
-          position: relative;
-          background: #000;
-          border: 1px solid rgba(255,255,255,0.25);
-          overflow: hidden;
-        }
-
-        .tv2ImagePlaceholderX {
-          position: absolute;
-          inset: 0;
-          margin: auto;
-          width: 1px;
-          height: 120%;
-          background: rgba(255,255,255,0.5);
-          transform-origin: center;
-        }
-
-        .tv2ImagePlaceholderX1 { transform: rotate(40deg); }
-        .tv2ImagePlaceholderX2 { transform: rotate(-40deg); }
-
-        .tv2ImagePlaceholderText {
-          position: absolute;
-          inset: 0;
-          display: grid;
-          place-items: center;
-          text-align: center;
-          color: white;
-          font-weight: 1000;
-          font-size: 22px;
-          line-height: 1.15;
-          letter-spacing: 0.4px;
-          font-style: italic;
-          padding: 20px;
+          display: flex;
         }
 
         .tv2MessageTextCol {
           min-width: 0;
-        }
-
-        .tv2MessageHeadline {
-          font-size: 28px;
-          line-height: 1;
-          font-weight: 1000;
-          font-style: italic;
-          margin-bottom: 16px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          padding: 8px 6px 8px 2px;
         }
 
         .tv2MessageBody {
-          font-size: 30px;
-          line-height: 1.28;
-          font-weight: 900;
+          font-size: clamp(40px, 4.9vw, 72px);
+          line-height: 1.03;
+          font-weight: 1000;
           font-style: italic;
+          letter-spacing: -1.2px;
+          word-break: break-word;
+          text-wrap: balance;
           display: -webkit-box;
           -webkit-line-clamp: 5;
           -webkit-box-orient: vertical;
@@ -439,10 +444,11 @@ export default function TvPage({ params }: { params: { location: string } }) {
         }
 
         .tv2MessageFrom {
-          margin-top: 20px;
-          font-size: 26px;
+          margin-top: 18px;
+          font-size: clamp(28px, 3vw, 52px);
           font-weight: 1000;
           font-style: italic;
+          line-height: 1;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -450,14 +456,14 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
         .tv2BubbleTail {
           position: absolute;
-          right: 26px;
-          bottom: -28px;
+          right: 20px;
+          bottom: -18px;
           width: 0;
           height: 0;
-          border-left: 54px solid transparent;
+          border-left: 40px solid transparent;
           border-right: 0 solid transparent;
-          border-top: 58px solid currentColor;
-          filter: drop-shadow(0 10px 14px rgba(0,0,0,0.22));
+          border-top: 40px solid currentColor;
+          filter: drop-shadow(0 10px 12px rgba(0,0,0,0.16));
           opacity: 0.95;
           color: inherit;
         }
@@ -467,36 +473,11 @@ export default function TvPage({ params }: { params: { location: string } }) {
         }
 
         .tv2Bubble--cyan .tv2BubbleTail {
-          border-top-color: #82d9f0;
+          border-top-color: #9ecddd;
         }
 
         .tv2Bubble--pink .tv2BubbleTail {
           border-top-color: #f6aadf;
-        }
-
-        .tv2Ambient {
-          position: absolute;
-          pointer-events: none;
-          border-radius: 24px;
-          opacity: 0.55;
-          filter: blur(0px);
-          z-index: 1;
-        }
-
-        .tv2AmbientA {
-          width: 220px;
-          height: 84px;
-          right: 10px;
-          top: 16px;
-          background: linear-gradient(90deg, rgba(111, 19, 111, 0.35), rgba(32, 83, 124, 0.18));
-        }
-
-        .tv2AmbientB {
-          width: 180px;
-          height: 110px;
-          right: 92px;
-          bottom: 32px;
-          background: linear-gradient(90deg, rgba(103, 25, 129, 0.32), rgba(255, 57, 212, 0.18));
         }
 
         .tv2QueueHeader {
@@ -513,12 +494,6 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-transform: uppercase;
           font-style: italic;
           letter-spacing: 0.6px;
-        }
-
-        .tv2QueueMeta {
-          font-size: 15px;
-          color: var(--muted);
-          white-space: nowrap;
         }
 
         .tv2Hero {
@@ -724,12 +699,12 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
         .tv2BottomCtaText {
           font-size: 18px;
-          line-height: 1.18;
+          line-height: 1.1;
           font-weight: 1000;
           font-style: italic;
           text-transform: uppercase;
           text-align: center;
-          letter-spacing: 0.4px;
+          letter-spacing: 0.35px;
         }
 
         .tv2BottomQrWrap {
@@ -775,15 +750,15 @@ export default function TvPage({ params }: { params: { location: string } }) {
           }
 
           .tv2BubbleInner {
-            grid-template-columns: 240px 1fr;
+            grid-template-columns: minmax(260px, 38%) 1fr;
           }
 
           .tv2MessageBody {
-            font-size: 24px;
+            font-size: clamp(34px, 4.1vw, 56px);
           }
 
-          .tv2FeatureTitle {
-            font-size: 28px;
+          .tv2MessageFrom {
+            font-size: clamp(24px, 2.3vw, 38px);
           }
         }
 
@@ -816,7 +791,7 @@ function Artwork({ src, alt }: { src?: string | null; alt: string }) {
           fontWeight: 1000,
           opacity: 0.65,
           fontSize: 22,
-          letterSpacing: 1.2
+          letterSpacing: 1.2,
         }}
       >
         REMIX
@@ -833,5 +808,150 @@ function Artwork({ src, alt }: { src?: string | null; alt: string }) {
       referrerPolicy="no-referrer"
       style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
     />
+  );
+}
+
+function FeatureMedia({ src }: { src?: string | null }) {
+  const [bad, setBad] = useState(false);
+  const [mode, setMode] = useState<"unknown" | "portrait" | "landscape" | "square">("unknown");
+
+  if (!src || bad) {
+    return (
+      <div className="tv2FeatureMediaShell tv2FeatureMediaShell--placeholder">
+        <div className="tv2FeaturePlaceholder">
+          <div className="tv2FeaturePlaceholderX tv2FeaturePlaceholderX1" />
+          <div className="tv2FeaturePlaceholderX tv2FeaturePlaceholderX2" />
+          <div className="tv2FeaturePlaceholderText">
+            UPLOADED IMAGE
+            <br />
+            PLACEHOLDER
+          </div>
+        </div>
+
+        <style jsx global>{`
+          .tv2FeatureMediaShell {
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            display: flex;
+          }
+
+          .tv2FeatureMediaShell--placeholder {
+            align-items: stretch;
+          }
+
+          .tv2FeaturePlaceholder {
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            background: #000;
+            border: 1px solid rgba(255,255,255,0.25);
+            position: relative;
+            overflow: hidden;
+          }
+
+          .tv2FeaturePlaceholderX {
+            position: absolute;
+            inset: 0;
+            margin: auto;
+            width: 1px;
+            height: 132%;
+            background: rgba(255,255,255,0.5);
+            transform-origin: center;
+          }
+
+          .tv2FeaturePlaceholderX1 { transform: rotate(33deg); }
+          .tv2FeaturePlaceholderX2 { transform: rotate(-33deg); }
+
+          .tv2FeaturePlaceholderText {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            text-align: center;
+            color: white;
+            font-weight: 1000;
+            font-size: 24px;
+            line-height: 1.08;
+            letter-spacing: 0.4px;
+            font-style: italic;
+            padding: 24px;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`tv2FeatureMediaShell tv2FeatureMediaShell--${mode}`}>
+      <img
+        src={src}
+        alt=""
+        referrerPolicy="no-referrer"
+        className={`tv2FeatureMediaImg tv2FeatureMediaImg--${mode}`}
+        onError={() => setBad(true)}
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          const w = img.naturalWidth || 0;
+          const h = img.naturalHeight || 0;
+
+          if (!w || !h) {
+            setMode("unknown");
+            return;
+          }
+
+          const ratio = w / h;
+          if (ratio > 1.15) setMode("landscape");
+          else if (ratio < 0.85) setMode("portrait");
+          else setMode("square");
+        }}
+      />
+
+      <style jsx global>{`
+        .tv2FeatureMediaShell {
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          display: flex;
+          align-items: stretch;
+          justify-content: center;
+          overflow: hidden;
+          background: rgba(0,0,0,0.18);
+          border: 1px solid rgba(255,255,255,0.18);
+        }
+
+        .tv2FeatureMediaShell--portrait {
+          align-items: center;
+          justify-content: center;
+        }
+
+        .tv2FeatureMediaShell--landscape,
+        .tv2FeatureMediaShell--square,
+        .tv2FeatureMediaShell--unknown {
+          align-items: stretch;
+          justify-content: center;
+        }
+
+        .tv2FeatureMediaImg {
+          display: block;
+        }
+
+        .tv2FeatureMediaImg--portrait {
+          width: auto;
+          height: 100%;
+          max-width: 100%;
+          object-fit: contain;
+          background: #000;
+        }
+
+        .tv2FeatureMediaImg--landscape,
+        .tv2FeatureMediaImg--square,
+        .tv2FeatureMediaImg--unknown {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+      `}</style>
+    </div>
   );
 }
