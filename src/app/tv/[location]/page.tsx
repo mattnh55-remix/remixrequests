@@ -153,8 +153,10 @@ export default function TvPage({ params }: { params: { location: string } }) {
   <div className="tv2FeatureTitle">{featuredMessage.title}</div>
 </div>
 
-          <div className={`tv2Bubble tv2Bubble--${featuredMessage.accent || "cyan"}`}>
-            <div className="tv2BubbleInner">
+<div
+  key={featuredMessage.id}
+  className={`tv2Bubble tv2Bubble--${featuredMessage.accent || "cyan"}`}
+>            <div className="tv2BubbleInner">
               <div className="tv2MessageMedia">
                 <FeatureMedia src={featuredMessage.imageUrl} />
               </div>
@@ -371,16 +373,20 @@ export default function TvPage({ params }: { params: { location: string } }) {
 .tv2Bubble {
   position: relative;
   min-height: 0;
-  border-radius: 42px;
-  padding: 22px 22px 26px;
+  border-radius: 34px 34px 34px 14px;
+  padding: 18px 18px 22px;
   display: flex;
   align-items: stretch;
   z-index: 2;
   border: none;
   box-shadow:
-    0 10px 28px rgba(0,0,0,0.18),
-    inset 0 1px 0 rgba(255,255,255,0.22);
+    0 10px 24px rgba(0,0,0,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.20);
   overflow: visible;
+animation: tv2BubbleFloat 6s ease-in-out infinite;
+animation:
+  tv2BubbleIn 420ms ease-out,
+  tv2BubbleFloat 6s ease-in-out 420ms infinite;
 }
 
         .tv2Bubble--gold {
@@ -389,7 +395,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
         }
 
 .tv2Bubble--cyan {
-  background: linear-gradient(180deg, #aad7e8 0%, #9ecddd 100%);
+  background: linear-gradient(180deg, #bde8fb 0%, #a9ddf5 100%);
   color: #05070c;
 }
 
@@ -400,8 +406,8 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
 .tv2BubbleInner {
   display: grid;
-  grid-template-columns: minmax(340px, 43%) 1fr;
-  gap: 24px;
+  grid-template-columns: minmax(340px, 42%) 1fr;
+  gap: 20px;
   width: 100%;
   align-items: stretch;
   min-height: 0;
@@ -418,7 +424,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 14px 10px 10px 4px;
+  padding: 12px 10px 8px 2px;
 }
 
         .tv2MessageBody {
@@ -448,15 +454,24 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
 .tv2BubbleTail {
   position: absolute;
-  right: 28px;
-  bottom: 18px;
+  right: 18px;
+  bottom: 12px;
   width: 34px;
   height: 34px;
   background: inherit;
-  border-radius: 0 0 12px 0;
-  clip-path: polygon(0 0, 100% 100%, 0 100%);
-  transform: rotate(8deg);
-  box-shadow: 6px 8px 12px rgba(0,0,0,0.10);
+  border-radius: 0 0 18px 0;
+  transform: rotate(45deg);
+  z-index: -1;
+}
+.tv2Bubble::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 54px;
+  height: 54px;
+  background: inherit;
+  border-radius: 50%;
 }
         .tv2QueueHeader {
           display: flex;
@@ -837,7 +852,15 @@ function FeatureMedia({ src }: { src?: string | null }) {
             background: rgba(255,255,255,0.5);
             transform-origin: center;
           }
-
+@keyframes tv2BubbleFloat {
+  0% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-4px) scale(1.003); }
+  100% { transform: translateY(0px) scale(1); }
+}
+  @keyframes tv2BubbleIn {
+  0% { opacity: 0; transform: translateY(14px) scale(0.985); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
           .tv2FeaturePlaceholderX1 { transform: rotate(33deg); }
           .tv2FeaturePlaceholderX2 { transform: rotate(-33deg); }
 
