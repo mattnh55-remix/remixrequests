@@ -170,27 +170,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
     />
   </svg>
 
-</div>            <div className="tv2BubbleInner">
-              <div className="tv2MessageMedia">
-                <FeatureMedia src={featuredMessage.imageUrl} />
-              </div>
-
-              <div className="tv2MessageTextCol">
-                <div className="tv2MessageBody">{featuredMessage.body}</div>
-                <div className="tv2MessageFrom">{featuredMessage.fromName}</div>
-              </div>
-            </div>
-
-            <svg
-  className="tv2BubbleTail"
-  viewBox="0 0 44 28"
-  aria-hidden="true"
->
-  <path
-    className="tv2BubbleTailPath"
-    d="M4 4 C16 6, 28 12, 38 24 C28 22, 16 22, 6 18 C4 14, 3 9, 4 4 Z"
-  />
-</svg>
+</div> 
         </section>
 
         <section className="tv2Right">

@@ -1,204 +1,188 @@
-# Remix Song Requests — Deployment & Updates
+RemixRequests Deployment Guide
+Overview
 
-This project is a scalable web app for Remix song requests (mobile + TV + admin) built with:
-- Next.js (frontend + API routes)
-- Postgres (recommended: Supabase)
-- Prisma ORM
+RemixRequests is a Next.js (App Router) application used by Remix Skate & Event Center to allow guests to:
 
-Location slug (current): **remixrequests**
+Request songs
 
----
+Boost songs
 
-## What you get
+Send shout-out messages
 
-### Public pages
-- **Mobile Request UI:** `/request/remixrequests`
-- **TV Mode (OptiSigns):** `/tv/remixrequests`
-- **Admin Dashboard:** `/admin/remixrequests`
+Purchase credits via Square
 
-### Core features (MVP)
-- Credits ledger (per location, email-hash identity)
-- Play Next (1 credit)
-- Upvote (1 credit)
-- Downvote (1 credit)
-- Play Now (5 credits) with cooldown rules:
-  - Artist cooldown: 15 minutes
-  - Song cooldown: 120 minutes
-- Auto-approve if not explicit and passes limits
-- Admin rules are editable in the dashboard (global rules)
-- CSV song import
-- Admin queue controls: **Played** (logs play history), **Reject**
+Display queue + messages on TV screens
 
-> Note: Square webhook integration is present as a stub and is completed in Phase 2.
+The system uses:
 
----
+Next.js (App Router)
 
-## Quick Start (Local)
+Supabase Postgres
 
-### 1) Install
-```bash
+Prisma ORM
+
+Square hosted checkout
+
+Twilio SMS verification
+
+Mailchimp opt-in
+
+Session-based credits
+
+OptiSigns TV display pages
+
+Environment
+
+Create .env locally and in Vercel.
+
+Required variables:
+
+DATABASE_URL=
+DIRECT_URL=
+
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE=
+
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_PHONE_NUMBER=
+
+MAILCHIMP_API_KEY=
+MAILCHIMP_AUDIENCE_ID=
+
+SQUARE_ACCESS_TOKEN=
+SQUARE_LOCATION_ID=
+
+NEXT_PUBLIC_SITE_URL=
+Local Development
 npm install
-cp .env.example .env
-```
-
-### 2) Configure env
-Edit `.env` and set:
-- `DATABASE_URL`
-- `ADMIN_PIN`
-- `ADMIN_JWT_SECRET`
-
-### 3) Create DB tables + seed
-```bash
 npx prisma generate
-npx prisma migrate dev
-npm run seed
-```
-
-### 4) Run
-```bash
-npm run dev
-```
-
-Open:
-- http://localhost:3000/request/remixrequests
-- http://localhost:3000/tv/remixrequests
-- http://localhost:3000/admin/remixrequests
-
----
-
-## Production Deployment (Vercel + Supabase)
-
-### 1) Create Postgres (Supabase)
-1. Create a Supabase project
-2. Copy the Postgres connection string and set it as `DATABASE_URL`
-
-### 2) Deploy to Vercel
-Option A (recommended): connect a GitHub repo  
-Option B: deploy via Vercel upload/import
-
-In Vercel project settings → Environment Variables:
-- `DATABASE_URL`
-- `ADMIN_PIN`
-- `ADMIN_JWT_SECRET`
-- (Phase 2) `SQUARE_WEBHOOK_SIGNATURE_KEY` and pack mappings
-
-Build settings:
-- Framework preset: Next.js
-- Build command: `npm run build`
-- Output: default
-
-### 3) Run migrations in production
-If you deploy via GitHub + Vercel, you typically run migrations from your machine:
-```bash
 npx prisma migrate deploy
-npm run seed
-```
+npm run dev
 
-(You can also set up a CI step later.)
+Runs on:
 
----
+http://localhost:3000
+Production Deployment
 
-## OptiSigns Setup
+Hosted on Vercel.
 
-In OptiSigns:
-1. Add Asset → **Website**
-2. URL:
-   - `https://YOURDOMAIN/tv/remixrequests`
-3. Fullscreen/kiosk mode: ON
-4. Optional refresh: every 5–10 minutes (the page itself also polls the API every 3 seconds)
+Deploy:
 
----
+git add .
+git commit -m "update"
+git push origin main
 
-## Song Import (CSV)
+Vercel auto-deploys from main.
 
-Admin → `/admin/remixrequests` → Import Songs
+Database
 
-CSV columns:
-- `title,artist,explicit,tags,artworkUrl`
+Prisma + Supabase Postgres.
 
-Notes:
-- `explicit`: true/false or 1/0 or yes/no
-- `tags`: comma-separated or pipe-separated
+Run migrations:
 
-Example row:
-```csv
-Mr. Brightside,The Killers,false,"Dad Rock|2000s",https://...
-```
+npx prisma migrate deploy
 
----
+If schema changes:
 
-## Admin Rules
+npx prisma migrate dev
+TV Screens
 
-Admin → Rules panel:
-- Adjust credit costs
-- Adjust limits (requests per session, votes per session, min time between actions)
-- Adjust Play Now cooldowns and enable/disable them
-- Enable/disable voting
-- Customize user-facing messages
+OptiSigns points to:
 
----
+/tv/[location]
 
-## Update Workflow (UI tweaks & feature requests)
+Example:
 
-### Recommended workflow (easy updates)
-1. Put this project in a Git repo (GitHub)
-2. Deploy via Vercel (connected to repo)
-3. When you want changes, use the prompt template below
-4. Apply file changes, commit, push → Vercel auto-deploys
+https://skateremix.com/tv/remixrequests
 
-### Prompt template for requesting changes
-Copy/paste this when you want updates:
+This screen shows:
 
-**Change Request**
-- Goal:
-- Page(s): request / tv / admin
-- Visual changes:
-- Logic changes (rules, cooldowns, queue behavior):
-- Must not change:
-- Screenshots/links:
+shout out messages
 
-I will respond with:
-- exact files to edit/replace
-- code patches
-- any DB migration (if needed)
-- a short “deploy checklist”
+song queue
 
----
+QR code for requesting
 
-## Phase 2 (Square Integration) — What we’ll do next
-1. Confirm which Square webhook event you’ll use (orders/payments/checkout updates)
-2. Add proper webhook signature verification using `SQUARE_WEBHOOK_SIGNATURE_KEY`
-3. Map the purchase (checkout link or item ID) → credits:
-   - `CREDIT_PACK_5=10`
-   - `CREDIT_PACK_10=25`
-   - `CREDIT_PACK_15=35`
-   - `CREDIT_PACK_20=50`
-4. Extract buyer email from webhook payload and write to `CreditLedger`
+Refresh interval: 3 seconds
 
-When you’re ready, paste a **sample webhook payload** (with sensitive values redacted) and we’ll implement the exact mapping + verification.
+Admin
 
----
+Admin dashboard:
 
-## Troubleshooting
+/admin/[location]
 
-### “Unknown location”
-Run seed or create the Location row:
-```bash
-npm run seed
-```
+Allows:
 
-### “Prisma can’t connect”
-Check:
-- `DATABASE_URL` is correct
-- Supabase allows your IP (if using restricted settings)
+rule configuration
 
-### Admin login not working
-- Ensure `ADMIN_PIN` in env matches what you enter
-- Ensure cookies aren’t blocked by browser settings
+credit costs
 
----
+cooldown rules
 
-## Support Notes (for staff)
-- Staff should use **Admin Queue** to mark songs as **Played**.
-- That updates Play Now cooldown checks (artist/song recently played).
-- If DJ plays songs outside the request system, we can add a “Log Played Song” tool in a later update.
+redemption codes
+
+queue management
+
+Request System
+
+Endpoint:
+
+/api/public/request
+
+Handles:
+
+play next
+
+play now
+
+voting
+
+shout messages
+
+Queue Endpoint
+/api/public/queue/[location]
+
+Returns:
+
+playNow
+upNext
+
+Used by TV display.
+
+Square Checkout
+
+Credit packages:
+
+$5  = 10 credits
+$10 = 25 credits
+$15 = 35 credits + free item
+$20 = 50 credits + free item
+
+Webhook credits user email after payment.
+
+Known Working Features
+
+✔ SMS verification
+✔ welcome credits
+✔ queue voting
+✔ play next / play now
+✔ shout out messages
+✔ animated TV UI
+✔ boosted songs highlight
+✔ square checkout integration
+✔ session rules + cooldowns
+
+Next Planned Features
+
+message moderation
+
+shout image uploads
+
+DJ queue tools
+
+analytics
+
+multi-rink scaling
+
+improved credit wallet UI
