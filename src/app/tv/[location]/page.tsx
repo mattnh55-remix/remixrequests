@@ -405,38 +405,60 @@ export default function TvPage({ params }: { params: { location: string } }) {
           overflow: hidden;
           text-overflow: ellipsis;
         }
-
-/* Updated iMessage-style Bubble */
+/* The Main Bubble */
 .tv2Bubble {
   position: relative;
-  min-height: 0;
-  /* iOS bubbles have larger rounding on the outside, tighter on the tail side */
-  border-radius: 45px; 
-  padding: 24px 30px;
+  border-radius: 25px; /* iOS uses slightly tighter corners for long text */
+  padding: 16px 24px;
   display: flex;
-  align-items: stretch;
+  flex-direction: column;
   z-index: 2;
-  /* Smoother gradients for iMessage look */
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  overflow: visible;
+  margin-right: 20px; /* Space for the tail on the right */
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
   animation: tv2BubbleSendIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1);
-  tv2BubbleFloat 6s ease-in-out 360ms infinite; transform-origin: 86% 100%;
-}
-        .tv2Bubble--gold {
-          background: linear-gradient(180deg, #e8e39b 0%, #e1dc92 100%);
-          color: #090909;
-        }
-
- .tv2Bubble--cyan {
-  background-color: #007aff; /* Classic iMessage Blue */
-  background: linear-gradient(180deg, #3291ff 0%, #007aff 100%);
-  color: #ffffff;
 }
 
-        .tv2Bubble--pink {
-          background: linear-gradient(180deg, #ffc4ee 0%, #f6aadf 100%);
-          color: #160811;
-        }
+/* Classic iMessage Blue */
+.tv2Bubble--cyan {
+  background: #007aff; 
+  color: white;
+}
+
+/* Gold/Yellow Message (Like a highlighted/sent note) */
+.tv2Bubble--gold {
+  background: #ffcc00;
+  color: black;
+}
+
+/* Pink Message */
+.tv2Bubble--pink {
+  background: #ff2d55;
+  color: white;
+}
+
+/* The Tail Fix */
+.tv2BubbleTail {
+  position: absolute;
+  right: -8px;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  background-color: inherit; /* This ensures it matches the bubble color */
+  border-bottom-left-radius: 15px;
+  z-index: -1;
+}
+
+/* The "Cutout" that makes the tail look curved */
+.tv2BubbleTail::after {
+  content: "";
+  position: absolute;
+  right: -12px;
+  bottom: 0;
+  width: 15px;
+  height: 25px;
+  background-color: #050814; /* MUST match your page background color exactly */
+  border-bottom-left-radius: 10px;
+}
 
         .tv2BubbleInner {
           display: grid;
@@ -486,29 +508,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-overflow: ellipsis;
         }
 
-/* Redone Tail: Using a pseudo-element for a seamless "hook" */
-.tv2BubbleTail {
-  position: absolute;
-  bottom: 0;
-  right: -10px; /* Moves tail to the right side */
-  width: 20px;
-  height: 25px;
-  background-color: inherit;
-  /* This creates the concave curve of an iMessage tail */
-  border-bottom-left-radius: 16px 14px; 
-  z-index: -1;
-}
 
-.tv2BubbleTail::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: -20px;
-  width: 20px;
-  height: 25px;
-  background-color: #050814; /* Match your background color */
-  border-bottom-left-radius: 10px;
-}
 
         .tv2QueueHeader {
           display: flex;
