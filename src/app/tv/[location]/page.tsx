@@ -405,82 +405,72 @@ export default function TvPage({ params }: { params: { location: string } }) {
           overflow: hidden;
           text-overflow: ellipsis;
         }
-/* --- THE BUBBLE CONTAINER --- */
-.tv2Bubble {
-  position: relative;
-  border-radius: 25px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column; /* Stack image and text */
-  z-index: 2;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  animation: tv2BubbleSendIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1);
 
-  /* KEY CHANGE: Force the bubble to occupy the full width of its parent (.tv2Left) */
-  width: 100%;
-  margin-right: 0; /* Reset previous margin */
-}
+ .tv2Bubble {
+          position: relative;
+          min-height: 0;
+          border-radius: 40px; /* Slightly more rounded for iMessage look */
+          padding: 30px 40px;
+          display: flex;
+          align-items: stretch;
+          z-index: 2;
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+          overflow: visible; /* Required so the tail isn't cut off */
+          animation: tv2BubbleSendIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1);
+        }
 
-/* Authentic iMessage Blue */
-.tv2Bubble--cyan {
-  background: #007aff; 
-  color: #ffffff;
-}
+        .tv2Bubble--gold {
+          background-color: #febd2e;
+          color: #000;
+        }
 
-/* Authentic iMessage Yellow/Gold */
-.tv2Bubble--gold {
-  background: #ffcc00;
-  color: #000000;
-}
+        .tv2Bubble--cyan {
+          background-color: #007aff; /* Standard iMessage Blue */
+          color: #fff;
+        }
 
-/* Authentic iMessage Pink */
-.tv2Bubble--pink {
-  background: #ff2d55;
-  color: #ffffff;
-}
+        .tv2Bubble--pink {
+          background-color: #ff2d55;
+          color: #fff;
+        }
 
-/* KEY CHANGE: Force image to remain large */
-.tv2BubbleInner {
-  display: flex;
-  flex-direction: column; 
-  gap: 16px;
-  width: 100%;
-}
+        /* THE FIXED TAIL */
+        .tv2BubbleTail {
+          position: absolute;
+          bottom: 0;
+          right: 5px; /* Positions it on the right side */
+          width: 25px;
+          height: 20px;
+          background-color: inherit; /* Matches Blue/Gold/Pink automatically */
+          border-bottom-left-radius: 16px 14px;
+          z-index: -1;
+        }
 
-.tv2MessageMedia {
-  /* This ensures the image placeholder remains large and square within the bubble */
-  width: 100%;
-  aspect-ratio: 1/1; /* Keeps the placeholder a large square */
-  border-radius: 18px;
-  overflow: hidden;
-  display: block;
-}
+        /* The 'Mask' that creates the iMessage curve */
+        .tv2BubbleTail::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          right: 0px;
+          width: 20px;
+          height: 25px;
+          background-color: #050814; /* Matches your dark background */
+          border-bottom-left-radius: 12px;
+        }
 
-/* --- THE TAIL CONSTRUCTION --- */
-.tv2BubbleTail {
-  position: absolute;
-  /* KEY CHANGE: We are shifting the whole tail mechanism to the left using percentages and pixels */
-  right: calc(0% - 15px); /* Start it just off the right edge, then nudge it back left with negative margin if needed */
-  bottom: 0;
-  width: 20px;
-  height: 20px;
-  background-color: inherit; /* Matches bubble color automatically */
-  border-bottom-left-radius: 15px;
-  z-index: -1;
-  transform: translateX(-5px); /* Nudges the tail slightly leftward over the bubble boundary */
-}
+        .tv2BubbleInner {
+          display: grid;
+          grid-template-columns: minmax(340px, 42%) 1fr;
+          gap: 20px;
+          width: 100%;
+          align-items: stretch;
+          min-height: 0;
+        }
 
-/* The "Mask" that creates the signature curve */
-.tv2BubbleTail::after {
-  content: "";
-  position: absolute;
-  right: -12px;
-  bottom: 0;
-  width: 15px;
-  height: 25px;
-  background-color: #050814; /* MUST match your .tv2Root background color */
-  border-bottom-left-radius: 12px;
-}
+        .tv2MessageMedia {
+          min-height: 0;
+          display: flex;
+        }
 
         .tv2MessageTextCol {
           min-width: 0;
@@ -516,7 +506,32 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-overflow: ellipsis;
         }
 
+        .tv2BubbleTail {
+          position: absolute;
+          right: 28px;
+          bottom: -14px;
+          width: 30px;
+          height: 30px;
+          background: inherit;
+          border-radius: 0 0 18px 0;
+          z-index: 1;
+          box-shadow: none;
+          transform: rotate(45deg) scale(0.96);
+          transform-origin: 50% 50%;
+          animation: tv2TailIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1);
+        }
 
+        .tv2Bubble::after {
+          content: "";
+          position: absolute;
+          right: 22px;
+          bottom: 0;
+          width: 40px;
+          height: 40px;
+          background: inherit;
+          border-radius: 50%;
+          z-index: 0;
+        }
 
         .tv2QueueHeader {
           display: flex;
