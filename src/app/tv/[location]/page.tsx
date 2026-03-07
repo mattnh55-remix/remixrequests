@@ -434,27 +434,29 @@ export default function TvPage({ params }: { params: { location: string } }) {
           color: #fff;
         }
 
-        /* THE FIXED TAIL */
+       /* THE FIXED TAIL */
         .tv2BubbleTail {
           position: absolute;
           bottom: 0;
-          right: 5px; /* Positions it on the right side */
+          right: 5px; /* Keep your preferred position */
           width: 25px;
           height: 20px;
-          background-color: inherit; /* Matches Blue/Gold/Pink automatically */
+          background-color: inherit; 
           border-bottom-left-radius: 16px 14px;
           z-index: -1;
         }
 
-        /* The 'Mask' that creates the iMessage curve */
+        /* The 'Mask' - Adjusted to stop the "teardrop" effect */
         .tv2BubbleTail::after {
           content: "";
           position: absolute;
-          top: 0;
-          right: 0px;
+          bottom: 0;
+          /* Move this further RIGHT than the 5px above */
+          /* If tail is at 5px, mask should be at -5px or -10px */
+          right: -12px; 
           width: 20px;
           height: 25px;
-          background-color: #050814; /* Matches your dark background */
+          background-color: #050814; 
           border-bottom-left-radius: 12px;
         }
 
