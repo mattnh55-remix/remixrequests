@@ -144,8 +144,33 @@ export default function TvPage({ params }: { params: { location: string } }) {
             <div className="tv2FeatureTitle">{featuredMessage.title}</div>
           </div>
 
-          <div key={featuredMessage.id} className={`tv2Bubble tv2Bubble--${featuredMessage.accent || "cyan"}`}>
-            <div className="tv2BubbleInner">
+<div
+  key={featuredMessage.id}
+  className={`tv2Bubble tv2Bubble--${featuredMessage.accent || "cyan"}`}
+>
+  <div className="tv2BubbleInner">
+    <div className="tv2MessageMedia">
+      <FeatureMedia src={featuredMessage.imageUrl} />
+    </div>
+
+    <div className="tv2MessageTextCol">
+      <div className="tv2MessageBody">{featuredMessage.body}</div>
+      <div className="tv2MessageFrom">{featuredMessage.fromName}</div>
+    </div>
+  </div>
+
+  <svg
+    className="tv2BubbleTail"
+    viewBox="0 0 44 28"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M5 5 C15 7, 24 12, 34 24 C25 22, 15 21, 7 17 C5 13, 4 9, 5 5 Z"
+      className="tv2BubbleTailPath"
+    />
+  </svg>
+
+</div>            <div className="tv2BubbleInner">
               <div className="tv2MessageMedia">
                 <FeatureMedia src={featuredMessage.imageUrl} />
               </div>
@@ -156,8 +181,16 @@ export default function TvPage({ params }: { params: { location: string } }) {
               </div>
             </div>
 
-            <div className="tv2BubbleTail" />
-          </div>
+            <svg
+  className="tv2BubbleTail"
+  viewBox="0 0 44 28"
+  aria-hidden="true"
+>
+  <path
+    className="tv2BubbleTailPath"
+    d="M4 4 C16 6, 28 12, 38 24 C28 22, 16 22, 6 18 C4 14, 3 9, 4 4 Z"
+  />
+</svg>
         </section>
 
         <section className="tv2Right">
@@ -365,14 +398,12 @@ export default function TvPage({ params }: { params: { location: string } }) {
           min-height: 0;
         }
 
-.tv2Left {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          /* Top: 40px, Right: 50px, Bottom: 40px, Left: 40px */
-          padding: 40px 50px 40px 40px; 
-          min-width: 0;
-          gap: 30px;
+        .tv2Left {
+          padding: 14px 14px 18px;
+          display: grid;
+          grid-template-rows: auto 1fr;
+          gap: 12px;
+          overflow: visible;
         }
 
         .tv2Right {
@@ -408,63 +439,41 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-overflow: ellipsis;
         }
 
- /* 1. THE MAIN MESSAGE BOX */
         .tv2Bubble {
           position: relative;
           min-height: 0;
-          width: fit-content; 
-          max-width: 100%;
-          overflow: visible; /* Keeps tail from being cut off */
-          border-radius: 40px; 
-          padding: 30px 40px;
+          border-radius: 34px 34px 34px 20px;
+          padding: 18px 30px 22px 18px;
           display: flex;
           align-items: stretch;
           z-index: 2;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-          /* overflow: visible is critical so the tail shows outside the box */
-          overflow: visible; 
-          animation: tv2BubbleSendIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1);
+          border: none;
+          box-shadow:
+            0 10px 24px rgba(0, 0, 0, 0.14),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+          overflow: visible;
+          animation:
+            tv2BubbleSendIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1),
+            tv2BubbleFloat 6s ease-in-out 360ms infinite;
+          transform-origin: 86% 100%;
         }
 
-        .tv2Bubble--gold { background-color: #febd2e; color: #000; }
-        .tv2Bubble--cyan { background-color: #007aff; color: #fff; }
-        .tv2Bubble--pink { background-color: #ff2d55; color: #fff; }
-
-        /* THE TAIL BASE */
-        .tv2BubbleTail {
-          position: absolute;
-          bottom: 0;
-          /* right: -10px puts it into the 50px padding gutter */
-          right: -10px; 
-          width: 25px;
-          height: 20px;
-          background-color: inherit; 
-          border-bottom-left-radius: 16px 14px;
-          z-index: -1;
+        .tv2Bubble--gold {
+          background: linear-gradient(180deg, #e8e39b 0%, #e1dc92 100%);
+          color: #090909;
         }
 
-        /* THE SCOOP (MASK) */
-        .tv2BubbleTail::after {
-          content: "";
-          position: absolute;
-          bottom: 0;
-          /* right: -14px is key - it must be more negative than the tail */
-          right: -14px; 
-          width: 20px;
-          height: 26px;
-          background-color: #050814; 
-          border-bottom-left-radius: 12px;
+        .tv2Bubble--cyan {
+          background: linear-gradient(180deg, #bde8fb 0%, #a9ddf5 100%);
+          color: #05070c;
         }
 
-        /* 4. FONT PROTECTION */
-        /* Forces the TV browser to render text clearly on top of the bubble colors */
-        .tv2MessageBody {
-          position: relative;
-          z-index: 5;
-          -webkit-font-smoothing: antialiased;
-          text-rendering: optimizeLegibility;
+        .tv2Bubble--pink {
+          background: linear-gradient(180deg, #ffc4ee 0%, #f6aadf 100%);
+          color: #160811;
         }
-             .tv2BubbleInner {
+
+        .tv2BubbleInner {
           display: grid;
           grid-template-columns: minmax(340px, 42%) 1fr;
           gap: 20px;
@@ -512,32 +521,27 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-overflow: ellipsis;
         }
 
-        .tv2BubbleTail {
-          position: absolute;
-          right: 28px;
-          bottom: -14px;
-          width: 30px;
-          height: 30px;
-          background: inherit;
-          border-radius: 0 0 18px 0;
-          z-index: 1;
-          box-shadow: none;
-          transform: rotate(45deg) scale(0.96);
-          transform-origin: 50% 50%;
-          animation: tv2TailIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1);
-        }
+       .tv2BubbleTail {
+  position: absolute;
+  right: 12px;
+  bottom: -8px;
+  width: 42px;
+  height: 26px;
+  pointer-events: none;
+  z-index: 1;
+}
 
-        .tv2Bubble::after {
-          content: "";
-          position: absolute;
-          right: 22px;
-          bottom: 0;
-          width: 40px;
-          height: 40px;
-          background: inherit;
-          border-radius: 50%;
-          z-index: 0;
-        }
+.tv2Bubble--gold .tv2BubbleTailPath {
+  fill: #e1dc92;
+}
+
+.tv2Bubble--cyan .tv2BubbleTailPath {
+  fill: #a9ddf5;
+}
+
+.tv2Bubble--pink .tv2BubbleTailPath {
+  fill: #f6aadf;
+}
 
         .tv2QueueHeader {
           display: flex;
