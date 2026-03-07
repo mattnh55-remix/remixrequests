@@ -454,25 +454,16 @@ animation:
 
 .tv2BubbleTail {
   position: absolute;
-  right: 18px;
-  bottom: 12px;
-  width: 34px;
-  height: 34px;
+  right: 22px;
+  bottom: -10px;
+  width: 36px;
+  height: 36px;
   background: inherit;
-  border-radius: 0 0 18px 0;
+  border-radius: 0 0 20px 0;
   transform: rotate(45deg);
-  z-index: -1;
+  z-index: 1;
 }
-.tv2Bubble::after {
-  content: "";
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  width: 54px;
-  height: 54px;
-  background: inherit;
-  border-radius: 50%;
-}
+
         .tv2QueueHeader {
           display: flex;
           justify-content: space-between;
