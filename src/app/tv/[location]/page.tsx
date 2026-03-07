@@ -405,50 +405,50 @@ export default function TvPage({ params }: { params: { location: string } }) {
           overflow: hidden;
           text-overflow: ellipsis;
         }
-/* The Main Bubble */
+/* The Main Bubble Container */
 .tv2Bubble {
   position: relative;
-  border-radius: 25px; /* iOS uses slightly tighter corners for long text */
-  padding: 16px 24px;
+  border-radius: 25px; 
+  padding: 20px;
   display: flex;
-  flex-direction: column;
+  flex-direction: column; /* Stacks image and text for iMessage look */
   z-index: 2;
-  margin-right: 20px; /* Space for the tail on the right */
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  margin-right: 15px; /* Creates space for the tail */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   animation: tv2BubbleSendIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1);
+  max-width: 90%;
+  align-self: flex-end;
 }
 
-/* Classic iMessage Blue */
+/* Authentic iMessage Colors */
 .tv2Bubble--cyan {
-  background: #007aff; 
-  color: white;
+  background: #007aff; /* Apple Blue */
+  color: #ffffff;
 }
 
-/* Gold/Yellow Message (Like a highlighted/sent note) */
 .tv2Bubble--gold {
-  background: #ffcc00;
-  color: black;
+  background: #febd2e; /* Apple Gold/Yellow */
+  color: #000000;
 }
 
-/* Pink Message */
 .tv2Bubble--pink {
-  background: #ff2d55;
-  color: white;
+  background: #ff2d55; /* Apple Pink */
+  color: #ffffff;
 }
 
-/* The Tail Fix */
+/* The Tail Logic */
 .tv2BubbleTail {
   position: absolute;
-  right: -8px;
+  right: -10px;
   bottom: 0;
   width: 20px;
   height: 20px;
-  background-color: inherit; /* This ensures it matches the bubble color */
+  background-color: inherit; /* Matches bubble color automatically */
   border-bottom-left-radius: 15px;
   z-index: -1;
 }
 
-/* The "Cutout" that makes the tail look curved */
+/* The "Mask" that creates the curve */
 .tv2BubbleTail::after {
   content: "";
   position: absolute;
@@ -456,8 +456,16 @@ export default function TvPage({ params }: { params: { location: string } }) {
   bottom: 0;
   width: 15px;
   height: 25px;
-  background-color: #050814; /* MUST match your page background color exactly */
-  border-bottom-left-radius: 10px;
+  background-color: #050814; /* MUST match your background: .tv2Root color */
+  border-bottom-left-radius: 12px;
+}
+
+/* Layout adjustment to stack image and text */
+.tv2BubbleInner {
+  display: flex;
+  flex-direction: column; 
+  gap: 16px;
+  width: 100%;
 }
 
         .tv2BubbleInner {
