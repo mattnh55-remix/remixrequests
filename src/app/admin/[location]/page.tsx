@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SHOUTOUT_PRODUCTS } from "@/lib/shoutoutProducts";
 
 type TabKey = "dashboard" | "requestSettings" | "top10" | "users" | "shoutoutSettings";
@@ -137,6 +137,10 @@ function placeholderKey(location: string) {
   return `rr_tv_placeholders:${location}`;
 }
 
+function logoKey(location: string) {
+  return `rr_admin_logoUrl:${location}`;
+}
+
 function loadSavedPlaceholders(location: string): PlaceholderMessage[] {
   try {
     const raw = localStorage.getItem(placeholderKey(location));
@@ -182,19 +186,54 @@ function dollarsToCents(dollars: any): number {
 
 async function safeJson(res: Response) {
   const text = await res.text();
-  if (!text) return {};
+  if (!text) return { ok: false, _raw: "", _nonJson: true };
   try {
     return JSON.parse(text);
   } catch {
-    return {};
+    return { ok: false, _raw: text.slice(0, 500), _nonJson: true };
   }
+}
+
+function playChime() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const ctx = new AudioCtx();
+    const o1 = ctx.createOscillator();
+    const o2 = ctx.createOscillator();
+    const g = ctx.createGain();
+
+    o1.type = "sine";
+    o2.type = "triangle";
+    o1.frequency.value = 880;
+    o2.frequency.value = 1320;
+    g.gain.value = 0.0001;
+
+    o1.connect(g);
+    o2.connect(g);
+    g.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.2, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+
+    o1.start(now);
+    o2.start(now);
+    o1.stop(now + 0.25);
+    o2.stop(now + 0.25);
+
+    setTimeout(() => ctx.close().catch(() => {}), 400);
+  } catch {}
 }
 
 export default function AdminPage({ params }: { params: { location: string } }) {
   const location = params.location;
 
+  const [pin, setPin] = useState("");
+  const [authed, setAuthed] = useState(false);
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [msg, setMsg] = useState("");
+  const [cachedLogoUrl, setCachedLogoUrl] = useState("");
 
   const [pendingRequests, setPendingRequests] = useState<RequestItem[]>([]);
   const [pendingMessages, setPendingMessages] = useState<MessageItem[]>([]);
@@ -213,34 +252,123 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   const [codePoints, setCodePoints] = useState<number>(10);
   const [codeMaxUses, setCodeMaxUses] = useState<number>(1);
 
+  const prevRequestIdsRef = useRef<Set<string>>(new Set());
+  const prevMessageIdsRef = useRef<Set<string>>(new Set());
+  const hasBootedRef = useRef(false);
+
   const liveProducts = useMemo(() => Object.values(SHOUTOUT_PRODUCTS), []);
+  const logoUrl = rules?.logoUrl || cachedLogoUrl || "/logo.png";
+
+  function cacheLogo(url?: string | null) {
+    if (!url) return;
+    try {
+      localStorage.setItem(logoKey(location), url);
+      setCachedLogoUrl(url);
+    } catch {}
+  }
+
+  function loadCachedLogo() {
+    try {
+      const v = localStorage.getItem(logoKey(location));
+      if (v) setCachedLogoUrl(v);
+    } catch {}
+  }
+
+  function maybePlayChime(nextRequestItems: RequestItem[], nextPendingMessages: MessageItem[]) {
+    const requestIds = new Set(nextRequestItems.map((r) => r.id));
+    const messageIds = new Set(nextPendingMessages.map((m) => m.id));
+
+    if (hasBootedRef.current) {
+      let foundNew = false;
+
+      for (const id of requestIds) {
+        if (!prevRequestIdsRef.current.has(id)) {
+          foundNew = true;
+          break;
+        }
+      }
+
+      if (!foundNew) {
+        for (const id of messageIds) {
+          if (!prevMessageIdsRef.current.has(id)) {
+            foundNew = true;
+            break;
+          }
+        }
+      }
+
+      if (foundNew) playChime();
+    } else {
+      hasBootedRef.current = true;
+    }
+
+    prevRequestIdsRef.current = requestIds;
+    prevMessageIdsRef.current = messageIds;
+  }
+
+  async function login(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    setMsg("");
+
+    const res = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pin }),
+    });
+
+    if (!res.ok) {
+      setMsg("Wrong PIN.");
+      return;
+    }
+
+    setAuthed(true);
+  }
 
   async function loadRequests() {
     try {
       const res = await fetch(`/api/admin/queue/${location}`, { cache: "no-store" });
       const data = await res.json();
-      setPendingRequests(data.pending || data.upNext || []);
-    } catch {}
+      const nextPending = data.pending || data.upNext || [];
+      setPendingRequests(nextPending);
+      return nextPending as RequestItem[];
+    } catch {
+      return [] as RequestItem[];
+    }
   }
 
   async function loadMessages() {
     try {
       const res = await fetch(`/api/admin/shoutouts/${location}`, { cache: "no-store" });
       const data = (await res.json()) as AdminShoutoutsResponse;
-      setPendingMessages(data.pending || []);
+      const nextPending = data.pending || [];
+      setPendingMessages(nextPending);
       setApprovedMessages(data.approved || []);
       setActiveMessages(data.active || []);
       setRejectedMessages(data.rejected || []);
       setBlockedCount(Number(data.blockedCount || 0));
-    } catch {}
+      return nextPending as MessageItem[];
+    } catch {
+      return [] as MessageItem[];
+    }
   }
 
   async function loadRules() {
     try {
       const res = await fetch(`/api/admin/rules/get/${location}`, { cache: "no-store" });
+
+      if (res.status === 401) {
+        setAuthed(false);
+        return null;
+      }
+
       const data: any = await safeJson(res);
-      if (data?.rules) setRules(data.rules);
+      if (data?.rules) {
+        setRules(data.rules);
+        cacheLogo(data.rules.logoUrl);
+        return data.rules as RulesState;
+      }
     } catch {}
+    return null;
   }
 
   async function saveRules() {
@@ -251,7 +379,12 @@ export default function AdminPage({ params }: { params: { location: string } }) 
       body: JSON.stringify(rules),
     });
     const data: any = await safeJson(res);
-    setMsg(data?.ok ? "✅ Request settings saved." : "Could not save request settings.");
+    if (data?.ok) {
+      if (rules.logoUrl) cacheLogo(rules.logoUrl);
+      setMsg("✅ Request settings saved.");
+    } else {
+      setMsg("Could not save request settings.");
+    }
   }
 
   async function loadUsers() {
@@ -315,8 +448,9 @@ export default function AdminPage({ params }: { params: { location: string } }) 
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ messageId }),
     });
-    await loadMessages();
     setMsg("✅ Message approved.");
+    playChime();
+    await loadAll();
   }
 
   async function rejectMessage(messageId: string) {
@@ -325,8 +459,8 @@ export default function AdminPage({ params }: { params: { location: string } }) 
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ messageId, note: "Rejected from dashboard" }),
     });
-    await loadMessages();
     setMsg("✅ Message rejected.");
+    await loadAll();
   }
 
   async function importSongs(file: File) {
@@ -355,15 +489,105 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     setMsg("✅ Placeholder shout-outs reset.");
   }
 
+ async function loadAll() {
+  await loadRules();
+  if (!authed) return;
+
+  const nextRequests = await loadRequests();
+  const nextPendingMessages = await loadMessages();
+
+  await Promise.all([
+    loadUsers(),
+    loadTop10(),
+    loadCodes(),
+  ]);
+
+  maybePlayChime(nextRequests, nextPendingMessages);
+}
+
   useEffect(() => {
-    loadRequests();
-    loadMessages();
-    loadRules();
-    loadUsers();
-    loadTop10();
-    loadCodes();
+    loadCachedLogo();
+    fetch(`/api/admin/rules/get/${location}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.rules?.logoUrl) cacheLogo(d.rules.logoUrl);
+        if (d?.rules) {
+          setRules(d.rules);
+          setAuthed(true);
+        }
+      })
+      .catch(() => {});
+  }, [location]);
+
+  useEffect(() => {
     setPlaceholders(loadSavedPlaceholders(location));
   }, [location]);
+
+  useEffect(() => {
+    if (!authed) return;
+    loadAll();
+    const id = setInterval(loadAll, 3000);
+    return () => clearInterval(id);
+  }, [authed, location]);
+
+  if (!authed) {
+    return (
+      <div style={loginWrap}>
+        <style>{`
+          @keyframes rrAdminCardIn {
+            0% { opacity: 0; transform: translateY(10px) scale(0.985); filter: blur(2px); }
+            100% { opacity: 1; transform: translateY(0px) scale(1); filter: blur(0px); }
+          }
+          @keyframes rrAdminLogoIn {
+            0% { opacity: 0; transform: scale(0.92); filter: blur(6px); }
+            55% { opacity: 1; transform: scale(1.02); filter: blur(0px); }
+            100% { opacity: 1; transform: scale(1); filter: blur(0px); }
+          }
+        `}</style>
+        <div style={loginCard}>
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt="Admin Logo"
+              style={{
+                width: 320,
+                height: 320,
+                objectFit: "contain",
+                borderRadius: 22,
+                marginBottom: 18,
+                boxShadow:
+                  "0 0 0 1px rgba(90,90,255,0.10), 0 0 22px rgba(90,90,255,0.10), 0 0 70px rgba(122,60,255,0.10)",
+                animation: "rrAdminLogoIn 700ms cubic-bezier(0.2, 0.9, 0.2, 1) both",
+              }}
+            />
+          ) : null}
+
+          <h1 style={{ margin: 0 }}>Admin • {location}</h1>
+          <p style={{ opacity: 0.8, marginTop: 6 }}>
+            Enter PIN to manage requests, users, and shout-outs.
+          </p>
+
+          <form onSubmit={login} style={{ display: "grid", gap: 10, marginTop: 12 }}>
+            <input
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              placeholder="PIN"
+              style={inputStyle}
+              inputMode="numeric"
+              autoFocus
+            />
+            <button type="submit" style={primaryBtn}>Login</button>
+          </form>
+
+          {msg ? <div style={noteStyle}>{msg}</div> : null}
+
+          <div style={{ marginTop: 14, fontSize: 12, opacity: 0.7 }}>
+            Tip: type your 4-digit PIN and press <b>Enter</b>.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 20, maxWidth: 1440, margin: "0 auto", color: "#fff" }}>
@@ -381,7 +605,11 @@ export default function AdminPage({ params }: { params: { location: string } }) 
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <img src="/logo.png" style={{ height: 56, width: 56, objectFit: "contain" }} />
+          <img
+            src={logoUrl}
+            alt="Admin Logo"
+            style={{ height: 56, width: 56, objectFit: "contain", borderRadius: 12 }}
+          />
           <div>
             <div style={{ fontSize: 22, fontWeight: 1000, fontStyle: "italic" }}>ADMIN DASHBOARD</div>
             <div style={{ opacity: 0.75 }}>{location}</div>
@@ -397,20 +625,7 @@ export default function AdminPage({ params }: { params: { location: string } }) 
         </div>
       </div>
 
-      {msg ? (
-        <div
-          style={{
-            marginBottom: 16,
-            border: "1px solid #26305c",
-            background: "rgba(24,24,60,0.7)",
-            borderRadius: 16,
-            padding: 14,
-            fontWeight: 700,
-          }}
-        >
-          {msg}
-        </div>
-      ) : null}
+      {msg ? <div style={noteStyle}>{msg}</div> : null}
 
       {tab === "dashboard" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
@@ -923,6 +1138,16 @@ const inputStyle: React.CSSProperties = {
   outline: "none",
 };
 
+const primaryBtn: React.CSSProperties = {
+  padding: "12px 16px",
+  borderRadius: 14,
+  border: "1px solid #4f61ff",
+  background: "rgba(37,41,92,0.92)",
+  color: "#fff",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
 const rowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
@@ -952,4 +1177,35 @@ const cardStyle: React.CSSProperties = {
   borderRadius: 18,
   border: "1px solid #252b4b",
   background: "rgba(17,18,34,0.9)",
+};
+
+const noteStyle: React.CSSProperties = {
+  marginBottom: 16,
+  border: "1px solid #26305c",
+  background: "rgba(24,24,60,0.7)",
+  borderRadius: 16,
+  padding: 14,
+  fontWeight: 700,
+};
+
+const loginWrap: React.CSSProperties = {
+  minHeight: "100vh",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 18,
+  background:
+    "radial-gradient(circle at 14% 14%, rgba(0,255,255,0.05), transparent 24%), radial-gradient(circle at 84% 18%, rgba(167,79,255,0.08), transparent 24%), #04060d",
+  color: "#fff",
+};
+
+const loginCard: React.CSSProperties = {
+  maxWidth: 560,
+  width: "100%",
+  borderRadius: 26,
+  border: "1px solid rgba(90,90,255,0.35)",
+  background: "rgba(0,0,0,0.42)",
+  padding: 18,
+  textAlign: "center",
+  animation: "rrAdminCardIn 500ms ease both",
 };
