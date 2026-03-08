@@ -505,19 +505,11 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   maybePlayChime(nextRequests, nextPendingMessages);
 }
 
-  useEffect(() => {
-    loadCachedLogo();
-    fetch(`/api/admin/rules/get/${location}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d?.rules?.logoUrl) cacheLogo(d.rules.logoUrl);
-        if (d?.rules) {
-          setRules(d.rules);
-          setAuthed(true);
-        }
-      })
-      .catch(() => {});
-  }, [location]);
+ useEffect(() => {
+  loadCachedLogo();
+  setAuthed(false);
+  setRules(null);
+}, [location]);
 
   useEffect(() => {
     setPlaceholders(loadSavedPlaceholders(location));
