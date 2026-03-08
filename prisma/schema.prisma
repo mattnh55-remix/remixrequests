@@ -315,37 +315,51 @@ model RedemptionCodeUse {
 
 
 model ScreenMessage {
-  id        String   @id @default(cuid())
-  locationId String
-  sessionId  String
-  identityId String?
-  emailHash  String
-  fromName   String
-  messageText String
-  tier        String
-  creditsCost Int
-  status      String
+  id                 String   @id @default(cuid())
+  locationId         String
+  sessionId          String
+  identityId         String?
+  emailHash          String
+  fromName           String
+  messageText        String
+  tier               String
+  creditsCost        Int
+  status             String
   displayDurationSec Int
-  sortWeight  Int?
+  sortWeight         Int?
 
-  moderationNotes String?
-  autoTextModerationResult String?
-  autoTextModerationReason String?
-  autoModeratedAt DateTime?
+  moderationNotes           String?
+  autoTextModerationResult  String?
+  autoTextModerationReason  String?
+  autoModeratedAt           DateTime?
 
-  approvedAt DateTime?
-  rejectedAt DateTime?
-  activatedAt DateTime?
-  expiredAt DateTime?
+  approvedAt         DateTime?
+  rejectedAt         DateTime?
+  activatedAt        DateTime?
+  expiredAt          DateTime?
 
-  approvedBy String?
-  rejectedBy String?
-  refundLedgerId String?
+  approvedBy         String?
+  rejectedBy         String?
+  refundLedgerId     String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  imageOriginalPath      String?
+  imagePreviewPath       String?
+  imageOriginalMime      String?
+  imageSizeBytes         Int?
+  imageModerationStatus  String?
+  imageModerationReason  String?
+  imageUploadedAt        DateTime?
+
+  usageRightsAccepted    Boolean  @default(false)
+  usageRightsAcceptedAt  DateTime?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([locationId, sessionId])
+  @@index([status])
+  @@index([imageModerationStatus])
 }
-
 model MessageRuleset {
   id String @id @default(cuid())
   locationId String @unique

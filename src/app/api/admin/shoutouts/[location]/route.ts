@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateCurrentSession } from "@/lib/validators";
+import { attachSignedImageUrlsToMessages } from "@/lib/shoutoutImageUrls";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ export async function GET(
         where: {
           locationId: loc.id,
           sessionId: session.id,
-          status: "PENDING",
+          status: { in: ["PENDING", "PENDING_IMAGE_SCAN"] },
         },
         orderBy: { createdAt: "desc" },
       }),
@@ -61,19 +62,27 @@ export async function GET(
         where: {
           locationId: loc.id,
           sessionId: session.id,
-          status: "BLOCKED_TEXT",
+          status: { in: ["BLOCKED_TEXT", "BLOCKED_IMAGE"] },
         },
       }),
     ]);
+
+    const [pendingWithUrls, approvedWithUrls, activeWithUrls, rejectedWithUrls] =
+      await Promise.all([
+        attachSignedImageUrlsToMessages(pending),
+        attachSignedImageUrlsToMessages(approved),
+        attachSignedImageUrlsToMessages(active),
+        attachSignedImageUrlsToMessages(rejected),
+      ]);
 
     return NextResponse.json({
       ok: true,
       location: { slug: loc.slug, name: loc.name },
       session: { id: session.id, endsAt: session.endsAt },
-      pending,
-      approved,
-      active,
-      rejected,
+      pending: pendingWithUrls,
+      approved: approvedWithUrls,
+      active: activeWithUrls,
+      rejected: rejectedWithUrls,
       blockedCount: blocked,
     });
   } catch (err: any) {
