@@ -308,3 +308,65 @@ model RedemptionCodeUse {
   @@index([emailHash])
   @@index([expiresAt])
 }
+
+
+//BEGIN MESSAGE SCHEMA
+//BEGIN MESSAGE SCHEMA
+
+
+model ScreenMessage {
+  id        String   @id @default(cuid())
+  locationId String
+  sessionId  String
+  identityId String?
+  emailHash  String
+  fromName   String
+  messageText String
+  tier        String
+  creditsCost Int
+  status      String
+  displayDurationSec Int
+  sortWeight  Int?
+
+  moderationNotes String?
+  autoTextModerationResult String?
+  autoTextModerationReason String?
+  autoModeratedAt DateTime?
+
+  approvedAt DateTime?
+  rejectedAt DateTime?
+  activatedAt DateTime?
+  expiredAt DateTime?
+
+  approvedBy String?
+  rejectedBy String?
+  refundLedgerId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MessageRuleset {
+  id String @id @default(cuid())
+  locationId String @unique
+
+  enabled Boolean
+  costBasic Int
+  costFeatured Int
+
+  maxMessageChars Int
+  maxFromNameChars Int
+
+  displayDurationBasicSec Int
+  displayDurationFeaturedSec Int
+
+  approvalRequired Boolean
+  autoRefundRejected Boolean
+
+  maxPendingPerIdentity Int
+
+  filterBlockMessage String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -1,3 +1,5 @@
+// src/app/api/public/session/[location]/route.ts
+
 import { NextResponse } from "next/server";
 import { getRulesForLocation } from "@/lib/rules";
 import { getOrCreateCurrentSession } from "@/lib/validators";
