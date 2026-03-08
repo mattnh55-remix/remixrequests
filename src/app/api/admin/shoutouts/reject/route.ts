@@ -1,3 +1,4 @@
+// src/app/api/admin/shoutouts/reject/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 

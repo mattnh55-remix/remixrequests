@@ -1,4 +1,4 @@
-
+// src/lib/messageRules.ts
 import { prisma } from "@/lib/prisma";
 
 export async function getMessageRules(locationSlug: string) {
