@@ -532,6 +532,26 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     setMsg("✅ Message rejected.");
     await loadAll();
   }
+async function markPlayed(requestId: string) {
+  await fetch(`/api/admin/queue/played`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId }),
+  });
+  await loadAll();
+}
+
+async function rejectRequest(requestId: string) {
+  const reason = prompt("Reject reason?", "Rejected");
+  if (!reason) return;
+
+  await fetch(`/api/admin/queue/reject`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId, reason }),
+  });
+  await loadAll();
+}
 
   async function importSongs(file: File) {
     const form = new FormData();
@@ -715,12 +735,12 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     pendingRequests
       .filter((q) => q.boosted || q.type === "PLAY_NOW")
       .map((q) => (
-        <QueueRow
-          key={q.id}
-          q={q}
-          onPlayed={() => {}}
-          onReject={() => {}}
-        />
+<QueueRow
+  key={q.id}
+  q={q}
+  onPlayed={() => markPlayed(q.id)}
+  onReject={() => rejectRequest(q.id)}
+/>
       ))
   )}
 
@@ -736,13 +756,13 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     pendingRequests
       .filter((q) => !(q.boosted || q.type === "PLAY_NOW"))
       .map((q, i) => (
-        <QueueRow
-          key={q.id}
-          q={q}
-          index={i + 1}
-          onPlayed={() => {}}
-          onReject={() => {}}
-        />
+<QueueRow
+  key={q.id}
+  q={q}
+  index={i + 1}
+  onPlayed={() => markPlayed(q.id)}
+  onReject={() => rejectRequest(q.id)}
+/>
       ))
   )}
 </Panel>
