@@ -4,16 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import { SHOUTOUT_PRODUCTS, type ShoutoutProductKey } from "@/lib/shoutoutProducts";
 
 type BalanceRes = { ok: boolean; balance?: number; error?: string };
-type SessionRes = { location?: { slug: string; name: string }; session?: { id: string; endsAt: string } };
-
+type SessionRes = {
+  location?: { slug: string; name: string };
+  session?: { id: string; endsAt: string };
+  rules?: { logoUrl?: string | null };
+};
 export default function ShoutoutsPage({ params }: { params: { location: string } }) {
   const location = params.location;
 
   const [identityId, setIdentityId] = useState("");
   const [email, setEmail] = useState("");
-  const [verified, setVerified] = useState(false);
-  const [locationName, setLocationName] = useState("Remix");
-  const [balance, setBalance] = useState(0);
+const [verified, setVerified] = useState(false);
+const [locationName, setLocationName] = useState("Remix");
+const [logoUrl, setLogoUrl] = useState("");
+const [balance, setBalance] = useState(0);
 
   const [fromName, setFromName] = useState("");
   const [messageText, setMessageText] = useState("");
@@ -32,7 +36,8 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     try {
       const res = await fetch(`/api/public/session/${location}`, { cache: "no-store" });
       const data = (await res.json()) as SessionRes;
-      if (data?.location?.name) setLocationName(data.location.name);
+if (data?.location?.name) setLocationName(data.location.name);
+if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
     } catch {}
   }
 
@@ -145,9 +150,13 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
 
       <div className="neonWrap" style={{ paddingBottom: 110 }}>
         <div className="neonHeader neonHeader3">
-          <div className="neonHeaderLeft">
-            <div className="neonLogoFallback">REMIX</div>
-          </div>
+<div className="neonHeaderLeft">
+  {logoUrl ? (
+    <img className="neonLogo" src={logoUrl} alt={`${locationName} logo`} />
+  ) : (
+    <div className="neonLogoFallback">REMIX</div>
+  )}
+</div>
 
           <div className="neonHeaderCenter">
             <div className="neonTitle">REMIX SHOUT-OUTS</div>
@@ -238,19 +247,32 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                         alignItems: "flex-start",
                       }}
                     >
-                      <div className="neonTileTitle">{product.title}</div>
+                      <div className="neonTileTitle" style={{ color: "#ffffff" }}>{product.title}</div>
                       <span className="neonBadge">{product.creditsCost}pt</span>
                     </div>
 
                     <div className="neonTileMeta">{product.description}</div>
 
-                    {!product.enabled ? (
-                      <div className="neonBadgeRow">
-                        <span className="neonBadge">
-                          {product.comingSoon ? "COMING SOON" : "UNAVAILABLE"}
-                        </span>
-                      </div>
-                    ) : null}
+                    <div className="neonTileMeta">{product.description}</div>
+
+<div className="neonBadgeRow" style={{ marginTop: 2, flexWrap: "wrap" }}>
+  {product.creditsCost === 12 ? (
+    <>
+      <span className="neonBadge neonBadgeHot">POPULAR</span>
+      <span className="neonBadge neonBadgeHot">HOT</span>
+    </>
+  ) : null}
+
+  {product.creditsCost === 25 ? (
+    <span className="neonBadge neonBadgeHot">BEST VALUE</span>
+  ) : null}
+
+  {!product.enabled ? (
+    <span className="neonBadge">
+      {product.comingSoon ? "COMING SOON" : "UNAVAILABLE"}
+    </span>
+  ) : null}
+</div>
                   </div>
                 </button>
               );
