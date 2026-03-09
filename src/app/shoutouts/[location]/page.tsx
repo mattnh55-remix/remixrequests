@@ -7,17 +7,43 @@ type BalanceRes = { ok: boolean; balance?: number; error?: string };
 type SessionRes = {
   location?: { slug: string; name: string };
   session?: { id: string; endsAt: string };
-  rules?: { logoUrl?: string | null };
+  rules?: {
+    logoUrl?: string | null;
+    buyUrl?: string | null;
+    packTier1PriceCents?: number | null;
+    packTier2PriceCents?: number | null;
+    packTier3PriceCents?: number | null;
+    packTier4PriceCents?: number | null;
+  };
 };
+
+type UiPack = {
+  id: string;
+  title: string;
+  subtitle: string;
+  creditsLabel: string;
+  priceCents?: number;
+  packageKey?: "5_10" | "10_25" | "15_35" | "20_50";
+  highlight?: boolean;
+  badge?: string;
+  cta?: string;
+  href?: string;
+};
+
+const BUY_URL_BY_LOCATION: Record<string, string> = {
+  // remixrequests: "https://your-checkout-link",
+};
+
 export default function ShoutoutsPage({ params }: { params: { location: string } }) {
   const location = params.location;
 
   const [identityId, setIdentityId] = useState("");
   const [email, setEmail] = useState("");
-const [verified, setVerified] = useState(false);
-const [locationName, setLocationName] = useState("Remix");
-const [logoUrl, setLogoUrl] = useState("");
-const [balance, setBalance] = useState(0);
+  const [verified, setVerified] = useState(false);
+  const [locationName, setLocationName] = useState("Remix");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [rules, setRules] = useState<SessionRes | null>(null);
+  const [balance, setBalance] = useState(0);
 
   const [fromName, setFromName] = useState("");
   const [messageText, setMessageText] = useState("");
@@ -26,6 +52,10 @@ const [balance, setBalance] = useState(0);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
+  const [showBuy, setShowBuy] = useState(false);
+  const [redeemCode, setRedeemCode] = useState("");
+  const [redeemBusy, setRedeemBusy] = useState(false);
+  const [pendingComposerAfterBuy, setPendingComposerAfterBuy] = useState(false);
 
   const selectedProduct = useMemo(
     () => SHOUTOUT_PRODUCTS.find((p) => p.key === productKey) || SHOUTOUT_PRODUCTS[0],
@@ -36,8 +66,9 @@ const [balance, setBalance] = useState(0);
     try {
       const res = await fetch(`/api/public/session/${location}`, { cache: "no-store" });
       const data = (await res.json()) as SessionRes;
-if (data?.location?.name) setLocationName(data.location.name);
-if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
+      setRules(data);
+      if (data?.location?.name) setLocationName(data.location.name);
+      if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
     } catch {}
   }
 
@@ -79,6 +110,114 @@ if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
     } catch {}
   }, [location]);
 
+  useEffect(() => {
+    if (!showBuy && pendingComposerAfterBuy && selectedProduct.enabled && balance >= selectedProduct.creditsCost) {
+      setPendingComposerAfterBuy(false);
+      setShowComposer(true);
+    }
+  }, [showBuy, pendingComposerAfterBuy, balance, selectedProduct]);
+
+  async function redeem(codeInput?: string) {
+    const code = String(codeInput ?? redeemCode ?? "").trim();
+    if (!code) {
+      setMsg("Enter a redemption code.");
+      return;
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setMsg("Enter a valid email first.");
+      return;
+    }
+    if (!verified && !identityId) {
+      setMsg("Please verify first on the request screen before redeeming points.");
+      return;
+    }
+
+    setRedeemBusy(true);
+    try {
+      const res = await fetch(`/api/public/redeem/${location}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        setMsg(data.error || "Could not redeem code.");
+        return;
+      }
+
+      setMsg(`✅ Redeemed +${data.pointsAdded ?? ""} points!`);
+      setRedeemCode("");
+
+      const nextBalance = data?.balance ?? null;
+      if (typeof nextBalance === "number") setBalance(nextBalance);
+      else await refreshBalance();
+    } catch {
+      setMsg("Could not redeem code.");
+    } finally {
+      setRedeemBusy(false);
+    }
+  }
+
+  async function startCheckout(packageKey: "5_10" | "10_25" | "15_35" | "20_50") {
+    if (!identityId) {
+      setMsg("Please verify before buying points.");
+      window.location.href = `/request/${location}`;
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/square/create-checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ location, identityId, packageKey }),
+      });
+
+      const data = await res.json();
+
+      if (!data?.ok || !data?.checkoutUrl) {
+        setMsg(data?.error || "Could not start checkout.");
+        return;
+      }
+
+      window.location.href = data.checkoutUrl;
+    } catch {
+      setMsg("Could not start checkout.");
+    }
+  }
+
+  function openBuyForShoutout() {
+    setPendingComposerAfterBuy(true);
+    setShowBuy(true);
+  }
+
+  function handleCreateClick() {
+    setMsg("");
+
+    if (!verified || !identityId || !email) {
+      setMsg("Please verify first on the request screen before sending a shout-out.");
+      window.location.href = `/request/${location}`;
+      return;
+    }
+
+    if (!selectedProduct.enabled) {
+      setMsg(
+        selectedProduct.hasImage
+          ? "Photo shout-outs are coming soon."
+          : "That shout-out option is currently unavailable."
+      );
+      return;
+    }
+
+    if (balance < selectedProduct.creditsCost) {
+      setMsg(`You need ${selectedProduct.creditsCost} points for this shout-out.`);
+      openBuyForShoutout();
+      return;
+    }
+
+    setShowComposer(true);
+  }
+
   async function submit() {
     setMsg("");
 
@@ -87,6 +226,13 @@ if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
 
     if (!verified || !identityId || !email) {
       setMsg("Please verify first on the request screen before sending a shout-out.");
+      return;
+    }
+
+    if (balance < selectedProduct.creditsCost) {
+      setMsg(`You need ${selectedProduct.creditsCost} points for this shout-out.`);
+      setShowComposer(false);
+      openBuyForShoutout();
       return;
     }
 
@@ -131,7 +277,10 @@ if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
       setMessageText("");
       setFromName("");
       setShowComposer(false);
-      await refreshBalance();
+
+      const nextBalance = data?.balance ?? data?.credits?.balance ?? data?.session?.balance ?? null;
+      if (typeof nextBalance === "number") setBalance(nextBalance);
+      else await refreshBalance();
     } catch {
       setMsg("Something went wrong.");
     } finally {
@@ -144,19 +293,85 @@ if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
   const canAfford = balance >= selectedProduct.creditsCost;
   const canSend = selectedProduct.enabled && canAfford && !busy;
 
+  const buyUrl = useMemo(() => {
+    const qp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const fromQuery = qp?.get("buy");
+    if (fromQuery) return fromQuery;
+    const fromMap = BUY_URL_BY_LOCATION[location];
+    if (fromMap) return fromMap;
+    const fromEnv = process.env.NEXT_PUBLIC_REMIXREQUESTS_BUY_URL;
+    if (fromEnv) return fromEnv;
+    return rules?.rules?.buyUrl ?? null;
+  }, [location, rules]);
+
+  const uiPacks: UiPack[] = useMemo(() => {
+    const priceTier1 = Number(rules?.rules?.packTier1PriceCents ?? 500);
+    const priceTier2 = Number(rules?.rules?.packTier2PriceCents ?? 1000);
+    const priceTier3 = Number(rules?.rules?.packTier3PriceCents ?? 1500);
+    const priceTier4 = Number(rules?.rules?.packTier4PriceCents ?? 2000);
+
+    return [
+      {
+        id: "tier1",
+        title: "Quick Boost",
+        subtitle: "Perfect for 1–2 songs",
+        creditsLabel: "10 credits",
+        badge: "Fast",
+        cta: "Get Points",
+        href: buyUrl ?? undefined,
+        priceCents: priceTier1,
+        packageKey: "5_10",
+      },
+      {
+        id: "tier2",
+        title: "Party Pack",
+        subtitle: "Best for groups",
+        creditsLabel: "25 credits",
+        highlight: true,
+        badge: "Most Popular",
+        cta: "Get Points",
+        href: buyUrl ?? undefined,
+        priceCents: priceTier2,
+        packageKey: "10_25",
+      },
+      {
+        id: "tier3",
+        title: "Bonus Pack",
+        subtitle: "More songs, more fun",
+        creditsLabel: "35 credits",
+        badge: "Hot Deal",
+        cta: "Get Points",
+        href: buyUrl ?? undefined,
+        priceCents: priceTier3,
+        packageKey: "15_35",
+      },
+      {
+        id: "tier4",
+        title: "All Night",
+        subtitle: "Skate like a legend",
+        creditsLabel: "50 credits",
+        badge: "Best Value",
+        cta: "Get Points",
+        href: buyUrl ?? undefined,
+        priceCents: priceTier4,
+        packageKey: "20_50",
+      },
+    ];
+  }, [rules, buyUrl]);
+
   return (
     <div className="neonRoot">
       <div className="rrWall" />
 
       <div className="neonWrap" style={{ paddingBottom: 110 }}>
         <div className="neonHeader neonHeader3">
-<div className="neonHeaderLeft">
-  {logoUrl ? (
-    <img className="neonLogo" src={logoUrl} alt={`${locationName} logo`} />
-  ) : (
-    <div className="neonLogoFallback">REMIX</div>
-  )}
-</div>
+          <div className="neonHeaderLeft">
+            {logoUrl ? (
+              <img className="neonLogo" src={logoUrl} alt={`${locationName} logo`} />
+            ) : (
+              <div className="neonLogoFallback">REMIX</div>
+            )}
+          </div>
 
           <div className="neonHeaderCenter">
             <div className="neonTitle">REMIX SHOUT-OUTS</div>
@@ -164,11 +379,7 @@ if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
           </div>
 
           <div className="neonHeaderRight">
-            <div
-              className={`rrCornerHud ${
-                verified && balance <= 2 ? "rrCornerHudLow" : ""
-              }`}
-            >
+            <div className={`rrCornerHud ${verified && balance <= 2 ? "rrCornerHudLow" : ""}`}>
               <div className="rrCornerHudLabel">
                 <span className="rrPointsDesktop">POINTS</span>
                 <span className="rrPointsMobile">PTS</span>
@@ -177,11 +388,13 @@ if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
                 <div className="rrCornerHudNumber">{verified ? balance : 0}</div>
               </div>
               <button
-                className={`neonBtn neonBtnPrimary rrCornerHudBtn ${
-                  !verified ? "neonPulse" : ""
-                }`}
+                className={`neonBtn neonBtnPrimary rrCornerHudBtn ${!verified ? "neonPulse" : ""}`}
                 onClick={() => {
-                  window.location.href = `/request/${location}`;
+                  if (!verified || !identityId) {
+                    window.location.href = `/request/${location}`;
+                    return;
+                  }
+                  setShowBuy(true);
                 }}
               >
                 {!verified ? "VERIFY" : "GET POINTS"}
@@ -190,10 +403,7 @@ if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
           </div>
         </div>
 
-        <div
-          className="neonPanel"
-          style={{ padding: 14, marginBottom: 12 }}
-        >
+        <div className="neonPanel" style={{ padding: 14, marginBottom: 12 }}>
           <div style={{ fontWeight: 900, marginBottom: 6 }}>
             Shared Points Balance: {verified ? balance : 0}
           </div>
@@ -229,9 +439,7 @@ if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
                   className="neonTile"
                   style={{
                     textAlign: "left",
-                    border: selected
-                      ? "1px solid rgba(0,247,255,0.40)"
-                      : undefined,
+                    border: selected ? "1px solid rgba(0,247,255,0.40)" : undefined,
                     boxShadow: selected
                       ? "0 0 18px rgba(0,247,255,0.20), 0 10px 30px rgba(0,0,0,0.40)"
                       : undefined,
@@ -247,32 +455,32 @@ if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
                         alignItems: "flex-start",
                       }}
                     >
-                      <div className="neonTileTitle" style={{ color: "#ffffff" }}>{product.title}</div>
+                      <div className="neonTileTitle" style={{ color: "#ffffff" }}>
+                        {product.title}
+                      </div>
                       <span className="neonBadge">{product.creditsCost}pt</span>
                     </div>
 
                     <div className="neonTileMeta">{product.description}</div>
 
-                    <div className="neonTileMeta">{product.description}</div>
+                    <div className="neonBadgeRow" style={{ marginTop: 2, flexWrap: "wrap" }}>
+                      {product.creditsCost === 12 ? (
+                        <>
+                          <span className="neonBadge neonBadgeHot">POPULAR</span>
+                          <span className="neonBadge neonBadgeHot">HOT</span>
+                        </>
+                      ) : null}
 
-<div className="neonBadgeRow" style={{ marginTop: 2, flexWrap: "wrap" }}>
-  {product.creditsCost === 12 ? (
-    <>
-      <span className="neonBadge neonBadgeHot">POPULAR</span>
-      <span className="neonBadge neonBadgeHot">HOT</span>
-    </>
-  ) : null}
+                      {product.creditsCost === 25 ? (
+                        <span className="neonBadge neonBadgeHot">BEST VALUE</span>
+                      ) : null}
 
-  {product.creditsCost === 25 ? (
-    <span className="neonBadge neonBadgeHot">BEST VALUE</span>
-  ) : null}
-
-  {!product.enabled ? (
-    <span className="neonBadge">
-      {product.comingSoon ? "COMING SOON" : "UNAVAILABLE"}
-    </span>
-  ) : null}
-</div>
+                      {!product.enabled ? (
+                        <span className="neonBadge">
+                          {product.comingSoon ? "COMING SOON" : "UNAVAILABLE"}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </button>
               );
@@ -303,12 +511,14 @@ if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
           <button
             className="neonBtn neonBtnPrimary"
             style={{ width: "100%", marginTop: 14 }}
-            onClick={() => setShowComposer(true)}
+            onClick={handleCreateClick}
             disabled={!selectedProduct.enabled}
           >
             {!selectedProduct.enabled
               ? "Photo shout-outs coming soon"
-              : `Create ${selectedProduct.title}`}
+              : canAfford
+              ? `Create ${selectedProduct.title}`
+              : `GET POINTS FOR ${selectedProduct.title}`}
           </button>
 
           {msg ? <div style={{ marginTop: 14 }}>{msg}</div> : null}
@@ -328,6 +538,23 @@ if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
           canSend={canSend}
           canAfford={canAfford}
           onSubmit={submit}
+          onGetPoints={() => {
+            setShowComposer(false);
+            openBuyForShoutout();
+          }}
+        />
+
+        <BuyCreditsDrawer
+          open={showBuy}
+          onClose={async () => {
+            setShowBuy(false);
+            await refreshBalance();
+          }}
+          packs={uiPacks}
+          buyUrl={buyUrl}
+          redeemBusy={redeemBusy}
+          onRedeem={(code: string) => redeem(code)}
+          onBuy={(packageKey: "5_10" | "10_25" | "15_35" | "20_50") => startCheckout(packageKey)}
         />
       </div>
     </div>
@@ -348,6 +575,7 @@ function ShoutoutComposerDrawer({
   canSend,
   canAfford,
   onSubmit,
+  onGetPoints,
 }: any) {
   if (!open) return null;
 
@@ -426,20 +654,28 @@ function ShoutoutComposerDrawer({
             </div>
           </div>
 
-          <button
-            className="neonBtn neonBtnPrimary"
-            style={{ width: "100%", height: 48 }}
-            onClick={onSubmit}
-            disabled={!canSend}
-          >
-            {busy
-              ? "Submitting..."
-              : !selectedProduct.enabled
-              ? "Photo shout-outs coming soon"
-              : !canAfford
-              ? `Not enough points (${selectedProduct.creditsCost} needed)`
-              : `Send ${selectedProduct.title}`}
-          </button>
+          {canAfford ? (
+            <button
+              className="neonBtn neonBtnPrimary"
+              style={{ width: "100%", height: 48 }}
+              onClick={onSubmit}
+              disabled={!canSend}
+            >
+              {busy
+                ? "Submitting..."
+                : !selectedProduct.enabled
+                ? "Photo shout-outs coming soon"
+                : `Send ${selectedProduct.title}`}
+            </button>
+          ) : (
+            <button
+              className="neonBtn neonBtnPrimary"
+              style={{ width: "100%", height: 48 }}
+              onClick={onGetPoints}
+            >
+              GET POINTS
+            </button>
+          )}
 
           <button
             className="neonBtn"
@@ -449,6 +685,134 @@ function ShoutoutComposerDrawer({
             Close
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, onBuy }: any) {
+  const [redeemCode, setRedeemCode] = useState("");
+  const [showRedeem, setShowRedeem] = useState(false);
+  if (!open) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 120,
+        background: "rgba(0,0,0,0.8)",
+        display: "flex",
+        alignItems: "flex-end",
+      }}
+    >
+      <div
+        className="neonPanel"
+        style={{
+          width: "100%",
+          padding: 20,
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+        }}
+      >
+        <h3 style={{ marginTop: 0 }}>Get Points</h3>
+
+        {packs.map((p: any) => (
+          <div
+            key={p.id}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              margin: "12px 0",
+              gap: 12,
+            }}
+          >
+            <div style={{ display: "grid" }}>
+              <span style={{ fontWeight: 800 }}>{p.title}</span>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>{p.creditsLabel}</span>
+            </div>
+            <button
+              className="neonBtn neonBtnPrimary"
+              onClick={() => {
+                if (p.packageKey) return onBuy?.(p.packageKey);
+                if (p.href || buyUrl) window.location.href = p.href || buyUrl;
+              }}
+            >{`BUY • $${((p.priceCents ?? 0) / 100).toFixed(2)}`}</button>
+          </div>
+        ))}
+
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+          <div style={{ perspective: 1000 }}>
+            <div
+              style={{
+                position: "relative",
+                height: 48,
+                transformStyle: "preserve-3d",
+                transition: "transform 0.4s cubic-bezier(.2,.8,.2,1)",
+                transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  backfaceVisibility: "hidden",
+                  transform: "translateZ(1px)",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <button
+                  className="neonBtn neonBtnPrimary"
+                  style={{ width: "100%", height: "100%" }}
+                  onClick={() => setShowRedeem(true)}
+                >
+                  Redeem Code
+                </button>
+              </div>
+
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  backfaceVisibility: "hidden",
+                  transform: "rotateY(180deg) translateZ(1px)",
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                <input
+                  className="neonInput"
+                  placeholder="Code"
+                  value={redeemCode}
+                  onChange={(e) => setRedeemCode(e.target.value)}
+                  style={{ flex: 1, height: "100%" }}
+                />
+                <button
+                  className="neonBtn neonBtnPrimary"
+                  disabled={!!redeemBusy}
+                  onClick={() => {
+                    onRedeem?.(redeemCode);
+                    setRedeemCode("");
+                  }}
+                  style={{ whiteSpace: "nowrap", height: "100%" }}
+                >
+                  {redeemBusy ? "..." : "Apply"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button
+          className="neonBtn"
+          onClick={onClose}
+          style={{ width: "100%", marginTop: 16, opacity: 0.5 }}
+        >
+          Close
+        </button>
       </div>
     </div>
   );
