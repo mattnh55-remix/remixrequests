@@ -1,9 +1,11 @@
+// src/app/shoutouts/[location]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { SHOUTOUT_PRODUCTS, type ShoutoutProductKey } from "@/lib/shoutoutProducts";
 
 type BalanceRes = { ok: boolean; balance?: number; error?: string };
+
 type SessionRes = {
   location?: { slug: string; name: string };
   session?: { id: string; endsAt: string };
@@ -17,21 +19,50 @@ type SessionRes = {
   };
 };
 
+type PackageKey = "5_10" | "10_25" | "15_35" | "20_50";
+
 type UiPack = {
   id: string;
   title: string;
   subtitle: string;
   creditsLabel: string;
   priceCents?: number;
-  packageKey?: "5_10" | "10_25" | "15_35" | "20_50";
+  packageKey?: PackageKey;
   highlight?: boolean;
   badge?: string;
   cta?: string;
   href?: string;
 };
 
+type DrawerProps = {
+  open: boolean;
+  onClose: () => void;
+  fromName: string;
+  setFromName: (value: string) => void;
+  messageText: string;
+  setMessageText: (value: string) => void;
+  charsUsed: number;
+  charsMax: number;
+  selectedProduct: (typeof SHOUTOUT_PRODUCTS)[number];
+  busy: boolean;
+  canSend: boolean;
+  canAfford: boolean;
+  onSubmit: () => void;
+  onGetPoints: () => void;
+};
+
+type BuyDrawerProps = {
+  open: boolean;
+  onClose: () => void;
+  packs: UiPack[];
+  buyUrl?: string | null;
+  redeemBusy: boolean;
+  onRedeem: (code: string) => void;
+  onBuy: (packageKey: PackageKey) => void;
+};
+
 const BUY_URL_BY_LOCATION: Record<string, string> = {
-  // remixrequests: "https://your-checkout-link",
+  // remixrequests: "https://your-square-link"
 };
 
 export default function ShoutoutsPage({ params }: { params: { location: string } }) {
@@ -42,7 +73,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   const [verified, setVerified] = useState(false);
   const [locationName, setLocationName] = useState("Remix");
   const [logoUrl, setLogoUrl] = useState("");
-  const [rules, setRules] = useState<SessionRes | null>(null);
+  const [rulesData, setRulesData] = useState<SessionRes | null>(null);
   const [balance, setBalance] = useState(0);
 
   const [fromName, setFromName] = useState("");
@@ -53,7 +84,6 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   const [busy, setBusy] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const [showBuy, setShowBuy] = useState(false);
-  const [redeemCode, setRedeemCode] = useState("");
   const [redeemBusy, setRedeemBusy] = useState(false);
   const [pendingComposerAfterBuy, setPendingComposerAfterBuy] = useState(false);
 
@@ -66,10 +96,12 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     try {
       const res = await fetch(`/api/public/session/${location}`, { cache: "no-store" });
       const data = (await res.json()) as SessionRes;
-      setRules(data);
+      setRulesData(data);
       if (data?.location?.name) setLocationName(data.location.name);
       if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
-    } catch {}
+    } catch {
+      // ignore
+    }
   }
 
   async function refreshBalance(nextIdentityId?: string) {
@@ -83,11 +115,42 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       );
       const data = (await res.json()) as BalanceRes;
       if (data.ok) setBalance(Number(data.balance ?? 0));
-    } catch {}
+    } catch {
+      // ignore
+    }
+  }
+
+  function persistPendingShoutoutResume(nextProductKey?: ShoutoutProductKey) {
+    try {
+      sessionStorage.setItem(
+        "rr_shoutout_resume",
+        JSON.stringify({
+          location,
+          productKey: nextProductKey ?? productKey,
+          ts: Date.now(),
+        })
+      );
+    } catch {
+      // ignore
+    }
+  }
+
+  function clearPendingShoutoutResume() {
+    try {
+      sessionStorage.removeItem("rr_shoutout_resume");
+    } catch {
+      // ignore
+    }
+  }
+
+  function openBuyForShoutout(nextProductKey?: ShoutoutProductKey) {
+    persistPendingShoutoutResume(nextProductKey);
+    setPendingComposerAfterBuy(true);
+    setShowBuy(true);
   }
 
   useEffect(() => {
-    refreshSession();
+    void refreshSession();
   }, [location]);
 
   useEffect(() => {
@@ -99,7 +162,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       if (lsIdentity) {
         setIdentityId(lsIdentity);
         setVerified(true);
-        refreshBalance(lsIdentity);
+        void refreshBalance(lsIdentity);
       }
 
       if (lsEmail) setEmail(lsEmail);
@@ -107,28 +170,77 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       if (location && lsLocation !== location) {
         localStorage.setItem("rr_location", String(location));
       }
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, [location]);
 
   useEffect(() => {
-    if (!showBuy && pendingComposerAfterBuy && selectedProduct.enabled && balance >= selectedProduct.creditsCost) {
-      setPendingComposerAfterBuy(false);
-      setShowComposer(true);
+    async function resumeAfterCheckout() {
+      try {
+        const raw = sessionStorage.getItem("rr_shoutout_resume");
+        if (!raw) return;
+
+        const parsed = JSON.parse(raw) as {
+          location?: string;
+          productKey?: ShoutoutProductKey;
+          ts?: number;
+        };
+
+        if (!parsed || parsed.location !== location) return;
+
+        const ageMs = Date.now() - Number(parsed.ts || 0);
+        if (!Number.isFinite(ageMs) || ageMs > 1000 * 60 * 30) {
+          clearPendingShoutoutResume();
+          return;
+        }
+
+        if (parsed.productKey) {
+          setProductKey(parsed.productKey);
+        }
+
+        const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+        if (lsIdentity) {
+          await refreshBalance(lsIdentity);
+        }
+
+        setPendingComposerAfterBuy(true);
+      } catch {
+        // ignore
+      }
     }
-  }, [showBuy, pendingComposerAfterBuy, balance, selectedProduct]);
+
+    void resumeAfterCheckout();
+  }, [location]);
+
+  useEffect(() => {
+    if (!pendingComposerAfterBuy) return;
+    if (!selectedProduct?.enabled) return;
+
+    if (balance >= selectedProduct.creditsCost) {
+      clearPendingShoutoutResume();
+      setPendingComposerAfterBuy(false);
+      setShowBuy(false);
+      setShowComposer(true);
+      setMsg("✅ Points added. Finish your shout-out.");
+    }
+  }, [pendingComposerAfterBuy, balance, selectedProduct]);
 
   async function redeem(codeInput?: string) {
-    const code = String(codeInput ?? redeemCode ?? "").trim();
+    const code = String(codeInput || "").trim();
     if (!code) {
       setMsg("Enter a redemption code.");
       return;
     }
+
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setMsg("Enter a valid email first.");
       return;
     }
+
     if (!verified && !identityId) {
       setMsg("Please verify first on the request screen before redeeming points.");
+      window.location.href = `/request/${location}`;
       return;
     }
 
@@ -147,8 +259,6 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       }
 
       setMsg(`✅ Redeemed +${data.pointsAdded ?? ""} points!`);
-      setRedeemCode("");
-
       const nextBalance = data?.balance ?? null;
       if (typeof nextBalance === "number") setBalance(nextBalance);
       else await refreshBalance();
@@ -159,22 +269,28 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     }
   }
 
-  async function startCheckout(packageKey: "5_10" | "10_25" | "15_35" | "20_50") {
+  async function startCheckout(packageKey: PackageKey) {
     if (!identityId) {
       setMsg("Please verify before buying points.");
       window.location.href = `/request/${location}`;
       return;
     }
 
+    persistPendingShoutoutResume();
+
     try {
       const res = await fetch("/api/square/create-checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, identityId, packageKey }),
+        body: JSON.stringify({
+          location,
+          identityId,
+          packageKey,
+          returnPath: `/shoutouts/${location}`,
+        }),
       });
 
       const data = await res.json();
-
       if (!data?.ok || !data?.checkoutUrl) {
         setMsg(data?.error || "Could not start checkout.");
         return;
@@ -184,11 +300,6 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     } catch {
       setMsg("Could not start checkout.");
     }
-  }
-
-  function openBuyForShoutout() {
-    setPendingComposerAfterBuy(true);
-    setShowBuy(true);
   }
 
   function handleCreateClick() {
@@ -215,6 +326,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       return;
     }
 
+    clearPendingShoutoutResume();
     setShowComposer(true);
   }
 
@@ -251,7 +363,6 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     }
 
     setBusy(true);
-
     try {
       const res = await fetch("/api/public/shoutouts/submit", {
         method: "POST",
@@ -267,7 +378,6 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       });
 
       const data = await res.json();
-
       if (!data.ok) {
         setMsg(data.error || "Something went wrong.");
         return;
@@ -294,21 +404,20 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   const canSend = selectedProduct.enabled && canAfford && !busy;
 
   const buyUrl = useMemo(() => {
-    const qp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-    const fromQuery = qp?.get("buy");
-    if (fromQuery) return fromQuery;
     const fromMap = BUY_URL_BY_LOCATION[location];
     if (fromMap) return fromMap;
+
     const fromEnv = process.env.NEXT_PUBLIC_REMIXREQUESTS_BUY_URL;
     if (fromEnv) return fromEnv;
-    return rules?.rules?.buyUrl ?? null;
-  }, [location, rules]);
+
+    return rulesData?.rules?.buyUrl ?? null;
+  }, [location, rulesData]);
 
   const uiPacks: UiPack[] = useMemo(() => {
-    const priceTier1 = Number(rules?.rules?.packTier1PriceCents ?? 500);
-    const priceTier2 = Number(rules?.rules?.packTier2PriceCents ?? 1000);
-    const priceTier3 = Number(rules?.rules?.packTier3PriceCents ?? 1500);
-    const priceTier4 = Number(rules?.rules?.packTier4PriceCents ?? 2000);
+    const priceTier1 = Number(rulesData?.rules?.packTier1PriceCents ?? 500);
+    const priceTier2 = Number(rulesData?.rules?.packTier2PriceCents ?? 1000);
+    const priceTier3 = Number(rulesData?.rules?.packTier3PriceCents ?? 1500);
+    const priceTier4 = Number(rulesData?.rules?.packTier4PriceCents ?? 2000);
 
     return [
       {
@@ -357,7 +466,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
         packageKey: "20_50",
       },
     ];
-  }, [rules, buyUrl]);
+  }, [rulesData, buyUrl]);
 
   return (
     <div className="neonRoot">
@@ -424,10 +533,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
             Pick Your Shout-Out
           </div>
 
-          <div
-            className="neonGrid"
-            style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}
-          >
+          <div className="neonGrid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
             {SHOUTOUT_PRODUCTS.map((product) => {
               const selected = product.key === productKey;
 
@@ -546,15 +652,19 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
 
         <BuyCreditsDrawer
           open={showBuy}
-          onClose={async () => {
+          onClose={() => {
             setShowBuy(false);
-            await refreshBalance();
+            void refreshBalance();
           }}
           packs={uiPacks}
           buyUrl={buyUrl}
           redeemBusy={redeemBusy}
-          onRedeem={(code: string) => redeem(code)}
-          onBuy={(packageKey: "5_10" | "10_25" | "15_35" | "20_50") => startCheckout(packageKey)}
+          onRedeem={(code: string) => {
+            void redeem(code);
+          }}
+          onBuy={(packageKey: PackageKey) => {
+            void startCheckout(packageKey);
+          }}
         />
       </div>
     </div>
@@ -576,7 +686,7 @@ function ShoutoutComposerDrawer({
   canAfford,
   onSubmit,
   onGetPoints,
-}: any) {
+}: DrawerProps) {
   if (!open) return null;
 
   return (
@@ -690,9 +800,10 @@ function ShoutoutComposerDrawer({
   );
 }
 
-function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, onBuy }: any) {
+function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, onBuy }: BuyDrawerProps) {
   const [redeemCode, setRedeemCode] = useState("");
   const [showRedeem, setShowRedeem] = useState(false);
+
   if (!open) return null;
 
   return (
@@ -717,7 +828,7 @@ function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, 
       >
         <h3 style={{ marginTop: 0 }}>Get Points</h3>
 
-        {packs.map((p: any) => (
+        {packs.map((p) => (
           <div
             key={p.id}
             style={{
@@ -735,10 +846,17 @@ function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, 
             <button
               className="neonBtn neonBtnPrimary"
               onClick={() => {
-                if (p.packageKey) return onBuy?.(p.packageKey);
-                if (p.href || buyUrl) window.location.href = p.href || buyUrl;
+                if (p.packageKey) {
+                  onBuy(p.packageKey);
+                  return;
+                }
+                if (p.href || buyUrl) {
+                  window.location.href = p.href || buyUrl || "/";
+                }
               }}
-            >{`BUY • $${((p.priceCents ?? 0) / 100).toFixed(2)}`}</button>
+            >
+              {`BUY • $${((p.priceCents ?? 0) / 100).toFixed(2)}`}
+            </button>
           </div>
         ))}
 
@@ -792,9 +910,9 @@ function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, 
                 />
                 <button
                   className="neonBtn neonBtnPrimary"
-                  disabled={!!redeemBusy}
+                  disabled={redeemBusy}
                   onClick={() => {
-                    onRedeem?.(redeemCode);
+                    onRedeem(redeemCode);
                     setRedeemCode("");
                   }}
                   style={{ whiteSpace: "nowrap", height: "100%" }}

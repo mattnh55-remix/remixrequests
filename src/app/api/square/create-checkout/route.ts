@@ -1,4 +1,3 @@
-// src/app/api/square/create-checkout/route.ts
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/db";
@@ -15,6 +14,27 @@ function mustEnv(name: string) {
   return v;
 }
 
+function sanitizeReturnPath(input: unknown, fallbackLocation?: string) {
+  const raw = String(input || "").trim();
+  if (!raw) {
+    return fallbackLocation ? `/request/${fallbackLocation}` : "/checkout/success";
+  }
+
+  if (!raw.startsWith("/")) {
+    return fallbackLocation ? `/request/${fallbackLocation}` : "/checkout/success";
+  }
+
+  if (raw.startsWith("//")) {
+    return fallbackLocation ? `/request/${fallbackLocation}` : "/checkout/success";
+  }
+
+  if (raw.includes("://")) {
+    return fallbackLocation ? `/request/${fallbackLocation}` : "/checkout/success";
+  }
+
+  return raw;
+}
+
 async function squareFetch(path: string, init?: RequestInit) {
   const accessToken = mustEnv("SQUARE_ACCESS_TOKEN");
 
@@ -23,7 +43,6 @@ async function squareFetch(path: string, init?: RequestInit) {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
-      // Optional but recommended if you set it:
       ...(process.env.SQUARE_VERSION ? { "Square-Version": process.env.SQUARE_VERSION } : {}),
       ...(init?.headers || {}),
     },
@@ -48,19 +67,24 @@ export async function POST(req: Request) {
     const location = String(body.location || "").trim();
     const identityId = String(body.identityId || "").trim();
     const packageKey = String(body.packageKey || "").trim() as PackageKey;
+    const returnPath = sanitizeReturnPath(body.returnPath, location);
 
     if (!location || !identityId || !packageKey) {
       return NextResponse.json({ ok: false, error: "Missing fields." }, { status: 400 });
     }
 
-    const pkg = (PACKAGES as any)[packageKey] as { credits: number; priceCents: number } | undefined;
+    const pkg = (PACKAGES as any)[packageKey] as
+      | { credits: number; priceCents: number }
+      | undefined;
+
     if (!pkg) {
       return NextResponse.json({ ok: false, error: "Invalid package." }, { status: 400 });
     }
 
-    // Validate location + identity exist
     const loc = await prisma.location.findUnique({ where: { slug: location } });
-    if (!loc) return NextResponse.json({ ok: false, error: "Invalid location." }, { status: 400 });
+    if (!loc) {
+      return NextResponse.json({ ok: false, error: "Invalid location." }, { status: 400 });
+    }
 
     const identity = await prisma.identity.findUnique({ where: { id: identityId } });
     if (!identity || identity.locationId !== loc.id) {
@@ -70,11 +94,12 @@ export async function POST(req: Request) {
     const baseUrl = mustEnv("APP_BASE_URL");
     const squareLocationId = mustEnv("SQUARE_LOCATION_ID");
 
-    // Square order.reference_id must be <= 40 chars
-    const token = crypto.randomBytes(12).toString("hex"); // 24 chars
-    const referenceId = `RR:${token}`; // 28 chars
+    const token = crypto.randomBytes(12).toString("hex");
+    const referenceId = `RR:${token}`;
 
-    // Create payment link with embedded order (Square creates the order)
+    const successUrl = new URL("/checkout/success", baseUrl);
+    successUrl.searchParams.set("returnTo", returnPath);
+
     const linkRes = await squareFetch("/v2/online-checkout/payment-links", {
       method: "POST",
       body: JSON.stringify({
@@ -92,18 +117,24 @@ export async function POST(req: Request) {
           ],
         },
         checkout_options: {
-          redirect_url: `${baseUrl}/checkout/success`,
+          redirect_url: successUrl.toString(),
         },
       }),
     });
 
-     const checkoutUrl = linkRes?.payment_link?.url || linkRes?.payment_link?.long_url;
+    const checkoutUrl = linkRes?.payment_link?.url || linkRes?.payment_link?.long_url;
     if (!checkoutUrl) {
-      console.error("CHECKOUT_FATAL", { reqId, message: "Square did not return payment_link.url", linkRes });
-      return NextResponse.json({ ok: false, error: "Square did not return checkout URL." }, { status: 502 });
+      console.error("CHECKOUT_FATAL", {
+        reqId,
+        message: "Square did not return payment_link.url",
+        linkRes,
+      });
+      return NextResponse.json(
+        { ok: false, error: "Square did not return checkout URL." },
+        { status: 502 }
+      );
     }
 
-    // Store pending mapping so webhook knows who to credit
     await prisma.pendingCheckout.create({
       data: {
         referenceId,
@@ -130,7 +161,11 @@ export async function POST(req: Request) {
       );
     }
 
-    console.error("CHECKOUT_FATAL", { reqId, message: e?.message || String(e), stack: e?.stack });
+    console.error("CHECKOUT_FATAL", {
+      reqId,
+      message: e?.message || String(e),
+      stack: e?.stack,
+    });
     return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
   }
 }

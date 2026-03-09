@@ -1,4 +1,3 @@
-// src/app/checkout/success/page.tsx
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
@@ -12,6 +11,7 @@ function SuccessInner() {
   const [location, setLocation] = useState<string>("");
 
   const locationFromQuery = useMemo(() => (sp.get("location") || "").trim(), [sp]);
+  const returnTo = useMemo(() => (sp.get("returnTo") || "").trim(), [sp]);
 
   useEffect(() => {
     try {
@@ -23,22 +23,30 @@ function SuccessInner() {
       setIdentityId(lsIdentity);
       setLocation(targetLocation);
 
-      // Persist query location if present
       if (locationFromQuery) {
         localStorage.setItem("rr_location", locationFromQuery);
       }
 
-      // Auto-return
-      if (targetLocation && lsIdentity) {
-        const t = window.setTimeout(() => {
-          router.replace(`/request/${targetLocation}`);
-        }, 450);
-        return () => window.clearTimeout(t);
+      // Determine where to send the user
+      let destination = "";
+
+      if (returnTo && returnTo.startsWith("/")) {
+        destination = returnTo;
+      } else if (targetLocation) {
+        destination = `/request/${targetLocation}`;
+      } else {
+        destination = "/";
       }
+
+      const t = window.setTimeout(() => {
+        router.replace(destination);
+      }, 450);
+
+      return () => window.clearTimeout(t);
     } catch {
       // ignore
     }
-  }, [router, locationFromQuery]);
+  }, [router, locationFromQuery, returnTo]);
 
   return (
     <main style={{ padding: 18, maxWidth: 720, margin: "0 auto" }}>
@@ -59,8 +67,8 @@ function SuccessInner() {
 
         {!identityId ? (
           <p style={{ marginTop: 10, fontSize: 13, opacity: 0.8 }}>
-            Note: We couldn’t find your saved verification on this device. If you get prompted to verify again,
-            just re-verify once to reconnect your credits.
+            Note: We couldn’t find your saved verification on this device. If you get prompted to
+            verify again, just re-verify once to reconnect your credits.
           </p>
         ) : null}
 
@@ -82,7 +90,8 @@ function SuccessInner() {
         <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button
             onClick={() => {
-              if (location) router.push(`/request/${location}`);
+              if (returnTo) router.push(returnTo);
+              else if (location) router.push(`/request/${location}`);
               else router.push("/");
             }}
             style={{
@@ -94,7 +103,7 @@ function SuccessInner() {
               cursor: "pointer",
             }}
           >
-            Back to requests
+            Continue
           </button>
 
           <button
@@ -114,7 +123,7 @@ function SuccessInner() {
         </div>
 
         <p style={{ marginTop: 14, fontSize: 13, opacity: 0.7 }}>
-          If credits don’t appear immediately, the request screen will refresh automatically.
+          If credits don’t appear immediately, the screen you return to will refresh automatically.
         </p>
       </div>
     </main>
