@@ -10,6 +10,13 @@ type RequestItem = {
   title: string;
   artist: string;
   score: number;
+  createdAt?: string;
+  type?: string;
+  requestedByLabel?: string;
+  boosted?: boolean;
+  upvotes?: number;
+  downvotes?: number;
+  redemptionCode?: string | null;
 };
 
 type MessageItem = {
@@ -225,7 +232,70 @@ function playChime() {
     setTimeout(() => ctx.close().catch(() => {}), 400);
   } catch {}
 }
+function rulesCostsFromRules(rules: RulesState | null) {
+  return {
+    costRequest: Number(rules?.costRequest ?? 1),
+    costPlayNow: Number(rules?.costPlayNow ?? 5),
+    costUpvote: Number(rules?.costUpvote ?? 1),
+    costDownvote: Number(rules?.costDownvote ?? 1),
+  };
+}
 
+function requestTypeLabel(q: RequestItem) {
+  if (q.type === "PLAY_NOW" || q.boosted) return "BOOST";
+  return "REQUEST";
+}
+
+function requestMetaLine(q: RequestItem) {
+  const who = q.requestedByLabel || "Skater";
+  const parts = [`Requested by ${who}`];
+  if (q.redemptionCode) parts.push(`Code: ${q.redemptionCode}`);
+  return parts.join(" • ");
+}
+
+function QueueRow({
+  q,
+  index,
+  onPlayed,
+  onReject,
+}: {
+  q: RequestItem;
+  index?: number;
+  onPlayed: () => void;
+  onReject: () => void;
+}) {
+  const typeLabel = requestTypeLabel(q);
+
+  return (
+    <div style={queueRowStyle}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ fontWeight: 1000, fontSize: 18 }}>
+            {index ? `${index}. ` : ""}
+            {q.title}
+          </div>
+
+          <div style={requestPillStyle}>
+            {typeLabel}
+          </div>
+        </div>
+
+        <div style={{ marginTop: 6, opacity: 0.86, lineHeight: 1.35 }}>
+          {q.artist} • {requestMetaLine(q)}
+        </div>
+
+        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.72 }}>
+          Score {q.score} • 👍 {Number(q.upvotes || 0)} • 👎 {Number(q.downvotes || 0)}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignSelf: "center" }}>
+        <ActionButton onClick={onPlayed}>Played</ActionButton>
+        <ActionButton alt onClick={onReject}>Reject</ActionButton>
+      </div>
+    </div>
+  );
+}
 export default function AdminPage({ params }: { params: { location: string } }) {
   const location = params.location;
 
@@ -621,22 +691,61 @@ export default function AdminPage({ params }: { params: { location: string } }) 
 
       {tab === "dashboard" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-          <Panel title="PENDING REQUESTS">
-            {pendingRequests.length === 0 ? (
-              <div style={{ opacity: 0.75 }}>No queued requests yet.</div>
-            ) : (
-              pendingRequests.map((r) => (
-                <div key={r.id} style={rowStyle}>
-                  <div>
-                    <div style={{ fontWeight: 900 }}>{r.title}</div>
-                    <div style={{ opacity: 0.75 }}>{r.artist}</div>
-                  </div>
-                  <div style={{ opacity: 0.8 }}>Score {r.score}</div>
-                </div>
-              ))
-            )}
-          </Panel>
+<Panel title="PENDING REQUESTS">
+  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", marginBottom: 10 }}>
+    <div style={{ fontSize: 12, opacity: 0.75 }}>
+      {(() => {
+        const c = rulesCostsFromRules(rules);
+        return (
+          <>
+            Request <b>{c.costRequest}</b> • BOOST <b>{c.costPlayNow}</b> • Upvote <b>{c.costUpvote}</b> • Downvote <b>{c.costDownvote}</b>
+          </>
+        );
+      })()}
+    </div>
+  </div>
 
+  <div style={{ fontWeight: 1000, fontStyle: "italic", marginBottom: 8 }}>
+    BOOSTED (<i>PAID</i> TO PLAY NEXT)
+  </div>
+
+  {pendingRequests.filter((q) => q.boosted || q.type === "PLAY_NOW").length === 0 ? (
+    <div style={{ opacity: 0.7, marginBottom: 14 }}>No Play Now requests.</div>
+  ) : (
+    pendingRequests
+      .filter((q) => q.boosted || q.type === "PLAY_NOW")
+      .map((q) => (
+        <QueueRow
+          key={q.id}
+          q={q}
+          onPlayed={() => {}}
+          onReject={() => {}}
+        />
+      ))
+  )}
+
+  <div style={{ height: 10 }} />
+
+  <div style={{ fontWeight: 1000, fontStyle: "italic", marginBottom: 8 }}>
+    UP NEXT
+  </div>
+
+  {pendingRequests.filter((q) => !(q.boosted || q.type === "PLAY_NOW")).length === 0 ? (
+    <div style={{ opacity: 0.7 }}>No queued requests yet.</div>
+  ) : (
+    pendingRequests
+      .filter((q) => !(q.boosted || q.type === "PLAY_NOW"))
+      .map((q, i) => (
+        <QueueRow
+          key={q.id}
+          q={q}
+          index={i + 1}
+          onPlayed={() => {}}
+          onReject={() => {}}
+        />
+      ))
+  )}
+</Panel>
           <Panel title="PENDING MESSAGES">
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
               <Pill>Pending {pendingMessages.length}</Pill>
@@ -1200,4 +1309,26 @@ const loginCard: React.CSSProperties = {
   padding: 18,
   textAlign: "center",
   animation: "rrAdminCardIn 500ms ease both",
+};
+const queueRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 14,
+  alignItems: "center",
+  padding: 14,
+  borderRadius: 18,
+  border: "1px solid #252b4b",
+  background: "rgba(17,18,34,0.9)",
+  marginBottom: 10,
+};
+
+const requestPillStyle: React.CSSProperties = {
+  padding: "4px 10px",
+  borderRadius: 999,
+  border: "1px solid #4f61ff",
+  background: "rgba(37,41,92,0.92)",
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: 900,
+  lineHeight: 1,
 };
