@@ -1,3 +1,4 @@
+// src/app/shoutouts/[location]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -83,10 +84,8 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   const [busy, setBusy] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const [showBuy, setShowBuy] = useState(false);
-  const [showVerify, setShowVerify] = useState(false);
   const [redeemBusy, setRedeemBusy] = useState(false);
   const [pendingComposerAfterBuy, setPendingComposerAfterBuy] = useState(false);
-  const [sessionCountdown, setSessionCountdown] = useState("");
 
   const selectedProduct = useMemo(
     () => SHOUTOUT_PRODUCTS.find((p) => p.key === productKey) || SHOUTOUT_PRODUCTS[0],
@@ -177,32 +176,6 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   }, [location]);
 
   useEffect(() => {
-    const tick = () => {
-      const endsAt = rulesData?.session?.endsAt;
-      if (!endsAt) {
-        setSessionCountdown("");
-        return;
-      }
-      const endMs = new Date(endsAt).getTime();
-      const now = Date.now();
-      const diff = Math.max(0, endMs - now);
-      if (diff <= 0) {
-        setSessionCountdown("Session ended");
-        return;
-      }
-      const totalMin = Math.floor(diff / 60000);
-      const h = Math.floor(totalMin / 60);
-      const m = totalMin % 60;
-      if (h <= 0 && m <= 2) setSessionCountdown("Ending soon");
-      else if (h <= 0) setSessionCountdown(`Ends in ${m}m`);
-      else setSessionCountdown(`Ends in ${h}h ${m}m`);
-    };
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [rulesData?.session?.endsAt]);
-
-  useEffect(() => {
     async function resumeAfterCheckout() {
       try {
         const raw = sessionStorage.getItem("rr_shoutout_resume");
@@ -266,8 +239,8 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     }
 
     if (!verified && !identityId) {
-      setMsg("Please verify to redeem a code.");
-      setShowVerify(true);
+      setMsg("Please verify first on the request screen before redeeming points.");
+      window.location.href = `/request/${location}`;
       return;
     }
 
@@ -299,7 +272,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   async function startCheckout(packageKey: PackageKey) {
     if (!identityId) {
       setMsg("Please verify before buying points.");
-      setShowVerify(true);
+      window.location.href = `/request/${location}`;
       return;
     }
 
@@ -333,8 +306,8 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     setMsg("");
 
     if (!verified || !identityId || !email) {
-      setMsg("Claim your intro points to send a shout-out.");
-      setShowVerify(true);
+      setMsg("Please verify first on the request screen before sending a shout-out.");
+      window.location.href = `/request/${location}`;
       return;
     }
 
@@ -364,8 +337,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     const cleanBody = messageText.trim();
 
     if (!verified || !identityId || !email) {
-      setMsg("Claim your intro points to send a shout-out.");
-      setShowVerify(true);
+      setMsg("Please verify first on the request screen before sending a shout-out.");
       return;
     }
 
@@ -430,8 +402,6 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   const charsMax = 80;
   const canAfford = balance >= selectedProduct.creditsCost;
   const canSend = selectedProduct.enabled && canAfford && !busy;
-  const hudBalance = !verified && !identityId ? 5 : balance;
-  const creditsLabel = !verified && !identityId ? "Use Points!" : `Points: ${balance}`;
 
   const buyUrl = useMemo(() => {
     const fromMap = BUY_URL_BY_LOCATION[location];
@@ -514,10 +484,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
 
           <div className="neonHeaderCenter">
             <div className="neonTitle">REMIX SHOUT-OUTS</div>
-            <div className="neonSub">
-              {locationName} • Send a message to the screen
-              {sessionCountdown ? ` • ${sessionCountdown}` : ""}
-            </div>
+            <div className="neonSub">{locationName} • Send a message to the screen</div>
           </div>
 
           <div className="neonHeaderRight">
@@ -527,19 +494,19 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                 <span className="rrPointsMobile">PTS</span>
               </div>
               <div className="rrCornerHudValue">
-                <div className="rrCornerHudNumber">{hudBalance}</div>
+                <div className="rrCornerHudNumber">{verified ? balance : 0}</div>
               </div>
               <button
                 className={`neonBtn neonBtnPrimary rrCornerHudBtn ${!verified ? "neonPulse" : ""}`}
                 onClick={() => {
                   if (!verified || !identityId) {
-                    setShowVerify(true);
+                    window.location.href = `/request/${location}`;
                     return;
                   }
                   setShowBuy(true);
                 }}
               >
-                {!verified ? "USE" : "GET POINTS"}
+                {!verified ? "VERIFY" : "GET POINTS"}
               </button>
             </div>
           </div>
@@ -547,12 +514,12 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
 
         <div className="neonPanel" style={{ padding: 14, marginBottom: 12 }}>
           <div style={{ fontWeight: 900, marginBottom: 6 }}>
-            Shared Points Balance: {hudBalance}
+            Shared Points Balance: {verified ? balance : 0}
           </div>
 
           {!verified ? (
             <div style={{ color: "var(--muted)", fontSize: 14 }}>
-              Claim your 5 intro points with email + SMS signup, then use them for shout-outs or buy more.
+              Verify on the request screen first to unlock shout-outs and spending.
             </div>
           ) : (
             <div style={{ color: "var(--muted)", fontSize: 14 }}>
@@ -655,8 +622,6 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           >
             {!selectedProduct.enabled
               ? "Photo shout-outs coming soon"
-              : !verified
-              ? `USE POINTS FOR ${selectedProduct.title}`
               : canAfford
               ? `Create ${selectedProduct.title}`
               : `GET POINTS FOR ${selectedProduct.title}`}
@@ -664,32 +629,6 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
 
           {msg ? <div style={{ marginTop: 14 }}>{msg}</div> : null}
         </div>
-
-        <VerifyModal
-          open={showVerify}
-          location={location}
-          email={email}
-          setEmail={setEmail}
-          onRedeem={(code: string) => {
-            void redeem(code);
-          }}
-          redeemBusy={redeemBusy}
-          onVerified={(payload?: { balance?: number }) => {
-            setVerified(true);
-            setShowVerify(false);
-            try {
-              const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
-              if (lsIdentity) setIdentityId(lsIdentity);
-              if (email.trim()) localStorage.setItem("rr_email", email.trim());
-            } catch {
-              // ignore
-            }
-            if (typeof payload?.balance === "number") setBalance(payload.balance);
-            else void refreshBalance();
-            setMsg("✅ Verified! Your intro points are ready.");
-          }}
-          onClose={() => setShowVerify(false)}
-        />
 
         <ShoutoutComposerDrawer
           open={showComposer}
@@ -726,14 +665,6 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           onBuy={(packageKey: PackageKey) => {
             void startCheckout(packageKey);
           }}
-        />
-
-        <CreditHud
-          verified={verified || !!identityId}
-          creditsLabel={creditsLabel}
-          sessionCountdown={sessionCountdown}
-          onVerify={() => setShowVerify(true)}
-          onBuy={() => setShowBuy(true)}
         />
       </div>
     </div>
@@ -869,127 +800,10 @@ function ShoutoutComposerDrawer({
   );
 }
 
-function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, onVerified, onClose }: any) {
-  const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState<"collect" | "code">("collect");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [emailOptIn, setEmailOptIn] = useState(true);
-  const [smsOptIn, setSmsOptIn] = useState(true);
-  const [redeemCode, setRedeemCode] = useState("");
-  const [showRedeem, setShowRedeem] = useState(false);
-
-  useEffect(() => {
-    if (!open) {
-      setCode("");
-      setMsg("");
-      setStep("collect");
-    }
-  }, [open]);
-
-  if (!open) return null;
-
-  async function sendCode() {
-    setBusy(true);
-    setMsg("");
-    try {
-      const res = await fetch(`/api/public/auth/start`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, email, phone, emailOptIn, smsOptIn }),
-      });
-      const data = await res.json();
-      if (data.ok) setStep("code");
-      else setMsg(data.error || "Error");
-    } catch {
-      setMsg("Error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function confirmCode() {
-    setBusy(true);
-    setMsg("");
-    try {
-      const res = await fetch(`/api/public/auth/verify`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        localStorage.setItem("rr_identityId", data.identityId);
-        if (email.trim()) localStorage.setItem("rr_email", email.trim());
-        onVerified?.({ balance: data.balance });
-      } else {
-        setMsg(data.error || "Invalid code");
-      }
-    } catch {
-      setMsg("Error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.8)" }}>
-      <div className="neonPanel" style={{ padding: 20, width: 320 }}>
-        <h3 style={{ marginTop: 0, marginBottom: 15 }}>Verify</h3>
-        <div style={{ display: "grid", gap: 10 }}>
-          <input className="neonInput" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-          <input className="neonInput" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
-          <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
-            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}><input type="checkbox" checked={emailOptIn} onChange={(e) => setEmailOptIn(e.target.checked)} style={{ marginTop: 3 }} /><span>Yes — email deals & updates <span style={{ color: "var(--muted)" }}>(required for credits)</span></span></label>
-            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}><input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} style={{ marginTop: 3 }} /><span>Yes — text deals & updates <span style={{ color: "var(--muted)" }}>(recommended)</span></span></label>
-          </div>
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
-            <div style={{ fontWeight: 900, marginBottom: 8, fontSize: 14 }}>Have a redemption code?</div>
-            <div style={{ perspective: 1000 }}>
-              <div style={{ position: "relative", height: 48, transformStyle: "preserve-3d", transition: "transform 0.6s cubic-bezier(.2,.8,.2,1)", transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)", willChange: "transform" }}>
-                <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "translateZ(0.1px)", display: "flex", alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased" }}>
-                  <button className="neonBtn" style={{ width: "100%", height: "100%", opacity: 0.8 }} onClick={() => setShowRedeem(true)}>Redeem Code</button>
-                </div>
-                <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg) translateZ(0.1px)", display: "flex", gap: 8, alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased" }}>
-                  <input className="neonInput" placeholder="Code" value={redeemCode} onChange={(e) => setRedeemCode(e.target.value)} style={{ flex: 1, height: "100%" }} />
-                  <button className="neonBtn neonBtnPrimary" disabled={!!redeemBusy} onClick={() => onRedeem?.(redeemCode)} style={{ height: "100%" }}>{redeemBusy ? "..." : "Apply"}</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic", marginTop: 5 }}>We’ll text a one-time code. Standard rates may apply.</div>
-          {step === "code" ? <input className="neonInput" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter 6-digit Code" style={{ border: "1px solid cyan", marginTop: 5 }} /> : null}
-          <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-            <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode} style={{ width: "100%", height: 48 }}>{busy ? "..." : "Submit"}</button>
-            <button className="neonBtn" onClick={onClose} style={{ width: "100%", opacity: 0.6 }}>Close</button>
-          </div>
-          {msg ? <p style={{ color: "#ff4444", fontSize: 12, textAlign: "center", margin: 0 }}>{msg}</p> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CreditHud({ verified, creditsLabel, sessionCountdown, onVerify, onBuy }: any) {
-  return (
-    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, width: "100%", boxSizing: "border-box", padding: "10px 12px", background: "rgba(0,0,0,0.9)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 900 }}>{creditsLabel}</div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>{sessionCountdown}</div>
-        </div>
-        <button className="neonBtn neonBtnPrimary" onClick={!verified ? onVerify : onBuy} style={{ whiteSpace: "nowrap" }}>
-          {!verified ? "CLAIM" : "ADD POINTS"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, onBuy }: BuyDrawerProps) {
   const [redeemCode, setRedeemCode] = useState("");
   const [showRedeem, setShowRedeem] = useState(false);
+
   if (!open) return null;
 
   return (
