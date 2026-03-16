@@ -665,31 +665,40 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           {msg ? <div style={{ marginTop: 14 }}>{msg}</div> : null}
         </div>
 
-        <VerifyModal
-          open={showVerify}
-          location={location}
-          email={email}
-          setEmail={setEmail}
-          onRedeem={(code: string) => {
-            void redeem(code);
-          }}
-          redeemBusy={redeemBusy}
-          onVerified={(payload?: { balance?: number }) => {
-            setVerified(true);
-            setShowVerify(false);
-            try {
-              const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
-              if (lsIdentity) setIdentityId(lsIdentity);
-              if (email.trim()) localStorage.setItem("rr_email", email.trim());
-            } catch {
-              // ignore
-            }
-            if (typeof payload?.balance === "number") setBalance(payload.balance);
-            else void refreshBalance();
-            setMsg("✅ Verified! Your intro points are ready.");
-          }}
-          onClose={() => setShowVerify(false)}
-        />
+<VerifyModal
+  open={showVerify}
+  location={location}
+  email={email}
+  setEmail={setEmail}
+  onRedeem={(code: string) => {
+    void redeem(code);
+  }}
+  redeemBusy={redeemBusy}
+  onVerified={(payload?: { balance?: number }) => {
+    setVerified(true);
+    setShowVerify(false);
+
+    try {
+      const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+      const lsEmail = (localStorage.getItem("rr_email") || "").trim();
+
+      if (lsIdentity) setIdentityId(lsIdentity);
+      if (lsEmail) setEmail(lsEmail);
+      else if (email.trim()) localStorage.setItem("rr_email", email.trim());
+
+      if (typeof payload?.balance === "number") {
+        setBalance(payload.balance);
+      } else if (lsIdentity) {
+        void refreshBalance(lsIdentity);
+      }
+    } catch {
+      // ignore
+    }
+
+    setMsg("✅ Verified! Your intro points are ready.");
+  }}
+  onClose={() => setShowVerify(false)}
+/>
 
         <ShoutoutComposerDrawer
           open={showComposer}
