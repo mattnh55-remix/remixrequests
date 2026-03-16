@@ -809,7 +809,7 @@ async function rejectRequest(requestId: string) {
       ))
   )}
 </Panel>
-          <Panel title="PENDING MESSAGES">
+          <Panel title="CURRENT PENDING MESSAGES">
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
               <Pill>Pending {pendingMessages.length}</Pill>
               <Pill>Approved {approvedMessages.length}</Pill>
