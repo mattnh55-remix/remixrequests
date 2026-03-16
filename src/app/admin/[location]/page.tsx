@@ -331,9 +331,11 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   const [codes, setCodes] = useState<RedemptionCode[]>([]);
   const [codesMsg, setCodesMsg] = useState("");
   const [codeNew, setCodeNew] = useState("");
-  const [codePoints, setCodePoints] = useState<number>(10);
-  const [codeMaxUses, setCodeMaxUses] = useState<number>(1);
-  const [codeUsesOpen, setCodeUsesOpen] = useState(false);
+const [codePoints, setCodePoints] = useState<number>(10);
+const [codeMaxUses, setCodeMaxUses] = useState<number>(1);
+const [importingCodes, setImportingCodes] = useState(false);
+const [codeUsesOpen, setCodeUsesOpen] = useState(false);
+
   const [codeUsesLoading, setCodeUsesLoading] = useState(false);
   const [selectedCode, setSelectedCode] = useState<RedemptionCode | null>(null);
   const [selectedCodeUses, setSelectedCodeUses] = useState<RedemptionCodeUseItem[]>([]);
@@ -517,6 +519,34 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     setCodesMsg("✅ Code created.");
     await loadCodes();
   }
+
+async function importCodes(file: File) {
+  setCodesMsg("");
+  setImportingCodes(true);
+
+  try {
+    const form = new FormData();
+    form.append("file", file);
+
+    const res = await fetch(`/api/admin/redemption-codes/import/${location}`, {
+      method: "POST",
+      body: form,
+    });
+
+    const data: any = await safeJson(res);
+
+    if (!data?.ok) {
+      setCodesMsg(data?.error || "Could not import codes.");
+      return;
+    }
+
+    setCodesMsg(`✅ Imported ${Number(data.created || 0)} codes.${Number(data.skipped || 0) ? ` Skipped ${Number(data.skipped || 0)}.` : ""}`);
+    await loadCodes();
+  } finally {
+    setImportingCodes(false);
+  }
+}
+
 
   async function disableCode(id: string) {
     await fetch(`/api/admin/redemption-codes/disable`, {
@@ -1021,56 +1051,116 @@ async function rejectRequest(requestId: string) {
             )}
           </Panel>
 
-          <Panel title="REDEMPTION CODES">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 0.6fr 0.6fr", gap: 10 }}>
-              <Input value={codeNew} onChange={(e) => setCodeNew(e.target.value.toUpperCase())} placeholder="CODE2026" />
-              <input type="number" value={String(codePoints)} onChange={(e) => setCodePoints(Number(e.target.value))} style={inputStyle} />
-              <input type="number" value={String(codeMaxUses)} onChange={(e) => setCodeMaxUses(Number(e.target.value))} style={inputStyle} />
+<Panel title="REDEMPTION CODES">
+  <div style={{ display: "grid", gap: 18 }}>
+    <div>
+      <div style={{ fontSize: 13, opacity: 0.82, marginBottom: 10, fontWeight: 900 }}>
+        CREATE SINGLE CODE
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 0.6fr 0.6fr", gap: 10 }}>
+        <Input
+          value={codeNew}
+          onChange={(e) => setCodeNew(e.target.value.toUpperCase())}
+          placeholder="CODE2026"
+        />
+        <input
+          type="number"
+          value={String(codePoints)}
+          onChange={(e) => setCodePoints(Number(e.target.value))}
+          style={inputStyle}
+        />
+        <input
+          type="number"
+          value={String(codeMaxUses)}
+          onChange={(e) => setCodeMaxUses(Number(e.target.value))}
+          style={inputStyle}
+        />
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+        <ActionButton onClick={createCode}>Create code</ActionButton>
+      </div>
+    </div>
+
+    <div
+      style={{
+        height: 1,
+        background: "linear-gradient(90deg, rgba(255,255,255,0.04), rgba(120,130,255,0.38), rgba(255,255,255,0.04))",
+      }}
+    />
+
+    <div>
+      <div style={{ fontSize: 13, opacity: 0.82, marginBottom: 10, fontWeight: 900 }}>
+        IMPORT CODES FROM XLSX OR CSV
+      </div>
+
+      <div
+        style={{
+          padding: 14,
+          borderRadius: 16,
+          border: "1px solid #252b4b",
+          background: "rgba(17,18,34,0.9)",
+        }}
+      >
+        <div style={{ opacity: 0.78, marginBottom: 10, lineHeight: 1.45 }}>
+          Expected columns: <b>code</b>, <b>points</b>, optional <b>maxUses</b>, optional <b>redeemWindowMinutes</b>, optional <b>expiresAt</b>.
+        </div>
+
+        <input
+          type="file"
+          accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) {
+              void importCodes(f);
+              e.currentTarget.value = "";
+            }
+          }}
+          style={{ color: "#fff" }}
+          disabled={importingCodes}
+        />
+
+        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
+          {importingCodes ? "Importing..." : "Upload a spreadsheet to bulk-create redemption codes."}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {codesMsg ? <div style={{ marginTop: 12, opacity: 0.85 }}>{codesMsg}</div> : null}
+
+  <div style={{ marginTop: 16 }}>
+    {codes.length === 0 ? (
+      <div style={{ opacity: 0.75 }}>No codes yet.</div>
+    ) : (
+      codes.map((c) => (
+        <div key={c.id} style={rowStyle}>
+          <div>
+            <div style={{ fontWeight: 900 }}>{c.code}</div>
+            <div style={{ opacity: 0.75 }}>
+              {c.points} pts • {c.uses}/{c.maxUses} uses
             </div>
+          </div>
 
-            <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-              <ActionButton onClick={createCode}>Create code</ActionButton>
-            </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <ActionButton onClick={() => showCodeUses(c)}>Show uses</ActionButton>
 
-            {codesMsg ? <div style={{ marginTop: 12, opacity: 0.85 }}>{codesMsg}</div> : null}
+            {!c.disabledAt ? (
+              <ActionButton alt onClick={() => disableCode(c.id)}>Disable</ActionButton>
+            ) : (
+              <Pill>Disabled</Pill>
+            )}
 
-            <div style={{ marginTop: 16 }}>
-              {codes.length === 0 ? (
-                <div style={{ opacity: 0.75 }}>No codes yet.</div>
-              ) : (
-                codes.map((c) => (
-                  <div key={c.id} style={rowStyle}>
-                    <div>
-                      <div style={{ fontWeight: 900 }}>{c.code}</div>
-                      <div style={{ opacity: 0.75 }}>
-                        {c.points} pts • {c.uses}/{c.maxUses} uses
-                      </div>
-                    </div>
-<div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-  <ActionButton onClick={() => showCodeUses(c)}>Show uses</ActionButton>
-
-  {!c.disabledAt ? (
-    <ActionButton alt onClick={() => disableCode(c.id)}>Disable</ActionButton>
-  ) : (
-    <Pill>Disabled</Pill>
-  )}
-
-  <ActionButton
-    alt
-    onClick={() => {
-      const ok = confirm(`Delete code ${c.code}?\n\nThis cannot be undone.`);
-      if (!ok) return;
-      deleteCode(location, c.code);
-    }}
-  >
-    Delete
-  </ActionButton>
-</div>
-                  </div>
-                ))
-              )}
-            </div>
-          </Panel>
+            <ActionButton alt onClick={() => deleteCode(c.id, c.code)}>
+              Delete
+            </ActionButton>
+          </div>
+        </div>
+      ))
+    )}
+  </div>
+</Panel>
         </div>
       )}
 
