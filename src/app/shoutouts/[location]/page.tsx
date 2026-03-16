@@ -1023,7 +1023,7 @@ function ShoutoutComposerDrawer({
                   onChange={(e) => setUsageRightsAccepted(e.target.checked)}
                   style={{ marginTop: 3 }}
                 />
-                <span>I have permission to upload and display this photo on the screen.</span>
+                <span>✅ I have permission to upload and display this photo on the screen.</span>
               </label>
             </div>
           ) : null}
