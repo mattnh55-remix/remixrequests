@@ -29,6 +29,7 @@ type MessageItem = {
   creditsCost?: number;
   status?: string;
   moderationNotes?: string | null;
+  autoTextModerationReason?: string | null;
   createdAt?: string;
   approvedAt?: string | null;
   rejectedAt?: string | null;
@@ -38,7 +39,6 @@ type MessageItem = {
   imageModerationStatus?: string | null;
   signedImageUrl?: string | null;
 };
-
 type PlaceholderMessage = {
   id: string;
   title: string;

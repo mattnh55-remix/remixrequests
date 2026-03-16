@@ -13,7 +13,9 @@ function fail(message: string, status = 400) {
 
 export async function GET(req: Request, { params }: { params: { location: string } }) {
   try {
-    if (!isAdminFromCookie(req)) return fail("Unauthorized", 401);
+    if (!isAdminFromCookie(req.headers.get("cookie") || "")) {
+  return fail("Unauthorized", 401);
+}
 
     const loc = await prisma.location.findUnique({
       where: { slug: params.location },

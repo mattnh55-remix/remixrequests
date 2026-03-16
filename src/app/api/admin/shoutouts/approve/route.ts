@@ -11,7 +11,9 @@ function fail(message: string, status = 400) {
 
 export async function POST(req: Request) {
   try {
-    if (!isAdminFromCookie(req)) return fail("Unauthorized", 401);
+    if (!isAdminFromCookie(req.headers.get("cookie") || "")) {
+  return fail("Unauthorized", 401);
+}
 
     const body = await req.json().catch(() => ({}));
     const messageId = String(body?.messageId || "").trim();
