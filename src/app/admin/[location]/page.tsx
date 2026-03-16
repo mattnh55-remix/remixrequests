@@ -29,6 +29,7 @@ type MessageItem = {
   creditsCost?: number;
   status?: string;
   moderationNotes?: string | null;
+  autoTextModerationReason?: string | null;
   createdAt?: string;
   approvedAt?: string | null;
   rejectedAt?: string | null;
@@ -38,7 +39,6 @@ type MessageItem = {
   imageModerationStatus?: string | null;
   signedImageUrl?: string | null;
 };
-
 type PlaceholderMessage = {
   id: string;
   title: string;
@@ -102,6 +102,16 @@ type RedemptionCode = {
   expiresAt: string;
   disabledAt?: string | null;
 };
+
+type RedemptionCodeUseItem = {
+  id: string;
+  usedAt: string;
+  emailHash: string;
+  label: string;
+  reason: string;
+  delta: number;
+};
+
 
 type AdminShoutoutsResponse = {
   ok?: boolean;
@@ -323,6 +333,10 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   const [codeNew, setCodeNew] = useState("");
   const [codePoints, setCodePoints] = useState<number>(10);
   const [codeMaxUses, setCodeMaxUses] = useState<number>(1);
+  const [codeUsesOpen, setCodeUsesOpen] = useState(false);
+  const [codeUsesLoading, setCodeUsesLoading] = useState(false);
+  const [selectedCode, setSelectedCode] = useState<RedemptionCode | null>(null);
+  const [selectedCodeUses, setSelectedCodeUses] = useState<RedemptionCodeUseItem[]>([]);
 
   const prevRequestIdsRef = useRef<Set<string>>(new Set());
   const prevMessageIdsRef = useRef<Set<string>>(new Set());
@@ -514,6 +528,54 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     setCodesMsg("✅ Code disabled.");
   }
 
+  async function deleteCode(id: string, code: string) {
+    const ok = window.confirm(`Delete code ${code}? This removes it from the list permanently.`);
+    if (!ok) return;
+
+    const res = await fetch(`/api/admin/redemption-codes/delete`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const data: any = await safeJson(res);
+    if (!data?.ok) {
+      setCodesMsg(data?.error || "Could not delete code.");
+      return;
+    }
+
+    setCodesMsg("✅ Code deleted.");
+    if (selectedCode?.id === id) {
+      setCodeUsesOpen(false);
+      setSelectedCode(null);
+      setSelectedCodeUses([]);
+    }
+    await loadCodes();
+  }
+
+  async function showCodeUses(codeItem: RedemptionCode) {
+    setSelectedCode(codeItem);
+    setCodeUsesOpen(true);
+    setCodeUsesLoading(true);
+    setSelectedCodeUses([]);
+
+    const res = await fetch(`/api/admin/redemption-codes/uses`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: codeItem.id }),
+    });
+    const data: any = await safeJson(res);
+
+    if (!data?.ok) {
+      setCodesMsg(data?.error || "Could not load code uses.");
+      setSelectedCodeUses([]);
+      setCodeUsesLoading(false);
+      return;
+    }
+
+    setSelectedCodeUses(Array.isArray(data.items) ? data.items : []);
+    setCodeUsesLoading(false);
+  }
+
   async function approveMessage(messageId: string) {
     const res = await fetch(`/api/admin/shoutouts/approve`, {
       method: "POST",
@@ -528,33 +590,6 @@ export default function AdminPage({ params }: { params: { location: string } }) 
 
     setMsg("✅ Message approved.");
     playChime();
-    await loadAll();
-  }
-
-  async function editMessage(messageId: string, currentFromName: string, currentMessageText: string) {
-    const nextFromName = prompt("Edit from name:", currentFromName || "");
-if (nextFromName === null) return;
-
-    const nextMessageText = prompt("Edit message:", currentMessageText || "");
-if (nextMessageText === null) return;
-
-const res = await fetch(`/api/admin/shoutouts/edit`, {
-  method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify({
-    messageId,
-    fromName: nextFromName.trim() || currentFromName || "",
-    messageText: nextMessageText.trim() || currentMessageText || "",
-    moderationNotes: "Edited by admin",
-  }),
-});
-    const data: any = await safeJson(res);
-    if (!data?.ok) {
-      setMsg(data?.error || "Could not edit message.");
-      return;
-    }
-
-    setMsg("✅ Message updated.");
     await loadAll();
   }
 
@@ -809,7 +844,7 @@ async function rejectRequest(requestId: string) {
       ))
   )}
 </Panel>
-          <Panel title="CURRENT PENDING MESSAGES">
+          <Panel title="PENDING MESSAGES">
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
               <Pill>Pending {pendingMessages.length}</Pill>
               <Pill>Approved {approvedMessages.length}</Pill>
@@ -833,6 +868,12 @@ async function rejectRequest(requestId: string) {
                       </div>
 
                       <div style={{ marginTop: 8, opacity: 0.94 }}>{m.messageText}</div>
+
+                      {m.autoTextModerationReason ? (
+                        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.72 }}>
+                          Auto filter: {m.autoTextModerationReason}
+                        </div>
+                      ) : null}
 
                       {m.signedImageUrl ? (
                         <div
@@ -869,7 +910,6 @@ async function rejectRequest(requestId: string) {
 
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignSelf: "flex-start" }}>
                       <ActionButton onClick={() => approveMessage(m.id)}>Approve</ActionButton>
-                      <ActionButton onClick={() => editMessage(m.id, m.fromName, m.messageText)}>Edit</ActionButton>
                       <ActionButton alt onClick={() => rejectMessage(m.id)}>Reject</ActionButton>
                     </div>
                   </div>
@@ -1006,11 +1046,26 @@ async function rejectRequest(requestId: string) {
                         {c.points} pts • {c.uses}/{c.maxUses} uses
                       </div>
                     </div>
-                    {!c.disabledAt ? (
-                      <ActionButton alt onClick={() => disableCode(c.id)}>Disable</ActionButton>
-                    ) : (
-                      <Pill>Disabled</Pill>
-                    )}
+<div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+  <ActionButton onClick={() => showCodeUses(c)}>Show uses</ActionButton>
+
+  {!c.disabledAt ? (
+    <ActionButton alt onClick={() => disableCode(c.id)}>Disable</ActionButton>
+  ) : (
+    <Pill>Disabled</Pill>
+  )}
+
+  <ActionButton
+    alt
+    onClick={() => {
+      const ok = confirm(`Delete code ${c.code}?\n\nThis cannot be undone.`);
+      if (!ok) return;
+      deleteCode(location, c.code);
+    }}
+  >
+    Delete
+  </ActionButton>
+</div>
                   </div>
                 ))
               )}
@@ -1018,6 +1073,18 @@ async function rejectRequest(requestId: string) {
           </Panel>
         </div>
       )}
+
+      <CodeUsesModal
+        open={codeUsesOpen}
+        code={selectedCode}
+        items={selectedCodeUses}
+        loading={codeUsesLoading}
+        onClose={() => {
+          setCodeUsesOpen(false);
+          setSelectedCode(null);
+          setSelectedCodeUses([]);
+        }}
+      />
 
       {tab === "shoutoutSettings" && (
         <div style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 24 }}>
@@ -1099,6 +1166,89 @@ async function rejectRequest(requestId: string) {
           </Panel>
         </div>
       )}
+    </div>
+  );
+}
+
+function CodeUsesModal({
+  open,
+  code,
+  items,
+  loading,
+  onClose,
+}: {
+  open: boolean;
+  code: RedemptionCode | null;
+  items: RedemptionCodeUseItem[];
+  loading: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 300,
+        background: "rgba(0,0,0,0.72)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 18,
+      }}
+    >
+      <div
+        style={{
+          width: "min(920px, 100%)",
+          maxHeight: "84vh",
+          overflow: "auto",
+          border: "1px solid #1f2340",
+          borderRadius: 24,
+          padding: 18,
+          background: "rgba(8,8,20,0.97)",
+          color: "#fff",
+          boxShadow: "0 30px 80px rgba(0,0,0,0.45)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 1000, fontStyle: "italic" }}>
+              CODE USES {code ? `• ${code.code}` : ""}
+            </div>
+            <div style={{ opacity: 0.72, marginTop: 4, fontSize: 13 }}>
+              Showing the best available usage history from the credit ledger.
+            </div>
+          </div>
+          <ActionButton alt onClick={onClose}>Close</ActionButton>
+        </div>
+
+        {loading ? (
+          <div style={{ opacity: 0.75 }}>Loading uses…</div>
+        ) : items.length === 0 ? (
+          <div style={{ opacity: 0.75 }}>No recorded uses found for this code.</div>
+        ) : (
+          <div style={{ display: "grid", gap: 10 }}>
+            {items.map((item, idx) => (
+              <div key={item.id || `${item.emailHash}-${item.usedAt}-${idx}`} style={rowStyle}>
+                <div>
+                  <div style={{ fontWeight: 900 }}>{item.label}</div>
+                  <div style={{ opacity: 0.75 }}>
+                    {new Date(item.usedAt).toLocaleString()}
+                  </div>
+                  <div style={{ opacity: 0.6, fontSize: 12, marginTop: 4 }}>
+                    {item.emailHash}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", opacity: 0.82 }}>
+                  <div>{item.reason}</div>
+                  <div style={{ fontSize: 12, opacity: 0.72 }}>{item.delta > 0 ? `+${item.delta}` : item.delta}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

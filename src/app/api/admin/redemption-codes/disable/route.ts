@@ -1,3 +1,6 @@
+// src/app/api/admin/redemption-codes/disable/route.ts
+
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";

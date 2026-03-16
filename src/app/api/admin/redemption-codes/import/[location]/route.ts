@@ -1,3 +1,5 @@
+// src/app/api/admin/redemption-codes/import/[location]/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
