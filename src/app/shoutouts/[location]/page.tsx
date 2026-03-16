@@ -50,6 +50,12 @@ type DrawerProps = {
   canAfford: boolean;
   onSubmit: () => void;
   onGetPoints: () => void;
+  photoFile: File | null;
+  setPhotoFile: (file: File | null) => void;
+  photoPreviewUrl: string;
+  setPhotoPreviewUrl: (value: string) => void;
+  usageRightsAccepted: boolean;
+  setUsageRightsAccepted: (value: boolean) => void;
 };
 
 type BuyDrawerProps = {
@@ -62,9 +68,28 @@ type BuyDrawerProps = {
   onBuy: (packageKey: PackageKey) => void;
 };
 
+type SubmitRes = {
+  ok: boolean;
+  error?: string;
+  balance?: number;
+  credits?: { balance?: number };
+  session?: { balance?: number };
+  note?: string;
+};
+
+type UploadPhotoRes = {
+  ok: boolean;
+  error?: string;
+  balance?: number;
+  previewUrl?: string | null;
+  note?: string;
+};
+
 const BUY_URL_BY_LOCATION: Record<string, string> = {
   // remixrequests: "https://your-square-link"
 };
+
+const PHOTO_ACCEPT = "image/jpeg,image/png,image/heic,image/heif";
 
 export default function ShoutoutsPage({ params }: { params: { location: string } }) {
   const location = params.location;
@@ -80,6 +105,9 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   const [fromName, setFromName] = useState("");
   const [messageText, setMessageText] = useState("");
   const [productKey, setProductKey] = useState<ShoutoutProductKey>("TEXT_BASIC");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
+  const [usageRightsAccepted, setUsageRightsAccepted] = useState(false);
 
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -94,6 +122,8 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     () => SHOUTOUT_PRODUCTS.find((p) => p.key === productKey) || SHOUTOUT_PRODUCTS[0],
     [productKey]
   );
+
+  const canUseSelectedProduct = selectedProduct.enabled || selectedProduct.hasImage;
 
   async function refreshSession() {
     try {
@@ -144,6 +174,12 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     } catch {
       // ignore
     }
+  }
+
+  function resetComposerMedia() {
+    setPhotoFile(null);
+    setPhotoPreviewUrl("");
+    setUsageRightsAccepted(false);
   }
 
   function openBuyForShoutout(nextProductKey?: ShoutoutProductKey) {
@@ -255,7 +291,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
 
   useEffect(() => {
     if (!pendingComposerAfterBuy) return;
-    if (!selectedProduct?.enabled) return;
+    if (!canUseSelectedProduct) return;
 
     if (balance >= selectedProduct.creditsCost) {
       clearPendingShoutoutResume();
@@ -264,7 +300,13 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       setShowComposer(true);
       setMsg("✅ Points added. Finish your shout-out.");
     }
-  }, [pendingComposerAfterBuy, balance, selectedProduct]);
+  }, [pendingComposerAfterBuy, balance, selectedProduct, canUseSelectedProduct]);
+
+  useEffect(() => {
+    if (!selectedProduct.hasImage) {
+      resetComposerMedia();
+    }
+  }, [selectedProduct.hasImage]);
 
   async function redeem(codeInput?: string) {
     const code = String(codeInput || "").trim();
@@ -355,12 +397,8 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       return;
     }
 
-    if (!nextProduct.enabled) {
-      setMsg(
-        nextProduct.hasImage
-          ? "Photo shout-outs are coming soon."
-          : "That shout-out option is currently unavailable."
-      );
+    if (!nextProduct.enabled && !nextProduct.hasImage) {
+      setMsg("That shout-out option is currently unavailable.");
       return;
     }
 
@@ -398,17 +436,57 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       return;
     }
 
-    if (!selectedProduct.enabled) {
-      setMsg(
-        selectedProduct.hasImage
-          ? "Photo shout-outs are coming soon."
-          : "That shout-out option is currently unavailable."
-      );
+    if (!canUseSelectedProduct) {
+      setMsg("That shout-out option is currently unavailable.");
       return;
     }
 
     setBusy(true);
     try {
+      if (selectedProduct.hasImage) {
+        if (!photoFile) {
+          setMsg("Please choose a photo.");
+          return;
+        }
+
+        if (!usageRightsAccepted) {
+          setMsg("Please confirm you have permission to upload this photo.");
+          return;
+        }
+
+        const form = new FormData();
+        form.append("location", location);
+        form.append("identityId", identityId);
+        form.append("email", email);
+        form.append("fromName", cleanFrom);
+        form.append("messageText", cleanBody);
+        form.append("productKey", productKey);
+        form.append("usageRightsAccepted", usageRightsAccepted ? "true" : "false");
+        form.append("file", photoFile);
+
+        const res = await fetch("/api/public/shoutouts/upload-photo", {
+          method: "POST",
+          body: form,
+        });
+
+        const data = (await res.json()) as UploadPhotoRes;
+        if (!data.ok) {
+          setMsg(data.error || "Photo upload failed.");
+          return;
+        }
+
+        setMsg(data.note || `✅ ${selectedProduct.title} submitted for approval!`);
+        setMessageText("");
+        setFromName("");
+        resetComposerMedia();
+        setShowComposer(false);
+
+        if (typeof data.balance === "number") setBalance(data.balance);
+        else await refreshBalance();
+
+        return;
+      }
+
       const res = await fetch("/api/public/shoutouts/submit", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -422,9 +500,11 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
         }),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as SubmitRes;
       if (!data.ok) {
-        setMsg(data.error || "This message can’t be submitted as written. Please revise and try again.");
+        setMsg(
+          data.error || "This message can’t be submitted as written. Please revise and try again."
+        );
         return;
       }
 
@@ -437,7 +517,11 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       if (typeof nextBalance === "number") setBalance(nextBalance);
       else await refreshBalance();
     } catch {
-      setMsg("This message can’t be submitted as written. Please revise and try again.");
+      setMsg(
+        selectedProduct.hasImage
+          ? "Photo upload failed."
+          : "This message can’t be submitted as written. Please revise and try again."
+      );
     } finally {
       setBusy(false);
     }
@@ -446,7 +530,11 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   const charsUsed = messageText.length;
   const charsMax = 80;
   const canAfford = balance >= selectedProduct.creditsCost;
-  const canSend = selectedProduct.enabled && canAfford && !busy;
+  const canSend =
+    canUseSelectedProduct &&
+    canAfford &&
+    !busy &&
+    (!selectedProduct.hasImage || (!!photoFile && usageRightsAccepted));
   const hudBalance = !verified && !identityId ? 5 : balance;
   const creditsLabel = !verified && !identityId ? "Use Points!" : `Points: ${balance}`;
 
@@ -612,6 +700,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           <div className="neonGrid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
             {SHOUTOUT_PRODUCTS.map((product) => {
               const selected = product.key === productKey;
+              const canUseProduct = product.enabled || product.hasImage;
 
               return (
                 <button
@@ -625,7 +714,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                     boxShadow: selected
                       ? "0 0 18px rgba(0,247,255,0.20), 0 10px 30px rgba(0,0,0,0.40)"
                       : undefined,
-                    opacity: product.enabled ? 1 : 0.72,
+                    opacity: canUseProduct ? 1 : 0.72,
                   }}
                 >
                   <div className="neonTileBody">
@@ -646,6 +735,8 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                     <div className="neonTileMeta">{product.description}</div>
 
                     <div className="neonBadgeRow" style={{ marginTop: 2, flexWrap: "wrap" }}>
+                      {product.hasImage ? <span className="neonBadge neonBadgeHot">PHOTO</span> : null}
+
                       {product.creditsCost === 12 ? (
                         <>
                           <span className="neonBadge neonBadgeHot">POPULAR</span>
@@ -657,7 +748,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                         <span className="neonBadge neonBadgeHot">BEST VALUE</span>
                       ) : null}
 
-                      {!product.enabled ? (
+                      {!canUseProduct ? (
                         <span className="neonBadge">
                           {product.comingSoon ? "COMING SOON" : "UNAVAILABLE"}
                         </span>
@@ -728,7 +819,11 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
 
         <ShoutoutComposerDrawer
           open={showComposer}
-          onClose={() => setShowComposer(false)}
+          onClose={() => {
+            setShowComposer(false);
+            if (!selectedProduct.hasImage) return;
+            resetComposerMedia();
+          }}
           fromName={fromName}
           setFromName={setFromName}
           messageText={messageText}
@@ -744,6 +839,12 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
             setShowComposer(false);
             openBuyForShoutout();
           }}
+          photoFile={photoFile}
+          setPhotoFile={setPhotoFile}
+          photoPreviewUrl={photoPreviewUrl}
+          setPhotoPreviewUrl={setPhotoPreviewUrl}
+          usageRightsAccepted={usageRightsAccepted}
+          setUsageRightsAccepted={setUsageRightsAccepted}
         />
 
         <BuyCreditsDrawer
@@ -790,8 +891,28 @@ function ShoutoutComposerDrawer({
   canAfford,
   onSubmit,
   onGetPoints,
+  photoFile,
+  setPhotoFile,
+  photoPreviewUrl,
+  setPhotoPreviewUrl,
+  usageRightsAccepted,
+  setUsageRightsAccepted,
 }: DrawerProps) {
   if (!open) return null;
+
+  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const nextFile = event.target.files?.[0] || null;
+    setPhotoFile(nextFile);
+
+    if (photoPreviewUrl) {
+      URL.revokeObjectURL(photoPreviewUrl);
+      setPhotoPreviewUrl("");
+    }
+
+    if (nextFile) {
+      setPhotoPreviewUrl(URL.createObjectURL(nextFile));
+    }
+  }
 
   return (
     <div
@@ -811,6 +932,8 @@ function ShoutoutComposerDrawer({
           padding: 20,
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,
+          maxHeight: "90vh",
+          overflowY: "auto",
         }}
       >
         <h3 style={{ marginTop: 0, marginBottom: 14 }}>{selectedProduct.title}</h3>
@@ -842,6 +965,68 @@ function ShoutoutComposerDrawer({
               {charsUsed}/{charsMax} characters
             </div>
           </div>
+
+          {selectedProduct.hasImage ? (
+            <div>
+              <div style={{ fontWeight: 800, marginBottom: 6 }}>Photo</div>
+              <label
+                style={{
+                  display: "grid",
+                  gap: 10,
+                  padding: 12,
+                  borderRadius: 16,
+                  border: "1px dashed rgba(255,255,255,0.20)",
+                  background: "rgba(255,255,255,0.03)",
+                }}
+              >
+                <input
+                  type="file"
+                  accept={PHOTO_ACCEPT}
+                  onChange={handlePhotoChange}
+                  style={{ width: "100%" }}
+                />
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                  Upload JPG, PNG, HEIC, or HEIF.
+                </div>
+              </label>
+
+              {photoPreviewUrl ? (
+                <div
+                  style={{
+                    marginTop: 10,
+                    borderRadius: 16,
+                    overflow: "hidden",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                  }}
+                >
+                  <img
+                    src={photoPreviewUrl}
+                    alt="Selected upload preview"
+                    style={{ display: "block", width: "100%", maxHeight: 260, objectFit: "cover" }}
+                  />
+                </div>
+              ) : null}
+
+              <label
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  marginTop: 10,
+                  fontSize: 13,
+                  color: "rgba(255,255,255,0.92)",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={usageRightsAccepted}
+                  onChange={(e) => setUsageRightsAccepted(e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <span>I have permission to upload and display this photo on the screen.</span>
+              </label>
+            </div>
+          ) : null}
 
           <div
             style={{
@@ -875,11 +1060,7 @@ function ShoutoutComposerDrawer({
               onClick={onSubmit}
               disabled={!canSend}
             >
-              {busy
-                ? "Submitting..."
-                : !selectedProduct.enabled
-                ? "Photo shout-outs coming soon"
-                : `Send ${selectedProduct.title}`}
+              {busy ? "Submitting..." : `Send ${selectedProduct.title}`}
             </button>
           ) : (
             <button
