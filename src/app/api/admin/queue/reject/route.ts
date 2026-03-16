@@ -41,18 +41,27 @@ export async function POST(req: Request) {
       }
     });
 
-    // refund credits
-    if (refund > 0) {
-      await tx.creditLedger.create({
-        data: {
-          locationId: r.locationId,
-          emailHash: r.emailHash,
-          delta: refund,
-          reason: "ADMIN_REJECT_REFUND"
-        }
-      });
+// refund credits
+if (refund > 0) {
+  const activeSession = await tx.session.findFirst({
+    where: {
+      locationId: r.locationId,
+      isActive: true
+    },
+    select: { endsAt: true },
+    orderBy: { createdAt: "desc" }
+  });
+
+  await tx.creditLedger.create({
+    data: {
+      locationId: r.locationId,
+      emailHash: r.emailHash,
+      delta: refund,
+      reason: "ADMIN_REJECT_REFUND",
+      expiresAt: activeSession?.endsAt ?? null
     }
   });
+}
 
   return NextResponse.json({ ok: true });
 }

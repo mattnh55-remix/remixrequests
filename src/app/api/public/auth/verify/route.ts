@@ -188,12 +188,22 @@ export async function POST(req: Request) {
       return res;
     }
 
+    const activeSession = await prisma.session.findFirst({
+      where: {
+        locationId: loc.id,
+        isActive: true,
+      },
+      select: { endsAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+
     await prisma.creditLedger.create({
       data: {
         locationId: loc.id,
         emailHash,
         delta: welcomeCredits,
         reason: "WELCOME",
+        expiresAt: activeSession?.endsAt ?? null,
       },
     });
 
@@ -217,6 +227,7 @@ export async function POST(req: Request) {
       balance,
       note: `Welcome points added: +${welcomeCredits}.`,
     });
+
     if (setCookie) res.headers.set("set-cookie", setCookie);
 
     console.log("AUTH_VERIFY_OK_GRANTED", {

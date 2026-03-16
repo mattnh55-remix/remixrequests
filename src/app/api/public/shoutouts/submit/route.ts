@@ -102,17 +102,27 @@ export async function POST(req: Request) {
     const balance = balanceAgg._sum.delta || 0;
     if (balance < product.creditsCost) return jsonFail("Not enough credits");
 
-    const result = await prisma.$transaction(
-      async (tx) => {
-        await tx.creditLedger.create({
-          data: {
-            locationId: loc.id,
-            emailHash,
-            delta: -product.creditsCost,
-            reason: `SHOUT_${product.key}`,
-          },
-        });
+ const result = await prisma.$transaction(
+  async (tx) => {
 
+    const activeSession = await tx.session.findFirst({
+      where: {
+        locationId: loc.id,
+        isActive: true
+      },
+      select: { endsAt: true },
+      orderBy: { createdAt: "desc" }
+    });
+
+    await tx.creditLedger.create({
+      data: {
+        locationId: loc.id,
+        emailHash,
+        delta: -product.creditsCost,
+        reason: `SHOUT_${product.key}`,
+        expiresAt: activeSession?.endsAt ?? null
+      },
+    });
         return tx.screenMessage.create({
           data: {
             locationId: loc.id,

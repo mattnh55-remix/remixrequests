@@ -168,16 +168,27 @@ export async function POST(req: Request) {
       return jsonFail("Not enough credits.");
     }
 
-    const provisional = await prisma.$transaction(
-      async (tx) => {
-        await tx.creditLedger.create({
-          data: {
-            locationId: loc.id,
-            emailHash,
-            delta: -product.creditsCost,
-            reason: `SHOUT_${product.key}`,
-          },
-        });
+const provisional = await prisma.$transaction(
+  async (tx) => {
+
+    const activeSession = await tx.session.findFirst({
+      where: {
+        locationId: loc.id,
+        isActive: true
+      },
+      select: { endsAt: true },
+      orderBy: { createdAt: "desc" }
+    });
+
+    await tx.creditLedger.create({
+      data: {
+        locationId: loc.id,
+        emailHash,
+        delta: -product.creditsCost,
+        reason: `SHOUT_${product.key}`,
+        expiresAt: activeSession?.endsAt ?? null
+      },
+    });
 
         return tx.screenMessage.create({
           data: {
@@ -234,30 +245,39 @@ export async function POST(req: Request) {
         upsert: false,
       });
 
-    if (originalUpload.error) {
-      await prisma.$transaction(async (tx) => {
-        await tx.creditLedger.create({
-          data: {
-            locationId: loc.id,
-            emailHash,
-            delta: product.creditsCost,
-            reason: "SHOUT_REFUND_UPLOAD_FAILED",
-          },
-        });
+if (originalUpload.error) {
+  await prisma.$transaction(async (tx) => {
+    const activeSession = await tx.session.findFirst({
+      where: {
+        locationId: loc.id,
+        isActive: true,
+      },
+      select: { endsAt: true },
+      orderBy: { createdAt: "desc" },
+    });
 
-        await tx.screenMessage.update({
-          where: { id: provisional.id },
-          data: {
-            status: "BLOCKED_IMAGE",
-            imageModerationStatus: "ERROR",
-            imageModerationReason: originalUpload.error.message,
-          },
-        });
-      });
+    await tx.creditLedger.create({
+      data: {
+        locationId: loc.id,
+        emailHash,
+        delta: product.creditsCost,
+        reason: "SHOUT_REFUND_UPLOAD_FAILED",
+        expiresAt: activeSession?.endsAt ?? null,
+      },
+    });
 
-      return jsonFail("Image upload failed. Your credits were returned.", 500);
-    }
+    await tx.screenMessage.update({
+      where: { id: provisional.id },
+      data: {
+        status: "BLOCKED_IMAGE",
+        imageModerationStatus: "ERROR",
+        imageModerationReason: originalUpload.error.message,
+      },
+    });
+  });
 
+  return jsonFail("Image upload failed. Your credits were returned.", 500);
+}
     // V1 behavior:
     // - store the original now
     // - preview path reserved for later conversion pipeline

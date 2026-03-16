@@ -1,4 +1,4 @@
-// src/app/api/admin/rules/set/[location]/route.ts
+// src/app/api/admin/shoutouts/reject/route.ts
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
@@ -85,30 +85,39 @@ export async function POST(req: Request) {
       let refundLedgerId: string | null = null;
       const refundAmount = Number(fresh.creditsCost || 0);
 
-      if (refundAmount > 0) {
-        const refund = await tx.creditLedger.create({
-          data: {
-            locationId: fresh.locationId,
-            emailHash: fresh.emailHash,
-            delta: refundAmount,
-            reason: "REFUND",
-          },
-          select: { id: true },
-        });
+if (refundAmount > 0) {
+  const activeSession = await tx.session.findFirst({
+    where: {
+      locationId: fresh.locationId,
+      isActive: true,
+    },
+    select: { endsAt: true },
+    orderBy: { createdAt: "desc" },
+  });
 
-        refundLedgerId = refund.id;
-      }
+  const refund = await tx.creditLedger.create({
+    data: {
+      locationId: fresh.locationId,
+      emailHash: fresh.emailHash,
+      delta: refundAmount,
+      reason: "REFUND",
+      expiresAt: activeSession?.endsAt ?? null,
+    },
+    select: { id: true },
+  });
 
-      await tx.screenMessage.update({
-        where: { id: fresh.id },
-        data: {
-          status: "REJECTED",
-          rejectedAt: new Date(),
-          moderationNotes: note,
-          refundLedgerId,
-        },
-      });
+  refundLedgerId = refund.id;
+}
 
+await tx.screenMessage.update({
+  where: { id: fresh.id },
+  data: {
+    status: "rejected",
+    rejectedAt: new Date(),
+    moderationNotes: note,
+    refundLedgerId,
+  },
+});
       return {
         refundLedgerId,
         refundAmount,
