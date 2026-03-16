@@ -29,7 +29,6 @@ type MessageItem = {
   creditsCost?: number;
   status?: string;
   moderationNotes?: string | null;
-  autoTextModerationReason?: string | null;
   createdAt?: string;
   approvedAt?: string | null;
   rejectedAt?: string | null;
@@ -39,6 +38,7 @@ type MessageItem = {
   imageModerationStatus?: string | null;
   signedImageUrl?: string | null;
 };
+
 type PlaceholderMessage = {
   id: string;
   title: string;
@@ -531,6 +531,33 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     await loadAll();
   }
 
+  async function editMessage(messageId: string, currentFromName: string, currentMessageText: string) {
+    const nextFromName = prompt("Edit from name:", currentFromName || "");
+if (nextFromName === null) return;
+
+    const nextMessageText = prompt("Edit message:", currentMessageText || "");
+if (nextMessageText === null) return;
+
+const res = await fetch(`/api/admin/shoutouts/edit`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    messageId,
+    fromName: nextFromName.trim() || currentFromName || "",
+    messageText: nextMessageText.trim() || currentMessageText || "",
+    moderationNotes: "Edited by admin",
+  }),
+});
+    const data: any = await safeJson(res);
+    if (!data?.ok) {
+      setMsg(data?.error || "Could not edit message.");
+      return;
+    }
+
+    setMsg("✅ Message updated.");
+    await loadAll();
+  }
+
   async function rejectMessage(messageId: string) {
     const note = prompt("Reject reason?", "Rejected from dashboard") || "Rejected from dashboard";
 
@@ -807,12 +834,6 @@ async function rejectRequest(requestId: string) {
 
                       <div style={{ marginTop: 8, opacity: 0.94 }}>{m.messageText}</div>
 
-                      {m.autoTextModerationReason ? (
-                        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.72 }}>
-                          Auto filter: {m.autoTextModerationReason}
-                        </div>
-                      ) : null}
-
                       {m.signedImageUrl ? (
                         <div
                           style={{
@@ -848,6 +869,7 @@ async function rejectRequest(requestId: string) {
 
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignSelf: "flex-start" }}>
                       <ActionButton onClick={() => approveMessage(m.id)}>Approve</ActionButton>
+                      <ActionButton onClick={() => editMessage(m.id, m.fromName, m.messageText)}>Edit</ActionButton>
                       <ActionButton alt onClick={() => rejectMessage(m.id)}>Reject</ActionButton>
                     </div>
                   </div>

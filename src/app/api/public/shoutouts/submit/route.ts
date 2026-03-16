@@ -19,6 +19,48 @@ function maskBlockedName(input: string) {
   return `${clean.slice(0, 1)}${"•".repeat(Math.max(1, Math.min(clean.length - 1, 6)))}`;
 }
 
+function hasTooLongRun(input: string, maxRun = 20) {
+  let run = 0;
+
+  for (const ch of String(input || "")) {
+    if (/\s/.test(ch)) {
+      run = 0;
+      continue;
+    }
+
+    run += 1;
+    if (run > maxRun) return true;
+  }
+
+  return false;
+}
+
+function hasTooManyRepeatedChars(input: string, maxRepeat = 6) {
+  let last = "";
+  let run = 0;
+
+  for (const ch of Array.from(String(input || ""))) {
+    if (ch === last) {
+      run += 1;
+      if (run > maxRepeat) return true;
+    } else {
+      last = ch;
+      run = 1;
+    }
+  }
+
+  return false;
+}
+
+function hasTooManyEmoji(input: string, maxEmoji = 10) {
+  const matches =
+    String(input || "").match(
+      /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu
+    ) || [];
+
+  return matches.length > maxEmoji;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -49,13 +91,42 @@ export async function POST(req: Request) {
     const cleanFrom = String(fromName || "").trim();
     const cleanBody = String(messageText || "").trim();
 
-    if (!cleanFrom || !cleanBody) return jsonFail("Please enter your name and message.");
-    if (cleanFrom.length > Number(rules.maxFromNameChars || 24)) {
-      return jsonFail(`From name must be ${Number(rules.maxFromNameChars || 24)} characters or less.`);
-    }
-    if (cleanBody.length > Number(rules.maxMessageChars || 80)) {
-      return jsonFail(`Message must be ${Number(rules.maxMessageChars || 80)} characters or less.`);
-    }
+if (!cleanFrom || !cleanBody) return jsonFail("Please enter your name and message.");
+
+if (cleanFrom.length > Number(rules.maxFromNameChars || 24)) {
+  return jsonFail(`From name must be ${Number(rules.maxFromNameChars || 24)} characters or less.`);
+}
+
+if (hasTooLongRun(cleanFrom, 18)) {
+  return jsonFail("Please shorten the name or add spaces.");
+}
+
+if (cleanBody.length > Number(rules.maxMessageChars || 80)) {
+  return jsonFail(`Message must be ${Number(rules.maxMessageChars || 80)} characters or less.`);
+}
+
+if (hasTooLongRun(cleanBody, 20)) {
+  return jsonFail("Please add spaces or shorten your message.");
+}
+if (hasTooLongRun(cleanFrom, 18)) {
+  return jsonFail("Please shorten the name or add spaces.");
+}
+
+if (hasTooLongRun(cleanBody, 20)) {
+  return jsonFail("Please add spaces or shorten your message.");
+}
+
+if (hasTooManyRepeatedChars(cleanFrom, 6)) {
+  return jsonFail("Please remove repeated characters from the name.");
+}
+
+if (hasTooManyRepeatedChars(cleanBody, 6)) {
+  return jsonFail("Please remove repeated characters from the message.");
+}
+
+if (hasTooManyEmoji(cleanBody, 10)) {
+  return jsonFail("Please use fewer emoji.");
+}
 
     const pendingCount = await prisma.screenMessage.count({
       where: {

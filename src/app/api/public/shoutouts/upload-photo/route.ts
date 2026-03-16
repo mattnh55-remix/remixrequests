@@ -42,6 +42,48 @@ function getFileExtensionFromMime(mime: string) {
   }
 }
 
+function hasTooLongRun(input: string, maxRun = 20) {
+  let run = 0;
+
+  for (const ch of String(input || "")) {
+    if (/\s/.test(ch)) {
+      run = 0;
+      continue;
+    }
+
+    run += 1;
+    if (run > maxRun) return true;
+  }
+
+  return false;
+}
+
+function hasTooManyRepeatedChars(input: string, maxRepeat = 6) {
+  let last = "";
+  let run = 0;
+
+  for (const ch of Array.from(String(input || ""))) {
+    if (ch === last) {
+      run += 1;
+      if (run > maxRepeat) return true;
+    } else {
+      last = ch;
+      run = 1;
+    }
+  }
+
+  return false;
+}
+
+function hasTooManyEmoji(input: string, maxEmoji = 10) {
+  const matches =
+    String(input || "").match(
+      /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu
+    ) || [];
+
+  return matches.length > maxEmoji;
+}
+
 export async function POST(req: Request) {
   try {
     const form = await req.formData();
@@ -49,8 +91,8 @@ export async function POST(req: Request) {
     const location = String(form.get("location") || "").trim();
     const identityId = String(form.get("identityId") || "").trim() || null;
     const email = String(form.get("email") || "").trim();
-    const fromName = String(form.get("fromName") || "").trim();
-    const messageText = String(form.get("messageText") || "").trim();
+const cleanFrom = String(form.get("fromName") || "").replace(/\s+/g, " ").trim();
+const cleanBody = String(form.get("messageText") || "").replace(/\s+/g, " ").trim();
     const productInput = String(form.get("productKey") || form.get("tier") || "").trim();
     const usageRightsAcceptedRaw = String(form.get("usageRightsAccepted") || "").trim();
     const usageRightsAccepted =
@@ -58,7 +100,7 @@ export async function POST(req: Request) {
 
     const file = form.get("file");
 
-    if (!location || !email || !fromName || !messageText || !productInput) {
+    if (!location || !email || !cleanFrom || !cleanBody || !productInput) {
       return jsonFail("Missing required fields.");
     }
 
@@ -93,40 +135,60 @@ export async function POST(req: Request) {
     const session = await getOrCreateCurrentSession(loc.id, 4);
     const emailHash = hashEmail(email);
 
-    if (fromName.length > Number(rules.maxFromNameChars || 24)) {
-      return jsonFail(
-        `From name must be ${Number(rules.maxFromNameChars || 24)} characters or less.`
-      );
-    }
+if (cleanFrom.length > Number(rules.maxFromNameChars || 24)) {
+  return jsonFail(
+    `From name must be ${Number(rules.maxFromNameChars || 24)} characters or less.`
+  );
+}
 
-    if (messageText.length > Number(rules.maxMessageChars || 80)) {
-      return jsonFail(
-        `Message must be ${Number(rules.maxMessageChars || 80)} characters or less.`
-      );
-    }
+if (cleanBody.length > Number(rules.maxMessageChars || 80)) {
+  return jsonFail(
+    `Message must be ${Number(rules.maxMessageChars || 80)} characters or less.`
+  );
+}
 
-    const textMod = moderateShoutoutText(fromName, messageText);
-    if (textMod.result === "BLOCK") {
-      await prisma.screenMessage.create({
-        data: {
-          locationId: loc.id,
-          sessionId: session.id,
-          identityId,
-          emailHash,
-          fromName,
-          messageText,
-          tier: product.key,
-          creditsCost: 0,
-          status: "BLOCKED_TEXT",
-          displayDurationSec: 0,
-          sortWeight: product.weight,
-          autoTextModerationResult: "BLOCK",
-          autoTextModerationReason: textMod.reason,
-          autoModeratedAt: new Date(),
-          usageRightsAccepted,
-          usageRightsAcceptedAt: new Date(),
-        },
-      });
+if (hasTooLongRun(cleanFrom, 18)) {
+  return jsonFail("Please shorten the name or add spaces.");
+}
+
+if (hasTooLongRun(cleanBody, 20)) {
+  return jsonFail("Please add spaces or shorten your message.");
+}
+
+if (hasTooManyRepeatedChars(cleanFrom, 6)) {
+  return jsonFail("Please remove repeated characters from the name.");
+}
+
+if (hasTooManyRepeatedChars(cleanBody, 6)) {
+  return jsonFail("Please remove repeated characters from the message.");
+}
+
+if (hasTooManyEmoji(cleanBody, 10)) {
+  return jsonFail("Please use fewer emoji.");
+}
+
+ const textMod = moderateShoutoutText(cleanFrom, cleanBody);
+if (textMod.result === "BLOCK") {
+  await prisma.screenMessage.create({
+    data: {
+      locationId: loc.id,
+      sessionId: session.id,
+      identityId,
+      emailHash,
+      fromName: cleanFrom,
+      messageText: cleanBody,
+      tier: product.key,
+      creditsCost: 0,
+      status: "BLOCKED_TEXT",
+      displayDurationSec: 0,
+      sortWeight: product.weight,
+      autoTextModerationResult: "BLOCK",
+      autoTextModerationReason: textMod.reason,
+      autoModeratedAt: new Date(),
+      usageRightsAccepted,
+      usageRightsAcceptedAt: new Date(),
+    },
+  });
 
       return jsonFail(rules.filterBlockMessage || "This message can’t be submitted as written.");
     }
@@ -196,8 +258,8 @@ const activeSession = await tx.session.findFirst({
             sessionId: session.id,
             identityId,
             emailHash,
-            fromName,
-            messageText,
+            fromName: cleanFrom,
+            messageText: cleanBody,
             tier: product.key,
             creditsCost: product.creditsCost,
             status: "PENDING_IMAGE_SCAN",
