@@ -674,7 +674,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     void redeem(code);
   }}
   redeemBusy={redeemBusy}
-  onVerified={(payload?: { balance?: number }) => {
+  onVerified={(payload?: { balance?: number; note?: string; welcomeGranted?: boolean }) => {
     setVerified(true);
     setShowVerify(false);
 
@@ -695,7 +695,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       // ignore
     }
 
-    setMsg("✅ Verified! Your intro points are ready.");
+    setMsg(payload?.note || "✅ Verified! Your intro points are ready.");
   }}
   onClose={() => setShowVerify(false)}
 />
@@ -931,7 +931,11 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
       if (data.ok) {
         localStorage.setItem("rr_identityId", data.identityId);
         if (email.trim()) localStorage.setItem("rr_email", email.trim());
-        onVerified?.({ balance: data.balance });
+        onVerified?.({
+  balance: data.balance,
+  note: data.note,
+  welcomeGranted: data.welcomeGranted,
+});
       } else {
         setMsg(data.error || "Invalid code");
       }
