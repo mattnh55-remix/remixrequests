@@ -4,9 +4,9 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
-import { getOrCreateCurrentSession, getCreditBalance } from "@/lib/validators";
+import { getCreditBalance } from "@/lib/validators";
 import { hashEmail } from "@/lib/security";
-import { getOrCreateDeviceId, sha256 } from "@/lib/device";
+import { getOrCreateDeviceId } from "@/lib/device";
 import { subscribeMailchimp } from "@/lib/mailchimp";
 
 export const runtime = "nodejs";
@@ -14,6 +14,11 @@ export const dynamic = "force-dynamic";
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function startOfTodayLocal() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
 export async function POST(req: Request) {
@@ -44,12 +49,8 @@ export async function POST(req: Request) {
     const { deviceId, setCookie } = getOrCreateDeviceId(req.headers.get("cookie"));
     const emailHash = hashEmail(email);
 
-    // Session used for welcome-credit gating (4-hour reset)
-    const session = await getOrCreateCurrentSession(loc.id, 4);
-
     const codeHash = crypto.createHash("sha256").update(code).digest("hex");
 
-    // Find latest matching, unexpired OTP for this device/email/location
     const otp = await prisma.otpCode.findFirst({
       where: {
         locationId: loc.id,
@@ -66,7 +67,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Invalid or expired code." }, { status: 400 });
     }
 
-    // If already locked out, stop early
     if (otp.attempts >= otp.maxAttempts) {
       console.warn("AUTH_VERIFY_LOCKED", { reqId, otpId: otp.id, locationId: loc.id, deviceId });
       return NextResponse.json(
@@ -75,11 +75,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Consume the OTP on success (and prevent replay) by deleting it.
-    // Also: if you want to keep history, replace delete with update({ usedAt: new Date() })
     await prisma.otpCode.delete({ where: { id: otp.id } });
 
-    // Mark verified on Identity (upsert)
     const identity = await prisma.identity.upsert({
       where: { locationId_emailHash: { locationId: loc.id, emailHash } },
       update: {
@@ -96,16 +93,21 @@ export async function POST(req: Request) {
         emailOptInAt: emailOptIn ? new Date() : undefined,
         smsOptInAt: smsOptIn ? new Date() : undefined,
       },
-      select: { id: true, welcomeGrantedSessionId: true },
+      select: { id: true },
     });
 
-    // Always return identityId when verified so the frontend can pass it into Square checkout
     if (!emailOptIn) {
+      let balance: number | null = null;
+      try {
+        balance = await getCreditBalance(loc.id, emailHash);
+      } catch {}
+
       const res = NextResponse.json({
         ok: true,
         verified: true,
         identityId: identity.id,
         welcomeGranted: false,
+        balance,
         note: "Opt-in required for welcome credits.",
       });
       if (setCookie) res.headers.set("set-cookie", setCookie);
@@ -113,7 +115,6 @@ export async function POST(req: Request) {
       return res;
     }
 
-    // Subscribe Mailchimp (immediate)
     try {
       await subscribeMailchimp(email, ["Remix Requests"]);
       await prisma.identity.update({
@@ -133,50 +134,67 @@ export async function POST(req: Request) {
         message: e?.message || String(e),
       });
 
-      // Your current rule: block credits if Mailchimp fails
       return NextResponse.json(
         { ok: false, error: "Could not subscribe. Please try again." },
         { status: 400 }
       );
     }
 
-    // Grant welcome credits once per session
     const welcomeCredits = Number(process.env.WELCOME_CREDITS || "5");
+    const todayStart = startOfTodayLocal();
 
-    if (identity.welcomeGrantedSessionId === session.id) {
+    const alreadyGrantedToday = await prisma.creditLedger.findFirst({
+      where: {
+        locationId: loc.id,
+        emailHash,
+        reason: "WELCOME",
+        createdAt: { gte: todayStart },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, createdAt: true },
+    });
+
+    if (alreadyGrantedToday) {
+      let balance: number | null = null;
+      try {
+        balance = await getCreditBalance(loc.id, emailHash);
+      } catch (e: any) {
+        console.error("AUTH_VERIFY_BALANCE_FAILED_ALREADY_GRANTED", {
+          reqId,
+          locationId: loc.id,
+          identityId: identity.id,
+          message: e?.message || String(e),
+        });
+      }
+
       const res = NextResponse.json({
         ok: true,
         verified: true,
         identityId: identity.id,
         welcomeGranted: false,
-        note: "Welcome already granted this session.",
+        balance,
+        note: "You already claimed your free welcome points today. Come back tomorrow for another free claim.",
       });
       if (setCookie) res.headers.set("set-cookie", setCookie);
-      console.log("AUTH_VERIFY_OK_ALREADY_GRANTED", {
+
+      console.log("AUTH_VERIFY_OK_ALREADY_GRANTED_TODAY", {
         reqId,
         locationId: loc.id,
         identityId: identity.id,
-        sessionId: session.id,
+        welcomeLedgerId: alreadyGrantedToday.id,
+        grantedAt: alreadyGrantedToday.createdAt.toISOString(),
       });
+
       return res;
     }
 
-    await prisma.$transaction(async (tx) => {
-      // NOTE: leaving this in your current shape (locationId + emailHash)
-      // If you’ve already migrated CreditLedger to identityId, tell me and I’ll adjust this block.
-      await tx.creditLedger.create({
-        data: {
-          locationId: loc.id,
-          emailHash,
-          delta: welcomeCredits,
-          reason: "WELCOME",
-        },
-      });
-
-      await tx.identity.update({
-        where: { id: identity.id },
-        data: { welcomeGrantedSessionId: session.id },
-      });
+    await prisma.creditLedger.create({
+      data: {
+        locationId: loc.id,
+        emailHash,
+        delta: welcomeCredits,
+        reason: "WELCOME",
+      },
     });
 
     let balance: number | null = null;
@@ -189,7 +207,6 @@ export async function POST(req: Request) {
         identityId: identity.id,
         message: e?.message || String(e),
       });
-      // Non-fatal: still verified and credits granted
     }
 
     const res = NextResponse.json({
@@ -198,6 +215,7 @@ export async function POST(req: Request) {
       identityId: identity.id,
       welcomeGranted: true,
       balance,
+      note: `Welcome points added: +${welcomeCredits}.`,
     });
     if (setCookie) res.headers.set("set-cookie", setCookie);
 
@@ -205,7 +223,6 @@ export async function POST(req: Request) {
       reqId,
       locationId: loc.id,
       identityId: identity.id,
-      sessionId: session.id,
       welcomeCredits,
     });
 
