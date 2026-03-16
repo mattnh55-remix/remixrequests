@@ -1,7 +1,7 @@
 // src/app/api/public/shoutouts/feed/[location]/route.ts
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/db";
 import { getOrCreateCurrentSession } from "@/lib/validators";
 import { formatShoutoutProductLabel, getShoutoutAccent } from "@/lib/shoutoutProducts";
 import {

@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { isAdminFromCookie } from "@/lib/adminAuth";
+// src/app/api/admin/rules/set/[location]/route.ts
 
-export const runtime = "nodejs";
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { isAdminFromCookie } from "@/lib/adminAuth";
 
 function fail(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -11,76 +11,128 @@ function fail(message: string, status = 400) {
 export async function POST(req: Request) {
   try {
     if (!isAdminFromCookie(req.headers.get("cookie") || "")) {
-  return fail("Unauthorized", 401);
-}
+      return fail("Unauthorized", 401);
+    }
 
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => null);
     const messageId = String(body?.messageId || "").trim();
-    const note = String(body?.note || body?.reason || "Rejected from dashboard").trim();
+    const note = String(body?.note || "Rejected by admin").trim();
 
-    if (!messageId) return fail("messageId is required");
+    if (!messageId) return fail("Missing messageId");
 
-    const existing = await prisma.screenMessage.findUnique({ where: { id: messageId } });
-    if (!existing) return fail("Message not found", 404);
+    const message = await prisma.screenMessage.findUnique({
+      where: { id: messageId },
+      select: {
+        id: true,
+        locationId: true,
+        emailHash: true,
+        creditsCost: true,
+        status: true,
+        refundLedgerId: true,
+      },
+    });
 
-    if (existing.status === "REJECTED") {
+    if (!message) return fail("Message not found", 404);
+
+    if (message.status === "REJECTED") {
       return NextResponse.json({
         ok: true,
-        alreadyDone: true,
-        messageId: existing.id,
-        refundLedgerId: existing.refundLedgerId || null,
+        alreadyRejected: true,
+        alreadyRefunded: !!message.refundLedgerId,
+        refundAmount: message.refundLedgerId ? Number(message.creditsCost || 0) : 0,
       });
     }
 
-    if (!["PENDING", "APPROVED"].includes(existing.status)) {
-      return fail(`Only pending or approved shout-outs can be rejected. Current status: ${existing.status}`);
-    }
-
-    const rules = await prisma.messageRuleset.findUnique({
-      where: { locationId: existing.locationId },
-      select: { autoRefundRejected: true },
-    });
-    const shouldRefund = Boolean(rules?.autoRefundRejected ?? true) && existing.creditsCost > 0;
-
     const result = await prisma.$transaction(async (tx) => {
-      let refundLedgerId = existing.refundLedgerId || null;
+      const fresh = await tx.screenMessage.findUnique({
+        where: { id: messageId },
+        select: {
+          id: true,
+          locationId: true,
+          emailHash: true,
+          creditsCost: true,
+          status: true,
+          refundLedgerId: true,
+        },
+      });
 
-      if (shouldRefund && !refundLedgerId) {
-        const refundLedger = await tx.creditLedger.create({
-          data: {
-            locationId: existing.locationId,
-            emailHash: existing.emailHash,
-            delta: existing.creditsCost,
-            reason: `SHOUT_REFUND_${existing.tier}`,
-          },
-        });
-        refundLedgerId = refundLedger.id;
+      if (!fresh) {
+        throw new Error("MESSAGE_NOT_FOUND");
       }
 
-      const updated = await tx.screenMessage.update({
-        where: { id: existing.id },
+      if (fresh.refundLedgerId) {
+        const updated = await tx.screenMessage.update({
+          where: { id: fresh.id },
+          data: {
+            status: "REJECTED",
+            rejectedAt: new Date(),
+            moderationNotes: note,
+          },
+          select: {
+            id: true,
+            refundLedgerId: true,
+            creditsCost: true,
+          },
+        });
+
+        return {
+          refundLedgerId: updated.refundLedgerId,
+          refundAmount: 0,
+          alreadyRefunded: true,
+        };
+      }
+
+      let refundLedgerId: string | null = null;
+      const refundAmount = Number(fresh.creditsCost || 0);
+
+      if (refundAmount > 0) {
+        const refund = await tx.creditLedger.create({
+          data: {
+            locationId: fresh.locationId,
+            emailHash: fresh.emailHash,
+            delta: refundAmount,
+            reason: "REFUND",
+          },
+          select: { id: true },
+        });
+
+        refundLedgerId = refund.id;
+      }
+
+      await tx.screenMessage.update({
+        where: { id: fresh.id },
         data: {
           status: "REJECTED",
           rejectedAt: new Date(),
-          approvedAt: null,
-          rejectedBy: "admin",
-          moderationNotes: note || existing.moderationNotes || null,
+          moderationNotes: note,
           refundLedgerId,
         },
       });
 
-      return { updated, refundLedgerId };
+      return {
+        refundLedgerId,
+        refundAmount,
+        alreadyRefunded: false,
+      };
+    });
+
+    const balanceAgg = await prisma.creditLedger.aggregate({
+      _sum: { delta: true },
+      where: {
+        locationId: message.locationId,
+        emailHash: message.emailHash,
+      },
     });
 
     return NextResponse.json({
       ok: true,
-      messageId: result.updated.id,
-      status: result.updated.status,
-      refundLedgerId: result.refundLedgerId,
-      refunded: Boolean(result.refundLedgerId),
+      refunded: result.refundAmount > 0,
+      alreadyRefunded: result.alreadyRefunded,
+      refundAmount: result.refundAmount,
+      balance: Math.max(Number(balanceAgg._sum.delta || 0), 0),
     });
   } catch (err: any) {
     console.error("[admin/shoutouts/reject] error:", err?.message || err);
-    return fail("Something went wrong", 500);
+    return fail("Could not reject message", 500);
   }
 }

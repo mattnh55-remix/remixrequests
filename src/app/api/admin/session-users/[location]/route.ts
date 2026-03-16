@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
 import { getOrCreateCurrentSession } from "@/lib/validators";
 import { isAdminFromCookie } from "@/lib/adminAuth";

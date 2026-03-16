@@ -1,5 +1,5 @@
 // src/lib/messageRules.ts
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/db";
 
 export async function getMessageRules(locationSlug: string) {
   const loc = await prisma.location.findUnique({ where: { slug: locationSlug }});
