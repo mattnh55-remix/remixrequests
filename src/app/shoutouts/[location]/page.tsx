@@ -74,7 +74,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   const [logoUrl, setLogoUrl] = useState("");
   const [rulesData, setRulesData] = useState<SessionRes | null>(null);
   const [balance, setBalance] = useState(0);
-
+  const [toastVisible, setToastVisible] = useState(false);
   const [fromName, setFromName] = useState("");
   const [messageText, setMessageText] = useState("");
   const [productKey, setProductKey] = useState<ShoutoutProductKey>("TEXT_BASIC");
@@ -241,6 +241,17 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   }, [location]);
 
   useEffect(() => {
+    if (!msg) {
+      setToastVisible(false);
+      return;
+    }
+
+    setToastVisible(true);
+    const id = window.setTimeout(() => setToastVisible(false), 3200);
+    return () => window.clearTimeout(id);
+  }, [msg]);
+
+  useEffect(() => {
     if (!pendingComposerAfterBuy) return;
     if (!selectedProduct?.enabled) return;
 
@@ -329,7 +340,11 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     }
   }
 
-  function handleCreateClick() {
+  function handleProductClick(nextProductKey: ShoutoutProductKey) {
+    const nextProduct =
+      SHOUTOUT_PRODUCTS.find((p) => p.key === nextProductKey) || SHOUTOUT_PRODUCTS[0];
+
+    setProductKey(nextProductKey);
     setMsg("");
 
     if (!verified || !identityId || !email) {
@@ -338,18 +353,18 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       return;
     }
 
-    if (!selectedProduct.enabled) {
+    if (!nextProduct.enabled) {
       setMsg(
-        selectedProduct.hasImage
+        nextProduct.hasImage
           ? "Photo shout-outs are coming soon."
           : "That shout-out option is currently unavailable."
       );
       return;
     }
 
-    if (balance < selectedProduct.creditsCost) {
-      setMsg(`You need ${selectedProduct.creditsCost} points for this shout-out.`);
-      openBuyForShoutout();
+    if (balance < nextProduct.creditsCost) {
+      setMsg(`You need ${nextProduct.creditsCost} points for this shout-out.`);
+      openBuyForShoutout(nextProductKey);
       return;
     }
 
@@ -407,7 +422,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
 
       const data = await res.json();
       if (!data.ok) {
-        setMsg(data.error || "Something went wrong.");
+        setMsg(data.error || "This message can’t be submitted as written. Please revise and try again.");
         return;
       }
 
@@ -420,7 +435,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       if (typeof nextBalance === "number") setBalance(nextBalance);
       else await refreshBalance();
     } catch {
-      setMsg("Something went wrong.");
+      setMsg("This message can’t be submitted as written. Please revise and try again.");
     } finally {
       setBusy(false);
     }
@@ -502,6 +517,32 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     <div className="neonRoot">
       <div className="rrWall" />
 
+      {toastVisible && msg ? (
+        <div
+          style={{
+            position: "fixed",
+            left: "50%",
+            top: showComposer || showVerify || showBuy ? 24 : 16,
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+            width: "min(92vw, 720px)",
+            padding: "14px 16px",
+            borderRadius: 16,
+            border: "1px solid rgba(255,255,255,0.18)",
+            background: msg.includes("✅")
+              ? "linear-gradient(135deg, rgba(0,180,120,0.96), rgba(0,110,90,0.96))"
+              : "linear-gradient(135deg, rgba(180,40,70,0.97), rgba(120,20,40,0.97))",
+            color: "#fff",
+            fontWeight: 900,
+            letterSpacing: 0.2,
+            boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
+            textAlign: "center",
+          }}
+        >
+          {msg}
+        </div>
+      ) : null}
+
       <div className="neonWrap" style={{ paddingBottom: 110 }}>
         <div className="neonHeader neonHeader3">
           <div className="neonHeaderLeft">
@@ -574,7 +615,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                 <button
                   key={product.key}
                   type="button"
-                  onClick={() => setProductKey(product.key)}
+                  onClick={() => handleProductClick(product.key)}
                   className="neonTile"
                   style={{
                     textAlign: "left",
@@ -646,59 +687,42 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
               All messages are reviewed before appearing on screen.
             </div>
           </div>
-
-          <button
-            className="neonBtn neonBtnPrimary"
-            style={{ width: "100%", marginTop: 14 }}
-            onClick={handleCreateClick}
-            disabled={!selectedProduct.enabled}
-          >
-            {!selectedProduct.enabled
-              ? "Photo shout-outs coming soon"
-              : !verified
-              ? `USE POINTS FOR ${selectedProduct.title}`
-              : canAfford
-              ? `Create ${selectedProduct.title}`
-              : `GET POINTS FOR ${selectedProduct.title}`}
-          </button>
-
-          {msg ? <div style={{ marginTop: 14 }}>{msg}</div> : null}
         </div>
 
-<VerifyModal
-  open={showVerify}
-  location={location}
-  email={email}
-  setEmail={setEmail}
-  onRedeem={(code: string) => {
-    void redeem(code);
-  }}
-  redeemBusy={redeemBusy}
-  onVerified={(payload?: { balance?: number; note?: string; welcomeGranted?: boolean }) => {
-    setVerified(true);
-    setShowVerify(false);
+        <VerifyModal
+          open={showVerify}
+          location={location}
+          email={email}
+          setEmail={setEmail}
+          onRedeem={(code: string) => {
+            void redeem(code);
+          }}
+          redeemBusy={redeemBusy}
+          onVerified={(payload?: { balance?: number; note?: string; welcomeGranted?: boolean }) => {
+            setVerified(true);
+            setShowVerify(false);
 
-    try {
-      const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
-      const lsEmail = (localStorage.getItem("rr_email") || "").trim();
+            try {
+              const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+              const lsEmail = (localStorage.getItem("rr_email") || "").trim();
 
-      if (lsIdentity) setIdentityId(lsIdentity);
-      if (lsEmail) setEmail(lsEmail);
-      else if (email.trim()) localStorage.setItem("rr_email", email.trim());
+              if (lsIdentity) setIdentityId(lsIdentity);
+              if (lsEmail) setEmail(lsEmail);
+              else if (email.trim()) localStorage.setItem("rr_email", email.trim());
 
-      if (typeof payload?.balance === "number") {
-        setBalance(payload.balance);
-      } else if (lsIdentity) {
-        void refreshBalance(lsIdentity);
-      }
-    } catch {
-      // ignore
-    }
+              if (typeof payload?.balance === "number") {
+                setBalance(payload.balance);
+              } else if (lsIdentity) {
+                void refreshBalance(lsIdentity);
+              }
+            } catch {
+              // ignore
+            }
 
-    setMsg(payload?.note || "✅ Verified! Your intro points are ready.");
-  }}
-  onClose={() => setShowVerify(false)}
-/>
+            setMsg(payload?.note || "✅ Verified! Your intro points are ready.");
+          }}
+          onClose={() => setShowVerify(false)}
+        />
 
         <ShoutoutComposerDrawer
           open={showComposer}
@@ -932,10 +956,10 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
         localStorage.setItem("rr_identityId", data.identityId);
         if (email.trim()) localStorage.setItem("rr_email", email.trim());
         onVerified?.({
-  balance: data.balance,
-  note: data.note,
-  welcomeGranted: data.welcomeGranted,
-});
+          balance: data.balance,
+          note: data.note,
+          welcomeGranted: data.welcomeGranted,
+        });
       } else {
         setMsg(data.error || "Invalid code");
       }
@@ -947,35 +971,94 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.8)" }}>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 100,
+        display: "grid",
+        placeItems: "center",
+        background: "rgba(0,0,0,0.8)",
+      }}
+    >
       <div className="neonPanel" style={{ padding: 20, width: 320 }}>
         <h3 style={{ marginTop: 0, marginBottom: 15 }}>Verify</h3>
         <div style={{ display: "grid", gap: 10 }}>
           <input className="neonInput" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
           <input className="neonInput" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
           <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
-            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}><input type="checkbox" checked={emailOptIn} onChange={(e) => setEmailOptIn(e.target.checked)} style={{ marginTop: 3 }} /><span>Yes — email deals & updates <span style={{ color: "var(--muted)" }}>(required for credits)</span></span></label>
-            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}><input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} style={{ marginTop: 3 }} /><span>Yes — text deals & updates <span style={{ color: "var(--muted)" }}>(recommended)</span></span></label>
+            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
+              <input type="checkbox" checked={emailOptIn} onChange={(e) => setEmailOptIn(e.target.checked)} style={{ marginTop: 3 }} />
+              <span>Yes — email deals & updates <span style={{ color: "var(--muted)" }}>(required for credits)</span></span>
+            </label>
+            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
+              <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} style={{ marginTop: 3 }} />
+              <span>Yes — text deals & updates <span style={{ color: "var(--muted)" }}>(recommended)</span></span>
+            </label>
           </div>
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
             <div style={{ fontWeight: 900, marginBottom: 8, fontSize: 14 }}>Have a redemption code?</div>
             <div style={{ perspective: 1000 }}>
-              <div style={{ position: "relative", height: 48, transformStyle: "preserve-3d", transition: "transform 0.6s cubic-bezier(.2,.8,.2,1)", transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)", willChange: "transform" }}>
-                <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "translateZ(0.1px)", display: "flex", alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased" }}>
-                  <button className="neonBtn" style={{ width: "100%", height: "100%", opacity: 0.8 }} onClick={() => setShowRedeem(true)}>Redeem Code</button>
+              <div
+                style={{
+                  position: "relative",
+                  height: 48,
+                  transformStyle: "preserve-3d",
+                  transition: "transform 0.6s cubic-bezier(.2,.8,.2,1)",
+                  transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
+                  willChange: "transform",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    backfaceVisibility: "hidden",
+                    WebkitBackfaceVisibility: "hidden",
+                    transform: "translateZ(0.1px)",
+                    display: "flex",
+                    alignItems: "center",
+                    WebkitFontSmoothing: "subpixel-antialiased",
+                  }}
+                >
+                  <button className="neonBtn" style={{ width: "100%", height: "100%", opacity: 0.8 }} onClick={() => setShowRedeem(true)}>
+                    Redeem Code
+                  </button>
                 </div>
-                <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg) translateZ(0.1px)", display: "flex", gap: 8, alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased" }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    backfaceVisibility: "hidden",
+                    WebkitBackfaceVisibility: "hidden",
+                    transform: "rotateY(180deg) translateZ(0.1px)",
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    WebkitFontSmoothing: "subpixel-antialiased",
+                  }}
+                >
                   <input className="neonInput" placeholder="Code" value={redeemCode} onChange={(e) => setRedeemCode(e.target.value)} style={{ flex: 1, height: "100%" }} />
-                  <button className="neonBtn neonBtnPrimary" disabled={!!redeemBusy} onClick={() => onRedeem?.(redeemCode)} style={{ height: "100%" }}>{redeemBusy ? "..." : "Apply"}</button>
+                  <button className="neonBtn neonBtnPrimary" disabled={!!redeemBusy} onClick={() => onRedeem?.(redeemCode)} style={{ height: "100%" }}>
+                    {redeemBusy ? "..." : "Apply"}
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-          <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic", marginTop: 5 }}>We’ll text a one-time code. Standard rates may apply.</div>
-          {step === "code" ? <input className="neonInput" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter 6-digit Code" style={{ border: "1px solid cyan", marginTop: 5 }} /> : null}
+          <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic", marginTop: 5 }}>
+            We’ll text a one-time code. Standard rates may apply.
+          </div>
+          {step === "code" ? (
+            <input className="neonInput" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter 6-digit Code" style={{ border: "1px solid cyan", marginTop: 5 }} />
+          ) : null}
           <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-            <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode} style={{ width: "100%", height: 48 }}>{busy ? "..." : "Submit"}</button>
-            <button className="neonBtn" onClick={onClose} style={{ width: "100%", opacity: 0.6 }}>Close</button>
+            <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode} style={{ width: "100%", height: 48 }}>
+              {busy ? "..." : "Submit"}
+            </button>
+            <button className="neonBtn" onClick={onClose} style={{ width: "100%", opacity: 0.6 }}>
+              Close
+            </button>
           </div>
           {msg ? <p style={{ color: "#ff4444", fontSize: 12, textAlign: "center", margin: 0 }}>{msg}</p> : null}
         </div>

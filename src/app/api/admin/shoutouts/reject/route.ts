@@ -82,42 +82,45 @@ export async function POST(req: Request) {
         };
       }
 
-      let refundLedgerId: string | null = null;
+let refundLedgerId: string | null = null;
       const refundAmount = Number(fresh.creditsCost || 0);
 
-if (refundAmount > 0) {
-  const activeSession = await tx.session.findFirst({
-    where: {
-      locationId: fresh.locationId,
-      isActive: true,
-    },
-    select: { endsAt: true },
-    orderBy: { createdAt: "desc" },
-  });
+      if (refundAmount > 0) {
+        const activeSession = await tx.session.findFirst({
+          where: {
+            locationId: fresh.locationId,
+            // FIX: Use date comparison instead of isActive
+            endsAt: { gt: new Date() }, 
+          },
+          select: { endsAt: true },
+          orderBy: { createdAt: "desc" },
+        });
 
-  const refund = await tx.creditLedger.create({
-    data: {
-      locationId: fresh.locationId,
-      emailHash: fresh.emailHash,
-      delta: refundAmount,
-      reason: "REFUND",
-      expiresAt: activeSession?.endsAt ?? null,
-    },
-    select: { id: true },
-  });
+        const refund = await tx.creditLedger.create({
+          data: {
+            locationId: fresh.locationId,
+            emailHash: fresh.emailHash,
+            delta: refundAmount,
+            reason: "REFUND",
+            expiresAt: activeSession?.endsAt ?? null,
+          },
+          select: { id: true },
+        });
 
-  refundLedgerId = refund.id;
-}
+        refundLedgerId = refund.id;
+      }
 
-await tx.screenMessage.update({
-  where: { id: fresh.id },
-  data: {
-    status: "rejected",
-    rejectedAt: new Date(),
-    moderationNotes: note,
-    refundLedgerId,
-  },
-});
+      await tx.screenMessage.update({
+        where: { id: fresh.id },
+        data: {
+          // FIX: Must be uppercase "REJECTED" to match your schema
+          status: "REJECTED", 
+          rejectedAt: new Date(),
+          moderationNotes: note,
+          refundLedgerId,
+        },
+      });
+
       return {
         refundLedgerId,
         refundAmount,

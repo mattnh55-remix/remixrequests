@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     const activeSession = await tx.session.findFirst({
       where: {
         locationId: loc.id,
-        isActive: true
+        endsAt: { gt: new Date() } // Use the clock, not a boolean
       },
       select: { endsAt: true },
       orderBy: { createdAt: "desc" }

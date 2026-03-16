@@ -187,15 +187,16 @@ export async function POST(req: Request) {
 
       return res;
     }
-
-    const activeSession = await prisma.session.findFirst({
+ 
+const activeSession = await prisma.session.findFirst({
       where: {
         locationId: loc.id,
-        isActive: true,
+        endsAt: { gt: new Date() }, // <--- Check if session hasn't expired
       },
       select: { endsAt: true },
       orderBy: { createdAt: "desc" },
     });
+
 
     await prisma.creditLedger.create({
       data: {

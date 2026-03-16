@@ -171,10 +171,10 @@ export async function POST(req: Request) {
 const provisional = await prisma.$transaction(
   async (tx) => {
 
-    const activeSession = await tx.session.findFirst({
+const activeSession = await tx.session.findFirst({
       where: {
         locationId: loc.id,
-        isActive: true
+        endsAt: { gt: new Date() } // Use the clock, not a boolean
       },
       select: { endsAt: true },
       orderBy: { createdAt: "desc" }
@@ -247,13 +247,13 @@ const provisional = await prisma.$transaction(
 
 if (originalUpload.error) {
   await prisma.$transaction(async (tx) => {
-    const activeSession = await tx.session.findFirst({
+ const activeSession = await tx.session.findFirst({
       where: {
         locationId: loc.id,
-        isActive: true,
+        endsAt: { gt: new Date() } // Use the clock, not a boolean
       },
       select: { endsAt: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "desc" }
     });
 
     await tx.creditLedger.create({
