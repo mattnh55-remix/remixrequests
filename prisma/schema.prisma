@@ -57,6 +57,8 @@ model Session {
 
   requests Request[]
   votes    Vote[]
+
+  @@index([locationId, endsAt])
 }
 
 model Request {
@@ -112,7 +114,6 @@ model CreditLedger {
   createdAt DateTime @default(now())
   expiresAt DateTime?
 
-
   @@index([locationId, emailHash])
 }
 
@@ -141,6 +142,7 @@ model Ruleset {
   costUpvote   Int @default(1)
   costDownvote Int @default(1)
   costPlayNow  Int @default(5)
+
   // Pack pricing (cents)
   packTier1PriceCents Int @default(500)
   packTier2PriceCents Int @default(1000)
@@ -157,19 +159,18 @@ model Ruleset {
   enforceSongCooldown   Boolean @default(true)
   artistCooldownMinutes Int     @default(15)
   songCooldownMinutes   Int     @default(120)
-maxActiveRequestsPerUser Int    @default(2)
-msgTooManyActiveRequests String @default("You already have songs waiting in the queue.")
 
-  enableVoting Boolean @default(true)
+  maxActiveRequestsPerUser   Int    @default(2)
+  msgTooManyActiveRequests   String @default("You already have songs waiting in the queue.")
+  enableVoting               Boolean @default(true)
+  msgExplicit                String @default("Sorry — this song isn’t available here.")
+  msgAlreadyRequested        String @default("You’ve already made a request this session.")
+  msgArtistCooldown          String @default("Sorry — this artist has played in the last 15 minutes.")
+  msgSongCooldown            String @default("Sorry — this song has already been played in the last 2 hours.")
+  msgNoCredits               String @default("Not enough credits.")
+  maxArtistInQueue           Int    @default(0)
+  msgArtistAlreadyQueued     String @default("Sorry, $artist is already queued up on the request list!")
 
-  msgExplicit         String @default("Sorry — this song isn’t available here.")
-  msgAlreadyRequested String @default("You’ve already made a request this session.")
-  msgArtistCooldown   String @default("Sorry — this artist has played in the last 15 minutes.")
-  msgSongCooldown     String @default("Sorry — this song has already been played in the last 2 hours.")
-  msgNoCredits        String @default("Not enough credits.")
-  maxArtistInQueue      Int    @default(0)
-  msgArtistAlreadyQueued String @default("Sorry, $artist is already queued up on the request list!")
-  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -183,12 +184,12 @@ model Identity {
   phoneE164 String?
   phoneHash String?
 
-  deviceId      String? // cookie-based device id
+  deviceId      String?
   smsVerifiedAt DateTime?
   emailOptInAt  DateTime?
   smsOptInAt    DateTime?
 
-  mailchimpStatus String? // "subscribed" | "error"
+  mailchimpStatus String?
   mailchimpError  String?
 
   welcomeGrantedSessionId String?
@@ -228,11 +229,9 @@ model PendingCheckout {
   id          String @id @default(cuid())
   referenceId String @unique
 
-  /// Who to credit (the SMS-verified customer)
   identityId String
   identity   Identity @relation(fields: [identityId], references: [id])
 
-  /// Location slug (optional)
   location String
 
   packageKey  String
@@ -250,7 +249,6 @@ model PendingCheckout {
 model ProcessedPayment {
   id String @id @default(cuid())
 
-  /// Square payment id; unique so we never grant twice
   paymentId String @unique
 
   createdAt DateTime @default(now())
@@ -266,6 +264,7 @@ enum RequestStatus {
   REJECTED
   PLAYED
 }
+
 model RedemptionCode {
   id         String   @id @default(cuid())
   locationId String
@@ -273,13 +272,8 @@ model RedemptionCode {
   points     Int
   maxUses    Int      @default(1)
   uses       Int      @default(0)
-
-  // Optional: campaign-wide expiration for the code itself (can be null)
   expiresAt  DateTime?
-
-  // How long the granted promo points remain valid after redemption
   redeemWindowMinutes Int @default(120)
-
   disabledAt DateTime?
   source     String?
   createdAt  DateTime @default(now())
@@ -297,8 +291,6 @@ model RedemptionCodeUse {
   codeId     String
   emailHash  String
   createdAt  DateTime @default(now())
-
-  // Per-user expiry (activation time + window). Useful for audit/UX.
   expiresAt  DateTime?
 
   code RedemptionCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
@@ -308,11 +300,6 @@ model RedemptionCodeUse {
   @@index([emailHash])
   @@index([expiresAt])
 }
-
-
-//BEGIN MESSAGE SCHEMA
-//BEGIN MESSAGE SCHEMA
-
 
 model ScreenMessage {
   id                 String   @id @default(cuid())
@@ -328,10 +315,10 @@ model ScreenMessage {
   displayDurationSec Int
   sortWeight         Int?
 
-  moderationNotes           String?
-  autoTextModerationResult  String?
-  autoTextModerationReason  String?
-  autoModeratedAt           DateTime?
+  moderationNotes          String?
+  autoTextModerationResult String?
+  autoTextModerationReason String?
+  autoModeratedAt          DateTime?
 
   approvedAt         DateTime?
   rejectedAt         DateTime?
@@ -340,29 +327,32 @@ model ScreenMessage {
 
   approvedBy         String?
   rejectedBy         String?
-  refundLedgerId     String?
+  refundLedgerId     String?  @unique
 
-  imageOriginalPath      String?
-  imagePreviewPath       String?
-  imageOriginalMime      String?
-  imageSizeBytes         Int?
-  imageModerationStatus  String?
-  imageModerationReason  String?
-  imageUploadedAt        DateTime?
+  imageOriginalPath     String?
+  imagePreviewPath      String?
+  imageOriginalMime     String?
+  imageSizeBytes        Int?
+  imageModerationStatus String?
+  imageModerationReason String?
+  imageUploadedAt       DateTime?
 
-  usageRightsAccepted    Boolean  @default(false)
-  usageRightsAcceptedAt  DateTime?
+  usageRightsAccepted   Boolean  @default(false)
+  usageRightsAcceptedAt DateTime?
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([locationId, sessionId])
+  @@index([locationId, sessionId, status, createdAt])
+  @@index([locationId, sessionId, approvedAt])
   @@index([status])
   @@index([imageModerationStatus])
 }
+
 model MessageRuleset {
-  id String @id @default(cuid())
-  locationId String @unique
+  id         String   @id @default(cuid())
+  locationId String   @unique
 
   enabled Boolean
   costBasic Int

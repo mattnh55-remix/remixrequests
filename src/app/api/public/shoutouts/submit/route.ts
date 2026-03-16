@@ -1,3 +1,4 @@
+// src/app/api/public/shoutouts/submit/route.ts
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
@@ -9,6 +10,13 @@ import { getLegacyProductAlias, getShoutoutProduct } from "@/lib/shoutoutProduct
 
 function jsonFail(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
+}
+
+function maskBlockedName(input: string) {
+  const clean = String(input || "").trim();
+  if (!clean) return "Blocked Sender";
+  if (clean.length === 1) return `${clean}…`;
+  return `${clean.slice(0, 1)}${"•".repeat(Math.max(1, Math.min(clean.length - 1, 6)))}`;
 }
 
 export async function POST(req: Request) {
@@ -26,7 +34,11 @@ export async function POST(req: Request) {
     const product = getShoutoutProduct(selectedKey);
     if (!product) return jsonFail("Unknown shout-out product.");
     if (!product.enabled) {
-      return jsonFail(product.hasImage ? "Photo shout-outs are coming soon." : "That shout-out option is currently unavailable.");
+      return jsonFail(
+        product.hasImage
+          ? "Photo shout-outs are coming soon."
+          : "That shout-out option is currently unavailable."
+      );
     }
 
     const { loc, rules } = await getMessageRules(location);
@@ -66,19 +78,21 @@ export async function POST(req: Request) {
           sessionId: session.id,
           identityId: identityId || null,
           emailHash,
-          fromName: cleanFrom,
-          messageText: cleanBody,
+          fromName: maskBlockedName(cleanFrom),
+          messageText: "[BLOCKED BY AUTOMATIC FILTER]",
           tier: product.key,
           creditsCost: 0,
           status: "BLOCKED_TEXT",
           displayDurationSec: 0,
           sortWeight: product.weight,
+          moderationNotes: "Raw text hidden from staff because the automatic filter blocked it.",
           autoTextModerationResult: "BLOCK",
-          autoTextModerationReason: mod.reason,
+          autoTextModerationReason: mod.reason || "FILTER_BLOCK",
           autoModeratedAt: new Date(),
         },
       });
-      return jsonFail(rules.filterBlockMessage);
+
+      return jsonFail(rules.filterBlockMessage || "That shout-out could not be submitted.");
     }
 
     const balanceAgg = await prisma.creditLedger.aggregate({
@@ -88,34 +102,38 @@ export async function POST(req: Request) {
     const balance = balanceAgg._sum.delta || 0;
     if (balance < product.creditsCost) return jsonFail("Not enough credits");
 
-    const result = await prisma.$transaction(async (tx) => {
-      await tx.creditLedger.create({
-        data: {
-          locationId: loc.id,
-          emailHash,
-          delta: -product.creditsCost,
-          reason: `SHOUT_${product.key}`,
-        },
-      });
+    const result = await prisma.$transaction(
+      async (tx) => {
+        await tx.creditLedger.create({
+          data: {
+            locationId: loc.id,
+            emailHash,
+            delta: -product.creditsCost,
+            reason: `SHOUT_${product.key}`,
+          },
+        });
 
-      return tx.screenMessage.create({
-        data: {
-          locationId: loc.id,
-          sessionId: session.id,
-          identityId: identityId || null,
-          emailHash,
-          fromName: cleanFrom,
-          messageText: cleanBody,
-          tier: product.key,
-          creditsCost: product.creditsCost,
-          status: "PENDING",
-          displayDurationSec: product.displayDurationSec,
-          sortWeight: product.weight,
-          autoTextModerationResult: "ALLOW",
-          autoModeratedAt: new Date(),
-        },
-      });
-    }, { isolationLevel: "Serializable" });
+        return tx.screenMessage.create({
+          data: {
+            locationId: loc.id,
+            sessionId: session.id,
+            identityId: identityId || null,
+            emailHash,
+            fromName: cleanFrom,
+            messageText: cleanBody,
+            tier: product.key,
+            creditsCost: product.creditsCost,
+            status: "PENDING",
+            displayDurationSec: product.displayDurationSec,
+            sortWeight: product.weight,
+            autoTextModerationResult: "ALLOW",
+            autoTextModerationReason: mod.reason || "ALLOW",
+            autoModeratedAt: new Date(),
+          },
+        });
+      },
+      { isolationLevel: "Serializable" }
+    );
 
     const updatedBalanceAgg = await prisma.creditLedger.aggregate({
       _sum: { delta: true },
@@ -124,6 +142,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
+      status: "PENDING",
+      moderationStatus: "pending_review",
+      message: "Your shout-out was submitted for review.",
       messageId: result.id,
       balance: Math.max(updatedBalanceAgg._sum.delta || 0, 0),
       productKey: product.key,

@@ -1,79 +1,84 @@
-// src/app/api/admin/shoutouts/reject/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isAdminFromCookie } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
-function jsonFail(message: string, status = 400) {
+function fail(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
 export async function POST(req: Request) {
   try {
+    if (!isAdminFromCookie(req)) return fail("Unauthorized", 401);
+
     const body = await req.json().catch(() => ({}));
-    const messageId = String(body.messageId || "").trim();
-    const note = String(body.note || "").trim();
+    const messageId = String(body?.messageId || "").trim();
+    const note = String(body?.note || body?.reason || "Rejected from dashboard").trim();
 
-    if (!messageId) return jsonFail("Missing messageId.", 400);
+    if (!messageId) return fail("messageId is required");
 
-    const msg = await prisma.screenMessage.findUnique({
-      where: { id: messageId },
-      select: {
-        id: true,
-        locationId: true,
-        emailHash: true,
-        creditsCost: true,
-        status: true,
-        refundLedgerId: true,
-      },
-    });
+    const existing = await prisma.screenMessage.findUnique({ where: { id: messageId } });
+    if (!existing) return fail("Message not found", 404);
 
-    if (!msg) return jsonFail("Message not found.", 404);
-
-    if (msg.status !== "PENDING") {
-      return jsonFail("Only pending messages can be rejected.", 400);
+    if (existing.status === "REJECTED") {
+      return NextResponse.json({
+        ok: true,
+        alreadyDone: true,
+        messageId: existing.id,
+        refundLedgerId: existing.refundLedgerId || null,
+      });
     }
 
-    const result = await prisma.$transaction(
-      async (tx) => {
-        let refundLedgerId: string | null = null;
+    if (!["PENDING", "APPROVED"].includes(existing.status)) {
+      return fail(`Only pending or approved shout-outs can be rejected. Current status: ${existing.status}`);
+    }
 
-        if ((msg.creditsCost ?? 0) > 0 && !msg.refundLedgerId) {
-          const refund = await tx.creditLedger.create({
-            data: {
-              locationId: msg.locationId,
-              emailHash: msg.emailHash,
-              delta: msg.creditsCost,
-              reason: "SHOUT_REFUND_REJECTED",
-            },
-            select: { id: true },
-          });
+    const rules = await prisma.messageRuleset.findUnique({
+      where: { locationId: existing.locationId },
+      select: { autoRefundRejected: true },
+    });
+    const shouldRefund = Boolean(rules?.autoRefundRejected ?? true) && existing.creditsCost > 0;
 
-          refundLedgerId = refund.id;
-        }
+    const result = await prisma.$transaction(async (tx) => {
+      let refundLedgerId = existing.refundLedgerId || null;
 
-        await tx.screenMessage.update({
-          where: { id: messageId },
+      if (shouldRefund && !refundLedgerId) {
+        const refundLedger = await tx.creditLedger.create({
           data: {
-            status: "REJECTED",
-            rejectedAt: new Date(),
-            moderationNotes: note || null,
-            refundLedgerId,
+            locationId: existing.locationId,
+            emailHash: existing.emailHash,
+            delta: existing.creditsCost,
+            reason: `SHOUT_REFUND_${existing.tier}`,
           },
         });
+        refundLedgerId = refundLedger.id;
+      }
 
-        return { refundLedgerId };
-      },
-      { isolationLevel: "Serializable" }
-    );
+      const updated = await tx.screenMessage.update({
+        where: { id: existing.id },
+        data: {
+          status: "REJECTED",
+          rejectedAt: new Date(),
+          approvedAt: null,
+          rejectedBy: "admin",
+          moderationNotes: note || existing.moderationNotes || null,
+          refundLedgerId,
+        },
+      });
+
+      return { updated, refundLedgerId };
+    });
 
     return NextResponse.json({
       ok: true,
+      messageId: result.updated.id,
+      status: result.updated.status,
+      refundLedgerId: result.refundLedgerId,
       refunded: Boolean(result.refundLedgerId),
     });
   } catch (err: any) {
     console.error("[admin/shoutouts/reject] error:", err?.message || err);
-    return jsonFail("Internal error.", 500);
+    return fail("Something went wrong", 500);
   }
 }

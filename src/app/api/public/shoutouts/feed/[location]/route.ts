@@ -1,17 +1,25 @@
+// src/app/api/public/shoutouts/feed/[location]/route.ts
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateCurrentSession } from "@/lib/validators";
 import { formatShoutoutProductLabel, getShoutoutAccent } from "@/lib/shoutoutProducts";
-import { buildSmoothWeightedOrder, isMessageEligibleNow, pickCurrentScheduledMessage } from "@/lib/shoutoutScheduler";
+import {
+  buildSmoothWeightedOrder,
+  isMessageEligibleNow,
+  pickCurrentScheduledMessage,
+} from "@/lib/shoutoutScheduler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(_: Request, { params }: { params: { location: string } }) {
   try {
-    const loc = await prisma.location.findUnique({ where: { slug: params.location }, select: { id: true } });
-    if (!loc) return NextResponse.json({ current: null, items: [] });
+    const loc = await prisma.location.findUnique({
+      where: { slug: params.location },
+      select: { id: true },
+    });
+    if (!loc) return NextResponse.json({ current: null, items: [], upcoming: [] });
 
     const session = await getOrCreateCurrentSession(loc.id, 4);
     const msgs = await prisma.screenMessage.findMany({
@@ -19,6 +27,7 @@ export async function GET(_: Request, { params }: { params: { location: string }
         locationId: loc.id,
         sessionId: session.id,
         status: { in: ["APPROVED", "ACTIVE"] },
+        rejectedAt: null,
       },
       orderBy: [{ approvedAt: "asc" }, { createdAt: "asc" }],
       take: 50,
@@ -31,7 +40,7 @@ export async function GET(_: Request, { params }: { params: { location: string }
       .filter((m, i, arr) => arr.findIndex((x) => x.id === m.id) === i)
       .slice(0, 6);
 
-    const mapOut = (m: typeof msgs[number]) => ({
+    const mapOut = (m: (typeof msgs)[number]) => ({
       id: m.id,
       title: "REMIX SHOUT OUTS!",
       fromName: m.fromName,
@@ -56,6 +65,6 @@ export async function GET(_: Request, { params }: { params: { location: string }
     });
   } catch (err: any) {
     console.error("[public/shoutouts/feed] error:", err?.message || err);
-    return NextResponse.json({ current: null, items: [] });
+    return NextResponse.json({ current: null, items: [], upcoming: [] });
   }
 }

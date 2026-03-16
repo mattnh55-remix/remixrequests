@@ -1,3 +1,5 @@
+// src/app/admin/[location]/page.tsx
+
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -513,23 +515,37 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   }
 
   async function approveMessage(messageId: string) {
-    await fetch(`/api/admin/shoutouts/approve`, {
+    const res = await fetch(`/api/admin/shoutouts/approve`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ messageId }),
     });
+    const data: any = await safeJson(res);
+    if (!data?.ok) {
+      setMsg(data?.error || "Could not approve message.");
+      return;
+    }
+
     setMsg("✅ Message approved.");
     playChime();
     await loadAll();
   }
 
   async function rejectMessage(messageId: string) {
-    await fetch(`/api/admin/shoutouts/reject`, {
+    const note = prompt("Reject reason?", "Rejected from dashboard") || "Rejected from dashboard";
+
+    const res = await fetch(`/api/admin/shoutouts/reject`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ messageId, note: "Rejected from dashboard" }),
+      body: JSON.stringify({ messageId, note }),
     });
-    setMsg("✅ Message rejected.");
+    const data: any = await safeJson(res);
+    if (!data?.ok) {
+      setMsg(data?.error || "Could not reject message.");
+      return;
+    }
+
+    setMsg(data?.refunded ? "✅ Message rejected and credits refunded." : "✅ Message rejected.");
     await loadAll();
   }
 async function markPlayed(requestId: string) {
@@ -790,6 +806,12 @@ async function rejectRequest(requestId: string) {
                       </div>
 
                       <div style={{ marginTop: 8, opacity: 0.94 }}>{m.messageText}</div>
+
+                      {m.autoTextModerationReason ? (
+                        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.72 }}>
+                          Auto filter: {m.autoTextModerationReason}
+                        </div>
+                      ) : null}
 
                       {m.signedImageUrl ? (
                         <div

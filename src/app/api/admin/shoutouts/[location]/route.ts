@@ -2,61 +2,46 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateCurrentSession } from "@/lib/validators";
-import { attachSignedImageUrlsToMessages } from "@/lib/shoutoutImageUrls";
+import { isAdminFromCookie } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function jsonFail(message: string, status = 400) {
+function fail(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
-export async function GET(
-  _: Request,
-  { params }: { params: { location: string } }
-) {
+export async function GET(req: Request, { params }: { params: { location: string } }) {
   try {
+    if (!isAdminFromCookie(req)) return fail("Unauthorized", 401);
+
     const loc = await prisma.location.findUnique({
       where: { slug: params.location },
-      select: { id: true, slug: true, name: true },
+      select: { id: true },
     });
-
-    if (!loc) return jsonFail("Unknown location.", 404);
+    if (!loc) return fail("Location not found", 404);
 
     const session = await getOrCreateCurrentSession(loc.id, 4);
 
-    const [pending, approved, active, rejected, blocked] = await Promise.all([
+    const [pending, approved, active, rejected, blockedCount] = await Promise.all([
       prisma.screenMessage.findMany({
-        where: {
-          locationId: loc.id,
-          sessionId: session.id,
-          status: { in: ["PENDING", "PENDING_IMAGE_SCAN"] },
-        },
-        orderBy: { createdAt: "desc" },
+        where: { locationId: loc.id, sessionId: session.id, status: "PENDING" },
+        orderBy: [{ createdAt: "asc" }],
       }),
       prisma.screenMessage.findMany({
-        where: {
-          locationId: loc.id,
-          sessionId: session.id,
-          status: "APPROVED",
-        },
-        orderBy: { approvedAt: "desc" },
+        where: { locationId: loc.id, sessionId: session.id, status: "APPROVED" },
+        orderBy: [{ approvedAt: "desc" }, { createdAt: "desc" }],
+        take: 25,
       }),
       prisma.screenMessage.findMany({
-        where: {
-          locationId: loc.id,
-          sessionId: session.id,
-          status: "ACTIVE",
-        },
-        orderBy: { approvedAt: "desc" },
+        where: { locationId: loc.id, sessionId: session.id, status: "ACTIVE" },
+        orderBy: [{ activatedAt: "desc" }, { approvedAt: "desc" }, { createdAt: "desc" }],
+        take: 25,
       }),
       prisma.screenMessage.findMany({
-        where: {
-          locationId: loc.id,
-          sessionId: session.id,
-          status: "REJECTED",
-        },
-        orderBy: { rejectedAt: "desc" },
+        where: { locationId: loc.id, sessionId: session.id, status: "REJECTED" },
+        orderBy: [{ rejectedAt: "desc" }, { createdAt: "desc" }],
+        take: 25,
       }),
       prisma.screenMessage.count({
         where: {
@@ -67,26 +52,16 @@ export async function GET(
       }),
     ]);
 
-    const [pendingWithUrls, approvedWithUrls, activeWithUrls, rejectedWithUrls] =
-      await Promise.all([
-        attachSignedImageUrlsToMessages(pending),
-        attachSignedImageUrlsToMessages(approved),
-        attachSignedImageUrlsToMessages(active),
-        attachSignedImageUrlsToMessages(rejected),
-      ]);
-
     return NextResponse.json({
       ok: true,
-      location: { slug: loc.slug, name: loc.name },
-      session: { id: session.id, endsAt: session.endsAt },
-      pending: pendingWithUrls,
-      approved: approvedWithUrls,
-      active: activeWithUrls,
-      rejected: rejectedWithUrls,
-      blockedCount: blocked,
+      pending,
+      approved,
+      active,
+      rejected,
+      blockedCount,
     });
   } catch (err: any) {
     console.error("[admin/shoutouts/list] error:", err?.message || err);
-    return jsonFail("Internal error.", 500);
+    return fail("Something went wrong", 500);
   }
 }
