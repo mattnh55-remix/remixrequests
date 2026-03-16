@@ -840,8 +840,14 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
     try {
       const res = await fetch(`/api/public/auth/verify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn }) });
       const data = await res.json();
-      if (data.ok) { localStorage.setItem("rr_identityId", data.identityId); onVerified({ balance: data.balance }); }
-      else setMsg(data.error || "Invalid code");
+      if (data.ok) {
+  localStorage.setItem("rr_identityId", data.identityId);
+  onVerified({
+    balance: data.balance,
+    note: data.note,
+    welcomeGranted: data.welcomeGranted,
+  });
+}else setMsg(data.error || "Invalid code");
     } catch { setMsg("Error"); }
     finally { setBusy(false); }
   }
