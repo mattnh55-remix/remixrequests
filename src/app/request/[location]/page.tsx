@@ -605,7 +605,7 @@ prevUserRequestsRef.current = currentIds;
   setEmail={setEmail}
   onRedeem={(code: string) => redeem(code)}
   redeemBusy={redeemBusy}
-  onVerified={(payload?: { balance?: number }) => {
+  onVerified={(payload?: { balance?: number; note?: string; welcomeGranted?: boolean }) => {
     setVerified(true);
     setShowVerify(false);
 
@@ -617,7 +617,6 @@ prevUserRequestsRef.current = currentIds;
       if (lsEmail) setEmail(lsEmail);
     } catch {}
 
-    setMsg("✅ Verified!");
     sfx.playSuccess();
 
     if (typeof payload?.balance === "number") {
@@ -627,11 +626,12 @@ prevUserRequestsRef.current = currentIds;
         bal.refreshOnce();
       }, 150);
     }
+
+    setMsg(payload?.note || "✅ Verified!");
   }}
   onClose={() => setShowVerify(false)}
   sfx={sfx}
 />
-
         <CreditHud verified={verified || !!identityId} creditsLabel={creditsLabel} sessionCountdown={sessionCountdown} onVerify={() => setShowVerify(true)} onBuy={() => openBuy(bal.balance === 0 ? "out" : "none")} />
 
         <BuyCreditsDrawer
