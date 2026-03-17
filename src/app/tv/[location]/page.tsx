@@ -24,6 +24,8 @@ type FeedMessage = {
   productKey?: string;
   productTitle?: string;
   displayDurationSec?: number;
+  approvedAt?: string;
+  createdAt?: string;
 };
 
 const PLACEHOLDER_MESSAGES: FeedMessage[] = [
@@ -33,7 +35,6 @@ const PLACEHOLDER_MESSAGES: FeedMessage[] = [
     body: "Celebrate a birthday, shout out a friend, or send a message to the rink!",
     fromName: "Scan the QR to send yours",
     accent: "cyan",
-    productTitle: "Remix Shout Out",
   },
   {
     id: "placeholder-2",
@@ -41,7 +42,6 @@ const PLACEHOLDER_MESSAGES: FeedMessage[] = [
     body: "Upload a photo, add your message, and put your moment on the screen.",
     fromName: "Photo shout outs are live",
     accent: "pink",
-    productTitle: "Photo Shout Out",
   },
   {
     id: "placeholder-3",
@@ -49,7 +49,6 @@ const PLACEHOLDER_MESSAGES: FeedMessage[] = [
     body: "Request your favorite song and send a shout out while you skate.",
     fromName: "Use the QR to get started",
     accent: "gold",
-    productTitle: "Requests + Shout Outs",
   },
 ];
 
@@ -59,12 +58,13 @@ export default function TvPage({ params }: { params: { location: string } }) {
   const [playNow, setPlayNow] = useState<QueueItem[]>([]);
   const [upNext, setUpNext] = useState<QueueItem[]>([]);
   const [liveMessage, setLiveMessage] = useState<FeedMessage | null>(null);
-   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [boostFlash, setBoostFlash] = useState(false);
   const [artA, setArtA] = useState<string | null>(null);
   const [artB, setArtB] = useState<string | null>(null);
   const [showA, setShowA] = useState(true);
   const [timerNowMs, setTimerNowMs] = useState(Date.now());
+
   const prevTopId = useRef<string | null>(null);
 
   const requestUrl = useMemo(
@@ -79,11 +79,10 @@ export default function TvPage({ params }: { params: { location: string } }) {
     )}`;
   }, [requestUrl]);
 
-   const featuredFallback =
+  const featuredFallback =
     PLACEHOLDER_MESSAGES[placeholderIndex % PLACEHOLDER_MESSAGES.length];
   const featuredMessage = liveMessage || featuredFallback;
-  const featuredBody =
-    featuredMessage.body || featuredMessage.messageText || "";
+  const featuredBody = featuredMessage.body || featuredMessage.messageText || "";
   const featuredTitle = featuredMessage.title || "REMIX SHOUT OUTS!";
 
   const isPlaceholderMessage = !liveMessage;
@@ -97,13 +96,8 @@ export default function TvPage({ params }: { params: { location: string } }) {
   );
 
   const placeholderCycleMs = placeholderDurationSec * 1000;
-
   const stableLiveStartMs = liveMessage
-    ? new Date(
-        (liveMessage as any).approvedAt ||
-          (liveMessage as any).createdAt ||
-          Date.now()
-      ).getTime()
+    ? new Date(liveMessage.approvedAt || liveMessage.createdAt || Date.now()).getTime()
     : 0;
 
   const elapsedMs = isPlaceholderMessage
@@ -125,7 +119,6 @@ export default function TvPage({ params }: { params: { location: string } }) {
   const timerMinutes = Math.floor(remainingSec / 60);
   const timerSeconds = remainingSec % 60;
   const timerLabel = `${timerMinutes}:${String(timerSeconds).padStart(2, "0")}`;
-
 
   const nowPlaying = playNow[0] || upNext[0] || null;
   const queueList = upNext.slice(0, 10);
@@ -187,7 +180,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
     return () => window.clearInterval(id);
   }, []);
 
-    useEffect(() => {
+  useEffect(() => {
     const id = window.setInterval(() => {
       setTimerNowMs(Date.now());
     }, 1000);
@@ -242,7 +235,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
             <div className="remixTvSectionTitle">{featuredTitle}</div>
           </div>
 
-           <div
+          <div
             key={featuredMessage.id}
             className={`remixTvBubble remixTvBubble--${featuredMessage.accent || "cyan"}`}
           >
@@ -252,7 +245,9 @@ export default function TvPage({ params }: { params: { location: string } }) {
                 <div
                   className="remixTvBubbleTimerFill"
                   style={{ width: `${progressPct}%` }}
-                />
+                >
+                  <span className="remixTvBubbleTimerShimmer" />
+                </div>
               </div>
             </div>
 
@@ -261,9 +256,9 @@ export default function TvPage({ params }: { params: { location: string } }) {
                 imageUrl={featuredMessage.imageUrl}
                 body={featuredBody}
                 fromName={featuredMessage.fromName}
-                productTitle={featuredMessage.productTitle}
               />
             </div>
+
             <svg
               className="remixTvBubbleTail"
               viewBox="0 0 44 28"
@@ -429,8 +424,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
         }
 
         @keyframes remixTvBubbleIn {
-          0% { opacity: 0; transform: translateY(18px) scale(0.94); }
-          60% { opacity: 1; transform: translateY(-2px) scale(1.01); }
+          0% { opacity: 0; transform: translateY(18px) scale(0.97); }
           100% { opacity: 1; transform: translateY(0px) scale(1); }
         }
 
@@ -444,6 +438,12 @@ export default function TvPage({ params }: { params: { location: string } }) {
           0% { opacity: 0; }
           18% { opacity: 1; }
           100% { opacity: 0; }
+        }
+
+        @keyframes remixTvMeterShimmer {
+          0% { transform: translateX(-140px); opacity: 0; }
+          15% { opacity: 0.9; }
+          100% { transform: translateX(340px); opacity: 0; }
         }
 
         .remixTvWrap {
@@ -513,13 +513,13 @@ export default function TvPage({ params }: { params: { location: string } }) {
           position: relative;
           min-height: 0;
           border-radius: 34px 34px 34px 20px;
-          padding: 14px 30px 22px 18px;
+          padding: 14px 30px 18px 18px;
           box-shadow:
             0 10px 24px rgba(0, 0, 0, 0.14),
             inset 0 1px 0 rgba(255, 255, 255, 0.2);
           animation:
-            remixTvBubbleIn 360ms cubic-bezier(0.2, 0.9, 0.2, 1),
-            remixTvBubbleFloat 6s ease-in-out 360ms infinite;
+            remixTvBubbleIn 420ms cubic-bezier(0.2, 0.9, 0.2, 1),
+            remixTvBubbleFloat 7s ease-in-out 420ms infinite;
           transform-origin: 86% 100%;
           overflow: visible;
         }
@@ -563,8 +563,11 @@ export default function TvPage({ params }: { params: { location: string } }) {
           height: 18px;
           border-radius: 999px;
           overflow: hidden;
-          background: rgba(255,255,255,0.22);
-          box-shadow: inset 0 1px 2px rgba(0,0,0,0.16);
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.26), rgba(255,255,255,0.12));
+          box-shadow:
+            inset 0 1px 2px rgba(0,0,0,0.2),
+            inset 0 0 0 1px rgba(255,255,255,0.12);
         }
 
         .remixTvBubbleTimerFill {
@@ -573,19 +576,43 @@ export default function TvPage({ params }: { params: { location: string } }) {
           height: 100%;
           border-radius: 999px;
           transition: width 1s linear;
-          box-shadow: 0 0 16px rgba(255,255,255,0.28);
+          overflow: hidden;
+          box-shadow:
+            0 0 10px rgba(255,255,255,0.28),
+            0 0 26px rgba(255,255,255,0.18);
+        }
+
+        .remixTvBubbleTimerShimmer {
+          position: absolute;
+          inset: 0 auto 0 0;
+          width: 140px;
+          background: linear-gradient(
+            90deg,
+            rgba(255,255,255,0) 0%,
+            rgba(255,255,255,0.16) 30%,
+            rgba(255,255,255,0.72) 52%,
+            rgba(255,255,255,0.14) 72%,
+            rgba(255,255,255,0) 100%
+          );
+          filter: blur(2px);
+          animation: remixTvMeterShimmer 2.8s linear infinite;
+          pointer-events: none;
+          mix-blend-mode: screen;
         }
 
         .remixTvBubble--gold .remixTvBubbleTimerFill {
-          background: linear-gradient(90deg, #fff6b3 0%, #f7d85e 100%);
+          background:
+            linear-gradient(90deg, #fff6b3 0%, #f7d85e 50%, #ffe891 100%);
         }
 
         .remixTvBubble--cyan .remixTvBubbleTimerFill {
-          background: linear-gradient(90deg, #ffffff 0%, #56d8ff 100%);
+          background:
+            linear-gradient(90deg, #ffffff 0%, #8cecff 24%, #40d3ff 60%, #7ee8ff 100%);
         }
 
         .remixTvBubble--pink .remixTvBubbleTimerFill {
-          background: linear-gradient(90deg, #fff2fb 0%, #ff6fd8 100%);
+          background:
+            linear-gradient(90deg, #fff2fb 0%, #ff9ae6 26%, #ff52ca 62%, #ffc2f0 100%);
         }
 
         .remixTvBubbleInner {
@@ -622,12 +649,12 @@ export default function TvPage({ params }: { params: { location: string } }) {
         }
 
         .remixTvBubbleLayout--side {
-          grid-template-columns: minmax(340px, 46%) minmax(0, 1fr);
+          grid-template-columns: minmax(390px, 49%) minmax(0, 1fr);
         }
 
         .remixTvBubbleLayout--stacked {
           grid-template-columns: 1fr;
-          grid-template-rows: minmax(280px, 0.82fr) auto;
+          grid-template-rows: minmax(260px, 0.78fr) auto;
         }
 
         .remixTvBubbleMedia {
@@ -644,7 +671,12 @@ export default function TvPage({ params }: { params: { location: string } }) {
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          padding: 2px 8px 4px 2px;
+          padding: 0 8px 2px 2px;
+        }
+
+        .remixTvBubbleText--imageShort {
+          justify-content: center;
+          gap: 22px;
         }
 
         .remixTvBubbleBody {
@@ -656,23 +688,36 @@ export default function TvPage({ params }: { params: { location: string } }) {
           word-break: break-word;
           text-wrap: balance;
           overflow-wrap: anywhere;
+          text-shadow: 0 1px 0 rgba(255,255,255,0.08);
+        }
+
+        .remixTvBubbleLayout--textOnly .remixTvBubbleBody {
+          font-size: clamp(36px, 4.8vw, 78px);
         }
 
         .remixTvBubbleLayout--side .remixTvBubbleBody,
         .remixTvBubbleLayout--stacked .remixTvBubbleBody {
-          font-size: clamp(28px, 3.6vw, 58px);
-          line-height: 1.01;
+          font-size: clamp(24px, 3.2vw, 50px);
+          line-height: 1.03;
         }
 
         .remixTvBubbleFrom {
           margin-top: 14px;
           font-size: clamp(20px, 2vw, 38px);
-          line-height: 1;
+          line-height: 1.04;
           font-weight: 1000;
           font-style: italic;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: unset;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          max-width: 100%;
+        }
+
+        .remixTvBubbleLayout--side .remixTvBubbleFrom,
+        .remixTvBubbleLayout--stacked .remixTvBubbleFrom {
+          font-size: clamp(16px, 1.5vw, 30px);
         }
 
         .remixTvFeatureMediaShell {
@@ -682,8 +727,9 @@ export default function TvPage({ params }: { params: { location: string } }) {
           display: flex;
           overflow: hidden;
           background:
-            linear-gradient(180deg, rgba(14, 28, 44, 0.72), rgba(10, 22, 38, 0.62)),
-            radial-gradient(circle at center, rgba(255,255,255,0.06), transparent 65%);
+            linear-gradient(180deg, rgba(10, 26, 42, 0.88), rgba(13, 29, 46, 0.8)),
+            radial-gradient(circle at 50% 18%, rgba(0,247,255,0.08), transparent 52%),
+            radial-gradient(circle at 78% 82%, rgba(255,57,212,0.08), transparent 48%);
           border-radius: 26px;
           border: 1px solid rgba(255,255,255,0.14);
           box-shadow:
@@ -694,14 +740,14 @@ export default function TvPage({ params }: { params: { location: string } }) {
         .remixTvFeatureMediaShell--portrait {
           align-items: flex-start;
           justify-content: center;
-          min-height: 560px;
+          min-height: 600px;
         }
 
         .remixTvFeatureMediaShell--landscape,
         .remixTvFeatureMediaShell--square {
           align-items: center;
           justify-content: center;
-          min-height: 250px;
+          min-height: 220px;
         }
 
         .remixTvFeatureMediaImg {
@@ -712,7 +758,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
           width: auto;
           height: auto;
           max-width: 100%;
-          min-height: 560px;
+          min-height: 600px;
           object-fit: contain;
           object-position: top center;
         }
@@ -721,77 +767,380 @@ export default function TvPage({ params }: { params: { location: string } }) {
         .remixTvFeatureMediaImg--square {
           width: 100%;
           height: auto;
-          min-height: 250px;
+          min-height: 220px;
           max-height: 100%;
           object-fit: contain;
           object-position: center center;
         }
 
+        .remixTvTopCard {
+          display: grid;
+          grid-template-columns: 118px 1fr;
+          gap: 16px;
+          align-items: center;
+          padding: 12px;
+          border-radius: 24px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: linear-gradient(
+            90deg,
+            rgba(8, 16, 40, 0.92),
+            rgba(12, 26, 56, 0.76),
+            rgba(31, 15, 50, 0.66)
+          );
+          min-height: 126px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .remixTvTopCardBoosted {
+          box-shadow: var(--glowB);
+        }
+
+        .remixTvTopArtWrap {
+          display: flex;
+          align-items: center;
+        }
+
+        .remixTvTopArtFrame {
+          width: 118px;
+          height: 118px;
+          border-radius: 26px;
+          overflow: hidden;
+          position: relative;
+          border: 1px solid rgba(255,255,255,0.18);
+          background: rgba(255,255,255,0.05);
+          box-shadow: var(--glowA), var(--shadow);
+        }
+
+        .remixTvTopArtLayer {
+          position: absolute;
+          inset: 0;
+          transition: opacity 420ms ease;
+        }
+
+        .remixTvTopArtGlow {
+          position: absolute;
+          inset: -40%;
+          background:
+            radial-gradient(circle at 30% 25%, rgba(0,247,255,0.24), transparent 55%),
+            radial-gradient(circle at 75% 80%, rgba(255,57,212,0.2), transparent 62%);
+          animation: remixTvPulse 4.5s ease-in-out infinite;
+          filter: blur(20px);
+          opacity: 0.85;
+          z-index: 2;
+          pointer-events: none;
+          mix-blend-mode: screen;
+        }
+
+        .remixTvTopRibbon {
+          position: absolute;
+          top: 8px;
+          left: -34px;
+          transform: rotate(-17deg);
+          padding: 5px 36px;
+          border-radius: 999px;
+          background: linear-gradient(90deg, rgba(255,57,212,0.9), rgba(0,247,255,0.72));
+          color: #07070c;
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 1.4px;
+          text-transform: uppercase;
+          box-shadow: var(--glowB);
+          z-index: 5;
+        }
+
+        .remixTvTopMeta {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+
+        .remixTvTopLabel {
+          font-size: 13px;
+          font-weight: 1000;
+          letter-spacing: 1.4px;
+          opacity: 0.72;
+          text-transform: uppercase;
+          margin-bottom: 5px;
+        }
+
+        .remixTvTopSong {
+          font-size: clamp(24px, 1.75vw, 34px);
+          line-height: 1;
+          font-weight: 1000;
+          letter-spacing: -0.45px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          text-shadow: 0 0 12px rgba(255,255,255,0.12);
+        }
+
+        .remixTvTopArtist {
+          margin-top: 6px;
+          font-size: clamp(16px, 1vw, 20px);
+          color: var(--muted);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .remixTvTagRow {
+          margin-top: 10px;
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+
+        .remixTvUrl {
+          margin-top: 8px;
+          font-size: 12px;
+          color: var(--muted);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .remixTvTop10Header {
+          font-size: 16px;
+          font-weight: 1000;
+          letter-spacing: 1.6px;
+          text-transform: uppercase;
+          color: rgba(255,255,255,0.8);
+          padding: 2px 4px 0;
+        }
+
+        .remixTvTop10List {
+          display: grid;
+          gap: 10px;
+          align-content: start;
+          min-height: 0;
+          overflow: hidden;
+        }
+
+        .remixTvTop10Row {
+          display: grid;
+          grid-template-columns: 38px 1fr auto;
+          gap: 12px;
+          align-items: center;
+          padding: 12px 14px;
+          border-radius: 20px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: linear-gradient(
+            90deg,
+            rgba(28, 16, 48, 0.76),
+            rgba(16, 18, 45, 0.72),
+            rgba(40, 13, 54, 0.62)
+          );
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+        }
+
+        .remixTvTop10Pos {
+          font-size: 28px;
+          font-weight: 1000;
+          line-height: 1;
+          text-align: center;
+          color: #fff;
+          text-shadow: 0 0 14px rgba(255,255,255,0.18);
+        }
+
+        .remixTvTop10Text {
+          min-width: 0;
+        }
+
+        .remixTvTop10Song {
+          font-size: clamp(16px, 0.95vw, 20px);
+          font-weight: 1000;
+          line-height: 1.12;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .remixTvTop10Artist {
+          margin-top: 4px;
+          font-size: clamp(12px, 0.8vw, 15px);
+          color: var(--muted);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .remixTvTop10Score {
+          min-width: 38px;
+          height: 38px;
+          padding: 0 12px;
+          border-radius: 999px;
+          display: grid;
+          place-items: center;
+          font-size: 14px;
+          font-weight: 1000;
+          background: rgba(0,247,255,0.09);
+          border: 1px solid rgba(0,247,255,0.24);
+          box-shadow: var(--glowA);
+        }
+
+        .remixTvEmptyState {
+          padding: 16px 10px;
+          font-size: 18px;
+          color: var(--muted);
+        }
+
+        .remixTvBottomCta {
+          border-top: 1px solid rgba(255,255,255,0.12);
+          margin-top: 2px;
+          padding-top: 12px;
+          display: grid;
+          grid-template-columns: 1fr 122px;
+          gap: 16px;
+          align-items: center;
+        }
+
+        .remixTvBottomText {
+          font-size: clamp(16px, 1vw, 20px);
+          line-height: 1.08;
+          font-weight: 1000;
+          font-style: italic;
+          text-transform: uppercase;
+          text-align: center;
+          letter-spacing: 0.35px;
+        }
+
+        .remixTvBottomQrWrap {
+          width: 112px;
+          height: 112px;
+          justify-self: end;
+          padding: 4px;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,0.14);
+          background: rgba(255,255,255,0.04);
+        }
+
+        .remixTvBottomQr {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+          border-radius: 12px;
+        }
+
+        .remixTvFlash::before {
+          content: "";
+          position: fixed;
+          inset: 0;
+          background:
+            radial-gradient(circle at 50% 40%, rgba(255,57,212,0.18), transparent 55%),
+            radial-gradient(circle at 40% 60%, rgba(0,247,255,0.14), transparent 60%);
+          animation: remixTvFlashAnim 900ms ease-out 1;
+          pointer-events: none;
+          z-index: 9999;
+          mix-blend-mode: screen;
+        }
+
         @media (max-width: 1400px) and (orientation: landscape) {
+          .remixTvWrap {
+            grid-template-columns: minmax(0, 1.22fr) minmax(380px, 0.92fr);
+          }
+
           .remixTvBubbleLayout--side {
-            grid-template-columns: minmax(280px, 43%) minmax(0, 1fr);
+            grid-template-columns: minmax(310px, 46%) minmax(0, 1fr);
           }
 
           .remixTvBubbleLayout--stacked {
-            grid-template-rows: minmax(220px, 0.72fr) auto;
+            grid-template-rows: minmax(210px, 0.7fr) auto;
           }
 
           .remixTvBubbleLayout--side .remixTvBubbleBody,
           .remixTvBubbleLayout--stacked .remixTvBubbleBody {
-            font-size: clamp(24px, 3vw, 46px);
+            font-size: clamp(22px, 3vw, 42px);
+          }
+
+          .remixTvBubbleLayout--side .remixTvBubbleFrom,
+          .remixTvBubbleLayout--stacked .remixTvBubbleFrom {
+            font-size: clamp(15px, 1.4vw, 24px);
           }
 
           .remixTvFeatureMediaShell--portrait {
-            min-height: 470px;
+            min-height: 500px;
           }
 
           .remixTvFeatureMediaShell--landscape,
           .remixTvFeatureMediaShell--square {
-            min-height: 220px;
+            min-height: 200px;
           }
 
           .remixTvFeatureMediaImg--portrait {
-            min-height: 470px;
+            min-height: 500px;
           }
 
           .remixTvFeatureMediaImg--landscape,
           .remixTvFeatureMediaImg--square {
-            min-height: 220px;
+            min-height: 200px;
           }
         }
 
         @media (orientation: portrait) {
+          .remixTvWrap {
+            grid-template-columns: 1fr;
+            grid-template-rows: minmax(0, 1.08fr) minmax(0, 0.92fr);
+            height: 100vh;
+          }
+
+          .remixTvQueuePanel {
+            grid-template-rows: auto auto auto 1fr auto;
+          }
+
+          .remixTvTopCard {
+            grid-template-columns: 104px 1fr;
+          }
+
+          .remixTvTopArtFrame {
+            width: 104px;
+            height: 104px;
+          }
+
+          .remixTvTop10List {
+            gap: 8px;
+          }
+
           .remixTvBubbleLayout--side {
-            grid-template-columns: minmax(250px, 40%) minmax(0, 1fr);
+            grid-template-columns: minmax(270px, 43%) minmax(0, 1fr);
           }
 
           .remixTvBubbleLayout--stacked {
-            grid-template-rows: minmax(240px, 0.78fr) auto;
+            grid-template-rows: minmax(220px, 0.75fr) auto;
           }
 
           .remixTvBubbleLayout--side .remixTvBubbleBody,
           .remixTvBubbleLayout--stacked .remixTvBubbleBody {
-            font-size: clamp(24px, 3.2vw, 46px);
+            font-size: clamp(22px, 3vw, 42px);
+          }
+
+          .remixTvBubbleLayout--side .remixTvBubbleFrom,
+          .remixTvBubbleLayout--stacked .remixTvBubbleFrom {
+            font-size: clamp(15px, 1.4vw, 24px);
           }
 
           .remixTvFeatureMediaShell--portrait {
-            min-height: 440px;
+            min-height: 460px;
           }
 
           .remixTvFeatureMediaShell--landscape,
           .remixTvFeatureMediaShell--square {
-            min-height: 230px;
+            min-height: 210px;
           }
 
           .remixTvFeatureMediaImg--portrait {
-            min-height: 440px;
+            min-height: 460px;
           }
 
           .remixTvFeatureMediaImg--landscape,
           .remixTvFeatureMediaImg--square {
-            min-height: 230px;
+            min-height: 210px;
           }
-        }      `}</style>
+        }
+      `}</style>
     </div>
   );
 }
@@ -800,21 +1149,24 @@ function FeatureBubble({
   imageUrl,
   body,
   fromName,
-  productTitle,
 }: {
   imageUrl?: string | null;
   body: string;
   fromName: string;
-  productTitle?: string;
 }) {
   const [layout, setLayout] = useState<"side" | "stacked" | "textOnly">(
     imageUrl ? "side" : "textOnly"
   );
 
+  const isShortMessage = body.trim().length <= 70;
+  const textClassName = `remixTvBubbleText${
+    imageUrl && isShortMessage ? " remixTvBubbleText--imageShort" : ""
+  }`;
+
   if (!imageUrl) {
     return (
       <div className="remixTvBubbleLayout remixTvBubbleLayout--textOnly">
-         <div className="remixTvBubbleText">
+        <div className={textClassName}>
           <div>
             <div className="remixTvBubbleBody">{body}</div>
           </div>
@@ -841,7 +1193,7 @@ function FeatureBubble({
         >
           <div className="remixTvBubbleMedia">{media}</div>
 
-               <div className="remixTvBubbleText">
+          <div className={textClassName}>
             <div>
               <div className="remixTvBubbleBody">{body}</div>
             </div>
@@ -903,10 +1255,7 @@ function ImageOrientationFrame({
     return (
       <div className="remixTvBubbleLayout remixTvBubbleLayout--textOnly">
         <div className="remixTvBubbleText">
-          <div>
-            <div className="remixTvBubbleKicker">Photo Shout Out</div>
-          </div>
-          <div className="remixTvBubbleFrom">Image unavailable</div>
+          <div className="remixTvBubbleBody">Image unavailable</div>
         </div>
       </div>
     );
@@ -946,96 +1295,6 @@ function ImageOrientationFrame({
           }}
         />
       </div>
-
-      <style jsx global>{`
-        .remixTvFeatureMediaShell {
-          width: 100%;
-          height: 100%;
-          min-height: 0;
-          display: flex;
-          overflow: hidden;
-          background: rgba(4, 9, 22, 0.46);
-          border-radius: 26px;
-          border: 1px solid rgba(255,255,255,0.12);
-          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
-        }
-
-        .remixTvFeatureMediaShell--portrait {
-          align-items: flex-start;
-          justify-content: center;
-          min-height: 520px;
-        }
-
-        .remixTvFeatureMediaShell--landscape,
-        .remixTvFeatureMediaShell--square {
-          align-items: center;
-          justify-content: center;
-          min-height: 320px;
-        }
-
-        .remixTvFeatureMediaImg {
-          display: block;
-        }
-
-        .remixTvFeatureMediaImg--portrait {
-          width: auto;
-          height: auto;
-          max-width: 100%;
-          min-height: 520px;
-          object-fit: contain;
-          object-position: top center;
-        }
-
-        .remixTvFeatureMediaImg--landscape,
-        .remixTvFeatureMediaImg--square {
-          width: 100%;
-          height: auto;
-          min-height: 320px;
-          max-height: 100%;
-          object-fit: contain;
-          object-position: center center;
-        }
-
-        @media (max-width: 1400px) and (orientation: landscape) {
-          .remixTvFeatureMediaShell--portrait {
-            min-height: 430px;
-          }
-
-          .remixTvFeatureMediaShell--landscape,
-          .remixTvFeatureMediaShell--square {
-            min-height: 250px;
-          }
-
-          .remixTvFeatureMediaImg--portrait {
-            min-height: 430px;
-          }
-
-          .remixTvFeatureMediaImg--landscape,
-          .remixTvFeatureMediaImg--square {
-            min-height: 250px;
-          }
-        }
-
-        @media (orientation: portrait) {
-          .remixTvFeatureMediaShell--portrait {
-            min-height: 420px;
-          }
-
-          .remixTvFeatureMediaShell--landscape,
-          .remixTvFeatureMediaShell--square {
-            min-height: 280px;
-          }
-
-          .remixTvFeatureMediaImg--portrait {
-            min-height: 420px;
-          }
-
-          .remixTvFeatureMediaImg--landscape,
-          .remixTvFeatureMediaImg--square {
-            min-height: 280px;
-          }
-        }
-      `}</style>
     </>
   );
 
