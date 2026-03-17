@@ -15,10 +15,10 @@ import {
   SHOUTOUT_IMAGE_BUCKET,
   buildShoutoutOriginalPath,
   buildShoutoutPreviewPath,
-  sanitizeFilename,
+  normalizeShoutoutImageMime,
+  sanitizeShoutoutUploadFilename,
   supabaseAdmin,
 } from "@/lib/supabaseAdmin";
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -39,6 +39,33 @@ function getFileExtensionFromMime(mime: string) {
     default:
       return "bin";
   }
+}
+
+function normalizeUploadedImageMime(file: File) {
+  const rawMime = String(file.type || "").toLowerCase().trim();
+  const lowerName = String(file.name || "").toLowerCase().trim();
+
+  if (rawMime === "image/jpeg" || rawMime === "image/jpg") return "image/jpeg";
+  if (rawMime === "image/png") return "image/png";
+  if (
+    rawMime === "image/heic" ||
+    rawMime === "image/heic-sequence"
+  ) {
+    return "image/heic";
+  }
+  if (
+    rawMime === "image/heif" ||
+    rawMime === "image/heif-sequence"
+  ) {
+    return "image/heif";
+  }
+
+  if (lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg")) return "image/jpeg";
+  if (lowerName.endsWith(".png")) return "image/png";
+  if (lowerName.endsWith(".heic")) return "image/heic";
+  if (lowerName.endsWith(".heif")) return "image/heif";
+
+  return rawMime;
 }
 
 function hasTooLongRun(input: string, maxRun = 20) {
@@ -207,10 +234,14 @@ export async function POST(req: Request) {
       return jsonFail("You already have the maximum number of active shout-outs for this session.");
     }
 
-    const mime = file.type || "";
-    if (!ALLOWED_SHOUTOUT_IMAGE_MIME_TYPES.has(mime)) {
-      return jsonFail("That image type isn’t supported.");
-    }
+const mime = normalizeShoutoutImageMime({
+  type: file.type,
+  name: file.name,
+});
+
+if (!ALLOWED_SHOUTOUT_IMAGE_MIME_TYPES.has(mime)) {
+  return jsonFail("That image type isn’t supported.");
+}
 
     if (file.size > MAX_SHOUTOUT_IMAGE_BYTES) {
       return jsonFail("That image is too large.");
@@ -280,8 +311,10 @@ export async function POST(req: Request) {
       { isolationLevel: "Serializable" }
     );
 
-    const originalFilename =
-      sanitizeFilename(file.name || `upload.${getFileExtensionFromMime(mime)}`);
+const originalFilename = sanitizeShoutoutUploadFilename(
+  file.name || `upload.${getFileExtensionFromMime(mime)}`,
+  mime
+);
     const originalPath = buildShoutoutOriginalPath({
       locationSlug: location,
       sessionId: session.id,

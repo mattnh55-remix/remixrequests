@@ -22,9 +22,12 @@ export const SHOUTOUT_IMAGE_BUCKET = "shoutout-images";
 
 export const ALLOWED_SHOUTOUT_IMAGE_MIME_TYPES = new Set([
   "image/jpeg",
+  "image/jpg",
   "image/png",
   "image/heic",
   "image/heif",
+  "image/heic-sequence",
+  "image/heif-sequence",
 ]);
 
 export const MAX_SHOUTOUT_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -36,6 +39,45 @@ export function sanitizeFilename(filename: string) {
     .replace(/-+/g, "-")
     .replace(/^\.+/, "")
     .slice(0, 120) || "upload";
+}
+
+export function normalizeShoutoutImageMime(input: { type?: string | null; name?: string | null }) {
+  const rawMime = String(input?.type || "").toLowerCase().trim();
+  const lowerName = String(input?.name || "").toLowerCase().trim();
+
+  if (rawMime === "image/jpeg" || rawMime === "image/jpg") return "image/jpeg";
+  if (rawMime === "image/png") return "image/png";
+
+  if (rawMime === "image/heic" || rawMime === "image/heic-sequence") {
+    return "image/heic";
+  }
+
+  if (rawMime === "image/heif" || rawMime === "image/heif-sequence") {
+    return "image/heif";
+  }
+
+  if (lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg")) return "image/jpeg";
+  if (lowerName.endsWith(".png")) return "image/png";
+  if (lowerName.endsWith(".heic")) return "image/heic";
+  if (lowerName.endsWith(".heif")) return "image/heif";
+
+  return rawMime;
+}
+
+export function sanitizeShoutoutUploadFilename(filename: string, fallbackMime?: string) {
+  const safeBase = sanitizeFilename(filename || "upload");
+  const hasExtension = /\.[a-z0-9]+$/i.test(safeBase);
+
+  if (hasExtension) return safeBase;
+
+  const mime = String(fallbackMime || "").toLowerCase().trim();
+
+  if (mime === "image/jpeg" || mime === "image/jpg") return `${safeBase}.jpg`;
+  if (mime === "image/png") return `${safeBase}.png`;
+  if (mime === "image/heic" || mime === "image/heic-sequence") return `${safeBase}.heic`;
+  if (mime === "image/heif" || mime === "image/heif-sequence") return `${safeBase}.heif`;
+
+  return `${safeBase}.bin`;
 }
 
 export function buildShoutoutOriginalPath(args: {
