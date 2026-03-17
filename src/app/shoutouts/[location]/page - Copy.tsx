@@ -681,37 +681,11 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
         </div>
 
         <div className="neonPanel" style={{ padding: 12 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              marginBottom: 12,
-            }}
-          >
-            <div>
-              <div style={{ fontWeight: 1000, letterSpacing: 0.4 }}>Pick Your Shout-Out</div>
-              <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
-                Tap a product to open the composer.
-              </div>
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 900,
-                padding: "8px 10px",
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(255,255,255,0.04)",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {verified || identityId ? `Points ${balance}` : "5 intro points"}
-            </div>
+          <div style={{ fontWeight: 1000, letterSpacing: 0.4, marginBottom: 12 }}>
+            Pick Your Shout-Out
           </div>
 
-          <div className="neonGrid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+          <div className="neonGrid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
             {SHOUTOUT_PRODUCTS.map((product) => {
               const selected = product.key === productKey;
               const canUseProduct = product.enabled || product.hasImage;
@@ -724,24 +698,22 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                   className="neonTile"
                   style={{
                     textAlign: "left",
-                    minHeight: 196,
-                    border: selected ? "1px solid rgba(0,247,255,0.44)" : "1px solid rgba(255,255,255,0.08)",
+                    border: selected ? "1px solid rgba(0,247,255,0.40)" : undefined,
                     boxShadow: selected
                       ? "0 0 18px rgba(0,247,255,0.20), 0 10px 30px rgba(0,0,0,0.40)"
-                      : "0 10px 24px rgba(0,0,0,0.28)",
+                      : undefined,
                     opacity: canUseProduct ? 1 : 0.72,
-                    transform: selected ? "translateY(-1px)" : undefined,
                   }}
                 >
-                  <div
-                    className="neonTileBody"
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      height: "100%",
-                      gap: 10,
-                    }}
-                  >
+                  <div className="neonTileBody">
+<div style={{
+  marginTop: 10,
+  fontSize: 12,
+  fontWeight: 900,
+  color: selected ? "#00f7ff" : "rgba(255,255,255,0.7)"
+}}>
+  {selected ? "SELECTED" : "TAP TO SEND"}
+</div>
                     <div
                       style={{
                         display: "flex",
@@ -750,31 +722,35 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                         alignItems: "flex-start",
                       }}
                     >
-                      <div className="neonTileTitle" style={{ color: "#ffffff", lineHeight: 1.05 }}>
+                      <div className="neonTileTitle" style={{ color: "#ffffff" }}>
                         {product.title}
                       </div>
+                      <div style={{
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-end",
+  gap: 4
+}}>
+  <div style={{
+    fontWeight: 1000,
+    fontSize: 16,
+    color: "#00f7ff"
+  }}>
+    {product.creditsCost} pts
+  </div>
 
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "flex-end",
-                          gap: 4,
-                          flexShrink: 0,
-                        }}
-                      >
-                        <div style={{ fontWeight: 1000, fontSize: 16, color: "#00f7ff", whiteSpace: "nowrap" }}>
-                          {product.creditsCost} pts
-                        </div>
-                        <div style={{ fontSize: 11, opacity: 0.72, whiteSpace: "nowrap" }}>Tap to send</div>
-                      </div>
+  <div style={{
+    fontSize: 11,
+    opacity: 0.7
+  }}>
+    Tap to send
+  </div>
+</div>
                     </div>
 
-                    <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.3, flexGrow: 1 }}>
-                      {product.description}
-                    </div>
+                    <div className="neonTileMeta">{product.description}</div>
 
-                    <div className="neonBadgeRow" style={{ marginTop: 0, flexWrap: "wrap", gap: 8 }}>
+                    <div className="neonBadgeRow" style={{ marginTop: 2, flexWrap: "wrap" }}>
                       {product.hasImage ? <span className="neonBadge neonBadgeHot">PHOTO</span> : null}
 
                       {product.creditsCost === 12 ? (
@@ -794,48 +770,31 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                         </span>
                       ) : null}
                     </div>
-
-                    <div
-                      style={{
-                        marginTop: "auto",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
-                        paddingTop: 8,
-                        borderTop: "1px solid rgba(255,255,255,0.08)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 900,
-                          color: selected ? "#00f7ff" : "rgba(255,255,255,0.72)",
-                          letterSpacing: 0.2,
-                        }}
-                      >
-                        {selected ? "SELECTED" : "TAP TO SEND"}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          padding: "7px 10px",
-                          borderRadius: 999,
-                          background: selected
-                            ? "linear-gradient(90deg, rgba(0,247,255,0.16), rgba(255,57,212,0.18))"
-                            : "rgba(255,255,255,0.05)",
-                          border: "1px solid rgba(255,255,255,0.10)",
-                          fontWeight: 900,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {canUseProduct ? "Open" : "Unavailable"}
-                      </div>
-                    </div>
                   </div>
                 </button>
               );
             })}
+          </div>
+
+          <div
+            style={{
+              marginTop: 14,
+              padding: 12,
+              borderRadius: 16,
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(255,255,255,0.03)",
+            }}
+          >
+            <div style={{ fontWeight: 900 }}>{selectedProduct.title}</div>
+            <div style={{ color: "var(--muted)", marginTop: 4, fontSize: 14 }}>
+              {selectedProduct.description}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 13, opacity: 0.8 }}>
+              Cost: <b>{selectedProduct.creditsCost}</b> points
+            </div>
+            <div style={{ marginTop: 4, fontSize: 13, opacity: 0.8 }}>
+              All messages are reviewed before appearing on screen.
+            </div>
           </div>
         </div>
 
@@ -874,7 +833,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           onClose={() => setShowVerify(false)}
         />
 
-        <ShoutoutComposerDrawer
+                <ShoutoutComposerDrawer
           open={showComposer}
           onClose={() => {
             setShowComposer(false);
@@ -1013,10 +972,7 @@ function ShoutoutComposerDrawer({
           overflowY: "auto",
         }}
       >
-        <h3 style={{ marginTop: 0, marginBottom: 8 }}>{selectedProduct.title}</h3>
-        <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 14 }}>
-          Fill this out and send it to the screen.
-        </div>
+        <h3 style={{ marginTop: 0, marginBottom: 14 }}>{selectedProduct.title}</h3>
 
         <div style={{ display: "grid", gap: 12 }}>
           <div>
@@ -1038,7 +994,7 @@ function ShoutoutComposerDrawer({
               onChange={(e) => setMessageText(e.target.value)}
               maxLength={charsMax}
               placeholder="Happy birthday Ava! Have the best skate night ever!"
-              rows={4}
+              rows={5}
               style={{ resize: "vertical" }}
             />
             <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
@@ -1077,43 +1033,26 @@ function ShoutoutComposerDrawer({
                     borderRadius: 16,
                     overflow: "hidden",
                     border: "1px solid rgba(255,255,255,0.10)",
-                    background: "#000",
                   }}
                 >
-                  <div
-                    style={{
-                      width: "100%",
-                      padding: 10,
-                      background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))",
-                      borderBottom: "1px solid rgba(255,255,255,0.08)",
-                      fontSize: 12,
-                      fontWeight: 900,
-                    }}
-                  >
-                    Upload preview
-                  </div>
                   <img
-                    src={photoPreviewUrl}
-                    alt="Selected upload preview"
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      maxHeight: 180,
-                      objectFit: "contain",
-                      background: "#000",
-                    }}
-                  />
-                  <div
-                    style={{
-                      padding: "8px 10px",
-                      textAlign: "center",
-                      fontSize: 11,
-                      color: "var(--muted)",
-                      borderTop: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  >
-                    This preview shows the full photo so you can see what will display on screen.
-                  </div>
+  src={photoPreviewUrl}
+  alt="Preview"
+  style={{
+    width: "100%",
+    maxHeight: 180,
+    objectFit: "contain",
+    background: "black"
+  }}
+/>
+<div style={{
+  fontSize: 11,
+  color: "var(--muted)",
+  marginTop: 6,
+  textAlign: "center"
+}}>
+  This is how your photo will appear on screen
+</div>
                 </div>
               ) : photoPreviewUnsupported && photoFile ? (
                 <div
@@ -1150,7 +1089,7 @@ function ShoutoutComposerDrawer({
                   onChange={(e) => setUsageRightsAccepted(e.target.checked)}
                   style={{ marginTop: 3 }}
                 />
-                <span>I have permission to upload and display this photo on the screen.</span>
+                <span>✅ I have permission to upload and display this photo on the screen.</span>
               </label>
             </div>
           ) : null}
@@ -1158,41 +1097,52 @@ function ShoutoutComposerDrawer({
           <div
             style={{
               marginTop: 2,
-              padding: 12,
-              borderRadius: 16,
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.03)",
+              paddingTop: 14,
+              borderTop: "1px solid rgba(255,255,255,0.10)",
             }}
           >
-            <div style={{ fontWeight: 900 }}>{selectedProduct.title}</div>
-            <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
-              {selectedProduct.description}
-            </div>
-            <div style={{ marginTop: 8, fontSize: 13 }}>
-              Cost: <b>{selectedProduct.creditsCost}</b> points
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 16,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.03)",
+              }}
+            >
+              <div style={{ fontWeight: 900 }}>{selectedProduct.title}</div>
+              <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
+                {selectedProduct.description}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 13 }}>
+                Cost: <b>{selectedProduct.creditsCost}</b> points
+              </div>
             </div>
           </div>
 
           {canAfford ? (
             <button
               className="neonBtn neonBtnPrimary"
-              style={{ width: "100%", height: 50 }}
+              style={{ width: "100%", height: 48 }}
               onClick={onSubmit}
               disabled={!canSend}
             >
-              {busy ? "Submitting..." : "Send to Screen"}
+              {busy ? "Submitting..." : "Send to TV!"}
             </button>
           ) : (
             <button
               className="neonBtn neonBtnPrimary"
-              style={{ width: "100%", height: 50 }}
+              style={{ width: "100%", height: 48 }}
               onClick={onGetPoints}
             >
-              {`GET ${selectedProduct.creditsCost} POINTS`}
+              GET POINTS
             </button>
           )}
 
-          <button className="neonBtn" onClick={onClose} style={{ width: "100%", opacity: 0.5 }}>
+          <button
+            className="neonBtn"
+            onClick={onClose}
+            style={{ width: "100%", opacity: 0.5 }}
+          >
             Close
           </button>
         </div>
