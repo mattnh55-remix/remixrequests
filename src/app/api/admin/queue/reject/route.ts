@@ -1,57 +1,60 @@
-// /src/app/api/admin/queue/reject/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 import { getRulesForLocation } from "@/lib/rules";
+import { removeRequestFromTop10 } from "@/lib/top10";
 
 export async function POST(req: Request) {
-  // 1. Auth Check
   if (!isAdminFromCookie(req.headers.get("cookie"))) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const body = await req.json();
-    const requestId = body.requestId;
-    const reason = body.reason || "Rejected";
+    const requestId = String(body.requestId || "");
+    const reason = String(body.reason || "Rejected");
 
     if (!requestId) {
       return NextResponse.json({ ok: false, error: "Missing requestId" }, { status: 400 });
     }
 
-    // 2. Execute Transaction
     await prisma.$transaction(async (tx) => {
       const r = await tx.request.findUnique({
-        where: { id: requestId }
+        where: { id: requestId },
+        include: { location: { select: { slug: true } } },
       });
 
       if (!r) throw new Error("NOT_FOUND");
-      
       if (r.status === "REJECTED") throw new Error("ALREADY_REJECTED");
       if (r.status === "PLAYED") throw new Error("CANNOT_REJECT_PLAYED");
 
-      const { rules } = await getRulesForLocation(r.locationId);
+      const { rules } = await getRulesForLocation(r.location.slug);
       const refund = r.type === "PLAY_NOW" ? rules.costPlayNow : rules.costRequest;
 
-      // Mark as Rejected
       await tx.request.update({
         where: { id: requestId },
         data: {
           status: "REJECTED",
           rejectedAt: new Date(),
-          rejectReason: reason
-        }
+          rejectReason: reason,
+        },
       });
 
-      // Handle Ledger Entry
+      await removeRequestFromTop10(tx, {
+        locationId: r.locationId,
+        sessionId: r.sessionId,
+        songId: r.songId,
+        bucket: r.top10Bucket,
+      });
+
       if (refund > 0) {
         const activeSession = await tx.session.findFirst({
-          where: { 
-            locationId: r.locationId, 
-            endsAt: { gt: new Date() } 
+          where: {
+            locationId: r.locationId,
+            endsAt: { gt: new Date() },
           },
           select: { endsAt: true },
-          orderBy: { createdAt: "desc" }
+          orderBy: { createdAt: "desc" },
         });
 
         await tx.creditLedger.create({
@@ -60,19 +63,18 @@ export async function POST(req: Request) {
             emailHash: r.emailHash,
             delta: refund,
             reason: "ADMIN_REJECT_REFUND",
-            expiresAt: activeSession?.endsAt ?? null
-          }
+            expiresAt: activeSession?.endsAt ?? null,
+          },
         });
       }
     });
 
     return NextResponse.json({ ok: true });
-
   } catch (error: any) {
     if (error.message === "NOT_FOUND") {
       return NextResponse.json({ ok: false, error: "Request not found" }, { status: 404 });
     }
-    
+
     if (["ALREADY_REJECTED", "CANNOT_REJECT_PLAYED"].includes(error.message)) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
     }

@@ -1,3 +1,5 @@
+// src/app/api/admin/queue/[location]/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";

@@ -1,10 +1,9 @@
-// src/app/api/public/request/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
 import { getOrCreateCurrentSession, secondsSinceLastAction } from "@/lib/validators";
 import { hashEmail } from "@/lib/security";
+import { bumpTop10Request, getTop10BucketAt } from "@/lib/top10";
 
 function jsonFail(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -31,7 +30,7 @@ export async function POST(req: Request) {
 
   const song = await prisma.song.findFirst({
     where: { id: songId, locationId: loc.id },
-    select: { id: true, locationId: true, explicit: true, artistKey: true, artist: true },
+    select: { id: true, title: true, artist: true, artworkUrl: true, locationId: true, explicit: true, artistKey: true },
   });
 
   if (!song) return jsonFail("Song not found.", 404);
@@ -40,34 +39,33 @@ export async function POST(req: Request) {
   const isPlayNow = action === "play_now";
   const cost = isPlayNow ? rules.costPlayNow : rules.costRequest;
   const alreadyQueuedMsg = rules.msgAlreadyRequested || "That song is already on the list already.";
-  const artistQueueTemplate = rules.msgArtistAlreadyQueued || "Sorry, $artist is already queued up on the request list!";
+  const artistQueueTemplate =
+    rules.msgArtistAlreadyQueued || "Sorry, $artist is already queued up on the request list!";
+  const top10Bucket = getTop10BucketAt(new Date(), rules as any);
 
   try {
     const result = await prisma.$transaction(
       async (tx) => {
         const now = new Date();
 
-// 1) block if this user already has too many active songs in the queue
-const activeQueueLimit = (rules as any).maxActiveRequestsPerUser ?? 0;
+        const activeQueueLimit = (rules as any).maxActiveRequestsPerUser ?? 0;
+        if (activeQueueLimit > 0) {
+          const activeCount = await tx.request.count({
+            where: {
+              locationId: loc.id,
+              sessionId: session.id,
+              emailHash,
+              status: "APPROVED",
+            },
+          });
 
-if (activeQueueLimit > 0) {
-  const activeCount = await tx.request.count({
-    where: {
-      locationId: loc.id,
-      sessionId: session.id,
-      emailHash,
-      status: "APPROVED",
-    },
-  });
+          if (activeCount >= activeQueueLimit) {
+            throw new Error(
+              `ACTIVEQUEUE:${(rules as any).msgTooManyActiveRequests || "You already have songs waiting in the queue."}`
+            );
+          }
+        }
 
-  if (activeCount >= activeQueueLimit) {
-    throw new Error(
-      `ACTIVEQUEUE:${(rules as any).msgTooManyActiveRequests || "You already have songs waiting in the queue."}`
-    );
-  }
-}
-
-        // 2) block duplicates already sitting in the current queue/session
         const alreadyQueued = await tx.request.findFirst({
           where: {
             locationId: loc.id,
@@ -82,7 +80,6 @@ if (activeQueueLimit > 0) {
           throw new Error(`INQUEUE:${alreadyQueuedMsg}`);
         }
 
-        // 2b) limit how many songs by the same artist can exist in the queue
         const maxArtistInQueue = Math.max(0, Number(rules.maxArtistInQueue ?? 0));
         if (maxArtistInQueue > 0) {
           const artistCount = await tx.request.count({
@@ -90,9 +87,7 @@ if (activeQueueLimit > 0) {
               locationId: loc.id,
               sessionId: session.id,
               status: "APPROVED",
-              song: {
-                artistKey: song.artistKey,
-              },
+              song: { artistKey: song.artistKey },
             },
           });
 
@@ -105,7 +100,6 @@ if (activeQueueLimit > 0) {
           }
         }
 
-        // 3) block recently played artist based on rules
         if (rules.enforceArtistCooldown) {
           const artistSince = new Date(now.getTime() - rules.artistCooldownMinutes * 60 * 1000);
           const recentArtist = await tx.playHistory.findFirst({
@@ -122,7 +116,6 @@ if (activeQueueLimit > 0) {
           }
         }
 
-        // 4) block recently played song based on rules
         if (rules.enforceSongCooldown) {
           const songSince = new Date(now.getTime() - rules.songCooldownMinutes * 60 * 1000);
           const recentSong = await tx.playHistory.findFirst({
@@ -139,7 +132,6 @@ if (activeQueueLimit > 0) {
           }
         }
 
-        // 5) atomic balance check before any deduction
         const agg = await tx.creditLedger.aggregate({
           _sum: { delta: true },
           where: {
@@ -154,7 +146,6 @@ if (activeQueueLimit > 0) {
           throw new Error(`NOCREDITS:${rules.msgNoCredits}`);
         }
 
-        // 6) deduct only after all validation passes
         await tx.creditLedger.create({
           data: {
             locationId: loc.id,
@@ -172,10 +163,18 @@ if (activeQueueLimit > 0) {
             emailHash,
             type: isPlayNow ? "PLAY_NOW" : "NEXT",
             status: "APPROVED",
+            top10Bucket,
           },
         });
 
-        return { reqRow, balanceAfter: balance - cost };
+        await bumpTop10Request(tx, {
+          locationId: loc.id,
+          sessionId: session.id,
+          bucket: top10Bucket,
+          song,
+        });
+
+        return { reqRow, balanceAfter: balance - cost, top10Bucket };
       },
       { isolationLevel: "Serializable" }
     );
@@ -184,10 +183,11 @@ if (activeQueueLimit > 0) {
       ok: true,
       requestId: result.reqRow.id,
       balance: result.balanceAfter,
+      top10Bucket: result.top10Bucket,
     });
   } catch (e: any) {
     const msg = String(e?.message || "");
-if (msg.startsWith("ACTIVEQUEUE:")) return jsonFail(msg.slice("ACTIVEQUEUE:".length), 400);
+    if (msg.startsWith("ACTIVEQUEUE:")) return jsonFail(msg.slice("ACTIVEQUEUE:".length), 400);
     if (msg.startsWith("LIMIT:")) return jsonFail(msg.slice("LIMIT:".length), 400);
     if (msg.startsWith("INQUEUE:")) return jsonFail(msg.slice("INQUEUE:".length), 400);
     if (msg.startsWith("ARTISTQUEUE:")) return jsonFail(msg.slice("ARTISTQUEUE:".length), 400);

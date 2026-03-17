@@ -1,10 +1,9 @@
-// src/app/api/public/vote/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
 import { getOrCreateCurrentSession, secondsSinceLastAction } from "@/lib/validators";
 import { hashEmail } from "@/lib/security";
+import { bumpTop10VoteForRequest } from "@/lib/top10";
 
 function jsonFail(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -41,13 +40,11 @@ export async function POST(req: Request) {
   try {
     await prisma.$transaction(
       async (tx) => {
-        // enforce per-session vote limit INSIDE txn
         const countVotes = await tx.vote.count({ where: { sessionId: session.id, emailHash } });
         if (countVotes >= rules.maxVotesPerSession) {
           throw new Error("LIMIT:Vote limit reached.");
         }
 
-        // atomic balance check INSIDE txn
         const now = new Date();
         const agg = await tx.creditLedger.aggregate({
           _sum: { delta: true },
@@ -62,13 +59,13 @@ export async function POST(req: Request) {
           throw new Error(`NOCREDITS:${rules.msgNoCredits}`);
         }
 
-        // charge + vote in same txn; if vote unique constraint fails, whole txn rolls back (no charge)
         await tx.creditLedger.create({
           data: { locationId: loc.id, emailHash, delta: -cost, reason: val === 1 ? "UPVOTE" : "DOWNVOTE" },
         });
         await tx.vote.create({
           data: { requestId: reqRow.id, sessionId: session.id, emailHash, value: val },
         });
+        await bumpTop10VoteForRequest(tx, { requestId: reqRow.id, value: val });
       },
       { isolationLevel: "Serializable" }
     );
@@ -78,8 +75,6 @@ export async function POST(req: Request) {
     const msg = String(e?.message || "");
     if (msg.startsWith("LIMIT:")) return jsonFail(msg.slice("LIMIT:".length), 400);
     if (msg.startsWith("NOCREDITS:")) return jsonFail(msg.slice("NOCREDITS:".length), 400);
-
-    // Most common here is unique constraint = "already voted"
-    return jsonFail("You already voted on this.", 400);
+    return jsonFail("Could not submit vote.", 400);
   }
 }

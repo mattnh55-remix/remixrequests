@@ -18,6 +18,7 @@ model Location {
   sessions Session[]
   requests Request[]
   rules    Ruleset?
+  top10Entries Top10Entry[]
 
   CreditLedger CreditLedger[]
   PlayHistory  PlayHistory[]
@@ -31,6 +32,7 @@ model Song {
   locationId String
   location   Location @relation(fields: [locationId], references: [id])
 
+  trackId    String?
   title      String
   artist     String
   artistKey  String
@@ -41,9 +43,11 @@ model Song {
   createdAt   DateTime      @default(now())
   Request     Request[]
   PlayHistory PlayHistory[]
+  top10Entries Top10Entry[]
 
   @@index([locationId])
   @@index([artistKey])
+  @@index([locationId, trackId])
 }
 
 model Session {
@@ -57,6 +61,7 @@ model Session {
 
   requests Request[]
   votes    Vote[]
+  top10Entries Top10Entry[]
 
   @@index([locationId, endsAt])
 }
@@ -72,9 +77,10 @@ model Request {
   songId String
   song   Song   @relation(fields: [songId], references: [id])
 
-  emailHash String
-  type      RequestType   @default(NEXT)
-  status    RequestStatus @default(APPROVED)
+  emailHash  String
+  type       RequestType   @default(NEXT)
+  status     RequestStatus @default(APPROVED)
+  top10Bucket Top10Bucket?
 
   createdAt    DateTime  @default(now())
   playedAt     DateTime?
@@ -85,6 +91,7 @@ model Request {
 
   @@index([locationId, sessionId])
   @@index([status])
+  @@index([sessionId, top10Bucket])
 }
 
 model Vote {
@@ -99,8 +106,37 @@ model Vote {
   value     Int
   createdAt DateTime @default(now())
 
-  @@unique([requestId, emailHash])
+  @@index([requestId, emailHash])
   @@index([sessionId, emailHash])
+}
+
+
+model Top10Entry {
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+
+  sessionId  String
+  session    Session  @relation(fields: [sessionId], references: [id])
+
+  songId     String
+  song       Song     @relation(fields: [songId], references: [id])
+
+  bucket         Top10Bucket
+  title          String
+  artist         String
+  artworkUrl     String?
+  requestCount   Int      @default(0)
+  upvotes        Int      @default(0)
+  downvotes      Int      @default(0)
+  score          Int      @default(0)
+  lastActivityAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([locationId, sessionId, bucket, songId])
+  @@index([locationId, sessionId, bucket, score])
+  @@index([locationId, sessionId, bucket, lastActivityAt])
 }
 
 model CreditLedger {
@@ -373,4 +409,10 @@ model MessageRuleset {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+
+enum Top10Bucket {
+  GENERAL
+  ADULT
 }
