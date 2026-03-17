@@ -65,9 +65,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
   const [artB, setArtB] = useState<string | null>(null);
   const [showA, setShowA] = useState(true);
   const [timerNowMs, setTimerNowMs] = useState(Date.now());
-  const [liveSlideStartedAtMs, setLiveSlideStartedAtMs] = useState(Date.now());
   const prevTopId = useRef<string | null>(null);
-    const placeholderTimerStartRef = useRef(Date.now());
 
   const requestUrl = useMemo(
     () => `https://skateremix.com/request/${location}`,
@@ -98,18 +96,31 @@ export default function TvPage({ params }: { params: { location: string } }) {
     )
   );
 
+  const placeholderCycleMs = placeholderDurationSec * 1000;
+
+  const stableLiveStartMs = liveMessage
+    ? new Date(
+        (liveMessage as any).approvedAt ||
+          (liveMessage as any).createdAt ||
+          Date.now()
+      ).getTime()
+    : 0;
+
   const elapsedMs = isPlaceholderMessage
-    ? (timerNowMs - placeholderTimerStartRef.current) %
-      (placeholderDurationSec * 1000)
-    : Math.max(0, timerNowMs - liveSlideStartedAtMs);
+    ? timerNowMs % placeholderCycleMs
+    : Math.max(0, timerNowMs - stableLiveStartMs);
+
+  const clampedElapsedMs = isPlaceholderMessage
+    ? elapsedMs
+    : Math.min(elapsedMs, activeDurationSec * 1000);
 
   const remainingSec = isPlaceholderMessage
-    ? Math.max(0, placeholderDurationSec - Math.floor(elapsedMs / 1000))
-    : Math.max(0, activeDurationSec - Math.floor(elapsedMs / 1000));
+    ? Math.max(0, placeholderDurationSec - Math.floor(clampedElapsedMs / 1000))
+    : Math.max(0, activeDurationSec - Math.floor(clampedElapsedMs / 1000));
 
   const progressPct = isPlaceholderMessage
-    ? Math.max(0, 100 - (elapsedMs / (placeholderDurationSec * 1000)) * 100)
-    : Math.max(0, 100 - (elapsedMs / (activeDurationSec * 1000)) * 100);
+    ? Math.max(0, 100 - (clampedElapsedMs / placeholderCycleMs) * 100)
+    : Math.max(0, 100 - (clampedElapsedMs / (activeDurationSec * 1000)) * 100);
 
   const timerMinutes = Math.floor(remainingSec / 60);
   const timerSeconds = remainingSec % 60;
@@ -197,11 +208,6 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
     prevTopId.current = topId;
   }, [playNow]);
-
-    useEffect(() => {
-    if (!liveMessage?.id) return;
-    setLiveSlideStartedAtMs(Date.now());
-  }, [liveMessage?.id]);
 
   useEffect(() => {
     const next = nowPlaying?.artworkUrl || null;
