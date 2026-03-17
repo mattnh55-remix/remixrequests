@@ -219,20 +219,20 @@ export async function POST(req: Request) {
       return jsonFail(rules.filterBlockMessage || "This message can’t be submitted as written.");
     }
 
-    const pendingCount = await prisma.screenMessage.count({
-      where: {
-        locationId: loc.id,
-        sessionId: session.id,
-        emailHash,
-        status: {
-          in: ["PENDING", "APPROVED", "ACTIVE", "PENDING_IMAGE_SCAN"],
-        },
-      },
-    });
+ const pendingCount = await prisma.screenMessage.count({
+  where: {
+    locationId: loc.id,
+    sessionId: session.id,
+    emailHash,
+    status: {
+      in: ["PENDING", "ACTIVE", "PENDING_IMAGE_SCAN"],
+    },
+  },
+});
 
-    if (pendingCount >= Number(rules.maxPendingPerIdentity || 10)) {
-      return jsonFail("You already have the maximum number of active shout-outs for this session.");
-    }
+if (pendingCount >= Number(rules.maxPendingPerIdentity ?? 3)) {
+  return jsonFail("You already have the maximum number of active shout-outs for this session.");
+}
 
 const mime = normalizeShoutoutImageMime({
   type: file.type,
