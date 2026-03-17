@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Top10Item = {
   id: string;
@@ -36,6 +36,8 @@ type Snapshot = {
 type Movement = { kind: "up" | "down" | "new" | "same"; delta?: number };
 
 const TITLE_ROTATION = ["TODAY'S TOP 10", "WEEK'S TOP 10", "ADULT NIGHT TOP 10"] as const;
+const POLL_MS = 12000;
+
 const DEFAULT_ART =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`
@@ -53,20 +55,40 @@ const DEFAULT_ART =
     <text x="400" y="470" text-anchor="middle" fill="#d6defa" fill-opacity="0.7" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">TOP 10</text>
   </svg>`);
 
-function snapshotKey(location: string) {
-  return `remix_top10_snapshot:${location}`;
-}
-
-function previousSnapshotKey(location: string) {
-  return `remix_top10_snapshot_prev:${location}`;
-}
-
 function requestUrlFor(location: string) {
   return `https://skateremix.com/request/${location}`;
 }
 
+function snapshotEquals(a: Snapshot | null, b: Snapshot | null) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (a.bucket !== b.bucket) return false;
+  if (a.items.length !== b.items.length) return false;
+
+  for (let i = 0; i < a.items.length; i += 1) {
+    const left = a.items[i];
+    const right = b.items[i];
+    if (
+      left.id !== right.id ||
+      left.songId !== right.songId ||
+      left.title !== right.title ||
+      left.artist !== right.artist ||
+      (left.artworkUrl || "") !== (right.artworkUrl || "") ||
+      left.score !== right.score ||
+      left.requestCount !== right.requestCount ||
+      left.upvotes !== right.upvotes ||
+      left.downvotes !== right.downvotes
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export default function TvTop10Page({ params }: { params: { location: string } }) {
   const location = params.location;
+
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [previousSnapshot, setPreviousSnapshot] = useState<Snapshot | null>(null);
   const [isPortraitLayout, setIsPortraitLayout] = useState(false);
@@ -76,11 +98,7 @@ export default function TvTop10Page({ params }: { params: { location: string } }
   const [bucketLabel, setBucketLabel] = useState("REMIX TOP 10");
   const [queueCount, setQueueCount] = useState(0);
   const [boardUpdatedAt, setBoardUpdatedAt] = useState("");
-
-  const refreshRequested = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return new URL(window.location.href).searchParams.get("refresh") === "1";
-  }, []);
+  const snapshotRef = useRef<Snapshot | null>(null);
 
   const requestUrl = useMemo(() => requestUrlFor(location), [location]);
   const qrSrc = useMemo(() => {
@@ -88,35 +106,13 @@ export default function TvTop10Page({ params }: { params: { location: string } }
     return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(requestUrl)}`;
   }, [isPortraitLayout, requestUrl]);
 
-  function loadSnapshot(key: string) {
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as Snapshot;
-      if (!parsed?.items?.length) return null;
-      return parsed;
-    } catch {
-      return null;
-    }
-  }
-
-  function saveSnapshot(next: Snapshot) {
-    const current = loadSnapshot(snapshotKey(location));
-    if (current?.items?.length) {
-      localStorage.setItem(previousSnapshotKey(location), JSON.stringify(current));
-      setPreviousSnapshot(current);
-    }
-    localStorage.setItem(snapshotKey(location), JSON.stringify(next));
-    setSnapshot(next);
-  }
-
   async function fetchBoard() {
     const res = await fetch(`/api/public/top10/${location}`, { cache: "no-store" });
     const data = (await res.json()) as Top10Res;
     if (!data?.ok) return null;
 
     if (data.location?.name) setLocationName(data.location.name.toUpperCase());
-    if (data.logoUrl) setLogoUrl(data.logoUrl);
+    if (typeof data.logoUrl === "string") setLogoUrl(data.logoUrl);
     if (data.displayLabel) setBucketLabel(data.displayLabel);
     if (typeof data.queueCount === "number") setQueueCount(data.queueCount);
     if (data.updatedAt) setBoardUpdatedAt(data.updatedAt);
@@ -134,46 +130,61 @@ export default function TvTop10Page({ params }: { params: { location: string } }
     const apply = () => setIsPortraitLayout(media.matches);
     apply();
     const handler = () => apply();
+
     if (typeof media.addEventListener === "function") {
       media.addEventListener("change", handler);
       return () => media.removeEventListener("change", handler);
     }
+
     media.addListener(handler);
     return () => media.removeListener(handler);
   }, []);
 
   useEffect(() => {
-    const id = window.setInterval(() => setTitleIndex((v) => (v + 1) % TITLE_ROTATION.length), 9000);
+    const id = window.setInterval(() => {
+      setTitleIndex((v) => (v + 1) % TITLE_ROTATION.length);
+    }, 9000);
     return () => window.clearInterval(id);
   }, []);
 
   useEffect(() => {
-    (async () => {
-      const existing = loadSnapshot(snapshotKey(location));
-      const previous = loadSnapshot(previousSnapshotKey(location));
-      if (previous) setPreviousSnapshot(previous);
+    let cancelled = false;
 
-      const live = await fetchBoard();
-      if (!live) {
-        if (existing) setSnapshot(existing);
-        return;
+    const run = async () => {
+      try {
+        const live = await fetchBoard();
+        if (!live || cancelled) return;
+
+        const current = snapshotRef.current;
+        if (!current) {
+          snapshotRef.current = live;
+          setSnapshot(live);
+          return;
+        }
+
+        if (snapshotEquals(current, live)) {
+          if (current.createdAt !== live.createdAt) {
+            snapshotRef.current = { ...current, createdAt: live.createdAt };
+            setSnapshot({ ...current, createdAt: live.createdAt });
+          }
+          return;
+        }
+
+        setPreviousSnapshot(current);
+        snapshotRef.current = live;
+        setSnapshot(live);
+      } catch {
+        // keep last good board visible
       }
+    };
 
-      if (refreshRequested || !existing) {
-        saveSnapshot(live);
-        return;
-      }
+    void run();
+    const id = window.setInterval(run, POLL_MS);
 
-      setSnapshot(existing);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location]);
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      fetchBoard().catch(() => undefined);
-    }, 5000);
-    return () => window.clearInterval(id);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
   }, [location]);
 
   const items = snapshot?.items || [];
@@ -183,17 +194,31 @@ export default function TvTop10Page({ params }: { params: { location: string } }
 
   const movementById = useMemo(() => {
     const previousPositions = new Map<string, number>();
-    (previousSnapshot?.items || []).forEach((item, index) => previousPositions.set(item.songId || item.id, index + 1));
+    (previousSnapshot?.items || []).forEach((item, index) => {
+      previousPositions.set(item.songId || item.id, index + 1);
+    });
+
     const map = new Map<string, Movement>();
     items.forEach((item, index) => {
       const currentRank = index + 1;
       const prevRank = previousPositions.get(item.songId || item.id);
       const key = item.songId || item.id;
-      if (!prevRank) return map.set(key, { kind: "new" });
-      if (prevRank === currentRank) return map.set(key, { kind: "same" });
-      if (prevRank > currentRank) return map.set(key, { kind: "up", delta: prevRank - currentRank });
-      return map.set(key, { kind: "down", delta: currentRank - prevRank });
+
+      if (!prevRank) {
+        map.set(key, { kind: "new" });
+        return;
+      }
+      if (prevRank === currentRank) {
+        map.set(key, { kind: "same" });
+        return;
+      }
+      if (prevRank > currentRank) {
+        map.set(key, { kind: "up", delta: prevRank - currentRank });
+        return;
+      }
+      map.set(key, { kind: "down", delta: currentRank - prevRank });
     });
+
     return map;
   }, [items, previousSnapshot]);
 
@@ -219,7 +244,9 @@ export default function TvTop10Page({ params }: { params: { location: string } }
 
           <div className="remixTop10HeaderMeta">
             <div className="remixTop10ModePill">{activeTitle}</div>
-            <div className="remixTop10LivePill">{items.length} RANKED • {queueCount} IN QUEUE</div>
+            <div className="remixTop10LivePill">
+              {items.length} RANKED • {queueCount} IN QUEUE
+            </div>
           </div>
         </section>
 
@@ -231,31 +258,29 @@ export default function TvTop10Page({ params }: { params: { location: string } }
             </div>
 
             {hero ? (
-              <>
-                <div className="remixTop10HeroBody">
-                  <div className="remixTop10HeroArtWrap">
-                    <div className="remixTop10HeroArtGlow" />
-                    <img
-                      className="remixTop10HeroArt"
-                      src={hero.artworkUrl || DEFAULT_ART}
-                      alt=""
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
+              <div className="remixTop10HeroBody">
+                <div className="remixTop10HeroArtWrap">
+                  <div className="remixTop10HeroArtGlow" />
+                  <img
+                    className="remixTop10HeroArt"
+                    src={hero.artworkUrl && hero.artworkUrl !== "unknown" ? hero.artworkUrl : DEFAULT_ART}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
 
-                  <div className="remixTop10HeroMeta">
-                    <div className="remixTop10HeroRank">#1</div>
-                    <div className="remixTop10HeroSong">{hero.title}</div>
-                    <div className="remixTop10HeroArtist">{hero.artist}</div>
-                    <div className="remixTop10HeroStats">
-                      <span className="remixTop10Stat remixTop10Stat--score">SCORE {hero.score}</span>
-                      <span className="remixTop10Stat">REQ {hero.requestCount}</span>
-                      <span className="remixTop10Stat">▲ {hero.upvotes}</span>
-                      <span className="remixTop10Stat">▼ {hero.downvotes}</span>
-                    </div>
+                <div className="remixTop10HeroMeta">
+                  <div className="remixTop10HeroRank">#1</div>
+                  <div className="remixTop10HeroSong">{hero.title}</div>
+                  <div className="remixTop10HeroArtist">{hero.artist}</div>
+                  <div className="remixTop10HeroStats">
+                    <span className="remixTop10Stat remixTop10Stat--score">SCORE {hero.score}</span>
+                    <span className="remixTop10Stat">REQ {hero.requestCount}</span>
+                    <span className="remixTop10Stat">▲ {hero.upvotes}</span>
+                    <span className="remixTop10Stat">▼ {hero.downvotes}</span>
                   </div>
                 </div>
-              </>
+              </div>
             ) : (
               <div className="remixTop10Empty">No ranked songs yet — scan the QR and start the board.</div>
             )}
@@ -264,7 +289,9 @@ export default function TvTop10Page({ params }: { params: { location: string } }
           <section className="neonPanel remixTop10ListPanel">
             <div className="remixTop10ListHeaderRow">
               <div className="remixTop10ListTitle">{bucketLabel}</div>
-              <div className="remixTop10ListMeta">Updated {formatShortTime(boardUpdatedAt || snapshot?.createdAt || "")}</div>
+              <div className="remixTop10ListMeta">
+                Updated {formatShortTime(boardUpdatedAt || snapshot?.createdAt || "")}
+              </div>
             </div>
 
             {rest.length ? (
@@ -276,7 +303,12 @@ export default function TvTop10Page({ params }: { params: { location: string } }
                     <div className="remixTop10Row" key={item.id}>
                       <div className="remixTop10RowRank">{rank}</div>
                       <div className="remixTop10RowArtWrap">
-                        <img className="remixTop10RowArt" src={item.artworkUrl || DEFAULT_ART} alt="" referrerPolicy="no-referrer" />
+                        <img
+                          className="remixTop10RowArt"
+                          src={item.artworkUrl && item.artworkUrl !== "unknown" ? item.artworkUrl : DEFAULT_ART}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                        />
                       </div>
                       <div className="remixTop10RowText">
                         <div className="remixTop10RowSong">{item.title}</div>
