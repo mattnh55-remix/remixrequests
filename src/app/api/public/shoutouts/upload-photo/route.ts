@@ -230,7 +230,7 @@ export async function POST(req: Request) {
       },
     });
 
-    if (pendingCount >= Number(rules.maxPendingPerIdentity || 3)) {
+    if (pendingCount >= Number(rules.maxPendingPerIdentity || 10)) {
       return jsonFail("You already have the maximum number of active shout-outs for this session.");
     }
 
