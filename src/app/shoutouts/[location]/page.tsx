@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SHOUTOUT_PRODUCTS, type ShoutoutProductKey } from "@/lib/shoutoutProducts";
 
 type BalanceRes = { ok: boolean; balance?: number; error?: string };
@@ -93,6 +93,28 @@ const BUY_URL_BY_LOCATION: Record<string, string> = {
 
 const PHOTO_ACCEPT = "image/jpeg,image/png,image/heic,image/heif";
 
+function getProductBadge(product: (typeof SHOUTOUT_PRODUCTS)[number]) {
+  if (product.creditsCost === 18 && !product.hasImage) return "BEST VALUE";
+  if (product.hasImage && product.creditsCost === 18) return "WOW!";
+  if (product.creditsCost === 8 && !product.hasImage) return "POPULAR";
+  if (product.hasImage && product.creditsCost === 6) return "HOT";
+  return "";
+}
+
+function getProductMinutes(product: (typeof SHOUTOUT_PRODUCTS)[number]) {
+  const title = `${product.title} ${product.description}`.toLowerCase();
+  if (title.includes("60")) return "60 MINS";
+  if (title.includes("20")) return "20 MINS";
+  return "5 MINS";
+}
+
+function getProductCardClass(product: (typeof SHOUTOUT_PRODUCTS)[number]) {
+  if (product.hasImage) return "rrProductCard--photo";
+  if (product.creditsCost >= 18) return "rrProductCard--vip";
+  if (product.creditsCost >= 8) return "rrProductCard--roller";
+  return "rrProductCard--basic";
+}
+
 export default function ShoutoutsPage({ params }: { params: { location: string } }) {
   const location = params.location;
 
@@ -120,6 +142,9 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   const [redeemBusy, setRedeemBusy] = useState(false);
   const [pendingComposerAfterBuy, setPendingComposerAfterBuy] = useState(false);
   const [sessionCountdown, setSessionCountdown] = useState("");
+  const [pressedProductKey, setPressedProductKey] = useState<ShoutoutProductKey | null>(null);
+
+  const openTimerRef = useRef<number | null>(null);
 
   const selectedProduct = useMemo(
     () => SHOUTOUT_PRODUCTS.find((p) => p.key === productKey) || SHOUTOUT_PRODUCTS[0],
@@ -195,6 +220,14 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   useEffect(() => {
     void refreshSession();
   }, [location]);
+
+  useEffect(() => {
+    return () => {
+      if (openTimerRef.current) {
+        window.clearTimeout(openTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -392,28 +425,37 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     const nextProduct =
       SHOUTOUT_PRODUCTS.find((p) => p.key === nextProductKey) || SHOUTOUT_PRODUCTS[0];
 
+    if (openTimerRef.current) {
+      window.clearTimeout(openTimerRef.current);
+    }
+
+    setPressedProductKey(nextProductKey);
     setProductKey(nextProductKey);
     setMsg("");
 
-    if (!verified || !identityId || !email) {
-      setMsg("Claim your intro points to send a shout-out.");
-      setShowVerify(true);
-      return;
-    }
+    openTimerRef.current = window.setTimeout(() => {
+      setPressedProductKey(null);
 
-    if (!nextProduct.enabled && !nextProduct.hasImage) {
-      setMsg("That shout-out option is currently unavailable.");
-      return;
-    }
+      if (!verified || !identityId || !email) {
+        setMsg("Claim your intro points to send a shout-out.");
+        setShowVerify(true);
+        return;
+      }
 
-    if (balance < nextProduct.creditsCost) {
-      setMsg(`You need ${nextProduct.creditsCost} points for this shout-out.`);
-      openBuyForShoutout(nextProductKey);
-      return;
-    }
+      if (!nextProduct.enabled && !nextProduct.hasImage) {
+        setMsg("That shout-out option is currently unavailable.");
+        return;
+      }
 
-    clearPendingShoutoutResume();
-    setShowComposer(true);
+      if (balance < nextProduct.creditsCost) {
+        setMsg(`You need ${nextProduct.creditsCost} points for this shout-out.`);
+        openBuyForShoutout(nextProductKey);
+        return;
+      }
+
+      clearPendingShoutoutResume();
+      setShowComposer(true);
+    }, 120);
   }
 
   async function submit() {
@@ -680,159 +722,65 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           </div>
         </div>
 
-        <div className="neonPanel" style={{ padding: 12 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              marginBottom: 12,
-            }}
-          >
+        <div className="neonPanel rrProductPanel" style={{ padding: 12 }}>
+          <div className="rrProductPanelHeader">
             <div>
-              <div style={{ fontWeight: 1000, letterSpacing: 0.4 }}>Pick Your Shout-Out</div>
-              <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
-                Tap a product to open the composer.
-              </div>
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 900,
-                padding: "8px 10px",
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(255,255,255,0.04)",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {verified || identityId ? `Points ${balance}` : "5 intro points"}
+              <div className="rrProductPanelTitle">Pick Your Shout-Out</div>
+              <div className="rrProductPanelSub">Tap a style to preview and open the details.</div>
             </div>
           </div>
 
-          <div className="neonGrid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+          <div className="rrProductGrid">
             {SHOUTOUT_PRODUCTS.map((product) => {
               const selected = product.key === productKey;
+              const pressed = product.key === pressedProductKey;
               const canUseProduct = product.enabled || product.hasImage;
+              const badge = getProductBadge(product);
+              const minutes = getProductMinutes(product);
 
               return (
                 <button
                   key={product.key}
                   type="button"
                   onClick={() => handleProductClick(product.key)}
-                  className="neonTile"
-                  style={{
-                    textAlign: "left",
-                    minHeight: 196,
-                    border: selected ? "1px solid rgba(0,247,255,0.44)" : "1px solid rgba(255,255,255,0.08)",
-                    boxShadow: selected
-                      ? "0 0 18px rgba(0,247,255,0.20), 0 10px 30px rgba(0,0,0,0.40)"
-                      : "0 10px 24px rgba(0,0,0,0.28)",
-                    opacity: canUseProduct ? 1 : 0.72,
-                    transform: selected ? "translateY(-1px)" : undefined,
-                  }}
+                  className={[
+                    "rrProductCard",
+                    getProductCardClass(product),
+                    selected ? "rrProductCard--selected" : "",
+                    pressed ? "rrProductCard--pressed" : "",
+                    !canUseProduct ? "rrProductCard--disabled" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                 >
-                  <div
-                    className="neonTileBody"
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      height: "100%",
-                      gap: 10,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 8,
-                        alignItems: "flex-start",
-                      }}
-                    >
-                      <div className="neonTileTitle" style={{ color: "#ffffff", lineHeight: 1.05 }}>
-                        {product.title}
-                      </div>
+                  {badge ? <div className="rrProductCardBadge">{badge}</div> : <div className="rrProductCardBadge rrProductCardBadge--empty" />}
 
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "flex-end",
-                          gap: 4,
-                          flexShrink: 0,
-                        }}
-                      >
-                        <div style={{ fontWeight: 1000, fontSize: 16, color: "#00f7ff", whiteSpace: "nowrap" }}>
-                          {product.creditsCost} pts
-                        </div>
-                        <div style={{ fontSize: 11, opacity: 0.72, whiteSpace: "nowrap" }}>Tap to send</div>
-                      </div>
+                  {product.hasImage ? (
+                    <div className="rrProductPhotoMark" aria-hidden="true">
+                      <div className="rrProductPhotoMarkDot">+</div>
+                      <div className="rrProductPhotoMarkFrame" />
                     </div>
+                  ) : null}
 
-                    <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.3, flexGrow: 1 }}>
-                      {product.description}
-                    </div>
-
-                    <div className="neonBadgeRow" style={{ marginTop: 0, flexWrap: "wrap", gap: 8 }}>
-                      {product.hasImage ? <span className="neonBadge neonBadgeHot">PHOTO</span> : null}
-
-                      {product.creditsCost === 12 ? (
-                        <>
-                          <span className="neonBadge neonBadgeHot">POPULAR</span>
-                          <span className="neonBadge neonBadgeHot">HOT</span>
-                        </>
-                      ) : null}
-
-                      {product.creditsCost === 25 ? (
-                        <span className="neonBadge neonBadgeHot">BEST VALUE</span>
-                      ) : null}
-
-                      {!canUseProduct ? (
-                        <span className="neonBadge">
-                          {product.comingSoon ? "COMING SOON" : "UNAVAILABLE"}
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: "auto",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
-                        paddingTop: 8,
-                        borderTop: "1px solid rgba(255,255,255,0.08)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 900,
-                          color: selected ? "#00f7ff" : "rgba(255,255,255,0.72)",
-                          letterSpacing: 0.2,
-                        }}
-                      >
-                        {selected ? "SELECTED" : "TAP TO SEND"}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          padding: "7px 10px",
-                          borderRadius: 999,
-                          background: selected
-                            ? "linear-gradient(90deg, rgba(0,247,255,0.16), rgba(255,57,212,0.18))"
-                            : "rgba(255,255,255,0.05)",
-                          border: "1px solid rgba(255,255,255,0.10)",
-                          fontWeight: 900,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {canUseProduct ? "Open" : "Unavailable"}
-                      </div>
-                    </div>
+                  <div className="rrProductCardBody">
+                    <div className="rrProductCardTitle">{product.title}</div>
+                    <div className="rrProductCardDescription">{product.description}</div>
                   </div>
+
+                  <div
+                    className={`rrProductCardFooter ${
+                      selected ? "rrProductCardFooter--selected" : ""
+                    }`}
+                  >
+                    <span className="rrProductCardDuration">{minutes}</span>
+                    <span className="rrProductCardPrice">{product.creditsCost}pts</span>
+                  </div>
+
+                  {!canUseProduct ? (
+                    <div className="rrProductUnavailablePill">
+                      {product.comingSoon ? "COMING SOON" : "UNAVAILABLE"}
+                    </div>
+                  ) : null}
                 </button>
               );
             })}
@@ -1013,10 +961,7 @@ function ShoutoutComposerDrawer({
           overflowY: "auto",
         }}
       >
-        <h3 style={{ marginTop: 0, marginBottom: 8 }}>{selectedProduct.title}</h3>
-        <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 14 }}>
-          Fill this out and send it to the screen.
-        </div>
+        <h3 style={{ marginTop: 0, marginBottom: 14 }}>{selectedProduct.title}</h3>
 
         <div style={{ display: "grid", gap: 12 }}>
           <div>
@@ -1077,42 +1022,31 @@ function ShoutoutComposerDrawer({
                     borderRadius: 16,
                     overflow: "hidden",
                     border: "1px solid rgba(255,255,255,0.10)",
-                    background: "#000",
+                    background: "rgba(0,0,0,0.45)",
+                    padding: 10,
                   }}
                 >
-                  <div
-                    style={{
-                      width: "100%",
-                      padding: 10,
-                      background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))",
-                      borderBottom: "1px solid rgba(255,255,255,0.08)",
-                      fontSize: 12,
-                      fontWeight: 900,
-                    }}
-                  >
-                    Upload preview
-                  </div>
                   <img
                     src={photoPreviewUrl}
                     alt="Selected upload preview"
                     style={{
                       display: "block",
                       width: "100%",
-                      maxHeight: 180,
+                      maxHeight: 170,
                       objectFit: "contain",
-                      background: "#000",
+                      background: "#050814",
+                      borderRadius: 12,
                     }}
                   />
                   <div
                     style={{
-                      padding: "8px 10px",
-                      textAlign: "center",
                       fontSize: 11,
                       color: "var(--muted)",
-                      borderTop: "1px solid rgba(255,255,255,0.08)",
+                      marginTop: 8,
+                      textAlign: "center",
                     }}
                   >
-                    This preview shows the full photo so you can see what will display on screen.
+                    Preview only — your full photo will be reviewed before it appears on screen.
                   </div>
                 </div>
               ) : photoPreviewUnsupported && photoFile ? (
@@ -1158,25 +1092,32 @@ function ShoutoutComposerDrawer({
           <div
             style={{
               marginTop: 2,
-              padding: 12,
-              borderRadius: 16,
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.03)",
+              paddingTop: 14,
+              borderTop: "1px solid rgba(255,255,255,0.10)",
             }}
           >
-            <div style={{ fontWeight: 900 }}>{selectedProduct.title}</div>
-            <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
-              {selectedProduct.description}
-            </div>
-            <div style={{ marginTop: 8, fontSize: 13 }}>
-              Cost: <b>{selectedProduct.creditsCost}</b> points
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 16,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.03)",
+              }}
+            >
+              <div style={{ fontWeight: 900 }}>{selectedProduct.title}</div>
+              <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
+                {selectedProduct.description}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 13 }}>
+                Cost: <b>{selectedProduct.creditsCost}</b> points
+              </div>
             </div>
           </div>
 
           {canAfford ? (
             <button
               className="neonBtn neonBtnPrimary"
-              style={{ width: "100%", height: 50 }}
+              style={{ width: "100%", height: 48 }}
               onClick={onSubmit}
               disabled={!canSend}
             >
@@ -1185,14 +1126,18 @@ function ShoutoutComposerDrawer({
           ) : (
             <button
               className="neonBtn neonBtnPrimary"
-              style={{ width: "100%", height: 50 }}
+              style={{ width: "100%", height: 48 }}
               onClick={onGetPoints}
             >
               {`GET ${selectedProduct.creditsCost} POINTS`}
             </button>
           )}
 
-          <button className="neonBtn" onClick={onClose} style={{ width: "100%", opacity: 0.5 }}>
+          <button
+            className="neonBtn"
+            onClick={onClose}
+            style={{ width: "100%", opacity: 0.5 }}
+          >
             Close
           </button>
         </div>
