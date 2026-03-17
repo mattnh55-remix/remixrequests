@@ -42,17 +42,23 @@ export async function GET(_: Request, { params }: { params: { location: string }
       .slice(0, 6);
 
     async function mapOut(m: (typeof msgs)[number]) {
-      let imageUrl: string | null = null;
+       let imageUrl: string | null = null;
 
-      const preferredPath = m.imagePreviewPath || m.imageOriginalPath || null;
-      if (preferredPath) {
+      if (m.imagePreviewPath) {
         try {
-          imageUrl = await createSignedStorageUrl(preferredPath, 60 * 30);
+          imageUrl = await createSignedStorageUrl(m.imagePreviewPath, 60 * 30);
         } catch {
           imageUrl = null;
         }
       }
 
+      if (!imageUrl && m.imageOriginalPath) {
+        try {
+          imageUrl = await createSignedStorageUrl(m.imageOriginalPath, 60 * 30);
+        } catch {
+          imageUrl = null;
+        }
+      }
       return {
         id: m.id,
         title: "REMIX SHOUT OUTS!",
