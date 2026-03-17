@@ -503,7 +503,6 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
         .remixTvBubbleLayout {
           display: grid;
-          grid-template-columns: minmax(300px, 46%) 1fr;
           gap: 20px;
           align-items: stretch;
           width: 100%;
@@ -515,9 +514,13 @@ export default function TvPage({ params }: { params: { location: string } }) {
           grid-template-columns: 1fr;
         }
 
+        .remixTvBubbleLayout--side {
+          grid-template-columns: minmax(300px, 44%) minmax(0, 1fr);
+        }
+
         .remixTvBubbleLayout--stacked {
           grid-template-columns: 1fr;
-          grid-template-rows: minmax(0, 1fr) auto;
+          grid-template-rows: minmax(320px, 0.95fr) auto;
         }
 
         .remixTvBubbleMedia {
@@ -838,8 +841,12 @@ export default function TvPage({ params }: { params: { location: string } }) {
             grid-template-columns: minmax(0, 1.22fr) minmax(380px, 0.92fr);
           }
 
-          .remixTvBubbleLayout {
-            grid-template-columns: minmax(250px, 42%) 1fr;
+          .remixTvBubbleLayout--side {
+            grid-template-columns: minmax(230px, 40%) minmax(0, 1fr);
+          }
+
+          .remixTvBubbleLayout--stacked {
+            grid-template-rows: minmax(250px, 0.82fr) auto;
           }
 
           .remixTvBubbleBody {
@@ -873,6 +880,14 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
           .remixTvTop10List {
             gap: 8px;
+          }
+
+          .remixTvBubbleLayout--side {
+            grid-template-columns: minmax(220px, 38%) minmax(0, 1fr);
+          }
+
+          .remixTvBubbleLayout--stacked {
+            grid-template-rows: minmax(300px, 0.92fr) auto;
           }
         }
       `}</style>
@@ -1039,22 +1054,24 @@ function ImageOrientationFrame({
           height: 100%;
           min-height: 0;
           display: flex;
-          align-items: stretch;
-          justify-content: center;
           overflow: hidden;
-          background: rgba(0, 0, 0, 0.18);
+          background: rgba(4, 9, 22, 0.46);
           border-radius: 26px;
+          border: 1px solid rgba(255,255,255,0.12);
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
         }
 
         .remixTvFeatureMediaShell--portrait {
-          align-items: center;
+          align-items: flex-start;
           justify-content: center;
+          min-height: 520px;
         }
 
         .remixTvFeatureMediaShell--landscape,
         .remixTvFeatureMediaShell--square {
-          align-items: stretch;
+          align-items: center;
           justify-content: center;
+          min-height: 320px;
         }
 
         .remixTvFeatureMediaImg {
@@ -1063,17 +1080,61 @@ function ImageOrientationFrame({
 
         .remixTvFeatureMediaImg--portrait {
           width: auto;
-          height: 100%;
+          height: auto;
           max-width: 100%;
+          min-height: 520px;
           object-fit: contain;
-          background: #000;
+          object-position: top center;
         }
 
         .remixTvFeatureMediaImg--landscape,
         .remixTvFeatureMediaImg--square {
           width: 100%;
-          height: 100%;
-          object-fit: cover;
+          height: auto;
+          min-height: 320px;
+          max-height: 100%;
+          object-fit: contain;
+          object-position: center center;
+        }
+
+        @media (max-width: 1400px) and (orientation: landscape) {
+          .remixTvFeatureMediaShell--portrait {
+            min-height: 430px;
+          }
+
+          .remixTvFeatureMediaShell--landscape,
+          .remixTvFeatureMediaShell--square {
+            min-height: 250px;
+          }
+
+          .remixTvFeatureMediaImg--portrait {
+            min-height: 430px;
+          }
+
+          .remixTvFeatureMediaImg--landscape,
+          .remixTvFeatureMediaImg--square {
+            min-height: 250px;
+          }
+        }
+
+        @media (orientation: portrait) {
+          .remixTvFeatureMediaShell--portrait {
+            min-height: 420px;
+          }
+
+          .remixTvFeatureMediaShell--landscape,
+          .remixTvFeatureMediaShell--square {
+            min-height: 280px;
+          }
+
+          .remixTvFeatureMediaImg--portrait {
+            min-height: 420px;
+          }
+
+          .remixTvFeatureMediaImg--landscape,
+          .remixTvFeatureMediaImg--square {
+            min-height: 280px;
+          }
         }
       `}</style>
     </>
