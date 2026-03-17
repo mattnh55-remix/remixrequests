@@ -625,9 +625,10 @@ async function importCodes(file: File) {
 
   async function editMessage(messageId: string, currentFromName: string, currentMessageText: string) {
     const nextFromName =
-      prompt("Edit from name:", currentFromName || "") ?? currentFromName || "";
-    const nextMessageText =
-      prompt("Edit shout-out text:", currentMessageText || "") ?? currentMessageText || "";
+  (prompt("Edit from name:", currentFromName || "") ?? currentFromName) || "";
+
+const nextMessageText =
+  (prompt("Edit shout-out text:", currentMessageText || "") ?? currentMessageText) || "";
 
     const res = await fetch(`/api/admin/shoutouts/edit`, {
       method: "POST",
