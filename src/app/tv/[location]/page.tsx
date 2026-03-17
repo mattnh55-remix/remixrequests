@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 type QueueItem = {
   id: string;
@@ -64,6 +64,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
   const [artB, setArtB] = useState<string | null>(null);
   const [showA, setShowA] = useState(true);
   const [timerNowMs, setTimerNowMs] = useState(Date.now());
+  const [isPortraitLayout, setIsPortraitLayout] = useState(false);
 
   const prevTopId = useRef<string | null>(null);
 
@@ -73,11 +74,11 @@ export default function TvPage({ params }: { params: { location: string } }) {
   );
 
   const qrSrc = useMemo(() => {
-    const size = 320;
+    const size = isPortraitLayout ? 300 : 320;
     return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(
       requestUrl
     )}`;
-  }, [requestUrl]);
+  }, [isPortraitLayout, requestUrl]);
 
   const featuredFallback =
     PLACEHOLDER_MESSAGES[placeholderIndex % PLACEHOLDER_MESSAGES.length];
@@ -121,7 +122,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
   const timerLabel = `${timerMinutes}:${String(timerSeconds).padStart(2, "0")}`;
 
   const nowPlaying = playNow[0] || upNext[0] || null;
-  const queueList = upNext.slice(0, 10);
+  const queueList = upNext.slice(0, isPortraitLayout ? 6 : 10);
   const topIsBoosted = Boolean(
     nowPlaying && (nowPlaying.isBoosted || nowPlaying.boosted || nowPlaying.wasBoosted)
   );
@@ -189,6 +190,22 @@ export default function TvPage({ params }: { params: { location: string } }) {
   }, []);
 
   useEffect(() => {
+    const media = window.matchMedia("(orientation: portrait)");
+    const apply = () => setIsPortraitLayout(media.matches);
+
+    apply();
+
+    const handler = () => apply();
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", handler);
+      return () => media.removeEventListener("change", handler);
+    }
+
+    media.addListener(handler);
+    return () => media.removeListener(handler);
+  }, []);
+
+  useEffect(() => {
     const topId = playNow[0]?.id ?? null;
     if (!topId) return;
 
@@ -223,13 +240,36 @@ export default function TvPage({ params }: { params: { location: string } }) {
     }
   }, [nowPlaying?.artworkUrl, artA, artB, showA]);
 
+  const queuePanel = isPortraitLayout ? (
+    <PortraitQueuePanel
+      nowPlaying={nowPlaying}
+      queueList={queueList}
+      topIsBoosted={topIsBoosted}
+      showA={showA}
+      artA={artA}
+      artB={artB}
+      qrSrc={qrSrc}
+    />
+  ) : (
+    <LandscapeQueuePanel
+      nowPlaying={nowPlaying}
+      queueList={queueList}
+      topIsBoosted={topIsBoosted}
+      showA={showA}
+      artA={artA}
+      artB={artB}
+      qrSrc={qrSrc}
+      requestUrl={requestUrl}
+    />
+  );
+
   return (
     <div className={`neonRoot remixTvRoot ${boostFlash ? "remixTvFlash" : ""}`}>
       <div className="remixTvOrb remixTvOrbA" />
       <div className="remixTvOrb remixTvOrbB" />
       <div className="remixTvOrb remixTvOrbC" />
 
-      <div className="remixTvWrap">
+      <div className={`remixTvWrap ${isPortraitLayout ? "remixTvWrap--portrait" : ""}`}>
         <section className="neonPanel remixTvShoutoutPanel">
           <div className="remixTvSectionHeader">
             <div className="remixTvSectionTitle">{featuredTitle}</div>
@@ -272,96 +312,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
           </div>
         </section>
 
-        <section className="remixTvQueueCol">
-          <div className="neonPanel remixTvQueuePanel">
-            <div className="remixTvSectionHeader remixTvQueueHeader">
-              <div className="remixTvSectionTitle">Queued Up</div>
-            </div>
-
-            <div className={`remixTvTopCard ${topIsBoosted ? "remixTvTopCardBoosted" : ""}`}>
-              <div className="remixTvTopArtWrap">
-                <div className="remixTvTopArtFrame">
-                  <div className="remixTvTopArtGlow" />
-                  <div className="remixTvTopArtLayer" style={{ opacity: showA ? 1 : 0 }}>
-                    <Artwork src={artA} alt="" />
-                  </div>
-                  <div className="remixTvTopArtLayer" style={{ opacity: showA ? 0 : 1 }}>
-                    <Artwork src={artB} alt="" />
-                  </div>
-                  {topIsBoosted ? <div className="remixTvTopRibbon">BOOSTED</div> : null}
-                </div>
-              </div>
-
-              <div className="remixTvTopMeta">
-                <div className="remixTvTopLabel">NOW PLAYING</div>
-                <div className="remixTvTopSong">{nowPlaying?.title || "No requests yet"}</div>
-                <div className="remixTvTopArtist">
-                  {nowPlaying?.artist || "Scan the QR to get started"}
-                </div>
-
-                <div className="remixTvTagRow">
-                  <div className="tvTag">REMIX REQUESTS</div>
-                  <div className="tvTag" style={{ boxShadow: "var(--glowB)" }}>
-                    PLAY NOW • UP NEXT
-                  </div>
-                  <div className="tvTag" style={{ boxShadow: "var(--glowA)" }}>
-                    TOP 10
-                  </div>
-                </div>
-
-                <div className="neonEQ" aria-hidden="true" style={{ marginTop: 12 }}>
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                </div>
-
-                <div className="remixTvUrl">{requestUrl.replace("https://", "")}</div>
-              </div>
-            </div>
-
-            <div className="remixTvTop10Header">TOP 10</div>
-
-            <div className="remixTvTop10List">
-              {queueList.length === 0 ? (
-                <div className="remixTvEmptyState">
-                  No requests yet — scan the QR and start the vibe.
-                </div>
-              ) : (
-                queueList.map((item, index) => (
-                  <div className="remixTvTop10Row" key={item.id}>
-                    <div className="remixTvTop10Pos">{index + 1}</div>
-
-                    <div className="remixTvTop10Text">
-                      <div className="remixTvTop10Song">{item.title}</div>
-                      <div className="remixTvTop10Artist">{item.artist}</div>
-                    </div>
-
-                    <div className="remixTvTop10Score">{item.score}</div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="remixTvBottomCta">
-              <div className="remixTvBottomText">
-                <div>SCAN TO</div>
-                <div>REQUEST SONG OR</div>
-                <div>SEND MESSAGE</div>
-              </div>
-
-              <div className="remixTvBottomQrWrap">
-                <img
-                  src={qrSrc}
-                  alt="QR code to request songs"
-                  className="remixTvBottomQr"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-            </div>
-          </div>
-        </section>
+        <section className="remixTvQueueCol">{queuePanel}</section>
       </div>
 
       <style jsx global>{`
@@ -457,6 +408,11 @@ export default function TvPage({ params }: { params: { location: string } }) {
           box-sizing: border-box;
         }
 
+        .remixTvWrap--portrait {
+          grid-template-columns: 1fr;
+          grid-template-rows: minmax(0, 1.14fr) minmax(0, 0.86fr);
+        }
+
         .remixTvShoutoutPanel,
         .remixTvQueuePanel {
           position: relative;
@@ -480,8 +436,16 @@ export default function TvPage({ params }: { params: { location: string } }) {
         .remixTvQueuePanel {
           padding: 12px;
           display: grid;
-          grid-template-rows: auto auto auto 1fr auto;
           gap: 12px;
+        }
+
+        .remixTvQueuePanel--landscape {
+          grid-template-rows: auto auto auto 1fr auto;
+        }
+
+        .remixTvQueuePanel--portrait {
+          grid-template-rows: auto auto 1fr auto;
+          padding: 12px 12px 14px;
         }
 
         .remixTvSectionHeader {
@@ -775,10 +739,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
         .remixTvTopCard {
           display: grid;
-          grid-template-columns: 118px 1fr;
-          gap: 16px;
           align-items: center;
-          padding: 12px;
           border-radius: 24px;
           border: 1px solid rgba(255,255,255,0.1);
           background: linear-gradient(
@@ -787,7 +748,6 @@ export default function TvPage({ params }: { params: { location: string } }) {
             rgba(12, 26, 56, 0.76),
             rgba(31, 15, 50, 0.66)
           );
-          min-height: 126px;
           position: relative;
           overflow: hidden;
         }
@@ -796,20 +756,43 @@ export default function TvPage({ params }: { params: { location: string } }) {
           box-shadow: var(--glowB);
         }
 
+        .remixTvTopCard--landscape {
+          grid-template-columns: 118px 1fr;
+          gap: 16px;
+          min-height: 126px;
+          padding: 12px;
+        }
+
+        .remixTvTopCard--portrait {
+          grid-template-columns: 88px 1fr;
+          gap: 12px;
+          min-height: 96px;
+          padding: 10px 12px;
+        }
+
         .remixTvTopArtWrap {
           display: flex;
           align-items: center;
         }
 
         .remixTvTopArtFrame {
-          width: 118px;
-          height: 118px;
           border-radius: 26px;
           overflow: hidden;
           position: relative;
           border: 1px solid rgba(255,255,255,0.18);
           background: rgba(255,255,255,0.05);
           box-shadow: var(--glowA), var(--shadow);
+        }
+
+        .remixTvTopCard--landscape .remixTvTopArtFrame {
+          width: 118px;
+          height: 118px;
+        }
+
+        .remixTvTopCard--portrait .remixTvTopArtFrame {
+          width: 88px;
+          height: 88px;
+          border-radius: 22px;
         }
 
         .remixTvTopArtLayer {
@@ -857,16 +840,23 @@ export default function TvPage({ params }: { params: { location: string } }) {
         }
 
         .remixTvTopLabel {
-          font-size: 13px;
           font-weight: 1000;
           letter-spacing: 1.4px;
           opacity: 0.72;
           text-transform: uppercase;
+        }
+
+        .remixTvTopCard--landscape .remixTvTopLabel {
+          font-size: 13px;
           margin-bottom: 5px;
         }
 
+        .remixTvTopCard--portrait .remixTvTopLabel {
+          font-size: 11px;
+          margin-bottom: 4px;
+        }
+
         .remixTvTopSong {
-          font-size: clamp(24px, 1.75vw, 34px);
           line-height: 1;
           font-weight: 1000;
           letter-spacing: -0.45px;
@@ -876,13 +866,58 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-shadow: 0 0 12px rgba(255,255,255,0.12);
         }
 
+        .remixTvTopCard--landscape .remixTvTopSong {
+          font-size: clamp(24px, 1.75vw, 34px);
+        }
+
+        .remixTvTopCard--portrait .remixTvTopSong {
+          font-size: clamp(20px, 2.45vw, 28px);
+        }
+
         .remixTvTopArtist {
-          margin-top: 6px;
-          font-size: clamp(16px, 1vw, 20px);
           color: var(--muted);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+
+        .remixTvTopCard--landscape .remixTvTopArtist {
+          margin-top: 6px;
+          font-size: clamp(16px, 1vw, 20px);
+        }
+
+        .remixTvTopCard--portrait .remixTvTopArtist {
+          margin-top: 5px;
+          font-size: clamp(13px, 1.6vw, 18px);
+        }
+
+        .remixTvTopMetaRow {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-top: 8px;
+          flex-wrap: wrap;
+        }
+
+        .remixTvTopBadge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 28px;
+          padding: 0 12px;
+          border-radius: 999px;
+          font-size: 12px;
+          font-weight: 1000;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.06);
+          box-shadow: var(--glowA);
+        }
+
+        .remixTvTopBadge--boosted {
+          background: linear-gradient(90deg, rgba(255,57,212,0.24), rgba(0,247,255,0.16));
+          box-shadow: var(--glowB);
         }
 
         .remixTvTagRow {
@@ -903,12 +938,22 @@ export default function TvPage({ params }: { params: { location: string } }) {
         }
 
         .remixTvTop10Header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
           font-size: 16px;
           font-weight: 1000;
           letter-spacing: 1.6px;
           text-transform: uppercase;
           color: rgba(255,255,255,0.8);
           padding: 2px 4px 0;
+        }
+
+        .remixTvTop10HeaderSub {
+          font-size: 11px;
+          letter-spacing: 1px;
+          opacity: 0.65;
         }
 
         .remixTvTop10List {
@@ -936,6 +981,13 @@ export default function TvPage({ params }: { params: { location: string } }) {
           box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
         }
 
+        .remixTvTop10Row--portrait {
+          grid-template-columns: 30px 1fr auto;
+          gap: 10px;
+          padding: 10px 12px;
+          border-radius: 18px;
+        }
+
         .remixTvTop10Pos {
           font-size: 28px;
           font-weight: 1000;
@@ -943,6 +995,10 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-align: center;
           color: #fff;
           text-shadow: 0 0 14px rgba(255,255,255,0.18);
+        }
+
+        .remixTvTop10Row--portrait .remixTvTop10Pos {
+          font-size: 22px;
         }
 
         .remixTvTop10Text {
@@ -958,6 +1014,10 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-overflow: ellipsis;
         }
 
+        .remixTvTop10Row--portrait .remixTvTop10Song {
+          font-size: clamp(14px, 1.65vw, 18px);
+        }
+
         .remixTvTop10Artist {
           margin-top: 4px;
           font-size: clamp(12px, 0.8vw, 15px);
@@ -965,6 +1025,11 @@ export default function TvPage({ params }: { params: { location: string } }) {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+
+        .remixTvTop10Row--portrait .remixTvTop10Artist {
+          font-size: clamp(11px, 1.28vw, 14px);
+          margin-top: 3px;
         }
 
         .remixTvTop10Score {
@@ -981,40 +1046,91 @@ export default function TvPage({ params }: { params: { location: string } }) {
           box-shadow: var(--glowA);
         }
 
+        .remixTvTop10Row--portrait .remixTvTop10Score {
+          min-width: 30px;
+          height: 30px;
+          padding: 0 10px;
+          font-size: 12px;
+        }
+
         .remixTvEmptyState {
           padding: 16px 10px;
           font-size: 18px;
           color: var(--muted);
         }
 
+        .remixTvEmptyState--portrait {
+          padding: 14px 8px;
+          font-size: 15px;
+          line-height: 1.35;
+        }
+
         .remixTvBottomCta {
           border-top: 1px solid rgba(255,255,255,0.12);
           margin-top: 2px;
-          padding-top: 12px;
           display: grid;
-          grid-template-columns: 1fr 122px;
-          gap: 16px;
           align-items: center;
         }
 
+        .remixTvBottomCta--landscape {
+          padding-top: 12px;
+          grid-template-columns: 1fr 122px;
+          gap: 16px;
+        }
+
+        .remixTvBottomCta--portrait {
+          padding-top: 10px;
+          grid-template-columns: 1fr 98px;
+          gap: 12px;
+        }
+
         .remixTvBottomText {
-          font-size: clamp(16px, 1vw, 20px);
           line-height: 1.08;
           font-weight: 1000;
           font-style: italic;
           text-transform: uppercase;
-          text-align: center;
           letter-spacing: 0.35px;
         }
 
+        .remixTvBottomText--landscape {
+          font-size: clamp(16px, 1vw, 20px);
+          text-align: center;
+        }
+
+        .remixTvBottomText--portrait {
+          font-size: clamp(14px, 1.5vw, 18px);
+          text-align: left;
+        }
+
+        .remixTvBottomTextLineStrong {
+          display: block;
+          color: #fff;
+        }
+
+        .remixTvBottomTextLineMuted {
+          display: block;
+          color: rgba(255,255,255,0.7);
+          margin-top: 4px;
+        }
+
         .remixTvBottomQrWrap {
-          width: 112px;
-          height: 112px;
           justify-self: end;
-          padding: 4px;
           border-radius: 16px;
           border: 1px solid rgba(255,255,255,0.14);
           background: rgba(255,255,255,0.04);
+        }
+
+        .remixTvBottomQrWrap--landscape {
+          width: 112px;
+          height: 112px;
+          padding: 4px;
+        }
+
+        .remixTvBottomQrWrap--portrait {
+          width: 98px;
+          height: 98px;
+          padding: 4px;
+          border-radius: 14px;
         }
 
         .remixTvBottomQr {
@@ -1023,6 +1139,20 @@ export default function TvPage({ params }: { params: { location: string } }) {
           object-fit: cover;
           display: block;
           border-radius: 12px;
+        }
+
+        .remixTvPortraitCluster {
+          display: grid;
+          gap: 10px;
+          min-height: 0;
+          grid-template-rows: auto auto 1fr auto;
+        }
+
+        .remixTvPortraitTop10Block {
+          min-height: 0;
+          display: grid;
+          grid-template-rows: auto 1fr;
+          gap: 8px;
         }
 
         .remixTvFlash::before {
@@ -1083,64 +1213,319 @@ export default function TvPage({ params }: { params: { location: string } }) {
         @media (orientation: portrait) {
           .remixTvWrap {
             grid-template-columns: 1fr;
-            grid-template-rows: minmax(0, 1.08fr) minmax(0, 0.92fr);
+            grid-template-rows: minmax(0, 1.14fr) minmax(0, 0.86fr);
             height: 100vh;
           }
 
-          .remixTvQueuePanel {
-            grid-template-rows: auto auto auto 1fr auto;
+          .remixTvShoutoutPanel {
+            padding: 12px 12px 14px;
+            gap: 10px;
           }
 
-          .remixTvTopCard {
-            grid-template-columns: 104px 1fr;
+          .remixTvSectionTitle {
+            font-size: clamp(20px, 4.6vw, 32px);
           }
 
-          .remixTvTopArtFrame {
-            width: 104px;
-            height: 104px;
+          .remixTvBubble {
+            border-radius: 28px 28px 28px 18px;
+            padding: 12px 16px 16px 14px;
           }
 
-          .remixTvTop10List {
-            gap: 8px;
+          .remixTvBubbleTimerRow {
+            height: 38px;
+            grid-template-columns: 62px 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+          }
+
+          .remixTvBubbleTimerTrack {
+            height: 14px;
           }
 
           .remixTvBubbleLayout--side {
-            grid-template-columns: minmax(270px, 43%) minmax(0, 1fr);
+            grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
+            gap: 12px;
           }
 
           .remixTvBubbleLayout--stacked {
-            grid-template-rows: minmax(220px, 0.75fr) auto;
+            grid-template-rows: minmax(170px, 0.72fr) auto;
+            gap: 12px;
           }
 
           .remixTvBubbleLayout--side .remixTvBubbleBody,
           .remixTvBubbleLayout--stacked .remixTvBubbleBody {
-            font-size: clamp(22px, 3vw, 42px);
+            font-size: clamp(20px, 4.6vw, 34px);
+          }
+
+          .remixTvBubbleLayout--textOnly .remixTvBubbleBody {
+            font-size: clamp(28px, 6vw, 44px);
           }
 
           .remixTvBubbleLayout--side .remixTvBubbleFrom,
           .remixTvBubbleLayout--stacked .remixTvBubbleFrom {
-            font-size: clamp(15px, 1.4vw, 24px);
+            font-size: clamp(14px, 2.6vw, 22px);
+          }
+
+          .remixTvFeatureMediaShell {
+            border-radius: 18px;
           }
 
           .remixTvFeatureMediaShell--portrait {
-            min-height: 460px;
+            min-height: 270px;
           }
 
           .remixTvFeatureMediaShell--landscape,
           .remixTvFeatureMediaShell--square {
-            min-height: 210px;
+            min-height: 160px;
           }
 
           .remixTvFeatureMediaImg--portrait {
-            min-height: 460px;
+            min-height: 270px;
           }
 
           .remixTvFeatureMediaImg--landscape,
           .remixTvFeatureMediaImg--square {
-            min-height: 210px;
+            min-height: 160px;
+          }
+
+          .remixTvQueuePanel--portrait {
+            padding: 10px;
+            gap: 10px;
           }
         }
       `}</style>
+    </div>
+  );
+}
+
+function LandscapeQueuePanel({
+  nowPlaying,
+  queueList,
+  topIsBoosted,
+  showA,
+  artA,
+  artB,
+  qrSrc,
+  requestUrl,
+}: {
+  nowPlaying: QueueItem | null;
+  queueList: QueueItem[];
+  topIsBoosted: boolean;
+  showA: boolean;
+  artA: string | null;
+  artB: string | null;
+  qrSrc: string;
+  requestUrl: string;
+}) {
+  return (
+    <div className="neonPanel remixTvQueuePanel remixTvQueuePanel--landscape">
+      <div className="remixTvSectionHeader remixTvQueueHeader">
+        <div className="remixTvSectionTitle">Queued Up</div>
+      </div>
+
+      <TopCard
+        mode="landscape"
+        nowPlaying={nowPlaying}
+        topIsBoosted={topIsBoosted}
+        showA={showA}
+        artA={artA}
+        artB={artB}
+      >
+        <div className="remixTvTagRow">
+          <div className="tvTag">REMIX REQUESTS</div>
+          <div className="tvTag" style={{ boxShadow: "var(--glowB)" }}>
+            PLAY NOW • UP NEXT
+          </div>
+          <div className="tvTag" style={{ boxShadow: "var(--glowA)" }}>
+            TOP 10
+          </div>
+        </div>
+
+        <div className="neonEQ" aria-hidden="true" style={{ marginTop: 12 }}>
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+
+        <div className="remixTvUrl">{requestUrl.replace("https://", "")}</div>
+      </TopCard>
+
+      <Top10Block queueList={queueList} mode="landscape" />
+
+      <CtaBlock mode="landscape" qrSrc={qrSrc} />
+    </div>
+  );
+}
+
+function PortraitQueuePanel({
+  nowPlaying,
+  queueList,
+  topIsBoosted,
+  showA,
+  artA,
+  artB,
+  qrSrc,
+}: {
+  nowPlaying: QueueItem | null;
+  queueList: QueueItem[];
+  topIsBoosted: boolean;
+  showA: boolean;
+  artA: string | null;
+  artB: string | null;
+  qrSrc: string;
+}) {
+  return (
+    <div className="neonPanel remixTvQueuePanel remixTvQueuePanel--portrait">
+      <div className="remixTvPortraitCluster">
+        <div className="remixTvSectionHeader remixTvQueueHeader">
+          <div className="remixTvSectionTitle">Queued Up</div>
+        </div>
+
+        <TopCard
+          mode="portrait"
+          nowPlaying={nowPlaying}
+          topIsBoosted={topIsBoosted}
+          showA={showA}
+          artA={artA}
+          artB={artB}
+        >
+          <div className="remixTvTopMetaRow">
+            <div className="remixTvTopBadge">Top 10 Live</div>
+            {topIsBoosted ? <div className="remixTvTopBadge remixTvTopBadge--boosted">Boosted</div> : null}
+          </div>
+        </TopCard>
+
+        <div className="remixTvPortraitTop10Block">
+          <Top10Block queueList={queueList} mode="portrait" />
+        </div>
+
+        <CtaBlock mode="portrait" qrSrc={qrSrc} />
+      </div>
+    </div>
+  );
+}
+
+function TopCard({
+  mode,
+  nowPlaying,
+  topIsBoosted,
+  showA,
+  artA,
+  artB,
+  children,
+}: {
+  mode: "landscape" | "portrait";
+  nowPlaying: QueueItem | null;
+  topIsBoosted: boolean;
+  showA: boolean;
+  artA: string | null;
+  artB: string | null;
+  children?: ReactNode;
+}) {
+  return (
+    <div className={`remixTvTopCard remixTvTopCard--${mode} ${topIsBoosted ? "remixTvTopCardBoosted" : ""}`}>
+      <div className="remixTvTopArtWrap">
+        <div className="remixTvTopArtFrame">
+          <div className="remixTvTopArtGlow" />
+          <div className="remixTvTopArtLayer" style={{ opacity: showA ? 1 : 0 }}>
+            <Artwork src={artA} alt="" />
+          </div>
+          <div className="remixTvTopArtLayer" style={{ opacity: showA ? 0 : 1 }}>
+            <Artwork src={artB} alt="" />
+          </div>
+          {topIsBoosted && mode === "landscape" ? <div className="remixTvTopRibbon">BOOSTED</div> : null}
+        </div>
+      </div>
+
+      <div className="remixTvTopMeta">
+        <div className="remixTvTopLabel">Now Playing</div>
+        <div className="remixTvTopSong">{nowPlaying?.title || "No requests yet"}</div>
+        <div className="remixTvTopArtist">
+          {nowPlaying?.artist || "Scan the QR to get started"}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Top10Block({
+  queueList,
+  mode,
+}: {
+  queueList: QueueItem[];
+  mode: "landscape" | "portrait";
+}) {
+  return (
+    <>
+      <div className="remixTvTop10Header">
+        <span>Top 10</span>
+        {mode === "portrait" ? (
+          <span className="remixTvTop10HeaderSub">Up next favorites</span>
+        ) : null}
+      </div>
+
+      <div className="remixTvTop10List">
+        {queueList.length === 0 ? (
+          <div className={`remixTvEmptyState ${mode === "portrait" ? "remixTvEmptyState--portrait" : ""}`}>
+            No requests yet — scan the QR and start the vibe.
+          </div>
+        ) : (
+          queueList.map((item, index) => (
+            <div
+              className={`remixTvTop10Row ${mode === "portrait" ? "remixTvTop10Row--portrait" : ""}`}
+              key={item.id}
+            >
+              <div className="remixTvTop10Pos">{index + 1}</div>
+
+              <div className="remixTvTop10Text">
+                <div className="remixTvTop10Song">{item.title}</div>
+                <div className="remixTvTop10Artist">{item.artist}</div>
+              </div>
+
+              <div className="remixTvTop10Score">{item.score}</div>
+            </div>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
+function CtaBlock({
+  mode,
+  qrSrc,
+}: {
+  mode: "landscape" | "portrait";
+  qrSrc: string;
+}) {
+  return (
+    <div className={`remixTvBottomCta remixTvBottomCta--${mode}`}>
+      <div className={`remixTvBottomText remixTvBottomText--${mode}`}>
+        {mode === "portrait" ? (
+          <>
+            <span className="remixTvBottomTextLineStrong">Scan to request a song</span>
+            <span className="remixTvBottomTextLineMuted">or send a shout out to the screen</span>
+          </>
+        ) : (
+          <>
+            <div>SCAN TO</div>
+            <div>REQUEST SONG OR</div>
+            <div>SEND MESSAGE</div>
+          </>
+        )}
+      </div>
+
+      <div className={`remixTvBottomQrWrap remixTvBottomQrWrap--${mode}`}>
+        <img
+          src={qrSrc}
+          alt="QR code to request songs"
+          className="remixTvBottomQr"
+          referrerPolicy="no-referrer"
+        />
+      </div>
     </div>
   );
 }
@@ -1246,7 +1631,7 @@ function ImageOrientationFrame({
 }: {
   src: string;
   onOrientation: (orientation: "portrait" | "landscape" | "square") => void;
-  children: (media: React.ReactNode) => React.ReactNode;
+  children: (media: ReactNode) => ReactNode;
 }) {
   const [bad, setBad] = useState(false);
   const [mode, setMode] = useState<"portrait" | "landscape" | "square">("square");
@@ -1262,40 +1647,38 @@ function ImageOrientationFrame({
   }
 
   const media = (
-    <>
-      <div className={`remixTvFeatureMediaShell remixTvFeatureMediaShell--${mode}`}>
-        <img
-          src={src}
-          alt=""
-          referrerPolicy="no-referrer"
-          className={`remixTvFeatureMediaImg remixTvFeatureMediaImg--${mode}`}
-          onError={() => setBad(true)}
-          onLoad={(e) => {
-            const img = e.currentTarget;
-            const w = img.naturalWidth || 0;
-            const h = img.naturalHeight || 0;
+    <div className={`remixTvFeatureMediaShell remixTvFeatureMediaShell--${mode}`}>
+      <img
+        src={src}
+        alt=""
+        referrerPolicy="no-referrer"
+        className={`remixTvFeatureMediaImg remixTvFeatureMediaImg--${mode}`}
+        onError={() => setBad(true)}
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          const w = img.naturalWidth || 0;
+          const h = img.naturalHeight || 0;
 
-            if (!w || !h) {
-              setMode("square");
-              onOrientation("square");
-              return;
-            }
+          if (!w || !h) {
+            setMode("square");
+            onOrientation("square");
+            return;
+          }
 
-            const ratio = w / h;
-            if (ratio > 1.15) {
-              setMode("landscape");
-              onOrientation("landscape");
-            } else if (ratio < 0.85) {
-              setMode("portrait");
-              onOrientation("portrait");
-            } else {
-              setMode("square");
-              onOrientation("square");
-            }
-          }}
-        />
-      </div>
-    </>
+          const ratio = w / h;
+          if (ratio > 1.15) {
+            setMode("landscape");
+            onOrientation("landscape");
+          } else if (ratio < 0.85) {
+            setMode("portrait");
+            onOrientation("portrait");
+          } else {
+            setMode("square");
+            onOrientation("square");
+          }
+        }}
+      />
+    </div>
   );
 
   return <>{children(media)}</>;

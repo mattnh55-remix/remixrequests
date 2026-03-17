@@ -680,22 +680,6 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           </div>
         </div>
 
-        <div className="neonPanel" style={{ padding: 14, marginBottom: 12 }}>
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>
-            Shared Points Balance: {hudBalance}
-          </div>
-
-          {!verified ? (
-            <div style={{ color: "var(--muted)", fontSize: 14 }}>
-              Claim your 5 intro points with email + SMS signup, then use them for shout-outs or buy more.
-            </div>
-          ) : (
-            <div style={{ color: "var(--muted)", fontSize: 14 }}>
-              Use the same shared points wallet from Remix Requests.
-            </div>
-          )}
-        </div>
-
         <div className="neonPanel" style={{ padding: 12 }}>
           <div style={{ fontWeight: 1000, letterSpacing: 0.4, marginBottom: 12 }}>
             Pick Your Shout-Out
@@ -722,6 +706,14 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                   }}
                 >
                   <div className="neonTileBody">
+<div style={{
+  marginTop: 10,
+  fontSize: 12,
+  fontWeight: 900,
+  color: selected ? "#00f7ff" : "rgba(255,255,255,0.7)"
+}}>
+  {selected ? "SELECTED" : "TAP TO SEND"}
+</div>
                     <div
                       style={{
                         display: "flex",
@@ -733,7 +725,27 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                       <div className="neonTileTitle" style={{ color: "#ffffff" }}>
                         {product.title}
                       </div>
-                      <span className="neonBadge">{product.creditsCost}pt</span>
+                      <div style={{
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-end",
+  gap: 4
+}}>
+  <div style={{
+    fontWeight: 1000,
+    fontSize: 16,
+    color: "#00f7ff"
+  }}>
+    {product.creditsCost} pts
+  </div>
+
+  <div style={{
+    fontSize: 11,
+    opacity: 0.7
+  }}>
+    Tap to send
+  </div>
+</div>
                     </div>
 
                     <div className="neonTileMeta">{product.description}</div>
@@ -1024,10 +1036,23 @@ function ShoutoutComposerDrawer({
                   }}
                 >
                   <img
-                    src={photoPreviewUrl}
-                    alt="Selected upload preview"
-                    style={{ display: "block", width: "100%", maxHeight: 260, objectFit: "cover" }}
-                  />
+  src={photoPreviewUrl}
+  alt="Preview"
+  style={{
+    width: "100%",
+    maxHeight: 180,
+    objectFit: "contain",
+    background: "black"
+  }}
+/>
+<div style={{
+  fontSize: 11,
+  color: "var(--muted)",
+  marginTop: 6,
+  textAlign: "center"
+}}>
+  This is how your photo will appear on screen
+</div>
                 </div>
               ) : photoPreviewUnsupported && photoFile ? (
                 <div
@@ -1101,7 +1126,7 @@ function ShoutoutComposerDrawer({
               onClick={onSubmit}
               disabled={!canSend}
             >
-              {busy ? "Submitting..." : `Send ${selectedProduct.title}`}
+              {busy ? "Submitting..." : "Send to TV!"}
             </button>
           ) : (
             <button
