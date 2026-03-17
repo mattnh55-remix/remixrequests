@@ -59,13 +59,15 @@ export default function TvPage({ params }: { params: { location: string } }) {
   const [playNow, setPlayNow] = useState<QueueItem[]>([]);
   const [upNext, setUpNext] = useState<QueueItem[]>([]);
   const [liveMessage, setLiveMessage] = useState<FeedMessage | null>(null);
-  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [boostFlash, setBoostFlash] = useState(false);
   const [artA, setArtA] = useState<string | null>(null);
   const [artB, setArtB] = useState<string | null>(null);
   const [showA, setShowA] = useState(true);
-
+  const [timerNowMs, setTimerNowMs] = useState(Date.now());
+  const [liveSlideStartedAtMs, setLiveSlideStartedAtMs] = useState(Date.now());
   const prevTopId = useRef<string | null>(null);
+    const placeholderTimerStartRef = useRef(Date.now());
 
   const requestUrl = useMemo(
     () => `https://skateremix.com/request/${location}`,
@@ -79,12 +81,40 @@ export default function TvPage({ params }: { params: { location: string } }) {
     )}`;
   }, [requestUrl]);
 
-  const featuredFallback =
+   const featuredFallback =
     PLACEHOLDER_MESSAGES[placeholderIndex % PLACEHOLDER_MESSAGES.length];
   const featuredMessage = liveMessage || featuredFallback;
   const featuredBody =
     featuredMessage.body || featuredMessage.messageText || "";
   const featuredTitle = featuredMessage.title || "REMIX SHOUT OUTS!";
+
+  const isPlaceholderMessage = !liveMessage;
+  const placeholderDurationSec = 20 * 60;
+  const activeDurationSec = Math.max(
+    1,
+    Number(
+      featuredMessage.displayDurationSec ??
+        (isPlaceholderMessage ? placeholderDurationSec : 300)
+    )
+  );
+
+  const elapsedMs = isPlaceholderMessage
+    ? (timerNowMs - placeholderTimerStartRef.current) %
+      (placeholderDurationSec * 1000)
+    : Math.max(0, timerNowMs - liveSlideStartedAtMs);
+
+  const remainingSec = isPlaceholderMessage
+    ? Math.max(0, placeholderDurationSec - Math.floor(elapsedMs / 1000))
+    : Math.max(0, activeDurationSec - Math.floor(elapsedMs / 1000));
+
+  const progressPct = isPlaceholderMessage
+    ? Math.max(0, 100 - (elapsedMs / (placeholderDurationSec * 1000)) * 100)
+    : Math.max(0, 100 - (elapsedMs / (activeDurationSec * 1000)) * 100);
+
+  const timerMinutes = Math.floor(remainingSec / 60);
+  const timerSeconds = remainingSec % 60;
+  const timerLabel = `${timerMinutes}:${String(timerSeconds).padStart(2, "0")}`;
+
 
   const nowPlaying = playNow[0] || upNext[0] || null;
   const queueList = upNext.slice(0, 10);
@@ -146,6 +176,14 @@ export default function TvPage({ params }: { params: { location: string } }) {
     return () => window.clearInterval(id);
   }, []);
 
+    useEffect(() => {
+    const id = window.setInterval(() => {
+      setTimerNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(id);
+  }, []);
+
   useEffect(() => {
     const topId = playNow[0]?.id ?? null;
     if (!topId) return;
@@ -159,6 +197,11 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
     prevTopId.current = topId;
   }, [playNow]);
+
+    useEffect(() => {
+    if (!liveMessage?.id) return;
+    setLiveSlideStartedAtMs(Date.now());
+  }, [liveMessage?.id]);
 
   useEffect(() => {
     const next = nowPlaying?.artworkUrl || null;
@@ -193,10 +236,20 @@ export default function TvPage({ params }: { params: { location: string } }) {
             <div className="remixTvSectionTitle">{featuredTitle}</div>
           </div>
 
-          <div
+           <div
             key={featuredMessage.id}
             className={`remixTvBubble remixTvBubble--${featuredMessage.accent || "cyan"}`}
           >
+            <div className="remixTvBubbleTimerRow">
+              <div className="remixTvBubbleTimerText">{timerLabel}</div>
+              <div className="remixTvBubbleTimerTrack">
+                <div
+                  className="remixTvBubbleTimerFill"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
+
             <div className="remixTvBubbleInner">
               <FeatureBubble
                 imageUrl={featuredMessage.imageUrl}
@@ -205,7 +258,6 @@ export default function TvPage({ params }: { params: { location: string } }) {
                 productTitle={featuredMessage.productTitle}
               />
             </div>
-
             <svg
               className="remixTvBubbleTail"
               viewBox="0 0 44 28"
@@ -455,7 +507,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
           position: relative;
           min-height: 0;
           border-radius: 34px 34px 34px 20px;
-          padding: 18px 30px 22px 18px;
+          padding: 14px 30px 22px 18px;
           box-shadow:
             0 10px 24px rgba(0, 0, 0, 0.14),
             inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -479,6 +531,55 @@ export default function TvPage({ params }: { params: { location: string } }) {
         .remixTvBubble--pink {
           background: linear-gradient(180deg, #ffc4ee 0%, #f6aadf 100%);
           color: #160811;
+        }
+
+        .remixTvBubbleTimerRow {
+          height: 50px;
+          display: grid;
+          grid-template-columns: 82px 1fr;
+          align-items: center;
+          gap: 14px;
+          margin-bottom: 12px;
+        }
+
+        .remixTvBubbleTimerText {
+          font-size: clamp(20px, 1.5vw, 28px);
+          line-height: 1;
+          font-weight: 1000;
+          font-style: italic;
+          letter-spacing: -0.2px;
+          text-align: left;
+          white-space: nowrap;
+        }
+
+        .remixTvBubbleTimerTrack {
+          position: relative;
+          height: 18px;
+          border-radius: 999px;
+          overflow: hidden;
+          background: rgba(255,255,255,0.22);
+          box-shadow: inset 0 1px 2px rgba(0,0,0,0.16);
+        }
+
+        .remixTvBubbleTimerFill {
+          position: absolute;
+          inset: 0 auto 0 0;
+          height: 100%;
+          border-radius: 999px;
+          transition: width 1s linear;
+          box-shadow: 0 0 16px rgba(255,255,255,0.28);
+        }
+
+        .remixTvBubble--gold .remixTvBubbleTimerFill {
+          background: linear-gradient(90deg, #fff6b3 0%, #f7d85e 100%);
+        }
+
+        .remixTvBubble--cyan .remixTvBubbleTimerFill {
+          background: linear-gradient(90deg, #ffffff 0%, #56d8ff 100%);
+        }
+
+        .remixTvBubble--pink .remixTvBubbleTimerFill {
+          background: linear-gradient(90deg, #fff2fb 0%, #ff6fd8 100%);
         }
 
         .remixTvBubbleInner {
@@ -537,16 +638,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          padding: 6px 8px 4px 2px;
-        }
-
-        .remixTvBubbleKicker {
-          font-size: clamp(13px, 0.9vw, 18px);
-          font-weight: 1000;
-          letter-spacing: 0.8px;
-          text-transform: uppercase;
-          opacity: 0.82;
-          margin-bottom: 10px;
+          padding: 2px 8px 4px 2px;
         }
 
         .remixTvBubbleBody {
@@ -716,9 +808,8 @@ function FeatureBubble({
   if (!imageUrl) {
     return (
       <div className="remixTvBubbleLayout remixTvBubbleLayout--textOnly">
-        <div className="remixTvBubbleText">
+         <div className="remixTvBubbleText">
           <div>
-            <div className="remixTvBubbleKicker">{productTitle || "Remix Shout Out"}</div>
             <div className="remixTvBubbleBody">{body}</div>
           </div>
           <div className="remixTvBubbleFrom">— {fromName}</div>
@@ -744,9 +835,8 @@ function FeatureBubble({
         >
           <div className="remixTvBubbleMedia">{media}</div>
 
-          <div className="remixTvBubbleText">
+               <div className="remixTvBubbleText">
             <div>
-              <div className="remixTvBubbleKicker">{productTitle || "Photo Shout Out"}</div>
               <div className="remixTvBubbleBody">{body}</div>
             </div>
             <div className="remixTvBubbleFrom">— {fromName}</div>
