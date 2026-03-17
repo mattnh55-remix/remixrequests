@@ -623,32 +623,6 @@ async function importCodes(file: File) {
     await loadAll();
   }
 
-  async function editMessage(messageId: string, currentFromName: string, currentMessageText: string) {
-    const nextFromName =
-      prompt("Edit from name:", currentFromName || "") ?? currentFromName || "";
-    const nextMessageText =
-      prompt("Edit shout-out text:", currentMessageText || "") ?? currentMessageText || "";
-
-    const res = await fetch(`/api/admin/shoutouts/edit`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        messageId,
-        fromName: String(nextFromName || "").trim(),
-        messageText: String(nextMessageText || "").trim(),
-      }),
-    });
-
-    const data: any = await safeJson(res);
-    if (!data?.ok) {
-      setMsg(data?.error || "Could not edit message.");
-      return;
-    }
-
-    setMsg("✅ Message updated.");
-    await loadAll();
-  }
-
   async function rejectMessage(messageId: string) {
     const note = prompt("Reject reason?", "Rejected from dashboard") || "Rejected from dashboard";
 
@@ -964,9 +938,8 @@ async function rejectRequest(requestId: string) {
                       </div>
                     </div>
 
-                                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignSelf: "flex-start" }}>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignSelf: "flex-start" }}>
                       <ActionButton onClick={() => approveMessage(m.id)}>Approve</ActionButton>
-                      <ActionButton onClick={() => editMessage(m.id, m.fromName, m.messageText)}>Edit</ActionButton>
                       <ActionButton alt onClick={() => rejectMessage(m.id)}>Reject</ActionButton>
                     </div>
                   </div>
