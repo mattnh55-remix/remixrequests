@@ -56,6 +56,8 @@ type DrawerProps = {
   setPhotoPreviewUrl: (value: string) => void;
   usageRightsAccepted: boolean;
   setUsageRightsAccepted: (value: boolean) => void;
+  photoPreviewUnsupported: boolean;
+  setPhotoPreviewUnsupported: (value: boolean) => void;
 };
 
 type BuyDrawerProps = {
@@ -107,6 +109,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   const [productKey, setProductKey] = useState<ShoutoutProductKey>("TEXT_BASIC");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
+  const [photoPreviewUnsupported, setPhotoPreviewUnsupported] = useState(false);
   const [usageRightsAccepted, setUsageRightsAccepted] = useState(false);
 
   const [msg, setMsg] = useState("");
@@ -179,6 +182,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   function resetComposerMedia() {
     setPhotoFile(null);
     setPhotoPreviewUrl("");
+    setPhotoPreviewUnsupported(false);
     setUsageRightsAccepted(false);
   }
 
@@ -817,7 +821,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           onClose={() => setShowVerify(false)}
         />
 
-        <ShoutoutComposerDrawer
+                <ShoutoutComposerDrawer
           open={showComposer}
           onClose={() => {
             setShowComposer(false);
@@ -843,6 +847,8 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           setPhotoFile={setPhotoFile}
           photoPreviewUrl={photoPreviewUrl}
           setPhotoPreviewUrl={setPhotoPreviewUrl}
+          photoPreviewUnsupported={photoPreviewUnsupported}
+          setPhotoPreviewUnsupported={setPhotoPreviewUnsupported}
           usageRightsAccepted={usageRightsAccepted}
           setUsageRightsAccepted={setUsageRightsAccepted}
         />
@@ -897,6 +903,8 @@ function ShoutoutComposerDrawer({
   setPhotoPreviewUrl,
   usageRightsAccepted,
   setUsageRightsAccepted,
+  photoPreviewUnsupported,
+  setPhotoPreviewUnsupported,
 }: DrawerProps) {
   if (!open) return null;
 
@@ -909,9 +917,25 @@ function ShoutoutComposerDrawer({
       setPhotoPreviewUrl("");
     }
 
-    if (nextFile) {
-      setPhotoPreviewUrl(URL.createObjectURL(nextFile));
+    setPhotoPreviewUnsupported(false);
+
+    if (!nextFile) return;
+
+    const lowerName = String(nextFile.name || "").toLowerCase();
+    const lowerType = String(nextFile.type || "").toLowerCase();
+
+    const isHeicLike =
+      lowerType.includes("heic") ||
+      lowerType.includes("heif") ||
+      lowerName.endsWith(".heic") ||
+      lowerName.endsWith(".heif");
+
+    if (isHeicLike) {
+      setPhotoPreviewUnsupported(true);
+      return;
     }
+
+    setPhotoPreviewUrl(URL.createObjectURL(nextFile));
   }
 
   return (
@@ -1004,6 +1028,23 @@ function ShoutoutComposerDrawer({
                     alt="Selected upload preview"
                     style={{ display: "block", width: "100%", maxHeight: 260, objectFit: "cover" }}
                   />
+                </div>
+              ) : photoPreviewUnsupported && photoFile ? (
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: "12px 14px",
+                    borderRadius: 16,
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    background: "rgba(255,255,255,0.04)",
+                    fontSize: 13,
+                    color: "rgba(255,255,255,0.92)",
+                  }}
+                >
+                  Selected file: <b>{photoFile.name}</b>
+                  <div style={{ marginTop: 4, color: "var(--muted)" }}>
+                    Preview not available for this image type on this device, but the upload can still succeed.
+                  </div>
                 </div>
               ) : null}
 
