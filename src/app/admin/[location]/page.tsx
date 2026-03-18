@@ -335,6 +335,9 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   const [authed, setAuthed] = useState(false);
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [msg, setMsg] = useState("");
+  const [rulesDirty, setRulesDirty] = useState(false);
+const [savingRules, setSavingRules] = useState(false);
+const [requestSettingsMsg, setRequestSettingsMsg] = useState("");
   const [cachedLogoUrl, setCachedLogoUrl] = useState("");
 
   const [pendingRequests, setPendingRequests] = useState<RequestItem[]>([]);
@@ -376,7 +379,7 @@ const [codeUsesOpen, setCodeUsesOpen] = useState(false);
 
   const liveProducts = useMemo(() => Object.values(SHOUTOUT_PRODUCTS), []);
   const logoUrl = rules?.logoUrl || cachedLogoUrl || "/logo.png";
-
+  const [top10SettingsMsg, setTop10SettingsMsg] = useState("");
   function cacheLogo(url?: string | null) {
     if (!url) return;
     try {
@@ -470,42 +473,71 @@ const [codeUsesOpen, setCodeUsesOpen] = useState(false);
     }
   }
 
-  async function loadRules() {
-    try {
-      const res = await fetch(`/api/admin/rules/get/${location}`, { cache: "no-store" });
+  async function loadRules(force = false) {
+  if (rulesDirty && !force) return rules;
 
-      if (res.status === 401) {
-        setAuthed(false);
-        return null;
-      }
+  try {
+    const res = await fetch(`/api/admin/rules/get/${location}`, { cache: "no-store" });
 
-      const data: any = await safeJson(res);
-      if (data?.rules) {
-        setRules(data.rules);
-        cacheLogo(data.rules.logoUrl);
-        return data.rules as RulesState;
-      }
-    } catch {}
-    return null;
-  }
+    if (res.status === 401) {
+      setAuthed(false);
+      return null;
+    }
 
-  async function saveRules(message = "✅ Request settings saved.") {
-    if (!rules) return;
+    const data: any = await safeJson(res);
+    if (data?.rules) {
+      setRules(data.rules);
+      cacheLogo(data.rules.logoUrl);
+      return data.rules as RulesState;
+    }
+  } catch {}
+
+  return null;
+}
+
+  async function saveRules(successMessage = "✅ Request settings saved.") {
+  if (!rules || savingRules) return false;
+
+  setSavingRules(true);
+  setRequestSettingsMsg("");
+
+  try {
     const res = await fetch(`/api/admin/rules/set/${location}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(rules),
     });
+
     const data: any = await safeJson(res);
+
     if (data?.ok) {
-      setRules(data.rules);
-      if (data?.rules?.logoUrl) cacheLogo(data.rules.logoUrl);
-      setMsg(message);
+      const nextRules = (data.rules || rules) as RulesState;
+      setRules(nextRules);
+      setRulesDirty(false);
+
+      if (nextRules.logoUrl) cacheLogo(nextRules.logoUrl);
+
+      setRequestSettingsMsg(successMessage);
       return true;
     }
-    setMsg(data?.error || "Could not save settings.");
+
+    setRequestSettingsMsg(String(data?.error || "Could not save settings."));
     return false;
+  } catch {
+    setRequestSettingsMsg("Could not save settings.");
+    return false;
+  } finally {
+    setSavingRules(false);
   }
+}
+  function patchRules(patch: Partial<RulesState>) {
+  setRules((curr) => {
+    if (!curr) return curr;
+    return { ...curr, ...patch };
+  });
+  setRulesDirty(true);
+  setRequestSettingsMsg("");
+}
 
   async function loadUsers() {
     try {
@@ -798,16 +830,27 @@ async function rejectRequest(requestId: string) {
   }
 
   async function saveTop10Settings() {
-    const ok = await saveRules("✅ Top 10 settings saved.");
-    if (ok) await loadTop10();
+  setTop10SettingsMsg("");
+  const ok = await saveRules("✅ Top 10 settings saved.");
+  if (ok) {
+    setTop10SettingsMsg("✅ Top 10 settings saved.");
+    await loadTop10();
+  } else {
+    setTop10SettingsMsg("Could not save Top 10 settings.");
   }
+}
 
   const effectiveTop10CutoffHour = Number(rules?.top10AdultCutoffHour ?? 21);
   const effectiveTop10CutoffMinute = Number(rules?.top10AdultCutoffMinute ?? 0);
   const effectiveTop10Timezone = rules?.top10Timezone || "America/New_York";
 
- async function loadAll() {
+async function loadAll() {
+ const isEditingRulesTab = tab === "requestSettings" || tab === "top10";
+
+if (!isEditingRulesTab || !rulesDirty) {
   await loadRules();
+}
+
   if (!authed) return;
 
   const nextRequests = await loadRequests();
@@ -832,12 +875,17 @@ async function rejectRequest(requestId: string) {
     setPlaceholders(loadSavedPlaceholders(location));
   }, [location]);
 
-  useEffect(() => {
-    if (!authed) return;
-    loadAll();
-    const id = setInterval(loadAll, 3000);
-    return () => clearInterval(id);
-  }, [authed, location, top10BucketView]);
+useEffect(() => {
+  if (!authed) return;
+
+  void loadAll();
+
+  const id = setInterval(() => {
+    void loadAll();
+ }, tab === "requestSettings" || tab === "top10" ? 6000 : 3000);
+
+  return () => clearInterval(id);
+}, [authed, location, top10BucketView, tab, rulesDirty]);
 
   if (!authed) {
     return (
@@ -1079,40 +1127,46 @@ async function rejectRequest(requestId: string) {
               <div style={{ opacity: 0.75 }}>Loading request settings…</div>
             ) : (
               <div style={{ display: "grid", gap: 12 }}>
-                <Field label="Request cost" value={rules.costRequest} onChange={(v) => setRules({ ...rules, costRequest: v })} />
-                <Field label="Upvote cost" value={rules.costUpvote} onChange={(v) => setRules({ ...rules, costUpvote: v })} />
-                <Field label="Downvote cost" value={rules.costDownvote} onChange={(v) => setRules({ ...rules, costDownvote: v })} />
-                <Field label="Play Now / Boost cost" value={rules.costPlayNow} onChange={(v) => setRules({ ...rules, costPlayNow: v })} />
+                <Field label="Request cost" value={rules.costRequest} onChange={(v) => patchRules({ costRequest: v })} />
+                <Field label="Upvote cost" value={rules.costUpvote} onChange={(v) => patchRules({ costUpvote: v })} />
+                <Field label="Downvote cost" value={rules.costDownvote} onChange={(v) => patchRules({ costDownvote: v })} />
+                <Field label="Play Now / Boost cost" value={rules.costPlayNow} onChange={(v) => patchRules({ costPlayNow: v })} />
 
-                <MoneyField label="10 credit package ($)" centsValue={rules.packTier1PriceCents || 500} onChangeCents={(c) => setRules({ ...rules, packTier1PriceCents: c })} />
-                <MoneyField label="25 credit package ($)" centsValue={rules.packTier2PriceCents || 1000} onChangeCents={(c) => setRules({ ...rules, packTier2PriceCents: c })} />
-                <MoneyField label="35 credit package ($)" centsValue={rules.packTier3PriceCents || 1500} onChangeCents={(c) => setRules({ ...rules, packTier3PriceCents: c })} />
-                <MoneyField label="50 credit package ($)" centsValue={rules.packTier4PriceCents || 2000} onChangeCents={(c) => setRules({ ...rules, packTier4PriceCents: c })} />
+                <MoneyField label="10 credit package ($)" centsValue={rules.packTier1PriceCents || 500} onChangeCents={(c) => patchRules({ packTier1PriceCents: c })} />
+                <MoneyField label="25 credit package ($)" centsValue={rules.packTier2PriceCents || 1000} onChangeCents={(c) => patchRules({ packTier2PriceCents: c })} />
+                <MoneyField label="35 credit package ($)" centsValue={rules.packTier3PriceCents || 1500} onChangeCents={(c) => patchRules({ packTier3PriceCents: c })} />
+                <MoneyField label="50 credit package ($)" centsValue={rules.packTier4PriceCents || 2000} onChangeCents={(c) => patchRules({ packTier4PriceCents: c })} />
 
-                <Toggle label="Enable voting" checked={Boolean(rules.enableVoting)} onChange={(v) => setRules({ ...rules, enableVoting: v })} />
-                <Toggle label="Enforce artist cooldown" checked={Boolean(rules.enforceArtistCooldown)} onChange={(v) => setRules({ ...rules, enforceArtistCooldown: v })} />
-                <Toggle label="Enforce song cooldown" checked={Boolean(rules.enforceSongCooldown)} onChange={(v) => setRules({ ...rules, enforceSongCooldown: v })} />
+                <Toggle label="Enable voting" checked={Boolean(rules.enableVoting)} onChange={(v) => patchRules({ enableVoting: v })} />
+                <Toggle label="Enforce artist cooldown" checked={Boolean(rules.enforceArtistCooldown)} onChange={(v) => patchRules({ enforceArtistCooldown: v })} />
+                <Toggle label="Enforce song cooldown" checked={Boolean(rules.enforceSongCooldown)} onChange={(v) => patchRules({ enforceSongCooldown: v })} />
 
-                <Field label="Artist cooldown minutes" value={rules.artistCooldownMinutes || 0} onChange={(v) => setRules({ ...rules, artistCooldownMinutes: v })} />
-                <Field label="Song cooldown minutes" value={rules.songCooldownMinutes || 0} onChange={(v) => setRules({ ...rules, songCooldownMinutes: v })} />
-                <Field label="Max requests per session" value={rules.maxRequestsPerSession || 0} onChange={(v) => setRules({ ...rules, maxRequestsPerSession: v })} />
-                <Field label="Max votes per session" value={rules.maxVotesPerSession || 0} onChange={(v) => setRules({ ...rules, maxVotesPerSession: v })} />
-                <Field label="Min seconds between actions" value={rules.minSecondsBetweenActions || 0} onChange={(v) => setRules({ ...rules, minSecondsBetweenActions: v })} />
-                <Field label="Max same artist in queue" value={rules.maxArtistInQueue || 0} onChange={(v) => setRules({ ...rules, maxArtistInQueue: v })} />
-                <Field label="Max active requests per user" value={rules.maxActiveRequestsPerUser || 0} onChange={(v) => setRules({ ...rules, maxActiveRequestsPerUser: v })} />
+                <Field label="Artist cooldown minutes" value={rules.artistCooldownMinutes || 0} onChange={(v) => patchRules({ artistCooldownMinutes: v })} />
+                <Field label="Song cooldown minutes" value={rules.songCooldownMinutes || 0} onChange={(v) => patchRules({ songCooldownMinutes: v })} />
+                <Field label="Max requests per session" value={rules.maxRequestsPerSession || 0} onChange={(v) => patchRules({ maxRequestsPerSession: v })} />
+                <Field label="Max votes per session" value={rules.maxVotesPerSession || 0} onChange={(v) => patchRules({ maxVotesPerSession: v })} />
+                <Field label="Min seconds between actions" value={rules.minSecondsBetweenActions || 0} onChange={(v) => patchRules({ minSecondsBetweenActions: v })} />
+                <Field label="Max same artist in queue" value={rules.maxArtistInQueue || 0} onChange={(v) => patchRules({ maxArtistInQueue: v })} />
+                <Field label="Max active requests per user" value={rules.maxActiveRequestsPerUser || 0} onChange={(v) => patchRules({ maxActiveRequestsPerUser: v })} />
 
-                <TextField label="Logo URL" value={rules.logoUrl || ""} onChange={(v) => setRules({ ...rules, logoUrl: v })} />
-                <TextField label="Explicit message" value={rules.msgExplicit || ""} onChange={(v) => setRules({ ...rules, msgExplicit: v })} />
-                <TextField label="Too many active requests message" value={rules.msgTooManyActiveRequests || ""} onChange={(v) => setRules({ ...rules, msgTooManyActiveRequests: v })} />
-                <TextField label="Already requested message" value={rules.msgAlreadyRequested || ""} onChange={(v) => setRules({ ...rules, msgAlreadyRequested: v })} />
-                <TextField label="Artist cooldown message" value={rules.msgArtistCooldown || ""} onChange={(v) => setRules({ ...rules, msgArtistCooldown: v })} />
-                <TextField label="Song cooldown message" value={rules.msgSongCooldown || ""} onChange={(v) => setRules({ ...rules, msgSongCooldown: v })} />
-                <TextField label="Artist already queued message" value={rules.msgArtistAlreadyQueued || ""} onChange={(v) => setRules({ ...rules, msgArtistAlreadyQueued: v })} />
-                <TextField label="Not enough credits message" value={rules.msgNoCredits || ""} onChange={(v) => setRules({ ...rules, msgNoCredits: v })} />
+                <TextField label="Logo URL" value={rules.logoUrl || ""} onChange={(v) => patchRules({ logoUrl: v })} />
+                <TextField label="Explicit message" value={rules.msgExplicit || ""} onChange={(v) => patchRules({ msgExplicit: v })} />
+                <TextField label="Too many active requests message" value={rules.msgTooManyActiveRequests || ""} onChange={(v) => patchRules({ msgTooManyActiveRequests: v })} />
+                <TextField label="Already requested message" value={rules.msgAlreadyRequested || ""} onChange={(v) => patchRules({ msgAlreadyRequested: v })} />
+                <TextField label="Artist cooldown message" value={rules.msgArtistCooldown || ""} onChange={(v) => patchRules({ msgArtistCooldown: v })} />
+                <TextField label="Song cooldown message" value={rules.msgSongCooldown || ""} onChange={(v) => patchRules({ msgSongCooldown: v })} />
+                <TextField label="Artist already queued message" value={rules.msgArtistAlreadyQueued || ""} onChange={(v) => patchRules({ msgArtistAlreadyQueued: v })} />
+                <TextField label="Not enough credits message" value={rules.msgNoCredits || ""} onChange={(v) => patchRules({ msgNoCredits: v })} />
 
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
-                  <ActionButton onClick={saveRules}>Save request settings</ActionButton>
-                </div>
+{requestSettingsMsg ? (
+  <div style={{ ...noteStyle, marginBottom: 8 }}>{requestSettingsMsg}</div>
+) : null}
+
+<div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+  <ActionButton onClick={() => void saveRules()}>
+    {savingRules ? "Saving..." : "Save request settings"}
+  </ActionButton>
+</div>
               </div>
             )}
           </Panel>
@@ -1144,25 +1198,25 @@ async function rejectRequest(requestId: string) {
                 <Toggle
                   label="Enable Top 10 board"
                   checked={Boolean(rules.top10Enabled ?? true)}
-                  onChange={(v) => setRules({ ...rules, top10Enabled: v })}
+                  onChange={(v) => patchRules({ top10Enabled: v })}
                 />
 
                 <TextField
                   label="Top 10 timezone"
                   value={rules.top10Timezone || "America/New_York"}
-                  onChange={(v) => setRules({ ...rules, top10Timezone: v })}
+                  onChange={(v) => patchRules({ top10Timezone: v })}
                 />
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <Field
                     label="Adult cutoff hour (24h)"
                     value={rules.top10AdultCutoffHour ?? 21}
-                    onChange={(v) => setRules({ ...rules, top10AdultCutoffHour: v })}
+                    onChange={(v) => patchRules({ top10AdultCutoffHour: v })}
                   />
                   <Field
                     label="Adult cutoff minute"
                     value={rules.top10AdultCutoffMinute ?? 0}
-                    onChange={(v) => setRules({ ...rules, top10AdultCutoffMinute: v })}
+                    onChange={(v) => patchRules({ top10AdultCutoffMinute: v })}
                   />
                 </div>
 
@@ -1189,6 +1243,10 @@ async function rejectRequest(requestId: string) {
                     Active board from API: <b>{top10ActiveBucket || "—"}</b>
                   </div>
                 </div>
+
+                {top10SettingsMsg ? (
+  <div style={{ ...noteStyle, marginBottom: 8 }}>{top10SettingsMsg}</div>
+) : null}
 
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <ActionButton onClick={saveTop10Settings}>Save Top 10 settings</ActionButton>
@@ -1697,6 +1755,7 @@ function ActionButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       style={{
         padding: "9px 12px",
