@@ -256,13 +256,14 @@ export default function TvTop10Page({ params }: { params: { location: string } }
             </div>
           </div>
 
-          <div className="remixTop10HeaderMeta">
-            <div className="remixTop10ModePill">{activeTitle}</div>
-            <div className="remixTop10LivePill">
-              {items.length} RANKED • {queueCount} IN QUEUE
-            </div>
-          </div>
-        </section>
+{!isPortraitLayout ? (
+  <div className="remixTop10HeaderMeta">
+    <div className="remixTop10ModePill">{activeTitle}</div>
+    <div className="remixTop10LivePill">
+      {items.length} RANKED • {queueCount} IN QUEUE
+    </div>
+  </div>
+) : null}
 
         {!isPortraitLayout ? (
           <div className="remixTop10Content">
@@ -358,10 +359,6 @@ export default function TvTop10Page({ params }: { params: { location: string } }
         ) : (
           <div className="remixTop10ContentPortrait">
             <section className="neonPanel remixTop10PortraitHeroPanel">
-              <div className="remixTop10HeroHeader remixTop10HeroHeader--portrait">
-                <div className="remixTop10HeroKicker">#1 RIGHT NOW</div>
-                <div className="remixTop10HeroChip">{bucketLabel}</div>
-              </div>
 
               {hero ? (
                 <div className="remixTop10PortraitHeroBody">
@@ -379,14 +376,12 @@ export default function TvTop10Page({ params }: { params: { location: string } }
                     <div className="remixTop10PortraitHeroRank">#1</div>
                     <div className="remixTop10PortraitHeroSong">{hero.title}</div>
                     <div className="remixTop10PortraitHeroArtist">{hero.artist}</div>
-                    <div className="remixTop10PortraitHeroStats">
-                      <span className="remixTop10Stat remixTop10Stat--score">SCORE {hero.score}</span>
-                      <span className="remixTop10Stat">REQ {hero.requestCount}</span>
-                    </div>
-                    <div className="remixTop10PortraitHeroStats remixTop10PortraitHeroStats--tight">
-                      <span className="remixTop10Stat">▲ {hero.upvotes}</span>
-                      <span className="remixTop10Stat">▼ {hero.downvotes}</span>
-                    </div>
+                    <div className="remixTop10PortraitHeroStats remixTop10PortraitHeroStats--singleline">
+  <span className="remixTop10Stat remixTop10Stat--score">SCORE {hero.score}</span>
+  <span className="remixTop10Stat">REQ {hero.requestCount}</span>
+  <span className="remixTop10Stat">▲ {hero.upvotes}</span>
+  <span className="remixTop10Stat">▼ {hero.downvotes}</span>
+</div>
                   </div>
                 </div>
               ) : (
@@ -395,13 +390,7 @@ export default function TvTop10Page({ params }: { params: { location: string } }
             </section>
 
             <section className="neonPanel remixTop10PortraitListPanel">
-              <div className="remixTop10ListHeaderRow remixTop10ListHeaderRow--portrait">
-                <div className="remixTop10ListTitle">{bucketLabel}</div>
-                <div className="remixTop10ListMeta">
-                  Updated {formatShortTime(boardUpdatedAt || snapshot?.createdAt || "")}
-                </div>
-              </div>
-
+            
               {portraitRest.length ? (
                 <div className="remixTop10PortraitList">
                   {portraitRest.map((item, index) => {
@@ -583,7 +572,21 @@ export default function TvTop10Page({ params }: { params: { location: string } }
           gap: 8px;
           flex-wrap: wrap;
         }
-        .remixTop10PortraitHeroStats--tight { margin-top: 8px; }
+        .remixTop10PortraitHeroStats--singleline {
+  margin-top: 10px;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+@media (orientation: portrait) {
+  .remixTop10PortraitHeroStats--singleline .remixTop10Stat {
+    min-height: 28px;
+    padding: 0 8px;
+    font-size: 10px;
+    letter-spacing: 0.4px;
+  }
+}
+
         .remixTop10Stat {
           display: inline-flex;
           align-items: center;
