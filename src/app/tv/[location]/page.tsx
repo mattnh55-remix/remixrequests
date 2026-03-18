@@ -1,1685 +1,1995 @@
+// src/app/admin/[location]/page.tsx
+
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { SHOUTOUT_PRODUCTS } from "@/lib/shoutoutProducts";
 
-type QueueItem = {
+type TabKey = "dashboard" | "requestSettings" | "top10" | "users" | "shoutoutSettings";
+
+type RequestItem = {
   id: string;
   title: string;
   artist: string;
-  artworkUrl?: string;
   score: number;
-  isBoosted?: boolean;
+  createdAt?: string;
+  type?: string;
+  requestedByLabel?: string;
   boosted?: boolean;
-  wasBoosted?: boolean;
+  upvotes?: number;
+  downvotes?: number;
+  redemptionCode?: string | null;
 };
 
-type FeedMessage = {
+type MessageItem = {
   id: string;
-  title?: string;
   fromName: string;
-  body?: string;
-  messageText?: string;
+  messageText: string;
+  tier: string;
+  creditsCost?: number;
+  status?: string;
+  moderationNotes?: string | null;
+  autoTextModerationReason?: string | null;
+  createdAt?: string;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  displayDurationSec?: number;
+  imageOriginalPath?: string | null;
+  imagePreviewPath?: string | null;
+  imageModerationStatus?: string | null;
+  signedImageUrl?: string | null;
+};
+type PlaceholderMessage = {
+  id: string;
+  title: string;
+  body: string;
+  fromName: string;
   imageUrl?: string | null;
   accent?: "gold" | "cyan" | "pink";
-  productKey?: string;
   productTitle?: string;
-  displayDurationSec?: number;
-  approvedAt?: string;
-  createdAt?: string;
 };
 
-const PLACEHOLDER_MESSAGES: FeedMessage[] = [
+type RulesState = {
+  costRequest: number;
+  costUpvote: number;
+  costDownvote: number;
+  costPlayNow: number;
+  enableVoting: boolean;
+  enforceArtistCooldown?: boolean;
+  enforceSongCooldown?: boolean;
+  artistCooldownMinutes?: number;
+  songCooldownMinutes?: number;
+  maxRequestsPerSession?: number;
+  maxVotesPerSession?: number;
+  minSecondsBetweenActions?: number;
+  maxArtistInQueue?: number;
+  maxActiveRequestsPerUser?: number;
+  msgExplicit?: string;
+  msgTooManyActiveRequests?: string;
+  msgAlreadyRequested?: string;
+  msgArtistCooldown?: string;
+  msgSongCooldown?: string;
+  msgArtistAlreadyQueued?: string;
+  msgNoCredits?: string;
+  logoUrl?: string;
+  packTier1PriceCents?: number;
+  packTier2PriceCents?: number;
+  packTier3PriceCents?: number;
+  packTier4PriceCents?: number;
+  top10Enabled?: boolean;
+  top10Timezone?: string;
+  top10AdultCutoffHour?: number;
+  top10AdultCutoffMinute?: number;
+};
+
+type SessionUser = {
+  emailHash: string;
+  label: string;
+  verified: boolean;
+  points: number;
+  redemptionCode?: string | null;
+};
+
+type Top10Bucket = "GENERAL" | "ADULT";
+
+type Top10Item = {
+  id: string;
+  title: string;
+  artist: string;
+  score: number;
+  requestCount?: number;
+  upvotes?: number;
+  downvotes?: number;
+  artworkUrl?: string | null;
+  lastActivityAt?: string;
+};
+
+type Top10Response = {
+  ok?: boolean;
+  sessionId?: string;
+  bucket?: Top10Bucket;
+  boardTitle?: string;
+  updatedAt?: string;
+  items?: Top10Item[];
+};
+
+type RedemptionCode = {
+  id: string;
+  code: string;
+  points: number;
+  uses: number;
+  maxUses: number;
+  expiresAt: string;
+  disabledAt?: string | null;
+};
+
+type RedemptionCodeUseItem = {
+  id: string;
+  usedAt: string;
+  emailHash: string;
+  label: string;
+  reason: string;
+  delta: number;
+};
+
+
+type AdminShoutoutsResponse = {
+  ok?: boolean;
+  pending?: MessageItem[];
+  approved?: MessageItem[];
+  active?: MessageItem[];
+  rejected?: MessageItem[];
+  blockedCount?: number;
+};
+
+const DEFAULT_PLACEHOLDERS: PlaceholderMessage[] = [
   {
-    id: "placeholder-1",
+    id: "msg1",
     title: "REMIX SHOUT OUTS!",
-    body: "Celebrate a birthday, shout out a friend, or send a message to the rink!",
-    fromName: "Scan the QR to send yours",
+    body: "Happy Birthday Taylor and Hunter!",
+    fromName: "-$name",
+    imageUrl: null,
     accent: "cyan",
+    productTitle: "Basic Text Shout Out",
   },
   {
-    id: "placeholder-2",
+    id: "msg2",
     title: "REMIX SHOUT OUTS!",
-    body: "Upload a photo, add your message, and put your moment on the screen.",
-    fromName: "Photo shout outs are live",
-    accent: "pink",
-  },
-  {
-    id: "placeholder-3",
-    title: "REMIX SHOUT OUTS!",
-    body: "Request your favorite song and send a shout out while you skate.",
-    fromName: "Use the QR to get started",
+    body: "Congrats to our birthday crew tonight. Thanks for celebrating at Remix!",
+    fromName: "-$name",
+    imageUrl: null,
     accent: "gold",
+    productTitle: "Remix Roller Text Shout Out",
+  },
+  {
+    id: "msg3",
+    title: "REMIX SHOUT OUTS!",
+    body: "Welcome to Remix! Scan the code, request your song, and send a shout out.",
+    fromName: "-$name",
+    imageUrl: null,
+    accent: "pink",
+    productTitle: "VIP Text Shout Out",
   },
 ];
 
-export default function TvPage({ params }: { params: { location: string } }) {
+function placeholderKey(location: string) {
+  return `rr_tv_placeholders:${location}`;
+}
+
+function logoKey(location: string) {
+  return `rr_admin_logoUrl:${location}`;
+}
+
+function loadSavedPlaceholders(location: string): PlaceholderMessage[] {
+  try {
+    const raw = localStorage.getItem(placeholderKey(location));
+    if (!raw) return DEFAULT_PLACEHOLDERS;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || !parsed.length) return DEFAULT_PLACEHOLDERS;
+
+    return parsed.map((p: any, i: number) => ({
+      id: p?.id || `msg${i + 1}`,
+      title: String(p?.title || DEFAULT_PLACEHOLDERS[i]?.title || "REMIX SHOUT OUTS!"),
+      body: String(p?.body || DEFAULT_PLACEHOLDERS[i]?.body || ""),
+      fromName: String(p?.fromName || DEFAULT_PLACEHOLDERS[i]?.fromName || "-$name"),
+      imageUrl: p?.imageUrl || null,
+      accent: (p?.accent || DEFAULT_PLACEHOLDERS[i]?.accent || "cyan") as "gold" | "cyan" | "pink",
+      productTitle: String(
+        p?.productTitle || DEFAULT_PLACEHOLDERS[i]?.productTitle || "Remix Shout Out"
+      ),
+    }));
+  } catch {
+    return DEFAULT_PLACEHOLDERS;
+  }
+}
+
+function savePlaceholders(location: string, items: PlaceholderMessage[]) {
+  localStorage.setItem(placeholderKey(location), JSON.stringify(items));
+}
+
+function safeProduct(tier?: string) {
+  return tier ? (SHOUTOUT_PRODUCTS as any)[tier] : null;
+}
+
+function centsToDollars(cents: any): string {
+  const n = Number(cents);
+  if (!Number.isFinite(n)) return "0.00";
+  return (Math.max(0, Math.round(n)) / 100).toFixed(2);
+}
+
+function dollarsToCents(dollars: any): number {
+  const n = Number(dollars);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.round(n * 100));
+}
+
+async function safeJson(res: Response) {
+  const text = await res.text();
+  if (!text) return { ok: false, _raw: "", _nonJson: true };
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { ok: false, _raw: text.slice(0, 500), _nonJson: true };
+  }
+}
+
+function playChime() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const ctx = new AudioCtx();
+    const o1 = ctx.createOscillator();
+    const o2 = ctx.createOscillator();
+    const g = ctx.createGain();
+
+    o1.type = "sine";
+    o2.type = "triangle";
+    o1.frequency.value = 880;
+    o2.frequency.value = 1320;
+    g.gain.value = 0.0001;
+
+    o1.connect(g);
+    o2.connect(g);
+    g.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.2, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+
+    o1.start(now);
+    o2.start(now);
+    o1.stop(now + 0.25);
+    o2.stop(now + 0.25);
+
+    setTimeout(() => ctx.close().catch(() => {}), 400);
+  } catch {}
+}
+function rulesCostsFromRules(rules: RulesState | null) {
+  return {
+    costRequest: Number(rules?.costRequest ?? 1),
+    costPlayNow: Number(rules?.costPlayNow ?? 5),
+    costUpvote: Number(rules?.costUpvote ?? 1),
+    costDownvote: Number(rules?.costDownvote ?? 1),
+  };
+}
+
+function requestTypeLabel(q: RequestItem) {
+  if (q.type === "PLAY_NOW" || q.boosted) return "BOOST";
+  return "REQUEST";
+}
+
+function requestMetaLine(q: RequestItem) {
+  const who = q.requestedByLabel || "Skater";
+  const parts = [`Requested by ${who}`];
+  if (q.redemptionCode) parts.push(`Code: ${q.redemptionCode}`);
+  return parts.join(" • ");
+}
+
+function QueueRow({
+  q,
+  index,
+  onPlayed,
+  onReject,
+}: {
+  q: RequestItem;
+  index?: number;
+  onPlayed: () => void;
+  onReject: () => void;
+}) {
+  const typeLabel = requestTypeLabel(q);
+
+  return (
+    <div style={queueRowStyle}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ fontWeight: 1000, fontSize: 18 }}>
+            {index ? `${index}. ` : ""}
+            {q.title}
+          </div>
+
+          <div style={requestPillStyle}>
+            {typeLabel}
+          </div>
+        </div>
+
+        <div style={{ marginTop: 6, opacity: 0.86, lineHeight: 1.35 }}>
+          {q.artist} • {requestMetaLine(q)}
+        </div>
+
+        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.72 }}>
+          Score {q.score} • 👍 {Number(q.upvotes || 0)} • 👎 {Number(q.downvotes || 0)}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignSelf: "center" }}>
+        <ActionButton onClick={onPlayed}>Played</ActionButton>
+        <ActionButton alt onClick={onReject}>Reject</ActionButton>
+      </div>
+    </div>
+  );
+}
+export default function AdminPage({ params }: { params: { location: string } }) {
   const location = params.location;
 
-  const [playNow, setPlayNow] = useState<QueueItem[]>([]);
-  const [upNext, setUpNext] = useState<QueueItem[]>([]);
-  const [liveMessage, setLiveMessage] = useState<FeedMessage | null>(null);
-  const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [boostFlash, setBoostFlash] = useState(false);
-  const [artA, setArtA] = useState<string | null>(null);
-  const [artB, setArtB] = useState<string | null>(null);
-  const [showA, setShowA] = useState(true);
-  const [timerNowMs, setTimerNowMs] = useState(Date.now());
-  const [isPortraitLayout, setIsPortraitLayout] = useState(false);
+  const [pin, setPin] = useState("");
+  const [authed, setAuthed] = useState(false);
+  const [tab, setTab] = useState<TabKey>("dashboard");
+  const [msg, setMsg] = useState("");
+  const [rulesDirty, setRulesDirty] = useState(false);
+const [savingRules, setSavingRules] = useState(false);
+const [requestSettingsMsg, setRequestSettingsMsg] = useState("");
+  const [cachedLogoUrl, setCachedLogoUrl] = useState("");
 
-  const prevTopId = useRef<string | null>(null);
+  const [pendingRequests, setPendingRequests] = useState<RequestItem[]>([]);
+  const [pendingMessages, setPendingMessages] = useState<MessageItem[]>([]);
+  const [approvedMessages, setApprovedMessages] = useState<MessageItem[]>([]);
+  const [activeMessages, setActiveMessages] = useState<MessageItem[]>([]);
+  const [rejectedMessages, setRejectedMessages] = useState<MessageItem[]>([]);
+  const [blockedCount, setBlockedCount] = useState(0);
 
-  const requestUrl = useMemo(
-    () => `https://skateremix.com/request/${location}`,
-    [location]
-  );
+  const [rules, setRules] = useState<RulesState | null>(null);
+  const [placeholders, setPlaceholders] = useState<PlaceholderMessage[]>(DEFAULT_PLACEHOLDERS);
+  const [users, setUsers] = useState<SessionUser[]>([]);
+  const [top10, setTop10] = useState<Top10Item[]>([]);
+  const [top10BucketView, setTop10BucketView] = useState<Top10Bucket | "AUTO">("AUTO");
+  const [top10ActiveBucket, setTop10ActiveBucket] = useState<Top10Bucket | "">("");
+  const [top10BoardTitle, setTop10BoardTitle] = useState("Top 10");
+  const [top10UpdatedAt, setTop10UpdatedAt] = useState("");
+  const [top10SessionId, setTop10SessionId] = useState("");
+  const [top10Busy, setTop10Busy] = useState(false);
+  const [codes, setCodes] = useState<RedemptionCode[]>([]);
+  const [codesMsg, setCodesMsg] = useState("");
+  const [codeNew, setCodeNew] = useState("");
+const [codePoints, setCodePoints] = useState<number>(10);
+const [codeMaxUses, setCodeMaxUses] = useState<number>(1);
+const [importingCodes, setImportingCodes] = useState(false);
+const [codeUsesOpen, setCodeUsesOpen] = useState(false);
 
-  const qrSrc = useMemo(() => {
-    const size = isPortraitLayout ? 300 : 320;
-    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(
-      requestUrl
-    )}`;
-  }, [isPortraitLayout, requestUrl]);
+  const [codeUsesLoading, setCodeUsesLoading] = useState(false);
+  const [selectedCode, setSelectedCode] = useState<RedemptionCode | null>(null);
+  const [selectedCodeUses, setSelectedCodeUses] = useState<RedemptionCodeUseItem[]>([]);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editMessageId, setEditMessageId] = useState("");
+  const [editFromName, setEditFromName] = useState("");
+  const [editMessageText, setEditMessageText] = useState("");
+  const prevRequestIdsRef = useRef<Set<string>>(new Set());
+  const prevMessageIdsRef = useRef<Set<string>>(new Set());
+  const hasBootedRef = useRef(false);
 
-  const featuredFallback =
-    PLACEHOLDER_MESSAGES[placeholderIndex % PLACEHOLDER_MESSAGES.length];
-  const featuredMessage = liveMessage || featuredFallback;
-  const featuredBody = featuredMessage.body || featuredMessage.messageText || "";
-  const featuredTitle = featuredMessage.title || "REMIX SHOUT OUTS!";
-
-  const isPlaceholderMessage = !liveMessage;
-  const placeholderDurationSec = 20 * 60;
-  const activeDurationSec = Math.max(
-    1,
-    Number(
-      featuredMessage.displayDurationSec ??
-        (isPlaceholderMessage ? placeholderDurationSec : 300)
-    )
-  );
-
-  const placeholderCycleMs = placeholderDurationSec * 1000;
-  const stableLiveStartMs = liveMessage
-    ? new Date(liveMessage.approvedAt || liveMessage.createdAt || Date.now()).getTime()
-    : 0;
-
-  const elapsedMs = isPlaceholderMessage
-    ? timerNowMs % placeholderCycleMs
-    : Math.max(0, timerNowMs - stableLiveStartMs);
-
-  const clampedElapsedMs = isPlaceholderMessage
-    ? elapsedMs
-    : Math.min(elapsedMs, activeDurationSec * 1000);
-
-  const remainingSec = isPlaceholderMessage
-    ? Math.max(0, placeholderDurationSec - Math.floor(clampedElapsedMs / 1000))
-    : Math.max(0, activeDurationSec - Math.floor(clampedElapsedMs / 1000));
-
-  const progressPct = isPlaceholderMessage
-    ? Math.max(0, 100 - (clampedElapsedMs / placeholderCycleMs) * 100)
-    : Math.max(0, 100 - (clampedElapsedMs / (activeDurationSec * 1000)) * 100);
-
-  const timerMinutes = Math.floor(remainingSec / 60);
-  const timerSeconds = remainingSec % 60;
-  const timerLabel = `${timerMinutes}:${String(timerSeconds).padStart(2, "0")}`;
-
-  const nowPlaying = playNow[0] || upNext[0] || null;
-  const queueList = upNext.slice(0, isPortraitLayout ? 6 : 10);
-  const topIsBoosted = Boolean(
-    nowPlaying && (nowPlaying.isBoosted || nowPlaying.boosted || nowPlaying.wasBoosted)
-  );
-
-  async function tickQueue() {
+  const liveProducts = useMemo(() => Object.values(SHOUTOUT_PRODUCTS), []);
+  const logoUrl = rules?.logoUrl || cachedLogoUrl || "/logo.png";
+  const [top10SettingsMsg, setTop10SettingsMsg] = useState("");
+  function cacheLogo(url?: string | null) {
+    if (!url) return;
     try {
-      const res = await fetch(`/api/public/queue/${location}`, {
-        cache: "no-store",
-      });
-      const data = await res.json();
-      setPlayNow(Array.isArray(data.playNow) ? data.playNow : []);
-      setUpNext(Array.isArray(data.upNext) ? data.upNext : []);
-    } catch {
-      setPlayNow([]);
-      setUpNext([]);
-    }
+      localStorage.setItem(logoKey(location), url);
+      setCachedLogoUrl(url);
+    } catch {}
   }
 
-  async function tickShoutouts() {
+  function loadCachedLogo() {
     try {
-      const res = await fetch(`/api/public/shoutouts/feed/${location}`, {
-        cache: "no-store",
-      });
-      const data = await res.json();
-
-      const next =
-        data?.current ||
-        data?.message ||
-        (Array.isArray(data?.items) && data.items.length ? data.items[0] : null) ||
-        null;
-
-      setLiveMessage(next);
-    } catch {
-      setLiveMessage(null);
-    }
+      const v = localStorage.getItem(logoKey(location));
+      if (v) setCachedLogoUrl(v);
+    } catch {}
   }
 
-  useEffect(() => {
-    void tickQueue();
-    void tickShoutouts();
+  function maybePlayChime(nextRequestItems: RequestItem[], nextPendingMessages: MessageItem[]) {
+    const requestIds = new Set(nextRequestItems.map((r) => r.id));
+    const messageIds = new Set(nextPendingMessages.map((m) => m.id));
 
-    const q = window.setInterval(() => void tickQueue(), 3000);
-    const s = window.setInterval(() => void tickShoutouts(), 5000);
+    if (hasBootedRef.current) {
+      let foundNew = false;
 
-    return () => {
-      window.clearInterval(q);
-      window.clearInterval(s);
-    };
-  }, [location]);
+      for (const id of requestIds) {
+        if (!prevRequestIdsRef.current.has(id)) {
+          foundNew = true;
+          break;
+        }
+      }
 
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setPlaceholderIndex((v) => (v + 1) % PLACEHOLDER_MESSAGES.length);
-    }, 10000);
+      if (!foundNew) {
+        for (const id of messageIds) {
+          if (!prevMessageIdsRef.current.has(id)) {
+            foundNew = true;
+            break;
+          }
+        }
+      }
 
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setTimerNowMs(Date.now());
-    }, 1000);
-
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const media = window.matchMedia("(orientation: portrait)");
-    const apply = () => setIsPortraitLayout(media.matches);
-
-    apply();
-
-    const handler = () => apply();
-    if (typeof media.addEventListener === "function") {
-      media.addEventListener("change", handler);
-      return () => media.removeEventListener("change", handler);
+      if (foundNew) playChime();
+    } else {
+      hasBootedRef.current = true;
     }
 
-    media.addListener(handler);
-    return () => media.removeListener(handler);
-  }, []);
+    prevRequestIdsRef.current = requestIds;
+    prevMessageIdsRef.current = messageIds;
+  }
 
-  useEffect(() => {
-    const topId = playNow[0]?.id ?? null;
-    if (!topId) return;
+  async function login(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    setMsg("");
 
-    if (prevTopId.current && prevTopId.current !== topId) {
-      setBoostFlash(true);
-      const t = window.setTimeout(() => setBoostFlash(false), 900);
-      prevTopId.current = topId;
-      return () => window.clearTimeout(t);
-    }
+    const res = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pin }),
+    });
 
-    prevTopId.current = topId;
-  }, [playNow]);
-
-  useEffect(() => {
-    const next = nowPlaying?.artworkUrl || null;
-
-    if (!artA && !artB) {
-      setArtA(next);
-      setShowA(true);
+    if (!res.ok) {
+      setMsg("Wrong PIN.");
       return;
     }
 
-    const currentVisible = showA ? artA : artB;
-    if (next === currentVisible) return;
+    setAuthed(true);
+  }
 
-    if (showA) {
-      setArtB(next);
-      requestAnimationFrame(() => setShowA(false));
-    } else {
-      setArtA(next);
-      requestAnimationFrame(() => setShowA(true));
+  async function loadRequests() {
+    try {
+      const res = await fetch(`/api/admin/queue/${location}`, { cache: "no-store" });
+      const data = await res.json();
+      const nextPending = data.pending || data.upNext || [];
+      setPendingRequests(nextPending);
+      return nextPending as RequestItem[];
+    } catch {
+      return [] as RequestItem[];
     }
-  }, [nowPlaying?.artworkUrl, artA, artB, showA]);
-
-  const queuePanel = isPortraitLayout ? (
-    <PortraitQueuePanel
-      nowPlaying={nowPlaying}
-      queueList={queueList}
-      topIsBoosted={topIsBoosted}
-      showA={showA}
-      artA={artA}
-      artB={artB}
-      qrSrc={qrSrc}
-    />
-  ) : (
-    <LandscapeQueuePanel
-      nowPlaying={nowPlaying}
-      queueList={queueList}
-      topIsBoosted={topIsBoosted}
-      showA={showA}
-      artA={artA}
-      artB={artB}
-      qrSrc={qrSrc}
-      requestUrl={requestUrl}
-    />
-  );
-
-  return (
-    <div className={`neonRoot remixTvRoot ${boostFlash ? "remixTvFlash" : ""}`}>
-      <div className="remixTvOrb remixTvOrbA" />
-      <div className="remixTvOrb remixTvOrbB" />
-      <div className="remixTvOrb remixTvOrbC" />
-
-      <div className={`remixTvWrap ${isPortraitLayout ? "remixTvWrap--portrait" : ""}`}>
-        <section className="neonPanel remixTvShoutoutPanel">
-          <div className="remixTvSectionHeader">
-            <div className="remixTvSectionTitle">{featuredTitle}</div>
-          </div>
-
-          <div
-            key={featuredMessage.id}
-            className={`remixTvBubble remixTvBubble--${featuredMessage.accent || "cyan"}`}
-          >
-            <div className="remixTvBubbleTimerRow">
-              <div className="remixTvBubbleTimerText">{timerLabel}</div>
-              <div className="remixTvBubbleTimerTrack">
-                <div
-                  className="remixTvBubbleTimerFill"
-                  style={{ width: `${progressPct}%` }}
-                >
-                  <span className="remixTvBubbleTimerShimmer" />
-                </div>
-              </div>
-            </div>
-
-            <div className="remixTvBubbleInner">
-              <FeatureBubble
-                imageUrl={featuredMessage.imageUrl}
-                body={featuredBody}
-                fromName={featuredMessage.fromName}
-              />
-            </div>
-
-            <svg
-              className="remixTvBubbleTail"
-              viewBox="0 0 44 28"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M5 5 C15 7, 24 12, 34 24 C25 22, 15 21, 7 17 C5 13, 4 9, 5 5 Z"
-                className="remixTvBubbleTailPath"
-              />
-            </svg>
-          </div>
-        </section>
-
-        <section className="remixTvQueueCol">{queuePanel}</section>
-      </div>
-
-      <style jsx global>{`
-        .remixTvRoot {
-          position: relative;
-          overflow: hidden;
-          background:
-            radial-gradient(circle at 18% 16%, rgba(0, 247, 255, 0.07), transparent 28%),
-            radial-gradient(circle at 84% 12%, rgba(255, 57, 212, 0.08), transparent 26%),
-            radial-gradient(circle at 66% 78%, rgba(0, 247, 255, 0.06), transparent 28%),
-            #050814;
-        }
-
-        .remixTvOrb {
-          position: absolute;
-          border-radius: 999px;
-          filter: blur(76px);
-          opacity: 0.22;
-          pointer-events: none;
-          mix-blend-mode: screen;
-          animation: remixTvOrbFloat 18s ease-in-out infinite;
-        }
-
-        .remixTvOrbA {
-          width: 42vw;
-          height: 42vw;
-          left: -10vw;
-          top: -10vw;
-          background: radial-gradient(circle, rgba(0, 247, 255, 0.45), transparent 70%);
-        }
-
-        .remixTvOrbB {
-          width: 36vw;
-          height: 36vw;
-          right: -8vw;
-          top: 6vh;
-          background: radial-gradient(circle, rgba(255, 57, 212, 0.4), transparent 70%);
-          animation-delay: -5s;
-        }
-
-        .remixTvOrbC {
-          width: 36vw;
-          height: 36vw;
-          left: 34vw;
-          bottom: -18vw;
-          background: radial-gradient(circle, rgba(69, 126, 255, 0.3), transparent 72%);
-          animation-delay: -10s;
-        }
-
-        @keyframes remixTvOrbFloat {
-          0% { transform: translate3d(0, 0, 0) scale(1); }
-          50% { transform: translate3d(1.8vw, -1.2vw, 0) scale(1.07); }
-          100% { transform: translate3d(0, 0, 0) scale(1); }
-        }
-
-        @keyframes remixTvBubbleFloat {
-          0% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-2px) scale(1.002); }
-          100% { transform: translateY(0px) scale(1); }
-        }
-
-        @keyframes remixTvBubbleIn {
-          0% { opacity: 0; transform: translateY(18px) scale(0.97); }
-          100% { opacity: 1; transform: translateY(0px) scale(1); }
-        }
-
-        @keyframes remixTvPulse {
-          0% { transform: scale(1); opacity: 0.78; }
-          50% { transform: scale(1.08); opacity: 0.35; }
-          100% { transform: scale(1); opacity: 0.78; }
-        }
-
-        @keyframes remixTvFlashAnim {
-          0% { opacity: 0; }
-          18% { opacity: 1; }
-          100% { opacity: 0; }
-        }
-
-        @keyframes remixTvMeterShimmer {
-          0% { transform: translateX(-140px); opacity: 0; }
-          15% { opacity: 0.9; }
-          100% { transform: translateX(340px); opacity: 0; }
-        }
-
-        .remixTvWrap {
-          position: relative;
-          z-index: 2;
-          display: grid;
-          grid-template-columns: minmax(0, 1.38fr) minmax(420px, 0.94fr);
-          gap: 16px;
-          height: 100vh;
-          padding: 14px;
-          box-sizing: border-box;
-        }
-
-        .remixTvWrap--portrait {
-          grid-template-columns: 1fr;
-          grid-template-rows: minmax(0, 1.14fr) minmax(0, 0.86fr);
-        }
-
-        .remixTvShoutoutPanel,
-        .remixTvQueuePanel {
-          position: relative;
-          min-height: 0;
-          overflow: hidden;
-        }
-
-        .remixTvShoutoutPanel {
-          padding: 14px 14px 18px;
-          display: grid;
-          grid-template-rows: auto 1fr;
-          gap: 12px;
-          overflow: visible;
-        }
-
-        .remixTvQueueCol {
-          min-height: 0;
-          display: grid;
-        }
-
-        .remixTvQueuePanel {
-          padding: 12px;
-          display: grid;
-          gap: 12px;
-        }
-
-        .remixTvQueuePanel--landscape {
-          grid-template-rows: auto auto auto 1fr auto;
-        }
-
-        .remixTvQueuePanel--portrait {
-          grid-template-rows: auto auto 1fr auto;
-          padding: 12px 12px 14px;
-        }
-
-        .remixTvSectionHeader {
-          display: flex;
-          align-items: center;
-          justify-content: flex-start;
-          padding: 2px 2px 0;
-          position: relative;
-          z-index: 2;
-        }
-
-        .remixTvQueueHeader {
-          padding-bottom: 2px;
-        }
-
-        .remixTvSectionTitle {
-          font-size: clamp(24px, 2vw, 40px);
-          font-weight: 1000;
-          font-style: italic;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          text-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .remixTvBubble {
-          position: relative;
-          min-height: 0;
-          border-radius: 34px 34px 34px 20px;
-          padding: 14px 30px 18px 18px;
-          box-shadow:
-            0 10px 24px rgba(0, 0, 0, 0.14),
-            inset 0 1px 0 rgba(255, 255, 255, 0.2);
-          animation:
-            remixTvBubbleIn 420ms cubic-bezier(0.2, 0.9, 0.2, 1),
-            remixTvBubbleFloat 7s ease-in-out 420ms infinite;
-          transform-origin: 86% 100%;
-          overflow: visible;
-        }
-
-        .remixTvBubble--gold {
-          background: linear-gradient(180deg, #e8e39b 0%, #e1dc92 100%);
-          color: #080808;
-        }
-
-        .remixTvBubble--cyan {
-          background: linear-gradient(180deg, #bde8fb 0%, #a9ddf5 100%);
-          color: #05070c;
-        }
-
-        .remixTvBubble--pink {
-          background: linear-gradient(180deg, #ffc4ee 0%, #f6aadf 100%);
-          color: #160811;
-        }
-
-        .remixTvBubbleTimerRow {
-          height: 50px;
-          display: grid;
-          grid-template-columns: 82px 1fr;
-          align-items: center;
-          gap: 14px;
-          margin-bottom: 12px;
-        }
-
-        .remixTvBubbleTimerText {
-          font-size: clamp(20px, 1.5vw, 28px);
-          line-height: 1;
-          font-weight: 1000;
-          font-style: italic;
-          letter-spacing: -0.2px;
-          text-align: left;
-          white-space: nowrap;
-        }
-
-        .remixTvBubbleTimerTrack {
-          position: relative;
-          height: 18px;
-          border-radius: 999px;
-          overflow: hidden;
-          background:
-            linear-gradient(180deg, rgba(255,255,255,0.26), rgba(255,255,255,0.12));
-          box-shadow:
-            inset 0 1px 2px rgba(0,0,0,0.2),
-            inset 0 0 0 1px rgba(255,255,255,0.12);
-        }
-
-        .remixTvBubbleTimerFill {
-          position: absolute;
-          inset: 0 auto 0 0;
-          height: 100%;
-          border-radius: 999px;
-          transition: width 1s linear;
-          overflow: hidden;
-          box-shadow:
-            0 0 10px rgba(255,255,255,0.28),
-            0 0 26px rgba(255,255,255,0.18);
-        }
-
-        .remixTvBubbleTimerShimmer {
-          position: absolute;
-          inset: 0 auto 0 0;
-          width: 140px;
-          background: linear-gradient(
-            90deg,
-            rgba(255,255,255,0) 0%,
-            rgba(255,255,255,0.16) 30%,
-            rgba(255,255,255,0.72) 52%,
-            rgba(255,255,255,0.14) 72%,
-            rgba(255,255,255,0) 100%
-          );
-          filter: blur(2px);
-          animation: remixTvMeterShimmer 2.8s linear infinite;
-          pointer-events: none;
-          mix-blend-mode: screen;
-        }
-
-        .remixTvBubble--gold .remixTvBubbleTimerFill {
-          background:
-            linear-gradient(90deg, #fff6b3 0%, #f7d85e 50%, #ffe891 100%);
-        }
-
-        .remixTvBubble--cyan .remixTvBubbleTimerFill {
-          background:
-            linear-gradient(90deg, #ffffff 0%, #8cecff 24%, #40d3ff 60%, #7ee8ff 100%);
-        }
-
-        .remixTvBubble--pink .remixTvBubbleTimerFill {
-          background:
-            linear-gradient(90deg, #fff2fb 0%, #ff9ae6 26%, #ff52ca 62%, #ffc2f0 100%);
-        }
-
-        .remixTvBubbleInner {
-          width: 100%;
-          height: 100%;
-          min-height: 0;
-        }
-
-        .remixTvBubbleTail {
-          position: absolute;
-          right: 12px;
-          bottom: -8px;
-          width: 42px;
-          height: 26px;
-          pointer-events: none;
-          z-index: 1;
-        }
-
-        .remixTvBubble--gold .remixTvBubbleTailPath { fill: #e1dc92; }
-        .remixTvBubble--cyan .remixTvBubbleTailPath { fill: #a9ddf5; }
-        .remixTvBubble--pink .remixTvBubbleTailPath { fill: #f6aadf; }
-
-        .remixTvBubbleLayout {
-          display: grid;
-          gap: 18px;
-          align-items: stretch;
-          width: 100%;
-          height: 100%;
-          min-height: 0;
-        }
-
-        .remixTvBubbleLayout--textOnly {
-          grid-template-columns: 1fr;
-        }
-
-        .remixTvBubbleLayout--side {
-          grid-template-columns: minmax(390px, 49%) minmax(0, 1fr);
-        }
-
-        .remixTvBubbleLayout--stacked {
-          grid-template-columns: 1fr;
-          grid-template-rows: minmax(260px, 0.78fr) auto;
-        }
-
-        .remixTvBubbleMedia {
-          min-width: 0;
-          min-height: 0;
-          display: flex;
-          align-items: stretch;
-          justify-content: center;
-        }
-
-        .remixTvBubbleText {
-          min-width: 0;
-          min-height: 0;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          padding: 0 8px 2px 2px;
-        }
-
-        .remixTvBubbleText--imageShort {
-          justify-content: center;
-          gap: 22px;
-        }
-
-        .remixTvBubbleBody {
-          font-size: clamp(34px, 4.5vw, 74px);
-          line-height: 1.02;
-          font-weight: 1000;
-          font-style: italic;
-          letter-spacing: -1.15px;
-          word-break: break-word;
-          text-wrap: balance;
-          overflow-wrap: anywhere;
-          text-shadow: 0 1px 0 rgba(255,255,255,0.08);
-        }
-
-        .remixTvBubbleLayout--textOnly .remixTvBubbleBody {
-          font-size: clamp(36px, 4.8vw, 78px);
-        }
-
-        .remixTvBubbleLayout--side .remixTvBubbleBody,
-        .remixTvBubbleLayout--stacked .remixTvBubbleBody {
-          font-size: clamp(24px, 3.2vw, 50px);
-          line-height: 1.03;
-        }
-
-        .remixTvBubbleFrom {
-          margin-top: 14px;
-          font-size: clamp(20px, 2vw, 38px);
-          line-height: 1.04;
-          font-weight: 1000;
-          font-style: italic;
-          white-space: normal;
-          overflow: visible;
-          text-overflow: unset;
-          overflow-wrap: anywhere;
-          word-break: break-word;
-          max-width: 100%;
-        }
-
-        .remixTvBubbleLayout--side .remixTvBubbleFrom,
-        .remixTvBubbleLayout--stacked .remixTvBubbleFrom {
-          font-size: clamp(16px, 1.5vw, 30px);
-        }
-
-        .remixTvFeatureMediaShell {
-          width: 100%;
-          height: 100%;
-          min-height: 0;
-          display: flex;
-          overflow: hidden;
-          background:
-            linear-gradient(180deg, rgba(10, 26, 42, 0.88), rgba(13, 29, 46, 0.8)),
-            radial-gradient(circle at 50% 18%, rgba(0,247,255,0.08), transparent 52%),
-            radial-gradient(circle at 78% 82%, rgba(255,57,212,0.08), transparent 48%);
-          border-radius: 26px;
-          border: 1px solid rgba(255,255,255,0.14);
-          box-shadow:
-            inset 0 0 0 1px rgba(255,255,255,0.03),
-            0 10px 24px rgba(0,0,0,0.14);
-        }
-
-        .remixTvFeatureMediaShell--portrait {
-          align-items: flex-start;
-          justify-content: center;
-          min-height: 600px;
-        }
-
-        .remixTvFeatureMediaShell--landscape,
-        .remixTvFeatureMediaShell--square {
-          align-items: center;
-          justify-content: center;
-          min-height: 220px;
-        }
-
-        .remixTvFeatureMediaImg {
-          display: block;
-        }
-
-        .remixTvFeatureMediaImg--portrait {
-          width: auto;
-          height: auto;
-          max-width: 100%;
-          min-height: 600px;
-          object-fit: contain;
-          object-position: top center;
-        }
-
-        .remixTvFeatureMediaImg--landscape,
-        .remixTvFeatureMediaImg--square {
-          width: 100%;
-          height: auto;
-          min-height: 220px;
-          max-height: 100%;
-          object-fit: contain;
-          object-position: center center;
-        }
-
-        .remixTvTopCard {
-          display: grid;
-          align-items: center;
-          border-radius: 24px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: linear-gradient(
-            90deg,
-            rgba(8, 16, 40, 0.92),
-            rgba(12, 26, 56, 0.76),
-            rgba(31, 15, 50, 0.66)
-          );
-          position: relative;
-          overflow: hidden;
-        }
-
-        .remixTvTopCardBoosted {
-          box-shadow: var(--glowB);
-        }
-
-        .remixTvTopCard--landscape {
-          grid-template-columns: 118px 1fr;
-          gap: 16px;
-          min-height: 126px;
-          padding: 12px;
-        }
-
-        .remixTvTopCard--portrait {
-          grid-template-columns: 88px 1fr;
-          gap: 12px;
-          min-height: 96px;
-          padding: 10px 12px;
-        }
-
-        .remixTvTopArtWrap {
-          display: flex;
-          align-items: center;
-        }
-
-        .remixTvTopArtFrame {
-          border-radius: 26px;
-          overflow: hidden;
-          position: relative;
-          border: 1px solid rgba(255,255,255,0.18);
-          background: rgba(255,255,255,0.05);
-          box-shadow: var(--glowA), var(--shadow);
-        }
-
-        .remixTvTopCard--landscape .remixTvTopArtFrame {
-          width: 118px;
-          height: 118px;
-        }
-
-        .remixTvTopCard--portrait .remixTvTopArtFrame {
-          width: 88px;
-          height: 88px;
-          border-radius: 22px;
-        }
-
-        .remixTvTopArtLayer {
-          position: absolute;
-          inset: 0;
-          transition: opacity 420ms ease;
-        }
-
-        .remixTvTopArtGlow {
-          position: absolute;
-          inset: -40%;
-          background:
-            radial-gradient(circle at 30% 25%, rgba(0,247,255,0.24), transparent 55%),
-            radial-gradient(circle at 75% 80%, rgba(255,57,212,0.2), transparent 62%);
-          animation: remixTvPulse 4.5s ease-in-out infinite;
-          filter: blur(20px);
-          opacity: 0.85;
-          z-index: 2;
-          pointer-events: none;
-          mix-blend-mode: screen;
-        }
-
-        .remixTvTopRibbon {
-          position: absolute;
-          top: 8px;
-          left: -34px;
-          transform: rotate(-17deg);
-          padding: 5px 36px;
-          border-radius: 999px;
-          background: linear-gradient(90deg, rgba(255,57,212,0.9), rgba(0,247,255,0.72));
-          color: #07070c;
-          font-size: 11px;
-          font-weight: 1000;
-          letter-spacing: 1.4px;
-          text-transform: uppercase;
-          box-shadow: var(--glowB);
-          z-index: 5;
-        }
-
-        .remixTvTopMeta {
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-        }
-
-        .remixTvTopLabel {
-          font-weight: 1000;
-          letter-spacing: 1.4px;
-          opacity: 0.72;
-          text-transform: uppercase;
-        }
-
-        .remixTvTopCard--landscape .remixTvTopLabel {
-          font-size: 13px;
-          margin-bottom: 5px;
-        }
-
-        .remixTvTopCard--portrait .remixTvTopLabel {
-          font-size: 11px;
-          margin-bottom: 4px;
-        }
-
-        .remixTvTopSong {
-          line-height: 1;
-          font-weight: 1000;
-          letter-spacing: -0.45px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          text-shadow: 0 0 12px rgba(255,255,255,0.12);
-        }
-
-        .remixTvTopCard--landscape .remixTvTopSong {
-          font-size: clamp(24px, 1.75vw, 34px);
-        }
-
-        .remixTvTopCard--portrait .remixTvTopSong {
-          font-size: clamp(20px, 2.45vw, 28px);
-        }
-
-        .remixTvTopArtist {
-          color: var(--muted);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .remixTvTopCard--landscape .remixTvTopArtist {
-          margin-top: 6px;
-          font-size: clamp(16px, 1vw, 20px);
-        }
-
-        .remixTvTopCard--portrait .remixTvTopArtist {
-          margin-top: 5px;
-          font-size: clamp(13px, 1.6vw, 18px);
-        }
-
-        .remixTvTopMetaRow {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-top: 8px;
-          flex-wrap: wrap;
-        }
-
-        .remixTvTopBadge {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 28px;
-          padding: 0 12px;
-          border-radius: 999px;
-          font-size: 12px;
-          font-weight: 1000;
-          letter-spacing: 1px;
-          text-transform: uppercase;
-          border: 1px solid rgba(255,255,255,0.12);
-          background: rgba(255,255,255,0.06);
-          box-shadow: var(--glowA);
-        }
-
-        .remixTvTopBadge--boosted {
-          background: linear-gradient(90deg, rgba(255,57,212,0.24), rgba(0,247,255,0.16));
-          box-shadow: var(--glowB);
-        }
-
-        .remixTvTagRow {
-          margin-top: 10px;
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          align-items: center;
-        }
-
-        .remixTvUrl {
-          margin-top: 8px;
-          font-size: 12px;
-          color: var(--muted);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .remixTvTop10Header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          font-size: 16px;
-          font-weight: 1000;
-          letter-spacing: 1.6px;
-          text-transform: uppercase;
-          color: rgba(255,255,255,0.8);
-          padding: 2px 4px 0;
-        }
-
-        .remixTvTop10HeaderSub {
-          font-size: 11px;
-          letter-spacing: 1px;
-          opacity: 0.65;
-        }
-
-        .remixTvTop10List {
-          display: grid;
-          gap: 10px;
-          align-content: start;
-          min-height: 0;
-          overflow: hidden;
-        }
-
-        .remixTvTop10Row {
-          display: grid;
-          grid-template-columns: 38px 1fr auto;
-          gap: 12px;
-          align-items: center;
-          padding: 12px 14px;
-          border-radius: 20px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: linear-gradient(
-            90deg,
-            rgba(28, 16, 48, 0.76),
-            rgba(16, 18, 45, 0.72),
-            rgba(40, 13, 54, 0.62)
-          );
-          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
-        }
-
-        .remixTvTop10Row--portrait {
-          grid-template-columns: 30px 1fr auto;
-          gap: 10px;
-          padding: 10px 12px;
-          border-radius: 18px;
-        }
-
-        .remixTvTop10Pos {
-          font-size: 28px;
-          font-weight: 1000;
-          line-height: 1;
-          text-align: center;
-          color: #fff;
-          text-shadow: 0 0 14px rgba(255,255,255,0.18);
-        }
-
-        .remixTvTop10Row--portrait .remixTvTop10Pos {
-          font-size: 22px;
-        }
-
-        .remixTvTop10Text {
-          min-width: 0;
-        }
-
-        .remixTvTop10Song {
-          font-size: clamp(16px, 0.95vw, 20px);
-          font-weight: 1000;
-          line-height: 1.12;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .remixTvTop10Row--portrait .remixTvTop10Song {
-          font-size: clamp(14px, 1.65vw, 18px);
-        }
-
-        .remixTvTop10Artist {
-          margin-top: 4px;
-          font-size: clamp(12px, 0.8vw, 15px);
-          color: var(--muted);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .remixTvTop10Row--portrait .remixTvTop10Artist {
-          font-size: clamp(11px, 1.28vw, 14px);
-          margin-top: 3px;
-        }
-
-        .remixTvTop10Score {
-          min-width: 38px;
-          height: 38px;
-          padding: 0 12px;
-          border-radius: 999px;
-          display: grid;
-          place-items: center;
-          font-size: 14px;
-          font-weight: 1000;
-          background: rgba(0,247,255,0.09);
-          border: 1px solid rgba(0,247,255,0.24);
-          box-shadow: var(--glowA);
-        }
-
-        .remixTvTop10Row--portrait .remixTvTop10Score {
-          min-width: 30px;
-          height: 30px;
-          padding: 0 10px;
-          font-size: 12px;
-        }
-
-        .remixTvEmptyState {
-          padding: 16px 10px;
-          font-size: 18px;
-          color: var(--muted);
-        }
-
-        .remixTvEmptyState--portrait {
-          padding: 14px 8px;
-          font-size: 15px;
-          line-height: 1.35;
-        }
-
-        .remixTvBottomCta {
-          border-top: 1px solid rgba(255,255,255,0.12);
-          margin-top: 2px;
-          display: grid;
-          align-items: center;
-        }
-
-        .remixTvBottomCta--landscape {
-          padding-top: 12px;
-          grid-template-columns: 1fr 122px;
-          gap: 16px;
-        }
-
-        .remixTvBottomCta--portrait {
-          padding-top: 10px;
-          grid-template-columns: 1fr 98px;
-          gap: 12px;
-        }
-
-        .remixTvBottomText {
-          line-height: 1.08;
-          font-weight: 1000;
-          font-style: italic;
-          text-transform: uppercase;
-          letter-spacing: 0.35px;
-        }
-
-        .remixTvBottomText--landscape {
-          font-size: clamp(16px, 1vw, 20px);
-          text-align: center;
-        }
-
-        .remixTvBottomText--portrait {
-          font-size: clamp(14px, 1.5vw, 18px);
-          text-align: left;
-        }
-
-        .remixTvBottomTextLineStrong {
-          display: block;
-          color: #fff;
-        }
-
-        .remixTvBottomTextLineMuted {
-          display: block;
-          color: rgba(255,255,255,0.7);
-          margin-top: 4px;
-        }
-
-        .remixTvBottomQrWrap {
-          justify-self: end;
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,0.14);
-          background: rgba(255,255,255,0.04);
-        }
-
-        .remixTvBottomQrWrap--landscape {
-          width: 112px;
-          height: 112px;
-          padding: 4px;
-        }
-
-        .remixTvBottomQrWrap--portrait {
-          width: 98px;
-          height: 98px;
-          padding: 4px;
-          border-radius: 14px;
-        }
-
-        .remixTvBottomQr {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          display: block;
-          border-radius: 12px;
-        }
-
-        .remixTvPortraitCluster {
-          display: grid;
-          gap: 10px;
-          min-height: 0;
-          grid-template-rows: auto auto 1fr auto;
-        }
-
-        .remixTvPortraitTop10Block {
-          min-height: 0;
-          display: grid;
-          grid-template-rows: auto 1fr;
-          gap: 8px;
-        }
-
-        .remixTvFlash::before {
-          content: "";
-          position: fixed;
-          inset: 0;
-          background:
-            radial-gradient(circle at 50% 40%, rgba(255,57,212,0.18), transparent 55%),
-            radial-gradient(circle at 40% 60%, rgba(0,247,255,0.14), transparent 60%);
-          animation: remixTvFlashAnim 900ms ease-out 1;
-          pointer-events: none;
-          z-index: 9999;
-          mix-blend-mode: screen;
-        }
-
-        @media (max-width: 1400px) and (orientation: landscape) {
-          .remixTvWrap {
-            grid-template-columns: minmax(0, 1.22fr) minmax(380px, 0.92fr);
-          }
-
-          .remixTvBubbleLayout--side {
-            grid-template-columns: minmax(310px, 46%) minmax(0, 1fr);
-          }
-
-          .remixTvBubbleLayout--stacked {
-            grid-template-rows: minmax(210px, 0.7fr) auto;
-          }
-
-          .remixTvBubbleLayout--side .remixTvBubbleBody,
-          .remixTvBubbleLayout--stacked .remixTvBubbleBody {
-            font-size: clamp(22px, 3vw, 42px);
-          }
-
-          .remixTvBubbleLayout--side .remixTvBubbleFrom,
-          .remixTvBubbleLayout--stacked .remixTvBubbleFrom {
-            font-size: clamp(15px, 1.4vw, 24px);
-          }
-
-          .remixTvFeatureMediaShell--portrait {
-            min-height: 500px;
-          }
-
-          .remixTvFeatureMediaShell--landscape,
-          .remixTvFeatureMediaShell--square {
-            min-height: 200px;
-          }
-
-          .remixTvFeatureMediaImg--portrait {
-            min-height: 500px;
-          }
-
-          .remixTvFeatureMediaImg--landscape,
-          .remixTvFeatureMediaImg--square {
-            min-height: 200px;
-          }
-        }
-
-        @media (orientation: portrait) {
-          .remixTvWrap {
-            grid-template-columns: 1fr;
-            grid-template-rows: minmax(0, 1.14fr) minmax(0, 0.86fr);
-            height: 100vh;
-          }
-
-          .remixTvShoutoutPanel {
-            padding: 12px 12px 14px;
-            gap: 10px;
-          }
-
-          .remixTvSectionTitle {
-            font-size: clamp(20px, 4.6vw, 32px);
-          }
-
-          .remixTvBubble {
-            border-radius: 28px 28px 28px 18px;
-            padding: 12px 16px 16px 14px;
-          }
-
-          .remixTvBubbleTimerRow {
-            height: 38px;
-            grid-template-columns: 62px 1fr;
-            gap: 10px;
-            margin-bottom: 10px;
-          }
-
-          .remixTvBubbleTimerTrack {
-            height: 14px;
-          }
-
-          .remixTvBubbleLayout--side {
-            grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
-            gap: 12px;
-          }
-
-          .remixTvBubbleLayout--stacked {
-            grid-template-rows: minmax(170px, 0.72fr) auto;
-            gap: 12px;
-          }
-
-          .remixTvBubbleLayout--side .remixTvBubbleBody,
-          .remixTvBubbleLayout--stacked .remixTvBubbleBody {
-            font-size: clamp(20px, 4.6vw, 34px);
-          }
-
-          .remixTvBubbleLayout--textOnly .remixTvBubbleBody {
-            font-size: clamp(28px, 6vw, 44px);
-          }
-
-          .remixTvBubbleLayout--side .remixTvBubbleFrom,
-          .remixTvBubbleLayout--stacked .remixTvBubbleFrom {
-            font-size: clamp(14px, 2.6vw, 22px);
-          }
-
-          .remixTvFeatureMediaShell {
-            border-radius: 18px;
-          }
-
-          .remixTvFeatureMediaShell--portrait {
-            min-height: 270px;
-          }
-
-          .remixTvFeatureMediaShell--landscape,
-          .remixTvFeatureMediaShell--square {
-            min-height: 160px;
-          }
-
-          .remixTvFeatureMediaImg--portrait {
-            min-height: 270px;
-          }
-
-          .remixTvFeatureMediaImg--landscape,
-          .remixTvFeatureMediaImg--square {
-            min-height: 160px;
-          }
-
-          .remixTvQueuePanel--portrait {
-            padding: 10px;
-            gap: 10px;
-          }
-        }
-      `}</style>
-    </div>
-  );
+  }
+
+  async function loadMessages() {
+    try {
+      const res = await fetch(`/api/admin/shoutouts/${location}`, { cache: "no-store" });
+      const data = (await res.json()) as AdminShoutoutsResponse;
+      const nextPending = data.pending || [];
+      setPendingMessages(nextPending);
+      setApprovedMessages(data.approved || []);
+      setActiveMessages(data.active || []);
+      setRejectedMessages(data.rejected || []);
+      setBlockedCount(Number(data.blockedCount || 0));
+      return nextPending as MessageItem[];
+    } catch {
+      return [] as MessageItem[];
+    }
+  }
+
+  async function loadRules(force = false) {
+  if (rulesDirty && !force) return rules;
+
+  try {
+    const res = await fetch(`/api/admin/rules/get/${location}`, { cache: "no-store" });
+
+    if (res.status === 401) {
+      setAuthed(false);
+      return null;
+    }
+
+    const data: any = await safeJson(res);
+    if (data?.rules) {
+      setRules(data.rules);
+      cacheLogo(data.rules.logoUrl);
+      return data.rules as RulesState;
+    }
+  } catch {}
+
+  return null;
 }
 
-function LandscapeQueuePanel({
-  nowPlaying,
-  queueList,
-  topIsBoosted,
-  showA,
-  artA,
-  artB,
-  qrSrc,
-  requestUrl,
-}: {
-  nowPlaying: QueueItem | null;
-  queueList: QueueItem[];
-  topIsBoosted: boolean;
-  showA: boolean;
-  artA: string | null;
-  artB: string | null;
-  qrSrc: string;
-  requestUrl: string;
-}) {
-  return (
-    <div className="neonPanel remixTvQueuePanel remixTvQueuePanel--landscape">
-      <div className="remixTvSectionHeader remixTvQueueHeader">
-        <div className="remixTvSectionTitle">Queued Up</div>
-      </div>
+  async function saveRules(successMessage = "✅ Request settings saved.") {
+  if (!rules || savingRules) return false;
 
-      <TopCard
-        mode="landscape"
-        nowPlaying={nowPlaying}
-        topIsBoosted={topIsBoosted}
-        showA={showA}
-        artA={artA}
-        artB={artB}
-      >
-        <div className="remixTvTagRow">
-          <div className="tvTag">REMIX REQUESTS</div>
-          <div className="tvTag" style={{ boxShadow: "var(--glowB)" }}>
-            PLAY NOW • UP NEXT
-          </div>
-          <div className="tvTag" style={{ boxShadow: "var(--glowA)" }}>
-            TOP 10
-          </div>
-        </div>
+  setSavingRules(true);
+  setRequestSettingsMsg("");
 
-        <div className="neonEQ" aria-hidden="true" style={{ marginTop: 12 }}>
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
+  try {
+    const res = await fetch(`/api/admin/rules/set/${location}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(rules),
+    });
 
-        <div className="remixTvUrl">{requestUrl.replace("https://", "")}</div>
-      </TopCard>
+    const data: any = await safeJson(res);
 
-      <Top10Block queueList={queueList} mode="landscape" />
+    if (data?.ok) {
+      const nextRules = (data.rules || rules) as RulesState;
+      setRules(nextRules);
+      setRulesDirty(false);
 
-      <CtaBlock mode="landscape" qrSrc={qrSrc} />
-    </div>
-  );
+      if (nextRules.logoUrl) cacheLogo(nextRules.logoUrl);
+
+      setRequestSettingsMsg(successMessage);
+      return true;
+    }
+
+    setRequestSettingsMsg(String(data?.error || "Could not save settings."));
+    return false;
+  } catch {
+    setRequestSettingsMsg("Could not save settings.");
+    return false;
+  } finally {
+    setSavingRules(false);
+  }
+}
+  function patchRules(patch: Partial<RulesState>) {
+  setRules((curr) => {
+    if (!curr) return curr;
+    return { ...curr, ...patch };
+  });
+  setRulesDirty(true);
+  setRequestSettingsMsg("");
 }
 
-function PortraitQueuePanel({
-  nowPlaying,
-  queueList,
-  topIsBoosted,
-  showA,
-  artA,
-  artB,
-  qrSrc,
-}: {
-  nowPlaying: QueueItem | null;
-  queueList: QueueItem[];
-  topIsBoosted: boolean;
-  showA: boolean;
-  artA: string | null;
-  artB: string | null;
-  qrSrc: string;
-}) {
-  return (
-    <div className="neonPanel remixTvQueuePanel remixTvQueuePanel--portrait">
-      <div className="remixTvPortraitCluster">
-        <div className="remixTvSectionHeader remixTvQueueHeader">
-          <div className="remixTvSectionTitle">Queued Up</div>
-        </div>
+  async function loadUsers() {
+    try {
+      const res = await fetch(`/api/admin/session-users/${location}`, { cache: "no-store" });
+      const data = await res.json();
+      setUsers(data.users || []);
+    } catch {}
+  }
 
-        <TopCard
-          mode="portrait"
-          nowPlaying={nowPlaying}
-          topIsBoosted={topIsBoosted}
-          showA={showA}
-          artA={artA}
-          artB={artB}
-        >
-          <div className="remixTvTopMetaRow">
-            <div className="remixTvTopBadge">Top 10 Live</div>
-            {topIsBoosted ? <div className="remixTvTopBadge remixTvTopBadge--boosted">Boosted</div> : null}
-          </div>
-        </TopCard>
+  async function loadTop10(bucketOverride?: Top10Bucket | "AUTO") {
+    try {
+      const bucket = bucketOverride ?? top10BucketView;
+      const query = bucket && bucket !== "AUTO" ? `?bucket=${bucket}` : "";
+      const res = await fetch(`/api/admin/top10/${location}${query}`, { cache: "no-store" });
+      const data = (await res.json()) as Top10Response;
+      setTop10(Array.isArray(data.items) ? data.items : []);
+      setTop10ActiveBucket((data.bucket as Top10Bucket) || "");
+      setTop10BoardTitle(data.boardTitle || "Top 10");
+      setTop10UpdatedAt(data.updatedAt || "");
+      setTop10SessionId(data.sessionId || "");
+    } catch {}
+  }
 
-        <div className="remixTvPortraitTop10Block">
-          <Top10Block queueList={queueList} mode="portrait" />
-        </div>
+  async function resetTop10(resetMode: "current" | "all" | "bucket", bucket?: Top10Bucket) {
+    setTop10Busy(true);
+    try {
+      const res = await fetch(`/api/admin/top10/reset`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ location, resetMode, bucket }),
+      });
+      const data: any = await safeJson(res);
+      if (!data?.ok) {
+        setMsg(data?.error || "Could not reset Top 10 board.");
+        return;
+      }
+      setMsg(`✅ Top 10 reset complete. Removed ${Number(data.deletedCount || 0)} row(s).`);
+      await loadTop10();
+    } finally {
+      setTop10Busy(false);
+    }
+  }
 
-        <CtaBlock mode="portrait" qrSrc={qrSrc} />
-      </div>
-    </div>
-  );
+  async function loadCodes() {
+    try {
+      const res = await fetch(`/api/admin/redemption-codes/${location}`, { cache: "no-store" });
+      const data = await res.json();
+      setCodes(data.items || []);
+    } catch {}
+  }
+
+  async function createCode() {
+    setCodesMsg("");
+    const code = codeNew.trim().toUpperCase();
+    if (!code) return setCodesMsg("Enter a code.");
+    const res = await fetch(`/api/admin/redemption-codes/${location}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        code,
+        points: codePoints,
+        maxUses: codeMaxUses,
+        source: "manual",
+      }),
+    });
+    const data: any = await safeJson(res);
+    if (!data?.ok) return setCodesMsg(data?.error || "Could not create code.");
+    setCodeNew("");
+    setCodesMsg("✅ Code created.");
+    await loadCodes();
+  }
+
+async function importCodes(file: File) {
+  setCodesMsg("");
+  setImportingCodes(true);
+
+  try {
+    const form = new FormData();
+    form.append("file", file);
+
+    const res = await fetch(`/api/admin/redemption-codes/import/${location}`, {
+      method: "POST",
+      body: form,
+    });
+
+    const data: any = await safeJson(res);
+
+    if (!data?.ok) {
+      setCodesMsg(data?.error || "Could not import codes.");
+      return;
+    }
+
+    setCodesMsg(`✅ Imported ${Number(data.created || 0)} codes.${Number(data.skipped || 0) ? ` Skipped ${Number(data.skipped || 0)}.` : ""}`);
+    await loadCodes();
+  } finally {
+    setImportingCodes(false);
+  }
 }
 
-function TopCard({
-  mode,
-  nowPlaying,
-  topIsBoosted,
-  showA,
-  artA,
-  artB,
-  children,
-}: {
-  mode: "landscape" | "portrait";
-  nowPlaying: QueueItem | null;
-  topIsBoosted: boolean;
-  showA: boolean;
-  artA: string | null;
-  artB: string | null;
-  children?: ReactNode;
-}) {
-  return (
-    <div className={`remixTvTopCard remixTvTopCard--${mode} ${topIsBoosted ? "remixTvTopCardBoosted" : ""}`}>
-      <div className="remixTvTopArtWrap">
-        <div className="remixTvTopArtFrame">
-          <div className="remixTvTopArtGlow" />
-          <div className="remixTvTopArtLayer" style={{ opacity: showA ? 1 : 0 }}>
-            <Artwork src={artA} alt="" />
-          </div>
-          <div className="remixTvTopArtLayer" style={{ opacity: showA ? 0 : 1 }}>
-            <Artwork src={artB} alt="" />
-          </div>
-          {topIsBoosted && mode === "landscape" ? <div className="remixTvTopRibbon">BOOSTED</div> : null}
-        </div>
-      </div>
 
-      <div className="remixTvTopMeta">
-        <div className="remixTvTopLabel">Now Playing</div>
-        <div className="remixTvTopSong">{nowPlaying?.title || "No requests yet"}</div>
-        <div className="remixTvTopArtist">
-          {nowPlaying?.artist || "Scan the QR to get started"}
-        </div>
-        {children}
-      </div>
-    </div>
-  );
+  async function disableCode(id: string) {
+    await fetch(`/api/admin/redemption-codes/disable`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    await loadCodes();
+    setCodesMsg("✅ Code disabled.");
+  }
+
+  async function deleteCode(id: string, code: string) {
+    const ok = window.confirm(`Delete code ${code}? This removes it from the list permanently.`);
+    if (!ok) return;
+
+    const res = await fetch(`/api/admin/redemption-codes/delete`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const data: any = await safeJson(res);
+    if (!data?.ok) {
+      setCodesMsg(data?.error || "Could not delete code.");
+      return;
+    }
+
+    setCodesMsg("✅ Code deleted.");
+    if (selectedCode?.id === id) {
+      setCodeUsesOpen(false);
+      setSelectedCode(null);
+      setSelectedCodeUses([]);
+    }
+    await loadCodes();
+  }
+
+  async function showCodeUses(codeItem: RedemptionCode) {
+    setSelectedCode(codeItem);
+    setCodeUsesOpen(true);
+    setCodeUsesLoading(true);
+    setSelectedCodeUses([]);
+
+    const res = await fetch(`/api/admin/redemption-codes/uses`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: codeItem.id }),
+    });
+    const data: any = await safeJson(res);
+
+    if (!data?.ok) {
+      setCodesMsg(data?.error || "Could not load code uses.");
+      setSelectedCodeUses([]);
+      setCodeUsesLoading(false);
+      return;
+    }
+
+    setSelectedCodeUses(Array.isArray(data.items) ? data.items : []);
+    setCodeUsesLoading(false);
+  }
+
+  async function approveMessage(messageId: string) {
+    const res = await fetch(`/api/admin/shoutouts/approve`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messageId }),
+    });
+    const data: any = await safeJson(res);
+    if (!data?.ok) {
+      setMsg(data?.error || "Could not approve message.");
+      return;
+    }
+
+    setMsg("✅ Message approved.");
+    playChime();
+    await loadAll();
+  }
+
+  
+
+    function editMessage(messageId: string, currentFromName: string, currentMessageText: string) {
+    setEditMessageId(messageId);
+    setEditFromName(currentFromName || "");
+    setEditMessageText(currentMessageText || "");
+    setEditOpen(true);
+  }
+
+  async function saveEditedMessage() {
+    const nextFromName = String(editFromName || "").trim();
+    const nextMessage = String(editMessageText || "").trim();
+
+    if (!editMessageId) {
+      setMsg("Missing message ID.");
+      return;
+    }
+
+    if (!nextFromName || !nextMessage) {
+      setMsg("Name and shout-out text are required.");
+      return;
+    }
+
+    setEditBusy(true);
+    try {
+      const res = await fetch(`/api/admin/shoutouts/edit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          messageId: editMessageId,
+          fromName: nextFromName,
+          messageText: nextMessage,
+        }),
+      });
+
+      const data: any = await safeJson(res);
+      if (!data?.ok) {
+        setMsg(data?.error || "Could not edit message.");
+        return;
+      }
+
+      setEditOpen(false);
+      setEditMessageId("");
+      setEditFromName("");
+      setEditMessageText("");
+      setMsg("✅ Message updated.");
+      await loadAll();
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
+  async function rejectMessage(messageId: string) {
+    const note = prompt("Reject reason?", "Rejected from dashboard") || "Rejected from dashboard";
+
+    const res = await fetch(`/api/admin/shoutouts/reject`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messageId, note }),
+    });
+    const data: any = await safeJson(res);
+    if (!data?.ok) {
+      setMsg(data?.error || "Could not reject message.");
+      return;
+    }
+
+    setMsg(data?.refunded ? "✅ Message rejected and credits refunded." : "✅ Message rejected.");
+    await loadAll();
+  }
+async function markPlayed(requestId: string) {
+  await fetch(`/api/admin/queue/played`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId }),
+  });
+  await loadAll();
 }
 
-function Top10Block({
-  queueList,
-  mode,
-}: {
-  queueList: QueueItem[];
-  mode: "landscape" | "portrait";
-}) {
-  return (
-    <>
-      <div className="remixTvTop10Header">
-        <span>Top 10</span>
-        {mode === "portrait" ? (
-          <span className="remixTvTop10HeaderSub">Up next favorites</span>
-        ) : null}
-      </div>
+async function rejectRequest(requestId: string) {
+  const reason = prompt("Reject reason?", "Rejected");
+  if (!reason) return;
 
-      <div className="remixTvTop10List">
-        {queueList.length === 0 ? (
-          <div className={`remixTvEmptyState ${mode === "portrait" ? "remixTvEmptyState--portrait" : ""}`}>
-            No requests yet — scan the QR and start the vibe.
-          </div>
-        ) : (
-          queueList.map((item, index) => (
-            <div
-              className={`remixTvTop10Row ${mode === "portrait" ? "remixTvTop10Row--portrait" : ""}`}
-              key={item.id}
-            >
-              <div className="remixTvTop10Pos">{index + 1}</div>
-
-              <div className="remixTvTop10Text">
-                <div className="remixTvTop10Song">{item.title}</div>
-                <div className="remixTvTop10Artist">{item.artist}</div>
-              </div>
-
-              <div className="remixTvTop10Score">{item.score}</div>
-            </div>
-          ))
-        )}
-      </div>
-    </>
-  );
+  await fetch(`/api/admin/queue/reject`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId, reason }),
+  });
+  await loadAll();
 }
 
-function CtaBlock({
-  mode,
-  qrSrc,
-}: {
-  mode: "landscape" | "portrait";
-  qrSrc: string;
-}) {
-  return (
-    <div className={`remixTvBottomCta remixTvBottomCta--${mode}`}>
-      <div className={`remixTvBottomText remixTvBottomText--${mode}`}>
-        {mode === "portrait" ? (
-          <>
-            <span className="remixTvBottomTextLineStrong">Scan to request a song</span>
-            <span className="remixTvBottomTextLineMuted">or send a shout out to the screen</span>
-          </>
-        ) : (
-          <>
-            <div>SCAN TO</div>
-            <div>REQUEST SONG OR</div>
-            <div>SEND MESSAGE</div>
-          </>
-        )}
-      </div>
+  async function importSongs(file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`/api/admin/songs/import/${location}`, {
+      method: "POST",
+      body: form,
+    });
+    const data: any = await safeJson(res);
+    setMsg(data?.ok ? `✅ Imported ${data.created} songs.` : data?.error || "Import failed.");
+  }
 
-      <div className={`remixTvBottomQrWrap remixTvBottomQrWrap--${mode}`}>
-        <img
-          src={qrSrc}
-          alt="QR code to request songs"
-          className="remixTvBottomQr"
-          referrerPolicy="no-referrer"
-        />
-      </div>
-    </div>
-  );
+  function updatePlaceholder(index: number, patch: Partial<PlaceholderMessage>) {
+    setPlaceholders((curr) => curr.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  }
+
+  function savePlaceholderSettings() {
+    savePlaceholders(location, placeholders);
+    setMsg("✅ Placeholder shout-outs saved for this browser.");
+  }
+
+  function resetPlaceholderSettings() {
+    setPlaceholders(DEFAULT_PLACEHOLDERS);
+    savePlaceholders(location, DEFAULT_PLACEHOLDERS);
+    setMsg("✅ Placeholder shout-outs reset.");
+  }
+
+  async function saveTop10Settings() {
+  setTop10SettingsMsg("");
+  const ok = await saveRules("✅ Top 10 settings saved.");
+  if (ok) {
+    setTop10SettingsMsg("✅ Top 10 settings saved.");
+    await loadTop10();
+  } else {
+    setTop10SettingsMsg("Could not save Top 10 settings.");
+  }
 }
 
-function FeatureBubble({
-  imageUrl,
-  body,
-  fromName,
-}: {
-  imageUrl?: string | null;
-  body: string;
-  fromName: string;
-}) {
-  const [layout, setLayout] = useState<"side" | "stacked" | "textOnly">(
-    imageUrl ? "side" : "textOnly"
-  );
+  const effectiveTop10CutoffHour = Number(rules?.top10AdultCutoffHour ?? 21);
+  const effectiveTop10CutoffMinute = Number(rules?.top10AdultCutoffMinute ?? 0);
+  const effectiveTop10Timezone = rules?.top10Timezone || "America/New_York";
 
-  const isShortMessage = body.trim().length <= 70;
-  const textClassName = `remixTvBubbleText${
-    imageUrl && isShortMessage ? " remixTvBubbleText--imageShort" : ""
-  }`;
+async function loadAll() {
+ const isEditingRulesTab = tab === "requestSettings" || tab === "top10";
 
-  if (!imageUrl) {
+if (!isEditingRulesTab || !rulesDirty) {
+  await loadRules();
+}
+
+  if (!authed) return;
+
+  const nextRequests = await loadRequests();
+  const nextPendingMessages = await loadMessages();
+
+  await Promise.all([
+    loadUsers(),
+    loadTop10(),
+    loadCodes(),
+  ]);
+
+  maybePlayChime(nextRequests, nextPendingMessages);
+}
+
+ useEffect(() => {
+  loadCachedLogo();
+  setAuthed(false);
+  setRules(null);
+}, [location]);
+
+  useEffect(() => {
+    setPlaceholders(loadSavedPlaceholders(location));
+  }, [location]);
+
+useEffect(() => {
+  if (!authed) return;
+
+  void loadAll();
+
+  const id = setInterval(() => {
+    void loadAll();
+ }, tab === "requestSettings" || tab === "top10" ? 6000 : 3000);
+
+  return () => clearInterval(id);
+}, [authed, location, top10BucketView, tab, rulesDirty]);
+
+  if (!authed) {
     return (
-      <div className="remixTvBubbleLayout remixTvBubbleLayout--textOnly">
-        <div className={textClassName}>
-          <div>
-            <div className="remixTvBubbleBody">{body}</div>
+      <div style={loginWrap}>
+        <style>{`
+          @keyframes rrAdminCardIn {
+            0% { opacity: 0; transform: translateY(10px) scale(0.985); filter: blur(2px); }
+            100% { opacity: 1; transform: translateY(0px) scale(1); filter: blur(0px); }
+          }
+          @keyframes rrAdminLogoIn {
+            0% { opacity: 0; transform: scale(0.92); filter: blur(6px); }
+            55% { opacity: 1; transform: scale(1.02); filter: blur(0px); }
+            100% { opacity: 1; transform: scale(1); filter: blur(0px); }
+          }
+        `}</style>
+        <div style={loginCard}>
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt="Admin Logo"
+              style={{
+                width: 320,
+                height: 320,
+                objectFit: "contain",
+                borderRadius: 22,
+                marginBottom: 18,
+                boxShadow:
+                  "0 0 0 1px rgba(90,90,255,0.10), 0 0 22px rgba(90,90,255,0.10), 0 0 70px rgba(122,60,255,0.10)",
+                animation: "rrAdminLogoIn 700ms cubic-bezier(0.2, 0.9, 0.2, 1) both",
+              }}
+            />
+          ) : null}
+
+          <h1 style={{ margin: 0 }}>Admin • {location}</h1>
+          <p style={{ opacity: 0.8, marginTop: 6 }}>
+            Enter PIN to manage requests, users, and shout-outs.
+          </p>
+
+          <form onSubmit={login} style={{ display: "grid", gap: 10, marginTop: 12 }}>
+            <input
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              placeholder="PIN"
+              style={inputStyle}
+              inputMode="numeric"
+              autoFocus
+            />
+            <button type="submit" style={primaryBtn}>Login</button>
+          </form>
+
+          {msg ? <div style={noteStyle}>{msg}</div> : null}
+
+          <div style={{ marginTop: 14, fontSize: 12, opacity: 0.7 }}>
+            Tip: type your 4-digit PIN and press <b>Enter</b>.
           </div>
-          <div className="remixTvBubbleFrom">— {fromName}</div>
         </div>
       </div>
     );
   }
 
   return (
-    <ImageOrientationFrame
-      src={imageUrl}
-      onOrientation={(orientation) => {
-        setLayout(orientation === "portrait" ? "side" : "stacked");
-      }}
-    >
-      {(media) => (
-        <div
-          className={`remixTvBubbleLayout ${
-            layout === "stacked"
-              ? "remixTvBubbleLayout--stacked"
-              : "remixTvBubbleLayout--side"
-          }`}
-        >
-          <div className="remixTvBubbleMedia">{media}</div>
-
-          <div className={textClassName}>
-            <div>
-              <div className="remixTvBubbleBody">{body}</div>
-            </div>
-            <div className="remixTvBubbleFrom">— {fromName}</div>
-          </div>
-        </div>
-      )}
-    </ImageOrientationFrame>
-  );
-}
-
-function Artwork({ src, alt }: { src?: string | null; alt: string }) {
-  const [bad, setBad] = useState(false);
-
-  if (!src || bad) {
-    return (
+    <div style={{ padding: 20, maxWidth: 1440, margin: "0 auto", color: "#fff" }}>
       <div
         style={{
-          width: "100%",
-          height: "100%",
-          display: "grid",
-          placeItems: "center",
-          fontWeight: 1000,
-          opacity: 0.65,
-          fontSize: 22,
-          letterSpacing: 1.2,
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 20,
+          alignItems: "center",
+          marginBottom: 20,
+          border: "1px solid #1f2340",
+          borderRadius: 24,
+          padding: 16,
+          background: "rgba(10,10,22,0.88)",
         }}
       >
-        REMIX
-      </div>
-    );
-  }
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <img
+            src={logoUrl}
+            alt="Admin Logo"
+            style={{ height: 56, width: 56, objectFit: "contain", borderRadius: 12 }}
+          />
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 1000, fontStyle: "italic" }}>ADMIN DASHBOARD</div>
+            <div style={{ opacity: 0.75 }}>{location}</div>
+          </div>
+        </div>
 
-  return (
-    <img
-      src={src}
-      alt={alt}
-      onError={() => setBad(true)}
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-    />
-  );
-}
-
-function ImageOrientationFrame({
-  src,
-  onOrientation,
-  children,
-}: {
-  src: string;
-  onOrientation: (orientation: "portrait" | "landscape" | "square") => void;
-  children: (media: ReactNode) => ReactNode;
-}) {
-  const [bad, setBad] = useState(false);
-  const [mode, setMode] = useState<"portrait" | "landscape" | "square">("square");
-
-  if (bad) {
-    return (
-      <div className="remixTvBubbleLayout remixTvBubbleLayout--textOnly">
-        <div className="remixTvBubbleText">
-          <div className="remixTvBubbleBody">Image unavailable</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <TabButton active={tab === "dashboard"} onClick={() => setTab("dashboard")}>Dashboard</TabButton>
+          <TabButton active={tab === "requestSettings"} onClick={() => setTab("requestSettings")}>Request Settings</TabButton>
+          <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>Top 10</TabButton>
+          <TabButton active={tab === "users"} onClick={() => setTab("users")}>Users and Points</TabButton>
+          <TabButton active={tab === "shoutoutSettings"} onClick={() => setTab("shoutoutSettings")}>Shoutout Settings</TabButton>
         </div>
       </div>
-    );
-  }
 
-  const media = (
-    <div className={`remixTvFeatureMediaShell remixTvFeatureMediaShell--${mode}`}>
-      <img
-        src={src}
-        alt=""
-        referrerPolicy="no-referrer"
-        className={`remixTvFeatureMediaImg remixTvFeatureMediaImg--${mode}`}
-        onError={() => setBad(true)}
-        onLoad={(e) => {
-          const img = e.currentTarget;
-          const w = img.naturalWidth || 0;
-          const h = img.naturalHeight || 0;
+      {msg ? <div style={noteStyle}>{msg}</div> : null}
 
-          if (!w || !h) {
-            setMode("square");
-            onOrientation("square");
-            return;
-          }
+      {tab === "dashboard" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+<Panel title="PENDING REQUESTS">
+  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", marginBottom: 10 }}>
+    <div style={{ fontSize: 12, opacity: 0.75 }}>
+      {(() => {
+        const c = rulesCostsFromRules(rules);
+        return (
+          <>
+            Request <b>{c.costRequest}</b> • BOOST <b>{c.costPlayNow}</b> • Upvote <b>{c.costUpvote}</b> • Downvote <b>{c.costDownvote}</b>
+          </>
+        );
+      })()}
+    </div>
+  </div>
 
-          const ratio = w / h;
-          if (ratio > 1.15) {
-            setMode("landscape");
-            onOrientation("landscape");
-          } else if (ratio < 0.85) {
-            setMode("portrait");
-            onOrientation("portrait");
-          } else {
-            setMode("square");
-            onOrientation("square");
-          }
+  <div style={{ fontWeight: 1000, fontStyle: "italic", marginBottom: 8 }}>
+    BOOSTED (<i>PAID</i> TO PLAY NEXT)
+  </div>
+
+  {pendingRequests.filter((q) => q.boosted || q.type === "PLAY_NOW").length === 0 ? (
+    <div style={{ opacity: 0.7, marginBottom: 14 }}>No Play Now requests.</div>
+  ) : (
+    pendingRequests
+      .filter((q) => q.boosted || q.type === "PLAY_NOW")
+      .map((q) => (
+<QueueRow
+  key={q.id}
+  q={q}
+  onPlayed={() => markPlayed(q.id)}
+  onReject={() => rejectRequest(q.id)}
+/>
+      ))
+  )}
+
+  <div style={{ height: 10 }} />
+
+  <div style={{ fontWeight: 1000, fontStyle: "italic", marginBottom: 8 }}>
+    UP NEXT
+  </div>
+
+  {pendingRequests.filter((q) => !(q.boosted || q.type === "PLAY_NOW")).length === 0 ? (
+    <div style={{ opacity: 0.7 }}>No queued requests yet.</div>
+  ) : (
+    pendingRequests
+      .filter((q) => !(q.boosted || q.type === "PLAY_NOW"))
+      .map((q, i) => (
+<QueueRow
+  key={q.id}
+  q={q}
+  index={i + 1}
+  onPlayed={() => markPlayed(q.id)}
+  onReject={() => rejectRequest(q.id)}
+/>
+      ))
+  )}
+</Panel>
+          <Panel title="PENDING MESSAGES">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <Pill>Pending {pendingMessages.length}</Pill>
+              <Pill>Approved {approvedMessages.length}</Pill>
+              <Pill>Active {activeMessages.length}</Pill>
+              <Pill>Rejected {rejectedMessages.length}</Pill>
+              <Pill>Blocked {blockedCount}</Pill>
+            </div>
+
+            {pendingMessages.length === 0 ? (
+              <div style={{ opacity: 0.75 }}>No pending messages right now.</div>
+            ) : (
+              pendingMessages.map((m) => {
+                const product = safeProduct(m.tier);
+                return (
+                  <div key={m.id} style={rowCardStyle}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        <div style={{ fontWeight: 900 }}>{m.fromName}</div>
+                        <Pill>{product?.title || m.tier}</Pill>
+                        {m.creditsCost != null ? <Pill>{m.creditsCost} pts</Pill> : null}
+                      </div>
+
+                      <div style={{ marginTop: 8, opacity: 0.94 }}>{m.messageText}</div>
+
+                      {m.autoTextModerationReason ? (
+                        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.72 }}>
+                          Auto filter: {m.autoTextModerationReason}
+                        </div>
+                      ) : null}
+
+                      {m.signedImageUrl ? (
+                        <div
+                          style={{
+                            marginTop: 10,
+                            width: 140,
+                            height: 140,
+                            borderRadius: 16,
+                            overflow: "hidden",
+                            border: "1px solid #2a3157",
+                            background: "#0b0d18",
+                          }}
+                        >
+                          <img
+                            src={m.signedImageUrl}
+                            alt="Shout-out preview"
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              display: "block",
+                            }}
+                          />
+                        </div>
+                      ) : null}
+
+                      <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
+                        Submitted {m.createdAt ? new Date(m.createdAt).toLocaleString() : "just now"}
+                        {m.displayDurationSec ? <> • Window {Math.round(m.displayDurationSec / 60)} min</> : null}
+                        {product?.hasPhoto ? <> • Photo tier</> : null}
+                        {m.imageModerationStatus ? <> • Image: {m.imageModerationStatus}</> : null}
+                      </div>
+                    </div>
+
+                                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignSelf: "flex-start" }}>
+                      <ActionButton onClick={() => approveMessage(m.id)}>Approve</ActionButton>
+                      <ActionButton onClick={() => editMessage(m.id, m.fromName, m.messageText)}>
+  Edit
+</ActionButton>
+                      <ActionButton alt onClick={() => rejectMessage(m.id)}>Reject</ActionButton>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </Panel>
+        </div>
+      )}
+
+      {tab === "requestSettings" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 24 }}>
+          <Panel title="REQUEST SETTINGS">
+            {!rules ? (
+              <div style={{ opacity: 0.75 }}>Loading request settings…</div>
+            ) : (
+              <div style={{ display: "grid", gap: 12 }}>
+                <Field label="Request cost" value={rules.costRequest} onChange={(v) => patchRules({ costRequest: v })} />
+                <Field label="Upvote cost" value={rules.costUpvote} onChange={(v) => patchRules({ costUpvote: v })} />
+                <Field label="Downvote cost" value={rules.costDownvote} onChange={(v) => patchRules({ costDownvote: v })} />
+                <Field label="Play Now / Boost cost" value={rules.costPlayNow} onChange={(v) => patchRules({ costPlayNow: v })} />
+
+                <MoneyField label="10 credit package ($)" centsValue={rules.packTier1PriceCents || 500} onChangeCents={(c) => patchRules({ packTier1PriceCents: c })} />
+                <MoneyField label="25 credit package ($)" centsValue={rules.packTier2PriceCents || 1000} onChangeCents={(c) => patchRules({ packTier2PriceCents: c })} />
+                <MoneyField label="35 credit package ($)" centsValue={rules.packTier3PriceCents || 1500} onChangeCents={(c) => patchRules({ packTier3PriceCents: c })} />
+                <MoneyField label="50 credit package ($)" centsValue={rules.packTier4PriceCents || 2000} onChangeCents={(c) => patchRules({ packTier4PriceCents: c })} />
+
+                <Toggle label="Enable voting" checked={Boolean(rules.enableVoting)} onChange={(v) => patchRules({ enableVoting: v })} />
+                <Toggle label="Enforce artist cooldown" checked={Boolean(rules.enforceArtistCooldown)} onChange={(v) => patchRules({ enforceArtistCooldown: v })} />
+                <Toggle label="Enforce song cooldown" checked={Boolean(rules.enforceSongCooldown)} onChange={(v) => patchRules({ enforceSongCooldown: v })} />
+
+                <Field label="Artist cooldown minutes" value={rules.artistCooldownMinutes || 0} onChange={(v) => patchRules({ artistCooldownMinutes: v })} />
+                <Field label="Song cooldown minutes" value={rules.songCooldownMinutes || 0} onChange={(v) => patchRules({ songCooldownMinutes: v })} />
+                <Field label="Max requests per session" value={rules.maxRequestsPerSession || 0} onChange={(v) => patchRules({ maxRequestsPerSession: v })} />
+                <Field label="Max votes per session" value={rules.maxVotesPerSession || 0} onChange={(v) => patchRules({ maxVotesPerSession: v })} />
+                <Field label="Min seconds between actions" value={rules.minSecondsBetweenActions || 0} onChange={(v) => patchRules({ minSecondsBetweenActions: v })} />
+                <Field label="Max same artist in queue" value={rules.maxArtistInQueue || 0} onChange={(v) => patchRules({ maxArtistInQueue: v })} />
+                <Field label="Max active requests per user" value={rules.maxActiveRequestsPerUser || 0} onChange={(v) => patchRules({ maxActiveRequestsPerUser: v })} />
+
+                <TextField label="Logo URL" value={rules.logoUrl || ""} onChange={(v) => patchRules({ logoUrl: v })} />
+                <TextField label="Explicit message" value={rules.msgExplicit || ""} onChange={(v) => patchRules({ msgExplicit: v })} />
+                <TextField label="Too many active requests message" value={rules.msgTooManyActiveRequests || ""} onChange={(v) => patchRules({ msgTooManyActiveRequests: v })} />
+                <TextField label="Already requested message" value={rules.msgAlreadyRequested || ""} onChange={(v) => patchRules({ msgAlreadyRequested: v })} />
+                <TextField label="Artist cooldown message" value={rules.msgArtistCooldown || ""} onChange={(v) => patchRules({ msgArtistCooldown: v })} />
+                <TextField label="Song cooldown message" value={rules.msgSongCooldown || ""} onChange={(v) => patchRules({ msgSongCooldown: v })} />
+                <TextField label="Artist already queued message" value={rules.msgArtistAlreadyQueued || ""} onChange={(v) => patchRules({ msgArtistAlreadyQueued: v })} />
+                <TextField label="Not enough credits message" value={rules.msgNoCredits || ""} onChange={(v) => patchRules({ msgNoCredits: v })} />
+
+{requestSettingsMsg ? (
+  <div style={{ ...noteStyle, marginBottom: 8 }}>{requestSettingsMsg}</div>
+) : null}
+
+<div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+  <ActionButton onClick={() => void saveRules()}>
+    {savingRules ? "Saving..." : "Save request settings"}
+  </ActionButton>
+</div>
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="IMPORT SONGS">
+            <div style={{ opacity: 0.8, marginBottom: 12 }}>
+              Upload CSV or XLSX song list files here.
+            </div>
+            <input
+              type="file"
+              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) importSongs(f);
+              }}
+              style={{ color: "#fff" }}
+            />
+          </Panel>
+        </div>
+      )}
+
+      {tab === "top10" && (
+        <div style={{ display: "grid", gridTemplateColumns: "0.92fr 1.08fr", gap: 24 }}>
+          <Panel title="TOP 10 SETTINGS">
+            {!rules ? (
+              <div style={{ opacity: 0.75 }}>Loading Top 10 settings…</div>
+            ) : (
+              <div style={{ display: "grid", gap: 12 }}>
+                <Toggle
+                  label="Enable Top 10 board"
+                  checked={Boolean(rules.top10Enabled ?? true)}
+                  onChange={(v) => patchRules({ top10Enabled: v })}
+                />
+
+                <TextField
+                  label="Top 10 timezone"
+                  value={rules.top10Timezone || "America/New_York"}
+                  onChange={(v) => patchRules({ top10Timezone: v })}
+                />
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <Field
+                    label="Adult cutoff hour (24h)"
+                    value={rules.top10AdultCutoffHour ?? 21}
+                    onChange={(v) => patchRules({ top10AdultCutoffHour: v })}
+                  />
+                  <Field
+                    label="Adult cutoff minute"
+                    value={rules.top10AdultCutoffMinute ?? 0}
+                    onChange={(v) => patchRules({ top10AdultCutoffMinute: v })}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    padding: 14,
+                    borderRadius: 16,
+                    border: "1px solid #252b4b",
+                    background: "rgba(17,18,34,0.9)",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <div style={{ fontWeight: 900, marginBottom: 6 }}>ACTIVE BOARD RULES</div>
+                  <div style={{ opacity: 0.82 }}>
+                    Timezone: <b>{effectiveTop10Timezone}</b>
+                  </div>
+                  <div style={{ opacity: 0.82 }}>
+                    Adult cutoff: <b>{String(effectiveTop10CutoffHour).padStart(2, "0")}:{String(effectiveTop10CutoffMinute).padStart(2, "0")}</b>
+                  </div>
+                  <div style={{ opacity: 0.82 }}>
+                    Preview mode: <b>{top10BucketView === "AUTO" ? "Auto bucket" : top10BucketView}</b>
+                  </div>
+                  <div style={{ opacity: 0.82 }}>
+                    Active board from API: <b>{top10ActiveBucket || "—"}</b>
+                  </div>
+                </div>
+
+                {top10SettingsMsg ? (
+  <div style={{ ...noteStyle, marginBottom: 8 }}>{top10SettingsMsg}</div>
+) : null}
+
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <ActionButton onClick={saveTop10Settings}>Save Top 10 settings</ActionButton>
+                  <ActionButton alt onClick={() => loadTop10()}>Refresh board preview</ActionButton>
+                </div>
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="LIVE TOP 10 BOARD">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <ActionButton alt onClick={() => setTop10BucketView("AUTO")}>Auto</ActionButton>
+              <ActionButton alt onClick={() => setTop10BucketView("GENERAL")}>General</ActionButton>
+              <ActionButton alt onClick={() => setTop10BucketView("ADULT")}>Adult</ActionButton>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <Pill>{top10BoardTitle}</Pill>
+              {top10ActiveBucket ? <Pill>Bucket {top10ActiveBucket}</Pill> : null}
+              {top10SessionId ? <Pill>Session {top10SessionId.slice(-6)}</Pill> : null}
+              {top10UpdatedAt ? <Pill>Updated {new Date(top10UpdatedAt).toLocaleTimeString()}</Pill> : null}
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+              <ActionButton alt onClick={() => resetTop10("current")}>
+                {top10Busy ? "Working..." : "Reset current bucket"}
+              </ActionButton>
+              <ActionButton alt onClick={() => resetTop10("bucket", "GENERAL")}>Reset General</ActionButton>
+              <ActionButton alt onClick={() => resetTop10("bucket", "ADULT")}>Reset Adult</ActionButton>
+              <ActionButton alt onClick={() => resetTop10("all")}>Reset All</ActionButton>
+            </div>
+
+            {top10.length === 0 ? (
+              <div style={{ opacity: 0.75 }}>No Top 10 data returned yet.</div>
+            ) : (
+              <div style={{ display: "grid", gap: 10 }}>
+                {top10.map((item, i) => (
+                  <div key={item.id} style={rowStyle}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 900 }}>
+                        {i + 1}. {item.title}
+                      </div>
+                      <div style={{ opacity: 0.75, marginTop: 2 }}>{item.artist}</div>
+                      <div style={{ opacity: 0.62, fontSize: 12, marginTop: 6 }}>
+                        Requests {Number(item.requestCount || 0)} • 👍 {Number(item.upvotes || 0)} • 👎 {Number(item.downvotes || 0)}
+                        {item.lastActivityAt ? ` • Active ${new Date(item.lastActivityAt).toLocaleString()}` : ""}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right", minWidth: 90 }}>
+                      <div style={{ fontSize: 12, opacity: 0.62 }}>Score</div>
+                      <div style={{ fontWeight: 1000, fontSize: 22 }}>{item.score}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
+      )}
+
+      {tab === "users" && (
+        <div style={{ display: "grid", gridTemplateColumns: "0.95fr 1.05fr", gap: 24 }}>
+          <Panel title="ACTIVE SESSION USERS">
+            {users.length === 0 ? (
+              <div style={{ opacity: 0.75 }}>No active users returned yet.</div>
+            ) : (
+              users.map((u) => (
+                <div key={u.emailHash} style={rowStyle}>
+                  <div>
+                    <div style={{ fontWeight: 900 }}>{u.label}</div>
+                    <div style={{ opacity: 0.75 }}>
+                      {u.verified ? "Verified" : "Unverified"}
+                      {u.redemptionCode ? <> • Code {u.redemptionCode}</> : null}
+                    </div>
+                  </div>
+                  <div style={{ opacity: 0.8 }}>Points {u.points}</div>
+                </div>
+              ))
+            )}
+          </Panel>
+
+<Panel title="REDEMPTION CODES">
+  <div style={{ display: "grid", gap: 18 }}>
+    <div>
+      <div style={{ fontSize: 13, opacity: 0.82, marginBottom: 10, fontWeight: 900 }}>
+        CREATE SINGLE CODE
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 0.6fr 0.6fr", gap: 10 }}>
+        <Input
+          value={codeNew}
+          onChange={(e) => setCodeNew(e.target.value.toUpperCase())}
+          placeholder="CODE2026"
+        />
+        <input
+          type="number"
+          value={String(codePoints)}
+          onChange={(e) => setCodePoints(Number(e.target.value))}
+          style={inputStyle}
+        />
+        <input
+          type="number"
+          value={String(codeMaxUses)}
+          onChange={(e) => setCodeMaxUses(Number(e.target.value))}
+          style={inputStyle}
+        />
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+        <ActionButton onClick={createCode}>Create code</ActionButton>
+      </div>
+    </div>
+
+    <div
+      style={{
+        height: 1,
+        background: "linear-gradient(90deg, rgba(255,255,255,0.04), rgba(120,130,255,0.38), rgba(255,255,255,0.04))",
+      }}
+    />
+
+    <div>
+      <div style={{ fontSize: 13, opacity: 0.82, marginBottom: 10, fontWeight: 900 }}>
+        IMPORT CODES FROM XLSX OR CSV
+      </div>
+
+      <div
+        style={{
+          padding: 14,
+          borderRadius: 16,
+          border: "1px solid #252b4b",
+          background: "rgba(17,18,34,0.9)",
+        }}
+      >
+        <div style={{ opacity: 0.78, marginBottom: 10, lineHeight: 1.45 }}>
+          Expected columns: <b>code</b>, <b>points</b>, optional <b>maxUses</b>, optional <b>redeemWindowMinutes</b>, optional <b>expiresAt</b>.
+        </div>
+
+        <input
+          type="file"
+          accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) {
+              void importCodes(f);
+              e.currentTarget.value = "";
+            }
+          }}
+          style={{ color: "#fff" }}
+          disabled={importingCodes}
+        />
+
+        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
+          {importingCodes ? "Importing..." : "Upload a spreadsheet to bulk-create redemption codes."}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {codesMsg ? <div style={{ marginTop: 12, opacity: 0.85 }}>{codesMsg}</div> : null}
+
+  <div style={{ marginTop: 16 }}>
+    {codes.length === 0 ? (
+      <div style={{ opacity: 0.75 }}>No codes yet.</div>
+    ) : (
+      codes.map((c) => (
+        <div key={c.id} style={rowStyle}>
+          <div>
+            <div style={{ fontWeight: 900 }}>{c.code}</div>
+            <div style={{ opacity: 0.75 }}>
+              {c.points} pts • {c.uses}/{c.maxUses} uses
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <ActionButton onClick={() => showCodeUses(c)}>Show uses</ActionButton>
+
+            {!c.disabledAt ? (
+              <ActionButton alt onClick={() => disableCode(c.id)}>Disable</ActionButton>
+            ) : (
+              <Pill>Disabled</Pill>
+            )}
+
+            <ActionButton alt onClick={() => deleteCode(c.id, c.code)}>
+              Delete
+            </ActionButton>
+          </div>
+        </div>
+      ))
+    )}
+  </div>
+</Panel>
+        </div>
+      )}
+
+      <CodeUsesModal
+        open={codeUsesOpen}
+        code={selectedCode}
+        items={selectedCodeUses}
+        loading={codeUsesLoading}
+        onClose={() => {
+          setCodeUsesOpen(false);
+          setSelectedCode(null);
+          setSelectedCodeUses([]);
         }}
       />
+
+      {tab === "shoutoutSettings" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 24 }}>
+          <Panel title="SHOUT OUT PRODUCTS">
+            <div style={{ display: "grid", gap: 12 }}>
+              {liveProducts.map((p: any) => (
+                <div key={p.id} style={cardStyle}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 1000 }}>{p.title}</div>
+                      <div style={{ opacity: 0.78, marginTop: 4 }}>{p.description}</div>
+                    </div>
+                    <div style={{ textAlign: "right", minWidth: 110 }}>
+                      <div style={{ fontWeight: 1000 }}>{p.creditsCost} credits</div>
+                      <div style={{ opacity: 0.7 }}>{Math.round(p.durationSec / 60)} min</div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Pill>{p.hasPhoto ? "Photo tier" : "Text only"}</Pill>
+                    <Pill>Weight {p.weight}</Pill>
+                    <Pill>{p.enabled ? "Live" : "Coming soon"}</Pill>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel title="TV PLACEHOLDER SHOUT OUTS">
+            <div
+              style={{
+                marginBottom: 12,
+                padding: 12,
+                borderRadius: 14,
+                border: "1px solid #2b3157",
+                background: "rgba(23,24,48,0.68)",
+                fontSize: 13,
+                lineHeight: 1.45,
+                opacity: 0.9,
+              }}
+            >
+              These fallback placeholders are stored in browser storage for now. They will appear on the TV page only in the same browser profile until shared backend persistence is added.
+            </div>
+
+            <div style={{ display: "grid", gap: 14 }}>
+              {placeholders.map((p, idx) => (
+                <div key={p.id} style={cardStyle}>
+                  <div style={{ fontWeight: 900, marginBottom: 10 }}>Placeholder {idx + 1}</div>
+
+                  <Label>Header</Label>
+                  <Input value={p.title} onChange={(e) => updatePlaceholder(idx, { title: e.target.value })} />
+
+                  <Label style={{ marginTop: 10 }}>Product Label</Label>
+                  <Input value={p.productTitle || ""} onChange={(e) => updatePlaceholder(idx, { productTitle: e.target.value })} />
+
+                  <Label style={{ marginTop: 10 }}>Message</Label>
+                  <Textarea rows={4} value={p.body} onChange={(e) => updatePlaceholder(idx, { body: e.target.value })} />
+
+                  <Label style={{ marginTop: 10 }}>From</Label>
+                  <Input value={p.fromName} onChange={(e) => updatePlaceholder(idx, { fromName: e.target.value })} />
+
+                  <Label style={{ marginTop: 10 }}>Accent</Label>
+                  <select
+                    value={p.accent || "cyan"}
+                    onChange={(e) => updatePlaceholder(idx, { accent: e.target.value as "gold" | "cyan" | "pink" })}
+                    style={inputStyle}
+                  >
+                    <option value="cyan">Cyan</option>
+                    <option value="gold">Gold</option>
+                    <option value="pink">Pink</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+              <ActionButton onClick={savePlaceholderSettings}>Save placeholder settings</ActionButton>
+              <ActionButton alt onClick={resetPlaceholderSettings}>Reset defaults</ActionButton>
+            </div>
+          </Panel>
+        </div>
+ 
+
+ 
+
+      )}
+
+
+
+
+      {editOpen ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+            zIndex: 9999,
+          }}
+        >
+          <div
+            style={{
+              width: "min(680px, 96vw)",
+              borderRadius: 24,
+              border: "1px solid #2b3157",
+              background: "rgba(9,10,20,0.98)",
+              boxShadow: "0 20px 80px rgba(0,0,0,0.45)",
+              padding: 18,
+            }}
+          >
+            <div style={{ fontSize: 22, fontWeight: 1000, fontStyle: "italic", marginBottom: 14 }}>
+              EDIT SHOUT-OUT
+            </div>
+
+            <Label>From</Label>
+            <Input
+              value={editFromName}
+              onChange={(e) => setEditFromName(e.target.value)}
+              maxLength={40}
+            />
+
+            <Label style={{ marginTop: 12 }}>Message</Label>
+            <Textarea
+              rows={5}
+              value={editMessageText}
+              onChange={(e) => setEditMessageText(e.target.value)}
+              maxLength={160}
+            />
+
+            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.72 }}>
+              {editMessageText.length} characters
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+              <ActionButton onClick={saveEditedMessage}>
+                {editBusy ? "Saving..." : "Save changes"}
+              </ActionButton>
+
+              <ActionButton
+                alt
+                onClick={() => {
+                  if (editBusy) return;
+                  setEditOpen(false);
+                  setEditMessageId("");
+                  setEditFromName("");
+                  setEditMessageText("");
+                }}
+              >
+                Cancel
+              </ActionButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+
+
+
     </div>
   );
-
-  return <>{children(media)}</>;
 }
+
+function CodeUsesModal({
+  open,
+  code,
+  items,
+  loading,
+  onClose,
+}: {
+  open: boolean;
+  code: RedemptionCode | null;
+  items: RedemptionCodeUseItem[];
+  loading: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 300,
+        background: "rgba(0,0,0,0.72)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 18,
+      }}
+    >
+      <div
+        style={{
+          width: "min(920px, 100%)",
+          maxHeight: "84vh",
+          overflow: "auto",
+          border: "1px solid #1f2340",
+          borderRadius: 24,
+          padding: 18,
+          background: "rgba(8,8,20,0.97)",
+          color: "#fff",
+          boxShadow: "0 30px 80px rgba(0,0,0,0.45)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 1000, fontStyle: "italic" }}>
+              CODE USES {code ? `• ${code.code}` : ""}
+            </div>
+            <div style={{ opacity: 0.72, marginTop: 4, fontSize: 13 }}>
+              Showing the best available usage history from the credit ledger.
+            </div>
+          </div>
+          <ActionButton alt onClick={onClose}>Close</ActionButton>
+        </div>
+
+        {loading ? (
+          <div style={{ opacity: 0.75 }}>Loading uses…</div>
+        ) : items.length === 0 ? (
+          <div style={{ opacity: 0.75 }}>No recorded uses found for this code.</div>
+        ) : (
+          <div style={{ display: "grid", gap: 10 }}>
+            {items.map((item, idx) => (
+              <div key={item.id || `${item.emailHash}-${item.usedAt}-${idx}`} style={rowStyle}>
+                <div>
+                  <div style={{ fontWeight: 900 }}>{item.label}</div>
+                  <div style={{ opacity: 0.75 }}>
+                    {new Date(item.usedAt).toLocaleString()}
+                  </div>
+                  <div style={{ opacity: 0.6, fontSize: 12, marginTop: 4 }}>
+                    {item.emailHash}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", opacity: 0.82 }}>
+                  <div>{item.reason}</div>
+                  <div style={{ fontSize: 12, opacity: 0.72 }}>{item.delta > 0 ? `+${item.delta}` : item.delta}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  children,
+  onClick,
+}: {
+  active?: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "10px 14px",
+        borderRadius: 14,
+        border: active ? "1px solid #4f61ff" : "1px solid #232845",
+        background: active ? "rgba(37,41,92,0.92)" : "rgba(10,10,22,0.6)",
+        color: "#fff",
+        fontWeight: 900,
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        border: "1px solid #1f2340",
+        borderRadius: 24,
+        padding: 18,
+        background: "rgba(8,8,20,0.88)",
+      }}
+    >
+      <div style={{ fontSize: 18, fontWeight: 1000, fontStyle: "italic", marginBottom: 14 }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ActionButton({
+  alt,
+  children,
+  onClick,
+}: {
+  alt?: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: "9px 12px",
+        borderRadius: 12,
+        border: alt ? "1px solid #34395e" : "1px solid #4f61ff",
+        background: alt ? "rgba(10,10,22,0.72)" : "rgba(37,41,92,0.92)",
+        color: "#fff",
+        fontWeight: 900,
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Pill({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        padding: "4px 9px",
+        borderRadius: 999,
+        border: "1px solid #2f3561",
+        background: "rgba(18,20,40,0.8)",
+        fontSize: 12,
+        fontWeight: 800,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Label({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
+  return <div style={{ fontSize: 12, opacity: 0.82, marginBottom: 6, ...style }}>{children}</div>;
+}
+
+function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} style={inputStyle} />;
+}
+
+function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea {...props} style={{ ...inputStyle, resize: "vertical" }} />;
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: any;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <label style={{ display: "grid", gap: 6 }}>
+      <span style={{ fontSize: 12, opacity: 0.82 }}>{label}</span>
+      <input
+        type="number"
+        value={String(value ?? 0)}
+        onChange={(e) => onChange(Number(e.target.value))}
+        style={inputStyle}
+      />
+    </label>
+  );
+}
+
+function MoneyField({
+  label,
+  centsValue,
+  onChangeCents,
+}: {
+  label: string;
+  centsValue: number;
+  onChangeCents: (cents: number) => void;
+}) {
+  return (
+    <label style={{ display: "grid", gap: 6 }}>
+      <span style={{ fontSize: 12, opacity: 0.82 }}>{label}</span>
+      <input
+        value={centsToDollars(centsValue)}
+        onChange={(e) => onChangeCents(dollarsToCents(e.target.value))}
+        style={inputStyle}
+        inputMode="decimal"
+      />
+    </label>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <label style={{ display: "grid", gap: 6 }}>
+      <span style={{ fontSize: 12, opacity: 0.82 }}>{label}</span>
+      <input value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
+    </label>
+  );
+}
+
+function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label style={{ ...rowStyle, marginBottom: 0, cursor: "pointer" }}>
+      <div style={{ fontWeight: 900 }}>{label}</div>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ width: 18, height: 18 }}
+      />
+    </label>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 12,
+  border: "1px solid #323862",
+  background: "#0d1020",
+  color: "#fff",
+  outline: "none",
+};
+
+const primaryBtn: React.CSSProperties = {
+  padding: "12px 16px",
+  borderRadius: 14,
+  border: "1px solid #4f61ff",
+  background: "rgba(37,41,92,0.92)",
+  color: "#fff",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const rowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+  padding: 12,
+  borderRadius: 16,
+  border: "1px solid #252b4b",
+  background: "rgba(17,18,34,0.9)",
+  marginBottom: 10,
+};
+
+const rowCardStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "flex-start",
+  padding: 12,
+  borderRadius: 16,
+  border: "1px solid #252b4b",
+  background: "rgba(17,18,34,0.9)",
+  marginBottom: 10,
+};
+
+const cardStyle: React.CSSProperties = {
+  padding: 14,
+  borderRadius: 18,
+  border: "1px solid #252b4b",
+  background: "rgba(17,18,34,0.9)",
+};
+
+const noteStyle: React.CSSProperties = {
+  marginBottom: 16,
+  border: "1px solid #26305c",
+  background: "rgba(24,24,60,0.7)",
+  borderRadius: 16,
+  padding: 14,
+  fontWeight: 700,
+};
+
+const loginWrap: React.CSSProperties = {
+  minHeight: "100vh",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 18,
+  background:
+    "radial-gradient(circle at 14% 14%, rgba(0,255,255,0.05), transparent 24%), radial-gradient(circle at 84% 18%, rgba(167,79,255,0.08), transparent 24%), #04060d",
+  color: "#fff",
+};
+
+const loginCard: React.CSSProperties = {
+  maxWidth: 560,
+  width: "100%",
+  borderRadius: 26,
+  border: "1px solid rgba(90,90,255,0.35)",
+  background: "rgba(0,0,0,0.42)",
+  padding: 18,
+  textAlign: "center",
+  animation: "rrAdminCardIn 500ms ease both",
+};
+const queueRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 14,
+  alignItems: "center",
+  padding: 14,
+  borderRadius: 18,
+  border: "1px solid #252b4b",
+  background: "rgba(17,18,34,0.9)",
+  marginBottom: 10,
+};
+
+const requestPillStyle: React.CSSProperties = {
+  padding: "4px 10px",
+  borderRadius: 999,
+  border: "1px solid #4f61ff",
+  background: "rgba(37,41,92,0.92)",
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: 900,
+  lineHeight: 1,
+};
