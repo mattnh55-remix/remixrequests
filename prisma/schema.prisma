@@ -211,6 +211,7 @@ model Ruleset {
   top10Timezone          String  @default("America/New_York")
   top10AdultCutoffHour   Int     @default(21)
   top10AdultCutoffMinute Int     @default(0)
+  shoutoutSlideSeconds   Int     @default(10)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
