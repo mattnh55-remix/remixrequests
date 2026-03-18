@@ -254,7 +254,7 @@ export default function TvTop10Page({ params }: { params: { location: string } }
               <div className="remixTop10Title">REMIX TOP 10</div>
               <div className="remixTop10Sub">{locationName} • LIVE CROWD SCOREBOARD</div>
             </div>
-          </div>
+          </div></section>
 
 {!isPortraitLayout ? (
   <div className="remixTop10HeaderMeta">
