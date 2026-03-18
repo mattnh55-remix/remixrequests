@@ -76,6 +76,10 @@ type RulesState = {
   packTier2PriceCents?: number;
   packTier3PriceCents?: number;
   packTier4PriceCents?: number;
+  top10Enabled?: boolean;
+  top10Timezone?: string;
+  top10AdultCutoffHour?: number;
+  top10AdultCutoffMinute?: number;
 };
 
 type SessionUser = {
@@ -86,11 +90,27 @@ type SessionUser = {
   redemptionCode?: string | null;
 };
 
+type Top10Bucket = "GENERAL" | "ADULT";
+
 type Top10Item = {
   id: string;
   title: string;
   artist: string;
   score: number;
+  requestCount?: number;
+  upvotes?: number;
+  downvotes?: number;
+  artworkUrl?: string | null;
+  lastActivityAt?: string;
+};
+
+type Top10Response = {
+  ok?: boolean;
+  sessionId?: string;
+  bucket?: Top10Bucket;
+  boardTitle?: string;
+  updatedAt?: string;
+  items?: Top10Item[];
 };
 
 type RedemptionCode = {
@@ -328,6 +348,12 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   const [placeholders, setPlaceholders] = useState<PlaceholderMessage[]>(DEFAULT_PLACEHOLDERS);
   const [users, setUsers] = useState<SessionUser[]>([]);
   const [top10, setTop10] = useState<Top10Item[]>([]);
+  const [top10BucketView, setTop10BucketView] = useState<Top10Bucket | "AUTO">("AUTO");
+  const [top10ActiveBucket, setTop10ActiveBucket] = useState<Top10Bucket | "">("");
+  const [top10BoardTitle, setTop10BoardTitle] = useState("Top 10");
+  const [top10UpdatedAt, setTop10UpdatedAt] = useState("");
+  const [top10SessionId, setTop10SessionId] = useState("");
+  const [top10Busy, setTop10Busy] = useState(false);
   const [codes, setCodes] = useState<RedemptionCode[]>([]);
   const [codesMsg, setCodesMsg] = useState("");
   const [codeNew, setCodeNew] = useState("");
@@ -463,7 +489,7 @@ const [codeUsesOpen, setCodeUsesOpen] = useState(false);
     return null;
   }
 
-  async function saveRules() {
+  async function saveRules(message = "✅ Request settings saved.") {
     if (!rules) return;
     const res = await fetch(`/api/admin/rules/set/${location}`, {
       method: "POST",
@@ -472,11 +498,13 @@ const [codeUsesOpen, setCodeUsesOpen] = useState(false);
     });
     const data: any = await safeJson(res);
     if (data?.ok) {
-      if (rules.logoUrl) cacheLogo(rules.logoUrl);
-      setMsg("✅ Request settings saved.");
-    } else {
-      setMsg("Could not save request settings.");
+      setRules(data.rules);
+      if (data?.rules?.logoUrl) cacheLogo(data.rules.logoUrl);
+      setMsg(message);
+      return true;
     }
+    setMsg(data?.error || "Could not save settings.");
+    return false;
   }
 
   async function loadUsers() {
@@ -487,12 +515,38 @@ const [codeUsesOpen, setCodeUsesOpen] = useState(false);
     } catch {}
   }
 
-  async function loadTop10() {
+  async function loadTop10(bucketOverride?: Top10Bucket | "AUTO") {
     try {
-      const res = await fetch(`/api/admin/top10/${location}`, { cache: "no-store" });
-      const data = await res.json();
-      setTop10(data.items || []);
+      const bucket = bucketOverride ?? top10BucketView;
+      const query = bucket && bucket !== "AUTO" ? `?bucket=${bucket}` : "";
+      const res = await fetch(`/api/admin/top10/${location}${query}`, { cache: "no-store" });
+      const data = (await res.json()) as Top10Response;
+      setTop10(Array.isArray(data.items) ? data.items : []);
+      setTop10ActiveBucket((data.bucket as Top10Bucket) || "");
+      setTop10BoardTitle(data.boardTitle || "Top 10");
+      setTop10UpdatedAt(data.updatedAt || "");
+      setTop10SessionId(data.sessionId || "");
     } catch {}
+  }
+
+  async function resetTop10(resetMode: "current" | "all" | "bucket", bucket?: Top10Bucket) {
+    setTop10Busy(true);
+    try {
+      const res = await fetch(`/api/admin/top10/reset`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ location, resetMode, bucket }),
+      });
+      const data: any = await safeJson(res);
+      if (!data?.ok) {
+        setMsg(data?.error || "Could not reset Top 10 board.");
+        return;
+      }
+      setMsg(`✅ Top 10 reset complete. Removed ${Number(data.deletedCount || 0)} row(s).`);
+      await loadTop10();
+    } finally {
+      setTop10Busy(false);
+    }
   }
 
   async function loadCodes() {
@@ -743,6 +797,15 @@ async function rejectRequest(requestId: string) {
     setMsg("✅ Placeholder shout-outs reset.");
   }
 
+  async function saveTop10Settings() {
+    const ok = await saveRules("✅ Top 10 settings saved.");
+    if (ok) await loadTop10();
+  }
+
+  const effectiveTop10CutoffHour = Number(rules?.top10AdultCutoffHour ?? 21);
+  const effectiveTop10CutoffMinute = Number(rules?.top10AdultCutoffMinute ?? 0);
+  const effectiveTop10Timezone = rules?.top10Timezone || "America/New_York";
+
  async function loadAll() {
   await loadRules();
   if (!authed) return;
@@ -774,7 +837,7 @@ async function rejectRequest(requestId: string) {
     loadAll();
     const id = setInterval(loadAll, 3000);
     return () => clearInterval(id);
-  }, [authed, location]);
+  }, [authed, location, top10BucketView]);
 
   if (!authed) {
     return (
@@ -1072,21 +1135,118 @@ async function rejectRequest(requestId: string) {
       )}
 
       {tab === "top10" && (
-        <Panel title="TOP 10">
-          {top10.length === 0 ? (
-            <div style={{ opacity: 0.75 }}>No Top 10 data returned yet.</div>
-          ) : (
-            top10.map((item, i) => (
-              <div key={item.id} style={rowStyle}>
-                <div>
-                  <div style={{ fontWeight: 900 }}>{i + 1}. {item.title}</div>
-                  <div style={{ opacity: 0.75 }}>{item.artist}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "0.92fr 1.08fr", gap: 24 }}>
+          <Panel title="TOP 10 SETTINGS">
+            {!rules ? (
+              <div style={{ opacity: 0.75 }}>Loading Top 10 settings…</div>
+            ) : (
+              <div style={{ display: "grid", gap: 12 }}>
+                <Toggle
+                  label="Enable Top 10 board"
+                  checked={Boolean(rules.top10Enabled ?? true)}
+                  onChange={(v) => setRules({ ...rules, top10Enabled: v })}
+                />
+
+                <TextField
+                  label="Top 10 timezone"
+                  value={rules.top10Timezone || "America/New_York"}
+                  onChange={(v) => setRules({ ...rules, top10Timezone: v })}
+                />
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <Field
+                    label="Adult cutoff hour (24h)"
+                    value={rules.top10AdultCutoffHour ?? 21}
+                    onChange={(v) => setRules({ ...rules, top10AdultCutoffHour: v })}
+                  />
+                  <Field
+                    label="Adult cutoff minute"
+                    value={rules.top10AdultCutoffMinute ?? 0}
+                    onChange={(v) => setRules({ ...rules, top10AdultCutoffMinute: v })}
+                  />
                 </div>
-                <div style={{ opacity: 0.8 }}>Score {item.score}</div>
+
+                <div
+                  style={{
+                    padding: 14,
+                    borderRadius: 16,
+                    border: "1px solid #252b4b",
+                    background: "rgba(17,18,34,0.9)",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <div style={{ fontWeight: 900, marginBottom: 6 }}>ACTIVE BOARD RULES</div>
+                  <div style={{ opacity: 0.82 }}>
+                    Timezone: <b>{effectiveTop10Timezone}</b>
+                  </div>
+                  <div style={{ opacity: 0.82 }}>
+                    Adult cutoff: <b>{String(effectiveTop10CutoffHour).padStart(2, "0")}:{String(effectiveTop10CutoffMinute).padStart(2, "0")}</b>
+                  </div>
+                  <div style={{ opacity: 0.82 }}>
+                    Preview mode: <b>{top10BucketView === "AUTO" ? "Auto bucket" : top10BucketView}</b>
+                  </div>
+                  <div style={{ opacity: 0.82 }}>
+                    Active board from API: <b>{top10ActiveBucket || "—"}</b>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <ActionButton onClick={saveTop10Settings}>Save Top 10 settings</ActionButton>
+                  <ActionButton alt onClick={() => loadTop10()}>Refresh board preview</ActionButton>
+                </div>
               </div>
-            ))
-          )}
-        </Panel>
+            )}
+          </Panel>
+
+          <Panel title="LIVE TOP 10 BOARD">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <ActionButton alt onClick={() => setTop10BucketView("AUTO")}>Auto</ActionButton>
+              <ActionButton alt onClick={() => setTop10BucketView("GENERAL")}>General</ActionButton>
+              <ActionButton alt onClick={() => setTop10BucketView("ADULT")}>Adult</ActionButton>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <Pill>{top10BoardTitle}</Pill>
+              {top10ActiveBucket ? <Pill>Bucket {top10ActiveBucket}</Pill> : null}
+              {top10SessionId ? <Pill>Session {top10SessionId.slice(-6)}</Pill> : null}
+              {top10UpdatedAt ? <Pill>Updated {new Date(top10UpdatedAt).toLocaleTimeString()}</Pill> : null}
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+              <ActionButton alt onClick={() => resetTop10("current")}>
+                {top10Busy ? "Working..." : "Reset current bucket"}
+              </ActionButton>
+              <ActionButton alt onClick={() => resetTop10("bucket", "GENERAL")}>Reset General</ActionButton>
+              <ActionButton alt onClick={() => resetTop10("bucket", "ADULT")}>Reset Adult</ActionButton>
+              <ActionButton alt onClick={() => resetTop10("all")}>Reset All</ActionButton>
+            </div>
+
+            {top10.length === 0 ? (
+              <div style={{ opacity: 0.75 }}>No Top 10 data returned yet.</div>
+            ) : (
+              <div style={{ display: "grid", gap: 10 }}>
+                {top10.map((item, i) => (
+                  <div key={item.id} style={rowStyle}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 900 }}>
+                        {i + 1}. {item.title}
+                      </div>
+                      <div style={{ opacity: 0.75, marginTop: 2 }}>{item.artist}</div>
+                      <div style={{ opacity: 0.62, fontSize: 12, marginTop: 6 }}>
+                        Requests {Number(item.requestCount || 0)} • 👍 {Number(item.upvotes || 0)} • 👎 {Number(item.downvotes || 0)}
+                        {item.lastActivityAt ? ` • Active ${new Date(item.lastActivityAt).toLocaleString()}` : ""}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right", minWidth: 90 }}>
+                      <div style={{ fontSize: 12, opacity: 0.62 }}>Score</div>
+                      <div style={{ fontWeight: 1000, fontSize: 22 }}>{item.score}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
       )}
 
       {tab === "users" && (

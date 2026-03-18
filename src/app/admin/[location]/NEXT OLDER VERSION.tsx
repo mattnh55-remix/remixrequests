@@ -339,7 +339,11 @@ const [codeUsesOpen, setCodeUsesOpen] = useState(false);
   const [codeUsesLoading, setCodeUsesLoading] = useState(false);
   const [selectedCode, setSelectedCode] = useState<RedemptionCode | null>(null);
   const [selectedCodeUses, setSelectedCodeUses] = useState<RedemptionCodeUseItem[]>([]);
-
+  const [editOpen, setEditOpen] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editMessageId, setEditMessageId] = useState("");
+  const [editFromName, setEditFromName] = useState("");
+  const [editMessageText, setEditMessageText] = useState("");
   const prevRequestIdsRef = useRef<Set<string>>(new Set());
   const prevMessageIdsRef = useRef<Set<string>>(new Set());
   const hasBootedRef = useRef(false);
@@ -621,6 +625,58 @@ async function importCodes(file: File) {
     setMsg("✅ Message approved.");
     playChime();
     await loadAll();
+  }
+
+  
+
+    function editMessage(messageId: string, currentFromName: string, currentMessageText: string) {
+    setEditMessageId(messageId);
+    setEditFromName(currentFromName || "");
+    setEditMessageText(currentMessageText || "");
+    setEditOpen(true);
+  }
+
+  async function saveEditedMessage() {
+    const nextFromName = String(editFromName || "").trim();
+    const nextMessage = String(editMessageText || "").trim();
+
+    if (!editMessageId) {
+      setMsg("Missing message ID.");
+      return;
+    }
+
+    if (!nextFromName || !nextMessage) {
+      setMsg("Name and shout-out text are required.");
+      return;
+    }
+
+    setEditBusy(true);
+    try {
+      const res = await fetch(`/api/admin/shoutouts/edit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          messageId: editMessageId,
+          fromName: nextFromName,
+          messageText: nextMessage,
+        }),
+      });
+
+      const data: any = await safeJson(res);
+      if (!data?.ok) {
+        setMsg(data?.error || "Could not edit message.");
+        return;
+      }
+
+      setEditOpen(false);
+      setEditMessageId("");
+      setEditFromName("");
+      setEditMessageText("");
+      setMsg("✅ Message updated.");
+      await loadAll();
+    } finally {
+      setEditBusy(false);
+    }
   }
 
   async function rejectMessage(messageId: string) {
@@ -938,8 +994,11 @@ async function rejectRequest(requestId: string) {
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignSelf: "flex-start" }}>
+                                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignSelf: "flex-start" }}>
                       <ActionButton onClick={() => approveMessage(m.id)}>Approve</ActionButton>
+                      <ActionButton onClick={() => editMessage(m.id, m.fromName, m.messageText)}>
+  Edit
+</ActionButton>
                       <ActionButton alt onClick={() => rejectMessage(m.id)}>Reject</ActionButton>
                     </div>
                   </div>
@@ -1255,7 +1314,86 @@ async function rejectRequest(requestId: string) {
             </div>
           </Panel>
         </div>
+ 
+
+ 
+
       )}
+
+
+
+
+      {editOpen ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+            zIndex: 9999,
+          }}
+        >
+          <div
+            style={{
+              width: "min(680px, 96vw)",
+              borderRadius: 24,
+              border: "1px solid #2b3157",
+              background: "rgba(9,10,20,0.98)",
+              boxShadow: "0 20px 80px rgba(0,0,0,0.45)",
+              padding: 18,
+            }}
+          >
+            <div style={{ fontSize: 22, fontWeight: 1000, fontStyle: "italic", marginBottom: 14 }}>
+              EDIT SHOUT-OUT
+            </div>
+
+            <Label>From</Label>
+            <Input
+              value={editFromName}
+              onChange={(e) => setEditFromName(e.target.value)}
+              maxLength={40}
+            />
+
+            <Label style={{ marginTop: 12 }}>Message</Label>
+            <Textarea
+              rows={5}
+              value={editMessageText}
+              onChange={(e) => setEditMessageText(e.target.value)}
+              maxLength={160}
+            />
+
+            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.72 }}>
+              {editMessageText.length} characters
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+              <ActionButton onClick={saveEditedMessage}>
+                {editBusy ? "Saving..." : "Save changes"}
+              </ActionButton>
+
+              <ActionButton
+                alt
+                onClick={() => {
+                  if (editBusy) return;
+                  setEditOpen(false);
+                  setEditMessageId("");
+                  setEditFromName("");
+                  setEditMessageText("");
+                }}
+              >
+                Cancel
+              </ActionButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+
+
+
     </div>
   );
 }

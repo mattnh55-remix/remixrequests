@@ -1,86 +1,83 @@
-\# Deployment Guide — RemixRequests
+# Deployment Guide — RemixRequests
 
+## Stack
 
+- Next.js (App Router)
+- Supabase Postgres
+- Prisma ORM
+- Twilio (SMS verification)
+- Mailchimp (opt-in)
+- Square (checkout + credits)
 
-\## Stack
+## Current Deployment State
 
-\- Next.js (App Router)
+- Production stable for requests, credits, admin moderation, and TV
+- Session-based credits working
+- Shoutouts product flow active
+- Top 10 Phase 2 backend deployed
+- TV Top 10 now reading live persisted board data
 
-\- Supabase Postgres
+## Recent Changes (IMPORTANT)
 
-\- Prisma ORM
+### TV shoutout system
+- Persistent countdown timer (no reset between slides)
+- DJ-style progress bar
+- Placeholder rotation retained
 
-\- Twilio (SMS verification)
+### Shoutout product UI
+- Product cards redesigned into retail-style buttons
+- Photo preview switched to smaller, safer mobile presentation
+- Portrait/landscape upload preview no longer implies severe crop
+- Better mobile purchase flow
 
-\- Mailchimp (opt-in)
+### Top 10 system
+- Phase 2 backend added:
+  - persisted `Top10Entry` board
+  - `GENERAL` / `ADULT` buckets
+  - request + vote rollups
+  - score formula:
+    - `requestCount + upvotes - downvotes`
+- TV Top 10 page now polls live board data every ~12 seconds
+- Landscape Top 10 TV layout finalized
+- Portrait Top 10 TV layout converted to no-scroll compact mode
 
-\- Square (checkout + credits)
+### Admin
+- Shoutout edit remains modal-based
+- Redemption code system remains restored
+- Next admin task is splitting Request Settings vs Top 10 settings more cleanly
 
+## Deployment Steps
 
+1. `git add .`
+2. `git commit -m "Describe change"`
+3. `git push origin main`
+4. Verify Vercel deployment
+5. Test:
+   - request submit
+   - voting
+   - shoutout submit
+   - admin moderation
+   - TV display
+   - TV Top 10 live updates
 
-\## Current Deployment State
+## Post-Deploy Checklist
 
-\- Production stable
+- Confirm TV timer persists across slides
+- Confirm shoutout product grid still opens correct composer
+- Confirm portrait Top 10 fits one screen with no scroll
+- Confirm Top 10 board updates after request/vote without manual refresh
+- Confirm admin rules save still works
+- Confirm redemption code import still works
 
-\- Credits flow working (Square → webhook → ledger)
+## Prisma / Schema Notes
 
-\- Session-based credits implemented
+After schema changes, run:
 
-\- Admin + TV display active
+```bash
+npx prisma migrate dev --name describe_change
+npx prisma generate
+```
 
-
-
-\## Recent Changes (IMPORTANT)
-
-\- TV shoutout system upgraded:
-
-&#x20; - Persistent countdown timer (no reset between slides)
-
-&#x20; - DJ-style progress bar (time-based shrink)
-
-&#x20; - Default 20-minute loop for placeholders
-
-\- Admin shoutout editing:
-
-&#x20; - Removed prompt() usage
-
-&#x20; - Replaced with modal-based editor
-
-\- Redemption code system restored:
-
-&#x20; - Import UI
-
-&#x20; - Code usage modal
-
-&#x20; - Delete functionality
-
-
-
-\## Deployment Steps
-
-1\. `git add .`
-
-2\. `git commit -m "Describe change"`
-
-3\. `git push origin main`
-
-4\. Verify Vercel deployment
-
-5\. Test:
-
-&#x20;  - Shoutout submit
-
-&#x20;  - Admin moderation
-
-&#x20;  - TV display rotation
-
-
-
-\## Post-Deploy Checklist
-
-\- Confirm TV timer persists across slides
-
-\- Confirm edit modal works (save + reload)
-
-\- Confirm redemption code import still functional
-
+If deploying schema changes to production, verify:
+- new `Top10Entry` / bucket fields exist
+- new Ruleset Top 10 config fields exist before testing admin settings

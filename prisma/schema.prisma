@@ -207,6 +207,11 @@ model Ruleset {
   maxArtistInQueue           Int    @default(0)
   msgArtistAlreadyQueued     String @default("Sorry, $artist is already queued up on the request list!")
 
+  top10Enabled           Boolean @default(true)
+  top10Timezone          String  @default("America/New_York")
+  top10AdultCutoffHour   Int     @default(21)
+  top10AdultCutoffMinute Int     @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
