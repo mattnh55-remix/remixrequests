@@ -84,20 +84,70 @@ function loadSavedPlaceholders(location: string): PlaceholderMessage[] {
     if (!raw) return PLACEHOLDER_MESSAGES;
 
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || !parsed.length) return PLACEHOLDER_MESSAGES;
+    if (!Array.isArray(parsed) || !parsed.length) {
+      return PLACEHOLDER_MESSAGES;
+    }
 
-    return parsed.map((p: any, i: number) => ({
-      id: p?.id || `msg${i + 1}`,
-      title: String(p?.title || PLACEHOLDER_MESSAGES[i]?.title || "REMIX SHOUT OUTS!"),
-      body: String(p?.body || PLACEHOLDER_MESSAGES[i]?.body || ""),
-      fromName: String(p?.fromName || PLACEHOLDER_MESSAGES[i]?.fromName || "- $name"),
-      imageUrl: p?.imageUrl || null,
-      accent: (p?.accent || PLACEHOLDER_MESSAGES[i]?.accent || "cyan") as "gold" | "cyan" | "pink",
-      productTitle: String(
-        p?.productTitle || PLACEHOLDER_MESSAGES[i]?.productTitle || "Remix Shout Out"
-      ),
-    }));
-  } catch {
+    return parsed.map((p: any, i: number) => {
+      const fallback = PLACEHOLDER_MESSAGES[i] || {};
+
+      return {
+        id: p?.id || `msg${i + 1}`,
+
+        title: String(
+          p?.title ??
+            p?.header ??
+            fallback.title ??
+            "REMIX SHOUT OUTS!"
+        ),
+
+        body: String(
+          p?.body ??
+            p?.messageText ??
+            fallback.body ??
+            ""
+        ),
+
+        messageText: String(
+          p?.messageText ??
+            p?.body ??
+            fallback.messageText ??
+            fallback.body ??
+            ""
+        ),
+
+        fromName: String(
+          p?.fromName ??
+            p?.productLabel ??
+            p?.productTitle ??
+            fallback.fromName ??
+            "- $name"
+        ),
+
+        imageUrl: p?.imageUrl ?? null,
+
+        accent: (
+          p?.accent ??
+          fallback.accent ??
+          "cyan"
+        ) as "gold" | "cyan" | "pink",
+
+        productTitle: String(
+          p?.productTitle ??
+            p?.productLabel ??
+            fallback.productTitle ??
+            "Remix Shout Out"
+        ),
+
+        displayDurationSec:
+          typeof p?.displayDurationSec === "number" &&
+          Number.isFinite(p.displayDurationSec)
+            ? p.displayDurationSec
+            : fallback.displayDurationSec,
+      };
+    });
+  } catch (err) {
+    console.error("Failed to load placeholders", err);
     return PLACEHOLDER_MESSAGES;
   }
 }
