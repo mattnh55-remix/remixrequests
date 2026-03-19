@@ -210,54 +210,70 @@ export default function TvPage({ params }: { params: { location: string } }) {
     )}`;
   }, [isPortraitLayout, requestUrl]);
 
-  const activePlaceholderMessages = placeholderMessages.length ? placeholderMessages : PLACEHOLDER_MESSAGES;
-  const placeholderDurationSec = safeSeconds(shoutoutSlideSeconds, 10);
-  const placeholderCycleMs = placeholderDurationSec * 1000;
-  const placeholderRotationIndex = Math.floor(
-    Math.max(0, timerNowMs - placeholderEpochMsRef.current) / placeholderCycleMs
-  );
+  const activePlaceholderMessages =
+  placeholderMessages.length ? placeholderMessages : PLACEHOLDER_MESSAGES;
 
-  const featuredFallback =
-    activePlaceholderMessages[placeholderRotationIndex % activePlaceholderMessages.length];
-  const featuredMessage = liveMessage || featuredFallback;
-  const featuredBody = featuredMessage.body || featuredMessage.messageText || "";
-  const featuredTitle = featuredMessage.title || "REMIX SHOUT OUTS!";
+const slideDurationSec = safeSeconds(shoutoutSlideSeconds, 10);
+const placeholderDurationSec = 20 * 60;
+const placeholderCycleMs = slideDurationSec * 1000;
 
-  const isPlaceholderMessage = !liveMessage;
-  const activeDurationSec = safeSeconds(
-    featuredMessage.displayDurationSec ?? shoutoutSlideSeconds,
-    placeholderDurationSec
-  );
+const placeholderRotationIndex = Math.floor(
+  Math.max(0, timerNowMs - placeholderEpochMsRef.current) / placeholderCycleMs
+);
 
-  const stableLiveStartMs = liveMessage
-    ? new Date(liveMessage.approvedAt || liveMessage.createdAt || Date.now()).getTime()
-    : 0;
+const featuredFallback =
+  activePlaceholderMessages[
+    placeholderRotationIndex % activePlaceholderMessages.length
+  ];
 
-  const elapsedMs = isPlaceholderMessage
-    ? Math.max(0, (timerNowMs - placeholderEpochMsRef.current) % placeholderCycleMs)
-    : Math.max(0, timerNowMs - stableLiveStartMs);
+const featuredMessage = liveMessage || featuredFallback;
+const featuredBody =
+  ("body" in featuredMessage ? featuredMessage.body : undefined) ||
+  ("messageText" in featuredMessage ? featuredMessage.messageText : undefined) ||
+  "";
+const featuredTitle = featuredMessage.title || "REMIX SHOUT OUTS!";
 
-  const clampedElapsedMs = isPlaceholderMessage
-    ? elapsedMs
-    : Math.min(elapsedMs, activeDurationSec * 1000);
+const isPlaceholderMessage = !liveMessage;
 
-  const remainingSec = isPlaceholderMessage
-    ? Math.max(0, placeholderDurationSec - Math.floor(clampedElapsedMs / 1000))
-    : Math.max(0, activeDurationSec - Math.floor(clampedElapsedMs / 1000));
+const liveLifetimeDurationSec = safeSeconds(
+  liveMessage?.displayDurationSec,
+  placeholderDurationSec
+);
 
-  const progressPct = isPlaceholderMessage
-    ? Math.max(0, 100 - (clampedElapsedMs / placeholderCycleMs) * 100)
-    : Math.max(0, 100 - (clampedElapsedMs / (activeDurationSec * 1000)) * 100);
+const stableLiveStartMs = liveMessage
+  ? new Date(
+      liveMessage.approvedAt || liveMessage.createdAt || Date.now()
+    ).getTime()
+  : 0;
 
-  const timerMinutes = Math.floor(remainingSec / 60);
-  const timerSeconds = remainingSec % 60;
-  const timerLabel = `${timerMinutes}:${String(timerSeconds).padStart(2, "0")}`;
+const elapsedMs = isPlaceholderMessage
+  ? Math.max(0, timerNowMs - placeholderEpochMsRef.current)
+  : Math.max(0, timerNowMs - stableLiveStartMs);
 
-  const nowPlaying = playNow[0] || upNext[0] || null;
-  const queueList = upNext.slice(0, isPortraitLayout ? 6 : 10);
-  const topIsBoosted = Boolean(
-    nowPlaying && (nowPlaying.isBoosted || nowPlaying.boosted || nowPlaying.wasBoosted)
-  );
+const clampedElapsedMs = isPlaceholderMessage
+  ? Math.min(elapsedMs, placeholderDurationSec * 1000)
+  : Math.min(elapsedMs, liveLifetimeDurationSec * 1000);
+
+const remainingSec = isPlaceholderMessage
+  ? Math.max(0, placeholderDurationSec - Math.floor(clampedElapsedMs / 1000))
+  : Math.max(0, liveLifetimeDurationSec - Math.floor(clampedElapsedMs / 1000));
+
+const progressPct = isPlaceholderMessage
+  ? Math.max(0, 100 - (clampedElapsedMs / (placeholderDurationSec * 1000)) * 100)
+  : Math.max(
+      0,
+      100 - (clampedElapsedMs / (liveLifetimeDurationSec * 1000)) * 100
+    );
+
+const timerMinutes = Math.floor(remainingSec / 60);
+const timerSeconds = remainingSec % 60;
+const timerLabel = `${timerMinutes}:${String(timerSeconds).padStart(2, "0")}`;
+
+const nowPlaying = playNow[0] || upNext[0] || null;
+const queueList = upNext.slice(0, isPortraitLayout ? 6 : 10);
+const topIsBoosted = Boolean(
+  nowPlaying && (nowPlaying.isBoosted || nowPlaying.boosted || nowPlaying.wasBoosted)
+);
 
   async function tickQueue() {
     try {
