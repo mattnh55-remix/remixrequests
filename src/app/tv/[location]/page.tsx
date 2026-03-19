@@ -35,8 +35,10 @@ type PlaceholderMessage = {
   title: string;
   body: string;
   fromName: string;
+  messageText?: string;
   imageUrl?: string | null;
   accent?: "gold" | "cyan" | "pink";
+  displayDurationSec?: number;
   productTitle?: string;
 };
 
