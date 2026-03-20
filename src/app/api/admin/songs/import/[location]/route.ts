@@ -1,5 +1,3 @@
-// src/app/api/admin/songs/import/[location]/route.ts
-
 import { NextResponse } from "next/server";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 import { getRulesForLocation } from "@/lib/rules";
@@ -18,12 +16,57 @@ function toTags(v: any): string[] {
   const raw = String(v ?? "").trim();
   if (!raw) return [];
   const parts = raw.includes("|") ? raw.split("|") : raw.split(",");
-  return parts.map(t => t.trim()).filter(Boolean);
+  return parts.map((t) => t.trim()).filter(Boolean);
 }
 
-function toNumber(v: any): number | null {
-  const n = Number(v);
-  return isNaN(n) ? null : n;
+function findHeaderRow(sheet: XLSX.WorkSheet): number {
+  const rows: any[][] = XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    defval: "",
+    blankrows: false,
+  });
+
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const row = rows[i].map((v) => String(v ?? "").trim().toLowerCase());
+    if (row.includes("title") && row.includes("artist")) {
+      return i;
+    }
+  }
+
+  return 0;
+}
+
+function getRowsFromWorkbook(buf: Buffer, fileName: string) {
+  if (fileName.endsWith(".xlsx")) {
+    const wb = XLSX.read(buf, { type: "buffer" });
+
+    const preferredSheetName =
+      wb.SheetNames.find((n) => n === "Production_Import_Template") ||
+      wb.SheetNames.find((n) => n.toLowerCase() === "production_import_template") ||
+      wb.SheetNames[0];
+
+    const sheet = wb.Sheets[preferredSheetName];
+    const headerRow = findHeaderRow(sheet);
+
+    return XLSX.utils.sheet_to_json(sheet, {
+      defval: "",
+      range: headerRow,
+    });
+  }
+
+  if (fileName.endsWith(".csv")) {
+    const text = buf.toString("utf8");
+    const wb = XLSX.read(text, { type: "string" });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const headerRow = findHeaderRow(sheet);
+
+    return XLSX.utils.sheet_to_json(sheet, {
+      defval: "",
+      range: headerRow,
+    });
+  }
+
+  throw new Error("UNSUPPORTED_FILE");
 }
 
 export async function POST(req: Request, { params }: { params: { location: string } }) {
@@ -45,64 +88,49 @@ export async function POST(req: Request, { params }: { params: { location: strin
 
   let rows: Array<any> = [];
 
-  if (name.endsWith(".xlsx")) {
-  const wb = XLSX.read(buf, { type: "buffer" });
-
-  const preferredSheetName =
-    wb.SheetNames.find((n) => n === "Production_Import_Template") ||
-    wb.SheetNames.find((n) => n.toLowerCase() === "production_import_template") ||
-    wb.SheetNames[0];
-
-  const sheet = wb.Sheets[preferredSheetName];
-  rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-} else if (name.endsWith(".csv")) {
-    const text = buf.toString("utf8");
-    const wb = XLSX.read(text, { type: "string" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-  } else {
-    return NextResponse.json({ ok: false, error: "Upload .xlsx or .csv" }, { status: 400 });
+  try {
+    rows = getRowsFromWorkbook(buf, name);
+  } catch (e: any) {
+    if (String(e?.message) === "UNSUPPORTED_FILE") {
+      return NextResponse.json({ ok: false, error: "Upload .xlsx or .csv" }, { status: 400 });
+    }
+    throw e;
   }
 
-  // ✅ NEW FLEXIBLE MAPPING
-  const normalized = rows.map((r) => {
-const title = r.title ?? r.Title ?? r.TITLE ?? "";
-const artist = r.artist ?? r.Artist ?? r.ARTIST ?? "";
+  const normalized = rows
+    .map((r) => {
+      const title = r.title ?? r.Title ?? r.TITLE ?? "";
+      const artist = r.artist ?? r.Artist ?? r.ARTIST ?? "";
+      const explicit = r.explicit ?? r.Explicit ?? r.EXPLICIT ?? false;
+      const tags = r.tags ?? r.Tags ?? r.TAGS ?? "";
+      const active = r.active ?? r.Active ?? r.ACTIVE ?? true;
+      const artworkUrl =
+        r.artworkUrl ??
+        r.artworkURL ??
+        r.ArtworkUrl ??
+        r.albumArtFile ??
+        r.albumArt ??
+        "";
 
-    return {
-      // REQUIRED
-      title: String(title).trim(),
-      artist: String(artist).trim(),
+      const rowLocationSlug =
+        String(r.locationSlug ?? r.LocationSlug ?? r.LOCATIONSLUG ?? "").trim();
 
-      // OPTIONAL (safe defaults)
-      explicit: toBool(r.explicit, false),
-      tags: toTags(r.tags),
-
-      artworkUrl:
-        r.artworkUrl ||
-        r.artworkURL ||
-        r.albumArtFile ||
-        r.albumArt ||
-        "",
-
-      // FUTURE FIELDS (ignored by DB for now, but parsed safely)
-      album: r.album || "",
-      releaseYear: toNumber(r.releaseYear),
-      genre: r.genre || "",
-      decade: r.decade || "",
-      catalogScore: toNumber(r.catalogScore) ?? 40,
-
-      tidalTrackId: r.tidalTrackId || "",
-      spotifyTrackId: r.spotifyTrackId || "",
-      isrc: r.isrc || "",
-
-      active: toBool(r.active, true),
-    };
-  }).filter(r => r.title && r.artist);
+      return {
+        title: String(title).trim(),
+        artist: String(artist).trim(),
+        explicit: toBool(explicit, false),
+        active: toBool(active, true),
+        tags: toTags(tags),
+        artworkUrl: String(artworkUrl).trim() || undefined,
+        locationSlug: rowLocationSlug,
+      };
+    })
+    .filter((r) => r.title && r.artist && r.active)
+    .filter((r) => !r.locationSlug || r.locationSlug === params.location);
 
   if (!normalized.length) {
     return NextResponse.json(
-      { ok: false, error: "No valid rows. Need title + artist." },
+      { ok: false, error: "No valid rows found in import sheet. Need title + artist." },
       { status: 400 }
     );
   }
@@ -121,7 +149,7 @@ const artist = r.artist ?? r.Artist ?? r.ARTIST ?? "";
         artistKey: normalizeArtistKey(r.artist),
         explicit: r.explicit,
         tags: r.tags,
-        artworkUrl: r.artworkUrl || undefined,
+        artworkUrl: r.artworkUrl,
       })),
     });
 
