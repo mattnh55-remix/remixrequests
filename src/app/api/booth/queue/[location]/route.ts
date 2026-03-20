@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
 import { getOrCreateCurrentSession } from "@/lib/validators";
-// import { isAdminFromCookie } from "@/lib/adminAuth";
+import { isAdminFromCookie } from "@/lib/adminAuth";
 
 export async function GET(
   req: Request,
   { params }: { params: { location: string } }
 ) {
-  // Temporarily bypass auth for testing booth UI
+
    if (!isAdminFromCookie(req.headers.get("cookie"))) {
      return NextResponse.json({ ok: false }, { status: 401 });
    }
