@@ -93,7 +93,7 @@ if (item.request.top10Bucket) {
             await tx.creditLedger.create({
               data: {
                 locationId: item.request.locationId,
-                emailHash: item.request.emailHash,
+                emailHash: item.request.emailHash ?? "system",
                 delta: refund,
                 reason: "BOOTH_SKIP_REFUND",
                 expiresAt: activeSession?.endsAt ?? null,
