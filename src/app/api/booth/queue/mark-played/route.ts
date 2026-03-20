@@ -3,9 +3,9 @@ import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 
 export async function POST(req: Request) {
-//  if (!isAdminFromCookie(req.headers.get("cookie"))) {
-//    return NextResponse.json({ ok: false }, { status: 401 });
-//  }
+   if (!isAdminFromCookie(req.headers.get("cookie"))) {
+     return NextResponse.json({ ok: false }, { status: 401 });
+   }
 
   const { queueItemId } = await req.json();
 

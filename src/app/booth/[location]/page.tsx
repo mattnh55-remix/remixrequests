@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 
 type BoothQueueItem = {
   id: string;
@@ -20,41 +21,53 @@ type BoothQueueItem = {
   explicit: boolean | null;
 };
 
-export default function BoothPage() {
+export default function BoothLocationPage() {
+  const params = useParams();
+  const location =
+    typeof params?.location === "string"
+      ? params.location
+      : Array.isArray(params?.location)
+      ? params.location[0]
+      : "";
+
   const [items, setItems] = useState<BoothQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState("");
 
-  async function loadQueue() {
+  const queueUrl = useMemo(() => {
+    return location ? `/api/booth/queue/${location}` : "";
+  }, [location]);
+
+  async function loadQueue(showSpinner = false) {
+    if (!queueUrl) return;
+
     try {
-      setLoading(true);
+      if (showSpinner) setLoading(true);
       setError("");
 
-      const res = await fetch("/api/booth/queue/remixrequests", {
+      const res = await fetch(queueUrl, {
+        method: "GET",
         cache: "no-store",
+        credentials: "same-origin",
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
-        setError(data?.error || "Could not load booth queue.");
         setItems([]);
+        setError(data?.error || "Could not load booth queue.");
         return;
       }
 
       setItems(data.items || []);
     } catch {
-      setError("Could not load booth queue.");
       setItems([]);
+      setError("Could not load booth queue.");
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   }
-
-  useEffect(() => {
-    loadQueue();
-  }, []);
 
   async function hit(endpoint: string, queueItemId: string) {
     try {
@@ -66,6 +79,7 @@ export default function BoothPage() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "same-origin",
         body: JSON.stringify({ queueItemId }),
       });
 
@@ -76,13 +90,28 @@ export default function BoothPage() {
         return;
       }
 
-      await loadQueue();
+      await loadQueue(false);
     } catch {
       setError("Action failed.");
     } finally {
       setBusyId(null);
     }
   }
+
+  useEffect(() => {
+    if (!location) return;
+    loadQueue(true);
+  }, [location]);
+
+  useEffect(() => {
+    if (!location) return;
+
+    const timer = window.setInterval(() => {
+      loadQueue(false);
+    }, 4000);
+
+    return () => window.clearInterval(timer);
+  }, [location, queueUrl]);
 
   const nowPlayingId =
     items.find((item) => item.status === "PLAYING")?.id ?? null;
@@ -98,12 +127,13 @@ export default function BoothPage() {
       }}
     >
       <h1 style={{ fontSize: 42, marginBottom: 8 }}>🎧 Booth Control</h1>
+
       <p style={{ opacity: 0.8, marginTop: 0, marginBottom: 20 }}>
-        Live playback test panel
+        Location: <strong>{location || "unknown"}</strong>
       </p>
 
       <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-        <button onClick={loadQueue} disabled={loading}>
+        <button onClick={() => loadQueue(true)} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh"}
         </button>
       </div>
@@ -115,15 +145,14 @@ export default function BoothPage() {
             padding: 12,
             border: "1px solid #663",
             background: "#221",
+            borderRadius: 8,
           }}
         >
           {error}
         </div>
       ) : null}
 
-      {!loading && items.length === 0 ? (
-        <p>No booth queue items found.</p>
-      ) : null}
+      {!loading && items.length === 0 ? <p>No booth queue items found.</p> : null}
 
       <div style={{ display: "grid", gap: 12 }}>
         {items.map((item) => {

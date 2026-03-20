@@ -9,9 +9,9 @@ export async function GET(
   { params }: { params: { location: string } }
 ) {
   // Temporarily bypass auth for testing booth UI
-  // if (!isAdminFromCookie(req.headers.get("cookie"))) {
-  //   return NextResponse.json({ ok: false }, { status: 401 });
-  // }
+   if (!isAdminFromCookie(req.headers.get("cookie"))) {
+     return NextResponse.json({ ok: false }, { status: 401 });
+   }
 
   const { loc } = await getRulesForLocation(params.location);
   const session = await getOrCreateCurrentSession(loc.id, 4);
