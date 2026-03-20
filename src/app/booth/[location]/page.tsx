@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { deriveBoothSections } from "@/lib/booth/queue-rules";
 import { buildSmartInsertContext } from "@/lib/booth/smart-insert-context";
+import { computeNextPlaybackAction } from "@/lib/booth/compute-next-playback-action";
+import { mockInterstitialAssets } from "@/lib/booth/mock-interstitial-assets";
+import type { InterstitialAsset } from "@/lib/booth/interstitial-types";
 
 type BoothQueueItem = {
   id: string;
@@ -118,6 +121,43 @@ export default function BoothLocationPage() {
   const sections = useMemo(() => deriveBoothSections(items), [items]);
   const smartInsert = useMemo(() => buildSmartInsertContext(items), [items]);
 
+  const nextPlaybackAction = useMemo(() => {
+    return computeNextPlaybackAction({
+      sessionId: "preview-session",
+      locationId: location || "unknown",
+      profile: "FAMILY",
+      queueItems: items,
+      interstitialAssets: mockInterstitialAssets,
+      recentInterstitialEvents: [],
+      nowIso: new Date().toISOString(),
+    });
+  }, [items, location]);
+
+  const plannedAsset = useMemo(() => {
+    if (nextPlaybackAction.action !== "PLAY_INTERSTITIAL_THEN_QUEUE_ITEM") {
+      return null;
+    }
+
+    return (
+      mockInterstitialAssets.find(
+        (asset) => asset.id === nextPlaybackAction.assetId
+      ) || null
+    );
+  }, [nextPlaybackAction]);
+
+  const plannedQueueItem = useMemo(() => {
+    if (
+      nextPlaybackAction.action !== "PLAY_INTERSTITIAL_THEN_QUEUE_ITEM" &&
+      nextPlaybackAction.action !== "PLAY_QUEUE_ITEM"
+    ) {
+      return null;
+    }
+
+    return items.find((item) => item.id === nextPlaybackAction.queueItemId) || null;
+  }, [items, nextPlaybackAction]);
+
+  const visibleQueueItems = sections.loaded ? sections.queued : sections.queued.slice(1);
+
   return (
     <div
       style={{
@@ -199,12 +239,16 @@ export default function BoothLocationPage() {
           ) : null}
 
           <QueueSection
-            title={`QUEUE${sections.queued.length ? ` (${sections.queued.length})` : ""}`}
+            title={`QUEUE${
+              sections.queued.length
+                ? ` (${sections.loaded ? sections.queued.length : Math.max(sections.queued.length - 1, 0)})`
+                : ""
+            }`}
           >
-            {sections.queued.length === 0 ? (
-              <EmptyState text="No queued items." />
+            {visibleQueueItems.length === 0 ? (
+              <EmptyState text="No additional queued items." />
             ) : (
-              sections.queued.map((item) => (
+              visibleQueueItems.map((item) => (
                 <QueueCard
                   key={item.id}
                   item={item}
@@ -245,6 +289,11 @@ export default function BoothLocationPage() {
         </div>
 
         <div style={{ display: "grid", gap: 20 }}>
+          <NextPlaybackActionPanel
+            nextPlaybackAction={nextPlaybackAction}
+            plannedAsset={plannedAsset}
+            plannedQueueItem={plannedQueueItem}
+          />
           <SmartInsertPanel smartInsert={smartInsert} />
           <QueueRulesPanel />
         </div>
@@ -298,6 +347,99 @@ function EmptyState({ text }: { text: string }) {
     >
       {text}
     </div>
+  );
+}
+
+function NextPlaybackActionPanel({
+  nextPlaybackAction,
+  plannedAsset,
+  plannedQueueItem,
+}: {
+  nextPlaybackAction: any;
+  plannedAsset: InterstitialAsset | null;
+  plannedQueueItem: BoothQueueItem | null;
+}) {
+  const heading =
+    nextPlaybackAction.action === "PLAY_INTERSTITIAL_THEN_QUEUE_ITEM"
+      ? "Interstitial Planned"
+      : nextPlaybackAction.action === "PLAY_QUEUE_ITEM"
+      ? "Direct Song Playback"
+      : "No Action";
+
+  return (
+    <section
+      style={{
+        border: "1px solid #1f3b2a",
+        borderRadius: 16,
+        background: "#08140d",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          padding: "14px 16px",
+          borderBottom: "1px solid #1a2f22",
+          fontWeight: 700,
+          fontSize: 18,
+        }}
+      >
+        Next Playback Action
+      </div>
+
+      <div style={{ padding: 16, display: "grid", gap: 12 }}>
+        <PlanningRow label="Engine decision" value={heading} valueTone="#7ee787" />
+
+        <PlanningRow
+          label="Reason"
+          value={formatReason(nextPlaybackAction.reason)}
+        />
+
+        <PlanningRow
+          label="Target queue item"
+          value={formatTrackLabel(plannedQueueItem)}
+        />
+
+        {plannedAsset ? (
+          <>
+            <PlanningRow label="Planned interstitial" value={plannedAsset.name} />
+            <PlanningRow
+              label="Category"
+              value={plannedAsset.category}
+            />
+            <PlanningRow
+              label="Duration"
+              value={`${plannedAsset.durationSec} sec`}
+            />
+            <PlanningRow
+              label="File"
+              value={plannedAsset.filePath}
+            />
+          </>
+        ) : (
+          <PlanningRow
+            label="Planned interstitial"
+            value="None"
+          />
+        )}
+
+        <div
+          style={{
+            marginTop: 4,
+            padding: 12,
+            borderRadius: 12,
+            background: "#0d1f14",
+            border: "1px solid #284835",
+            fontSize: 13,
+            lineHeight: 1.5,
+            opacity: 0.92,
+          }}
+        >
+          This panel is driven by the backend-style decision engine. Staff can still
+          reorder songs, but this preview shows what the system would choose at the
+          next clean transition.
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -366,23 +508,6 @@ function SmartInsertPanel({ smartInsert }: { smartInsert: any }) {
           value={smartInsert.introAlreadyAssigned ? "Yes" : "No"}
           valueTone={smartInsert.introAlreadyAssigned ? "#ffb86b" : "#7ee787"}
         />
-
-        <div
-          style={{
-            marginTop: 4,
-            padding: 12,
-            borderRadius: 12,
-            background: "#0d1a29",
-            border: "1px solid #203449",
-            fontSize: 13,
-            lineHeight: 1.5,
-            opacity: 0.92,
-          }}
-        >
-          This panel is <strong>planning only</strong>. It does not fire intros,
-          drops, or announcements yet. It simply shows what the Smart Insert layer
-          would likely want to do next.
-        </div>
       </div>
     </section>
   );
@@ -410,11 +535,12 @@ function QueueRulesPanel() {
       </div>
 
       <div style={{ padding: 16, display: "grid", gap: 10, fontSize: 14 }}>
+        <RuleLine text="Songs are staff-shaped." />
+        <RuleLine text="Interstitials are backend-decided." />
         <RuleLine text="PLAYING always displays separately." />
-        <RuleLine text="LOADED is treated as reserved / on deck." />
-        <RuleLine text="HELD is parked and excluded from next-up logic." />
-        <RuleLine text="Only QUEUED items compete for automatic next." />
-        <RuleLine text="Smart Insert planning looks ahead without changing playback." />
+        <RuleLine text="LOADED is reserved / on deck." />
+        <RuleLine text="HELD is excluded from next-up logic." />
+        <RuleLine text="The engine evaluates the next clean transition." />
       </div>
     </section>
   );
@@ -456,6 +582,17 @@ function formatTrackLabel(item: any) {
   const title = item.title || "Unknown Title";
   const artist = item.artist || "Unknown Artist";
   return `${title} — ${artist}`;
+}
+
+function formatReason(reason: string) {
+  if (reason === "DIRECT_PLAY") return "Direct play";
+  if (reason === "REQUEST_SINGLE") return "Single request intro";
+  if (reason === "REQUEST_CLUSTER") return "Request block intro";
+  if (reason === "SCHEDULED_INTERVAL") return "Scheduled interval asset";
+  if (reason === "TOP_OF_HOUR_WINDOW") return "Top-of-hour window asset";
+  if (reason === "BRANDING_GAP_FILL") return "Branding gap fill";
+  if (reason === "NO_PLAYABLE_QUEUE_ITEM") return "No playable queue item";
+  return reason;
 }
 
 function QueueCard({
