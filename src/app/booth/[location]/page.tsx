@@ -116,6 +116,41 @@ export default function BoothLocationPage() {
   const nowPlayingId =
     items.find((item) => item.status === "PLAYING")?.id ?? null;
 
+  function statusBadge(item: BoothQueueItem) {
+    if (item.status === "PLAYING") return "NOW PLAYING";
+    if (item.status === "LOADED") return "LOADED";
+    if (item.status === "HELD") return "HELD";
+    return null;
+  }
+
+  function cardStyle(item: BoothQueueItem) {
+    if (item.status === "PLAYING") {
+      return {
+        border: "2px solid #4caf50",
+        background: "#0f1a0f",
+      };
+    }
+
+    if (item.status === "LOADED") {
+      return {
+        border: "2px solid #2196f3",
+        background: "#0b1520",
+      };
+    }
+
+    if (item.status === "HELD") {
+      return {
+        border: "2px solid #a67c00",
+        background: "#1a1508",
+      };
+    }
+
+    return {
+      border: "1px solid #333",
+      background: "#0a0a0a",
+    };
+  }
+
   return (
     <div
       style={{
@@ -158,15 +193,17 @@ export default function BoothLocationPage() {
         {items.map((item) => {
           const isPlaying = item.id === nowPlayingId;
           const isBusy = busyId === item.id;
+          const badge = statusBadge(item);
+          const visual = cardStyle(item);
 
           return (
             <div
               key={item.id}
               style={{
-                border: isPlaying ? "2px solid #4caf50" : "1px solid #333",
+                border: visual.border,
                 borderRadius: 12,
                 padding: 16,
-                background: isPlaying ? "#0f1a0f" : "#0a0a0a",
+                background: visual.background,
               }}
             >
               <div
@@ -201,21 +238,33 @@ export default function BoothLocationPage() {
                   ) : null}
                 </div>
 
-                {isPlaying ? (
+                {badge ? (
                   <div
                     style={{
                       padding: "6px 10px",
                       borderRadius: 999,
-                      background: "#1f5f2a",
+                      background:
+                        item.status === "PLAYING"
+                          ? "#1f5f2a"
+                          : item.status === "LOADED"
+                          ? "#17476a"
+                          : "#6b5200",
                       fontWeight: 700,
                     }}
                   >
-                    NOW PLAYING
+                    {badge}
                   </div>
                 ) : null}
               </div>
 
               <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => hit("/api/booth/queue/mark-loaded", item.id)}
+                  disabled={isBusy || isPlaying}
+                >
+                  ⏺ Load
+                </button>
+
                 <button
                   onClick={() => hit("/api/booth/queue/mark-playing", item.id)}
                   disabled={isBusy}
