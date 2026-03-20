@@ -535,3 +535,77 @@ enum AudioAssetCategory {
   GAME
   MANUAL
 }
+
+// === ENUMS ===
+enum InterstitialCategory {
+  REQUEST_SINGLE
+  REQUEST_BLOCK
+  BRANDING
+  RULES
+  GAME
+  BIRTHDAY
+  SAFETY
+  MANUAL_ONLY
+}
+
+enum InterstitialScheduleMode {
+  NONE
+  INTERVAL_MINUTES
+  TOP_OF_HOUR_WINDOW
+  ONCE_PER_SESSION
+  MANUAL_ONLY
+}
+
+enum InterstitialEventStatus {
+  PLANNED
+  PLAYED
+  SKIPPED
+  CANCELED
+}
+
+enum SessionProfile {
+  FAMILY
+  ADULT
+  BIRTHDAY
+  SCHOOL
+  PRIVATE_EVENT
+  GENERAL
+}
+
+// === MODELS ===
+model InterstitialAsset {
+  id          String               @id @default(cuid())
+  locationId  String
+  name        String
+  category    InterstitialCategory
+  fileUrl     String
+  durationSec Int?
+  active      Boolean              @default(true)
+
+  priority     Int @default(0)
+  randomWeight Int @default(100)
+
+  scheduleMode    InterstitialScheduleMode @default(NONE)
+  intervalMinutes Int?
+
+  allowedProfiles SessionProfile[]
+  blockedProfiles SessionProfile[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events InterstitialEvent[]
+}
+
+model InterstitialEvent {
+  id         String                  @id @default(cuid())
+  locationId String
+  sessionId  String?
+  assetId    String
+  status     InterstitialEventStatus @default(PLANNED)
+
+  plannedAt DateTime  @default(now())
+  playedAt  DateTime?
+
+  asset InterstitialAsset @relation(fields: [assetId], references: [id])
+}
