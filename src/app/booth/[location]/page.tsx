@@ -2,24 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-
-type BoothQueueItem = {
-  id: string;
-  requestId: string | null;
-  position: number;
-  status: string;
-  sourceType: string;
-  introAssigned: boolean;
-  clusterId: string | null;
-  loadedAt: string | null;
-  playingAt: string | null;
-  completedAt: string | null;
-  createdAt: string;
-  title: string | null;
-  artist: string | null;
-  artworkUrl: string | null;
-  explicit: boolean | null;
-};
+import { deriveBoothSections } from "@/lib/booth/queue-rules";
 
 export default function BoothLocationPage() {
   const params = useParams();
@@ -30,7 +13,7 @@ export default function BoothLocationPage() {
       ? params.location[0]
       : "";
 
-  const [items, setItems] = useState<BoothQueueItem[]>([]);
+  const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -76,9 +59,7 @@ export default function BoothLocationPage() {
 
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify({ queueItemId }),
       });
@@ -106,196 +87,107 @@ export default function BoothLocationPage() {
   useEffect(() => {
     if (!location) return;
 
-    const timer = window.setInterval(() => {
-      loadQueue(false);
-    }, 4000);
+    const timer = setInterval(() => loadQueue(false), 4000);
+    return () => clearInterval(timer);
+  }, [location]);
 
-    return () => window.clearInterval(timer);
-  }, [location, queueUrl]);
+  const sections = deriveBoothSections(items);
 
-  const nowPlayingId =
-    items.find((item) => item.status === "PLAYING")?.id ?? null;
+  return (
+    <div style={{ padding: 24, background: "#000", color: "#fff", minHeight: "100vh" }}>
+      <h1>🎧 Booth Control</h1>
 
-  function statusBadge(item: BoothQueueItem) {
-    if (item.status === "PLAYING") return "NOW PLAYING";
-    if (item.status === "LOADED") return "LOADED";
-    if (item.status === "HELD") return "HELD";
-    return null;
-  }
+      {error && <div style={{ color: "orange" }}>{error}</div>}
 
-  function cardStyle(item: BoothQueueItem) {
-    if (item.status === "PLAYING") {
-      return {
-        border: "2px solid #4caf50",
-        background: "#0f1a0f",
-      };
-    }
+      {/* NOW PLAYING */}
+      {sections.playing && (
+        <Section title="NOW PLAYING">
+          <Card item={sections.playing} hit={hit} busyId={busyId} highlight="green" />
+        </Section>
+      )}
 
-    if (item.status === "LOADED") {
-      return {
-        border: "2px solid #2196f3",
-        background: "#0b1520",
-      };
-    }
+      {/* LOADED */}
+      {sections.loaded && (
+        <Section title="ON DECK">
+          <Card item={sections.loaded} hit={hit} busyId={busyId} highlight="blue" />
+        </Section>
+      )}
 
-    if (item.status === "HELD") {
-      return {
-        border: "2px solid #a67c00",
-        background: "#1a1508",
-      };
-    }
+      {/* NEXT UP */}
+      {sections.nextUp && !sections.loaded && (
+        <Section title="NEXT UP">
+          <Card item={sections.nextUp} hit={hit} busyId={busyId} highlight="purple" />
+        </Section>
+      )}
 
-    return {
-      border: "1px solid #333",
-      background: "#0a0a0a",
-    };
-  }
+      {/* QUEUE */}
+      <Section title="QUEUE">
+        {sections.queued.map((item) => (
+          <Card key={item.id} item={item} hit={hit} busyId={busyId} />
+        ))}
+      </Section>
+
+      {/* HELD */}
+      {sections.held.length > 0 && (
+        <Section title="HELD">
+          {sections.held.map((item) => (
+            <Card key={item.id} item={item} hit={hit} busyId={busyId} highlight="gold" />
+          ))}
+        </Section>
+      )}
+    </div>
+  );
+}
+
+function Section({ title, children }: any) {
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h2 style={{ borderBottom: "1px solid #333" }}>{title}</h2>
+      <div style={{ display: "grid", gap: 10 }}>{children}</div>
+    </div>
+  );
+}
+
+function Card({ item, hit, busyId, highlight }: any) {
+  const isBusy = busyId === item.id;
 
   return (
     <div
       style={{
-        minHeight: "100vh",
-        background: "#000",
-        color: "#fff",
-        padding: 24,
-        fontFamily: "Arial, sans-serif",
+        padding: 12,
+        borderRadius: 8,
+        border: "1px solid #333",
+        background: "#111",
       }}
     >
-      <h1 style={{ fontSize: 42, marginBottom: 8 }}>🎧 Booth Control</h1>
-
-      <p style={{ opacity: 0.8, marginTop: 0, marginBottom: 20 }}>
-        Location: <strong>{location || "unknown"}</strong>
-      </p>
-
-      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-        <button onClick={() => loadQueue(true)} disabled={loading}>
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
+      <div style={{ fontWeight: "bold" }}>
+        {item.title || "Unknown"} — {item.artist || "Unknown"}
       </div>
 
-      {error ? (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: 12,
-            border: "1px solid #663",
-            background: "#221",
-            borderRadius: 8,
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
+      <div style={{ opacity: 0.6, fontSize: 12 }}>
+        {item.status} • Position {item.position}
+      </div>
 
-      {!loading && items.length === 0 ? <p>No booth queue items found.</p> : null}
+      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+        <button onClick={() => hit("/api/booth/queue/mark-loaded", item.id)} disabled={isBusy}>
+          Load
+        </button>
 
-      <div style={{ display: "grid", gap: 12 }}>
-        {items.map((item) => {
-          const isPlaying = item.id === nowPlayingId;
-          const isBusy = busyId === item.id;
-          const badge = statusBadge(item);
-          const visual = cardStyle(item);
+        <button onClick={() => hit("/api/booth/queue/mark-playing", item.id)} disabled={isBusy}>
+          Play
+        </button>
 
-          return (
-            <div
-              key={item.id}
-              style={{
-                border: visual.border,
-                borderRadius: 12,
-                padding: 16,
-                background: visual.background,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "start",
-                  gap: 16,
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
-                    Position #{item.position} • {item.status}
-                  </div>
+        <button onClick={() => hit("/api/booth/queue/mark-played", item.id)} disabled={isBusy}>
+          Played
+        </button>
 
-                  <div style={{ fontSize: 24, fontWeight: 700 }}>
-                    {item.title || "Unknown Title"}
-                  </div>
+        <button onClick={() => hit("/api/booth/queue/skip", item.id)} disabled={isBusy}>
+          Skip
+        </button>
 
-                  <div style={{ fontSize: 18, opacity: 0.9, marginTop: 4 }}>
-                    {item.artist || "Unknown Artist"}
-                  </div>
-
-                  <div style={{ fontSize: 12, opacity: 0.6, marginTop: 10 }}>
-                    QueueItem ID: {item.id}
-                  </div>
-
-                  {item.requestId ? (
-                    <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>
-                      Request ID: {item.requestId}
-                    </div>
-                  ) : null}
-                </div>
-
-                {badge ? (
-                  <div
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: 999,
-                      background:
-                        item.status === "PLAYING"
-                          ? "#1f5f2a"
-                          : item.status === "LOADED"
-                          ? "#17476a"
-                          : "#6b5200",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {badge}
-                  </div>
-                ) : null}
-              </div>
-
-              <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
-                <button
-                  onClick={() => hit("/api/booth/queue/mark-loaded", item.id)}
-                  disabled={isBusy || isPlaying}
-                >
-                  ⏺ Load
-                </button>
-
-                <button
-                  onClick={() => hit("/api/booth/queue/mark-playing", item.id)}
-                  disabled={isBusy}
-                >
-                  ▶ Play
-                </button>
-
-                <button
-                  onClick={() => hit("/api/booth/queue/mark-played", item.id)}
-                  disabled={isBusy}
-                >
-                  ✅ Played
-                </button>
-
-                <button
-                  onClick={() => hit("/api/booth/queue/skip", item.id)}
-                  disabled={isBusy}
-                >
-                  ⏭ Skip
-                </button>
-
-                <button
-                  onClick={() => hit("/api/booth/queue/hold", item.id)}
-                  disabled={isBusy}
-                >
-                  ⏸ Hold
-                </button>
-              </div>
-            </div>
-          );
-        })}
+        <button onClick={() => hit("/api/booth/queue/hold", item.id)} disabled={isBusy}>
+          Hold
+        </button>
       </div>
     </div>
   );
