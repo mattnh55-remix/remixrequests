@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
+import { getRulesForLocation } from "@/lib/rules";
+import { removeRequestFromTop10 } from "@/lib/top10";
 
 export async function POST(req: Request) {
-   if (!isAdminFromCookie(req.headers.get("cookie"))) {
-     return NextResponse.json({ ok: false }, { status: 401 });
-   }
+  if (!isAdminFromCookie(req.headers.get("cookie"))) {
+    return NextResponse.json({ ok: false }, { status: 401 });
+  }
 
   const { queueItemId } = await req.json();
 
@@ -13,25 +15,99 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Missing queueItemId" }, { status: 400 });
   }
 
-  const now = new Date();
+  try {
+    await prisma.$transaction(async (tx) => {
+      const now = new Date();
 
-  await prisma.$transaction(async (tx) => {
-    const item = await tx.queueItem.update({
-      where: { id: queueItemId },
-      data: {
-        status: "SKIPPED",
-        completedAt: now,
-      },
+      const item = await tx.queueItem.findUnique({
+        where: { id: queueItemId },
+        include: {
+          request: {
+            include: {
+              location: { select: { slug: true } },
+            },
+          },
+        },
+      });
+
+      if (!item) {
+        throw new Error("NOT_FOUND");
+      }
+
+      await tx.queueItem.update({
+        where: { id: queueItemId },
+        data: {
+          status: "SKIPPED",
+          completedAt: now,
+        },
+      });
+
+      await tx.playbackEvent.create({
+        data: {
+          locationId: item.locationId,
+          queueItemId: item.id,
+          type: "SKIPPED",
+          metadata: {
+            queueItemId: item.id,
+            requestId: item.requestId,
+            source: "booth_skip",
+          },
+        },
+      });
+
+      if (item.request) {
+        if (item.request.status !== "REJECTED" && item.request.status !== "PLAYED") {
+          const { rules } = await getRulesForLocation(item.request.location.slug);
+          const refund =
+            item.request.type === "PLAY_NOW" ? rules.costPlayNow : rules.costRequest;
+
+          await tx.request.update({
+            where: { id: item.request.id },
+            data: {
+              status: "REJECTED",
+              rejectedAt: now,
+              rejectReason: "Booth skip",
+            },
+          });
+
+          await removeRequestFromTop10(tx, {
+            locationId: item.request.locationId,
+            sessionId: item.request.sessionId,
+            songId: item.request.songId,
+            bucket: item.request.top10Bucket,
+          });
+
+          if (refund > 0) {
+            const activeSession = await tx.session.findFirst({
+              where: {
+                locationId: item.request.locationId,
+                endsAt: { gt: now },
+              },
+              select: { endsAt: true },
+              orderBy: { createdAt: "desc" },
+            });
+
+            await tx.creditLedger.create({
+              data: {
+                locationId: item.request.locationId,
+                emailHash: item.request.emailHash,
+                delta: refund,
+                reason: "BOOTH_SKIP_REFUND",
+                expiresAt: activeSession?.endsAt ?? null,
+              },
+            });
+          }
+        }
+      }
     });
 
-    await tx.playbackEvent.create({
-      data: {
-        locationId: item.locationId,
-        queueItemId: item.id,
-        type: "SKIPPED",
-      },
-    });
-  });
+    return NextResponse.json({ ok: true });
+  } catch (error: any) {
+    if (error?.message === "NOT_FOUND") {
+      return NextResponse.json({ ok: false, error: "Queue item not found" }, { status: 404 });
+    }
 
-  return NextResponse.json({ ok: true });
+    console.error("booth skip error", error);
+    return NextResponse.json({ ok: false, error: "Could not skip queue item." }, { status: 500 });
+  }
 }
