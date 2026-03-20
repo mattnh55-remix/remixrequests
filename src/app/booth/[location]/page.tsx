@@ -5,8 +5,9 @@ import { useParams } from "next/navigation";
 import { deriveBoothSections } from "@/lib/booth/queue-rules";
 import { buildSmartInsertContext } from "@/lib/booth/smart-insert-context";
 import { computeNextPlaybackAction } from "@/lib/booth/compute-next-playback-action";
-import { mockInterstitialAssets } from "@/lib/booth/mock-interstitial-assets";
 import type { InterstitialAsset } from "@/lib/booth/interstitial-types";
+import { mockInterstitialAssets } from "@/lib/booth/mock-interstitial-assets";
+import { mapDbInterstitialAssetsToPreview } from "@/lib/booth/map-db-interstitial-assets-to-preview";
 
 type BoothQueueItem = {
   id: string;
@@ -35,14 +36,19 @@ export default function BoothLocationPage() {
       ? params.location[0]
       : "";
 
-  const [items, setItems] = useState<BoothQueueItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState("");
+const [items, setItems] = useState<BoothQueueItem[]>([]);
+const [dbInterstitialAssets, setDbInterstitialAssets] = useState<InterstitialAsset[]>([]);
+const [loading, setLoading] = useState(true);
+const [busyId, setBusyId] = useState<string | null>(null);
+const [error, setError] = useState("");
 
   const queueUrl = useMemo(() => {
     return location ? `/api/booth/queue/${location}` : "";
   }, [location]);
+
+const interstitialAssetsUrl = useMemo(() => {
+  return location ? `/api/booth/interstitial-assets/${location}` : "";
+}, [location]);
 
   async function loadQueue(showSpinner = false) {
     if (!queueUrl) return;
@@ -74,6 +80,32 @@ export default function BoothLocationPage() {
     }
   }
 
+async function loadInterstitialAssets() {
+  if (!interstitialAssetsUrl) return;
+
+  try {
+    const res = await fetch(interstitialAssetsUrl, {
+      method: "GET",
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.ok) {
+      setDbInterstitialAssets([]);
+      return;
+    }
+
+    setDbInterstitialAssets(
+      mapDbInterstitialAssetsToPreview(data.assets || [])
+    );
+  } catch {
+    setDbInterstitialAssets([]);
+  }
+}
+
+
   async function hit(endpoint: string, queueItemId: string) {
     try {
       setBusyId(queueItemId);
@@ -103,23 +135,37 @@ export default function BoothLocationPage() {
     }
   }
 
-  useEffect(() => {
-    if (!location) return;
-    loadQueue(true);
-  }, [location]);
+useEffect(() => {
+  if (!location) return;
 
-  useEffect(() => {
-    if (!location) return;
+  async function loadInitial() {
+    await Promise.all([
+      loadQueue(true),
+      loadInterstitialAssets(),
+    ]);
+  }
 
-    const timer = window.setInterval(() => {
-      loadQueue(false);
-    }, 4000);
+  loadInitial();
+}, [location, interstitialAssetsUrl]);
 
-    return () => window.clearInterval(timer);
-  }, [location, queueUrl]);
+useEffect(() => {
+  if (!location) return;
 
+  const timer = window.setInterval(() => {
+    loadQueue(false);
+    loadInterstitialAssets();
+  }, 4000);
+
+  return () => window.clearInterval(timer);
+}, [location, queueUrl, interstitialAssetsUrl]);
   const sections = useMemo(() => deriveBoothSections(items), [items]);
   const smartInsert = useMemo(() => buildSmartInsertContext(items), [items]);
+
+const previewInterstitialAssets = useMemo(() => {
+  return dbInterstitialAssets.length > 0
+    ? dbInterstitialAssets
+    : mockInterstitialAssets;
+}, [dbInterstitialAssets]);
 
   const nextPlaybackAction = useMemo(() => {
     return computeNextPlaybackAction({
@@ -127,11 +173,11 @@ export default function BoothLocationPage() {
       locationId: location || "unknown",
       profile: "FAMILY",
       queueItems: items,
-      interstitialAssets: mockInterstitialAssets,
+      interstitialAssets: previewInterstitialAssets,
       recentInterstitialEvents: [],
       nowIso: new Date().toISOString(),
     });
-  }, [items, location]);
+  }, [items, location, previewInterstitialAssets]);
 
   const plannedAsset = useMemo(() => {
     if (nextPlaybackAction.action !== "PLAY_INTERSTITIAL_THEN_QUEUE_ITEM") {
@@ -139,11 +185,11 @@ export default function BoothLocationPage() {
     }
 
     return (
-      mockInterstitialAssets.find(
-        (asset) => asset.id === nextPlaybackAction.assetId
-      ) || null
-    );
-  }, [nextPlaybackAction]);
+  previewInterstitialAssets.find(
+    (asset) => asset.id === nextPlaybackAction.assetId
+  ) || null
+);
+  }, [nextPlaybackAction, previewInterstitialAssets]);
 
   const plannedQueueItem = useMemo(() => {
     if (
@@ -175,9 +221,17 @@ export default function BoothLocationPage() {
       </p>
 
       <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-        <button onClick={() => loadQueue(true)} disabled={loading}>
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
+        <button
+  onClick={async () => {
+    await Promise.all([
+      loadQueue(true),
+      loadInterstitialAssets(),
+    ]);
+  }}
+  disabled={loading}
+>
+  {loading ? "Refreshing..." : "Refresh"}
+</button>
       </div>
 
       {error ? (
@@ -412,7 +466,7 @@ function NextPlaybackActionPanel({
             />
             <PlanningRow
               label="File"
-              value={plannedAsset.filePath}
+              value={plannedAsset.fileUrl || "—"}
             />
           </>
         ) : (
