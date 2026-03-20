@@ -128,12 +128,16 @@ export async function POST(req: Request, { params }: { params: { location: strin
     .filter((r) => r.title && r.artist && r.active)
     .filter((r) => !r.locationSlug || r.locationSlug === params.location);
 
-  if (!normalized.length) {
-    return NextResponse.json(
-      { ok: false, error: "No valid rows found in import sheet. Need title + artist." },
-      { status: 400 }
-    );
-  }
+if (!normalized.length) {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: "IMPORT_DEBUG_V3_NO_VALID_ROWS",
+      routeVersion: "songs-import-v3",
+    },
+    { status: 400 }
+  );
+}
 
   const batchSize = 250;
   let created = 0;
