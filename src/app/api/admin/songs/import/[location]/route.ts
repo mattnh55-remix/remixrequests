@@ -133,8 +133,7 @@ if (rows.length > 0) {
         locationSlug: rowLocationSlug,
       };
     })
-    .filter((r) => r.title && r.artist && r.active)
-    .filter((r) => !r.locationSlug || r.locationSlug === params.location);
+.filter((r) => r.title && r.artist && r.active);
 
 if (!normalized.length) {
   return NextResponse.json(
