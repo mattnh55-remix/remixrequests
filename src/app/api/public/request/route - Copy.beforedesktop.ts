@@ -32,15 +32,7 @@ export async function POST(req: Request) {
 
   const song = await prisma.song.findFirst({
     where: { id: songId, locationId: loc.id },
-    select: {
-      id: true,
-      title: true,
-      artist: true,
-      artworkUrl: true,
-      locationId: true,
-      explicit: true,
-      artistKey: true,
-    },
+    select: { id: true, title: true, artist: true, artworkUrl: true, locationId: true, explicit: true, artistKey: true },
   });
 
   if (!song) return jsonFail("Song not found.", 404);
@@ -177,45 +169,6 @@ export async function POST(req: Request) {
           },
         });
 
-        // Phase 1 playback shadow layer:
-        // create a QueueItem for every newly approved request
-        const lastQueueItem = await tx.queueItem.findFirst({
-          where: {
-            locationId: loc.id,
-            sessionId: session.id,
-          },
-          orderBy: { position: "desc" },
-          select: { position: true },
-        });
-
-        const nextPosition = (lastQueueItem?.position ?? 0) + 1;
-
-        const queueItem = await tx.queueItem.create({
-          data: {
-            requestId: reqRow.id,
-            locationId: loc.id,
-            sessionId: session.id,
-            status: "QUEUED",
-            position: nextPosition,
-            sourceType: "REQUEST",
-            introAssigned: false,
-          },
-        });
-
-        await tx.playbackEvent.create({
-          data: {
-            locationId: loc.id,
-            queueItemId: queueItem.id,
-            type: "QUEUED",
-            metadata: {
-              requestId: reqRow.id,
-              songId: song.id,
-              action,
-              type: isPlayNow ? "PLAY_NOW" : "NEXT",
-            },
-          },
-        });
-
         await bumpTop10Request(tx, {
           locationId: loc.id,
           sessionId: session.id,
@@ -223,12 +176,7 @@ export async function POST(req: Request) {
           song,
         });
 
-        return {
-          reqRow,
-          queueItem,
-          balanceAfter: balance - cost,
-          top10Bucket,
-        };
+        return { reqRow, balanceAfter: balance - cost, top10Bucket };
       },
       { isolationLevel: "Serializable" }
     );
@@ -236,7 +184,6 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       requestId: result.reqRow.id,
-      queueItemId: result.queueItem.id,
       balance: result.balanceAfter,
       top10Bucket: result.top10Bucket,
     });

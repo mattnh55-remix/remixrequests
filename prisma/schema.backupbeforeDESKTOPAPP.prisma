@@ -14,14 +14,11 @@ model Location {
   name      String
   createdAt DateTime @default(now())
 
-  songs          Song[]
-  sessions       Session[]
-  requests       Request[]
-  rules          Ruleset?
-  top10Entries   Top10Entry[]
-  queueItems     QueueItem[]
-  playbackEvents PlaybackEvent[]
-  audioAssets    AudioAsset[]
+  songs    Song[]
+  sessions Session[]
+  requests Request[]
+  rules    Ruleset?
+  top10Entries Top10Entry[]
 
   CreditLedger CreditLedger[]
   PlayHistory  PlayHistory[]
@@ -43,9 +40,9 @@ model Song {
   explicit   Boolean  @default(false)
   tags       String[] @default([])
 
-  createdAt    DateTime      @default(now())
-  Request      Request[]
-  PlayHistory  PlayHistory[]
+  createdAt   DateTime      @default(now())
+  Request     Request[]
+  PlayHistory PlayHistory[]
   top10Entries Top10Entry[]
 
   @@index([locationId])
@@ -62,10 +59,9 @@ model Session {
   endsAt    DateTime
   createdAt DateTime @default(now())
 
-  requests     Request[]
-  votes        Vote[]
+  requests Request[]
+  votes    Vote[]
   top10Entries Top10Entry[]
-  queueItems   QueueItem[]
 
   @@index([locationId, endsAt])
 }
@@ -81,9 +77,9 @@ model Request {
   songId String
   song   Song   @relation(fields: [songId], references: [id])
 
-  emailHash   String
-  type        RequestType   @default(NEXT)
-  status      RequestStatus @default(APPROVED)
+  emailHash  String
+  type       RequestType   @default(NEXT)
+  status     RequestStatus @default(APPROVED)
   top10Bucket Top10Bucket?
 
   createdAt    DateTime  @default(now())
@@ -91,8 +87,7 @@ model Request {
   rejectedAt   DateTime?
   rejectReason String?
 
-  votes     Vote[]
-  queueItem QueueItem?
+  votes Vote[]
 
   @@index([locationId, sessionId])
   @@index([status])
@@ -115,28 +110,29 @@ model Vote {
   @@index([sessionId, emailHash])
 }
 
+
 model Top10Entry {
   id         String   @id @default(cuid())
   locationId String
   location   Location @relation(fields: [locationId], references: [id])
 
-  sessionId String
-  session   Session @relation(fields: [sessionId], references: [id])
+  sessionId  String
+  session    Session  @relation(fields: [sessionId], references: [id])
 
-  songId String
-  song   Song   @relation(fields: [songId], references: [id])
+  songId     String
+  song       Song     @relation(fields: [songId], references: [id])
 
   bucket         Top10Bucket
   title          String
   artist         String
   artworkUrl     String?
-  requestCount   Int         @default(0)
-  upvotes        Int         @default(0)
-  downvotes      Int         @default(0)
-  score          Int         @default(0)
-  lastActivityAt DateTime    @default(now())
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  requestCount   Int      @default(0)
+  upvotes        Int      @default(0)
+  downvotes      Int      @default(0)
+  score          Int      @default(0)
+  lastActivityAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([locationId, sessionId, bucket, songId])
   @@index([locationId, sessionId, bucket, score])
@@ -151,7 +147,7 @@ model CreditLedger {
   emailHash String
   delta     Int
   reason    String
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
   expiresAt DateTime?
 
   @@index([locationId, emailHash])
@@ -200,16 +196,16 @@ model Ruleset {
   artistCooldownMinutes Int     @default(15)
   songCooldownMinutes   Int     @default(120)
 
-  maxActiveRequestsPerUser Int     @default(2)
-  msgTooManyActiveRequests String  @default("You already have songs waiting in the queue.")
-  enableVoting             Boolean @default(true)
-  msgExplicit              String  @default("Sorry — this song isn’t available here.")
-  msgAlreadyRequested      String  @default("You’ve already made a request this session.")
-  msgArtistCooldown        String  @default("Sorry — this artist has played in the last 15 minutes.")
-  msgSongCooldown          String  @default("Sorry — this song has already been played in the last 2 hours.")
-  msgNoCredits             String  @default("Not enough credits.")
-  maxArtistInQueue         Int     @default(0)
-  msgArtistAlreadyQueued   String  @default("Sorry, $artist is already queued up on the request list!")
+  maxActiveRequestsPerUser   Int    @default(2)
+  msgTooManyActiveRequests   String @default("You already have songs waiting in the queue.")
+  enableVoting               Boolean @default(true)
+  msgExplicit                String @default("Sorry — this song isn’t available here.")
+  msgAlreadyRequested        String @default("You’ve already made a request this session.")
+  msgArtistCooldown          String @default("Sorry — this artist has played in the last 15 minutes.")
+  msgSongCooldown            String @default("Sorry — this song has already been played in the last 2 hours.")
+  msgNoCredits               String @default("Not enough credits.")
+  maxArtistInQueue           Int    @default(0)
+  msgArtistAlreadyQueued     String @default("Sorry, $artist is already queued up on the request list!")
 
   top10Enabled           Boolean @default(true)
   top10Timezone          String  @default("America/New_York")
@@ -217,82 +213,8 @@ model Ruleset {
   top10AdultCutoffMinute Int     @default(0)
   shoutoutSlideSeconds   Int     @default(10)
 
-  requestClusterThreshold   Int     @default(3)
-  requestLookaheadWindow    Int     @default(5)
-  singleRequestIntroEnabled Boolean @default(true)
-  blockRequestIntroEnabled  Boolean @default(true)
-  brandingDropMinSongsApart Int     @default(3)
-  hourlyRulesEnabled        Boolean @default(false)
-  maxInsertsPer15Min        Int     @default(2)
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
-
-model QueueItem {
-  id        String   @id @default(cuid())
-  requestId String?  @unique
-  request   Request? @relation(fields: [requestId], references: [id], onDelete: SetNull)
-
-  locationId String
-  location   Location @relation(fields: [locationId], references: [id])
-
-  sessionId String
-  session   Session @relation(fields: [sessionId], references: [id])
-
-  status        QueueItemStatus @default(QUEUED)
-  position      Int
-  sourceType    QueueSourceType @default(REQUEST)
-  introAssigned Boolean         @default(false)
-  clusterId     String?
-
-  loadedAt    DateTime?
-  playingAt   DateTime?
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
-
-  playbackEvents PlaybackEvent[]
-
-  @@index([locationId, sessionId, position])
-  @@index([locationId, status, position])
-  @@index([sessionId, status, position])
-  @@index([sourceType, status])
-}
-
-model PlaybackEvent {
-  id         String   @id @default(cuid())
-  locationId String
-  location   Location @relation(fields: [locationId], references: [id])
-
-  queueItemId String?
-  queueItem   QueueItem? @relation(fields: [queueItemId], references: [id], onDelete: SetNull)
-
-  type      PlaybackEventType
-  metadata  Json?
-  createdAt DateTime          @default(now())
-
-  @@index([locationId, createdAt])
-  @@index([queueItemId, createdAt])
-  @@index([type, createdAt])
-}
-
-model AudioAsset {
-  id         String   @id @default(cuid())
-  locationId String
-  location   Location @relation(fields: [locationId], references: [id])
-
-  name            String
-  filePath        String
-  category        AudioAssetCategory
-  durationSec     Int
-  active          Boolean            @default(true)
-  cooldownSongs   Int?
-  cooldownMinutes Int?
-  randomWeight    Int                @default(1)
-  createdAt       DateTime           @default(now())
-
-  @@index([locationId, category, active])
-  @@index([locationId, name])
 }
 
 model Identity {
@@ -374,18 +296,29 @@ model ProcessedPayment {
   createdAt DateTime @default(now())
 }
 
+enum RequestType {
+  NEXT
+  PLAY_NOW
+}
+
+enum RequestStatus {
+  APPROVED
+  REJECTED
+  PLAYED
+}
+
 model RedemptionCode {
-  id                  String    @id @default(cuid())
-  locationId          String
-  code                String
-  points              Int
-  maxUses             Int       @default(1)
-  uses                Int       @default(0)
-  expiresAt           DateTime?
-  redeemWindowMinutes Int       @default(120)
-  disabledAt          DateTime?
-  source              String?
-  createdAt           DateTime  @default(now())
+  id         String   @id @default(cuid())
+  locationId String
+  code       String
+  points     Int
+  maxUses    Int      @default(1)
+  uses       Int      @default(0)
+  expiresAt  DateTime?
+  redeemWindowMinutes Int @default(120)
+  disabledAt DateTime?
+  source     String?
+  createdAt  DateTime @default(now())
 
   usesRel RedemptionCodeUse[]
 
@@ -395,11 +328,11 @@ model RedemptionCode {
 }
 
 model RedemptionCodeUse {
-  id         String    @id @default(cuid())
+  id         String   @id @default(cuid())
   locationId String
   codeId     String
   emailHash  String
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime @default(now())
   expiresAt  DateTime?
 
   code RedemptionCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
@@ -411,7 +344,7 @@ model RedemptionCodeUse {
 }
 
 model ScreenMessage {
-  id                 String  @id @default(cuid())
+  id                 String   @id @default(cuid())
   locationId         String
   sessionId          String
   identityId         String?
@@ -429,14 +362,14 @@ model ScreenMessage {
   autoTextModerationReason String?
   autoModeratedAt          DateTime?
 
-  approvedAt  DateTime?
-  rejectedAt  DateTime?
-  activatedAt DateTime?
-  expiredAt   DateTime?
+  approvedAt         DateTime?
+  rejectedAt         DateTime?
+  activatedAt        DateTime?
+  expiredAt          DateTime?
 
-  approvedBy     String?
-  rejectedBy     String?
-  refundLedgerId String? @unique
+  approvedBy         String?
+  rejectedBy         String?
+  refundLedgerId     String?  @unique
 
   imageOriginalPath     String?
   imagePreviewPath      String?
@@ -446,7 +379,7 @@ model ScreenMessage {
   imageModerationReason String?
   imageUploadedAt       DateTime?
 
-  usageRightsAccepted   Boolean   @default(false)
+  usageRightsAccepted   Boolean  @default(false)
   usageRightsAcceptedAt DateTime?
 
   createdAt DateTime @default(now())
@@ -460,20 +393,20 @@ model ScreenMessage {
 }
 
 model MessageRuleset {
-  id         String @id @default(cuid())
-  locationId String @unique
+  id         String   @id @default(cuid())
+  locationId String   @unique
 
-  enabled      Boolean
-  costBasic    Int
+  enabled Boolean
+  costBasic Int
   costFeatured Int
 
-  maxMessageChars  Int
+  maxMessageChars Int
   maxFromNameChars Int
 
-  displayDurationBasicSec    Int
+  displayDurationBasicSec Int
   displayDurationFeaturedSec Int
 
-  approvalRequired   Boolean
+  approvalRequired Boolean
   autoRefundRejected Boolean
 
   maxPendingPerIdentity Int
@@ -484,54 +417,8 @@ model MessageRuleset {
   updatedAt DateTime @updatedAt
 }
 
-enum RequestType {
-  NEXT
-  PLAY_NOW
-}
-
-enum RequestStatus {
-  APPROVED
-  REJECTED
-  PLAYED
-}
 
 enum Top10Bucket {
   GENERAL
   ADULT
-}
-
-enum QueueItemStatus {
-  QUEUED
-  LOADED
-  PLAYING
-  PLAYED
-  HELD
-  SKIPPED
-  NOT_FOUND
-}
-
-enum QueueSourceType {
-  REQUEST
-  HOUSE
-  INTERSTITIAL
-}
-
-enum PlaybackEventType {
-  QUEUED
-  INTRO_INSERTED
-  LOADED
-  PLAYING
-  PLAYED
-  SKIPPED
-  HELD
-  DROP_TRIGGERED
-}
-
-enum AudioAssetCategory {
-  REQUEST_SINGLE
-  REQUEST_BLOCK
-  BRANDING
-  RULES
-  GAME
-  MANUAL
 }

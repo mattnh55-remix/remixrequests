@@ -11,22 +11,17 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const requestId = String(body.requestId || "").trim();
-    const reason = String(body.reason || "Rejected").trim();
+    const requestId = String(body.requestId || "");
+    const reason = String(body.reason || "Rejected");
 
     if (!requestId) {
       return NextResponse.json({ ok: false, error: "Missing requestId" }, { status: 400 });
     }
 
     await prisma.$transaction(async (tx) => {
-      const now = new Date();
-
       const r = await tx.request.findUnique({
         where: { id: requestId },
-        include: {
-          location: { select: { slug: true } },
-          queueItem: true,
-        },
+        include: { location: { select: { slug: true } } },
       });
 
       if (!r) throw new Error("NOT_FOUND");
@@ -40,34 +35,10 @@ export async function POST(req: Request) {
         where: { id: requestId },
         data: {
           status: "REJECTED",
-          rejectedAt: now,
+          rejectedAt: new Date(),
           rejectReason: reason,
         },
       });
-
-      if (r.queueItem) {
-        await tx.queueItem.update({
-          where: { id: r.queueItem.id },
-          data: {
-            status: "SKIPPED",
-            completedAt: now,
-          },
-        });
-
-        await tx.playbackEvent.create({
-          data: {
-            locationId: r.locationId,
-            queueItemId: r.queueItem.id,
-            type: "SKIPPED",
-            metadata: {
-              requestId: r.id,
-              songId: r.songId,
-              reason,
-              source: "admin_reject",
-            },
-          },
-        });
-      }
 
       await removeRequestFromTop10(tx, {
         locationId: r.locationId,
@@ -80,7 +51,7 @@ export async function POST(req: Request) {
         const activeSession = await tx.session.findFirst({
           where: {
             locationId: r.locationId,
-            endsAt: { gt: now },
+            endsAt: { gt: new Date() },
           },
           select: { endsAt: true },
           orderBy: { createdAt: "desc" },
