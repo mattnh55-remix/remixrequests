@@ -24,6 +24,7 @@ export function mapDbInterstitialAssetsToPreview(
       name: asset.name,
       category: asset.category,
       fileUrl: asset.fileUrl,
+      filePath: asset.fileUrl,
       durationSec: asset.durationSec ?? 0,
       active: asset.active,
       priority: asset.priority,
@@ -32,6 +33,11 @@ export function mapDbInterstitialAssetsToPreview(
       intervalMinutes: asset.intervalMinutes,
       allowedProfiles: asset.allowedProfiles ?? [],
       blockedProfiles: asset.blockedProfiles ?? [],
-    } as InterstitialAsset;
+
+      // bridge defaults for the older preview type
+      triggerType: "MANUAL",
+      cooldownSongs: 0,
+      cooldownMinutes: 0,
+    } as unknown as InterstitialAsset;
   });
 }

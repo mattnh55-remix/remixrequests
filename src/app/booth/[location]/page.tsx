@@ -466,7 +466,7 @@ function NextPlaybackActionPanel({
             />
             <PlanningRow
               label="File"
-              value={plannedAsset.fileUrl || "—"}
+              value={plannedAsset.filePath || "—"}
             />
           </>
         ) : (
