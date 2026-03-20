@@ -1,3 +1,5 @@
+// SKIP ROUTE
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
@@ -70,13 +72,14 @@ export async function POST(req: Request) {
             },
           });
 
-          await removeRequestFromTop10(tx, {
-            locationId: item.request.locationId,
-            sessionId: item.request.sessionId,
-            songId: item.request.songId,
-            bucket: item.request.top10Bucket,
-          });
-
+if (item.request.top10Bucket) {
+  await removeRequestFromTop10(tx, {
+    locationId: item.request.locationId,
+    sessionId: item.request.sessionId,
+    songId: item.request.songId,
+    bucket: item.request.top10Bucket,
+  });
+}
           if (refund > 0) {
             const activeSession = await tx.session.findFirst({
               where: {
