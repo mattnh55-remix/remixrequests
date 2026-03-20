@@ -1,3 +1,5 @@
+// src/app/api/admin/songs/import/[location]/route.ts
+
 import { NextResponse } from "next/server";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 import { getRulesForLocation } from "@/lib/rules";
@@ -44,10 +46,16 @@ export async function POST(req: Request, { params }: { params: { location: strin
   let rows: Array<any> = [];
 
   if (name.endsWith(".xlsx")) {
-    const wb = XLSX.read(buf, { type: "buffer" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-  } else if (name.endsWith(".csv")) {
+  const wb = XLSX.read(buf, { type: "buffer" });
+
+  const preferredSheetName =
+    wb.SheetNames.find((n) => n === "Production_Import_Template") ||
+    wb.SheetNames.find((n) => n.toLowerCase() === "production_import_template") ||
+    wb.SheetNames[0];
+
+  const sheet = wb.Sheets[preferredSheetName];
+  rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+} else if (name.endsWith(".csv")) {
     const text = buf.toString("utf8");
     const wb = XLSX.read(text, { type: "string" });
     const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -58,8 +66,8 @@ export async function POST(req: Request, { params }: { params: { location: strin
 
   // ✅ NEW FLEXIBLE MAPPING
   const normalized = rows.map((r) => {
-    const title = r.title ?? r.Title ?? "";
-    const artist = r.artist ?? r.Artist ?? "";
+const title = r.title ?? r.Title ?? r.TITLE ?? "";
+const artist = r.artist ?? r.Artist ?? r.ARTIST ?? "";
 
     return {
       // REQUIRED
