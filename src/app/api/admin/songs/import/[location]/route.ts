@@ -97,6 +97,14 @@ export async function POST(req: Request, { params }: { params: { location: strin
     throw e;
   }
 
+console.log("ROW COUNT:", rows.length);
+
+if (rows.length > 0) {
+  console.log("FIRST ROW KEYS:", Object.keys(rows[0]));
+  console.log("FIRST ROW RAW:", rows[0]);
+}
+
+
   const normalized = rows
     .map((r) => {
       const title = r.title ?? r.Title ?? r.TITLE ?? "";
