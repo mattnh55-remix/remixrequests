@@ -1,4 +1,4 @@
-// HOLD ROUTE
+// RETURN TO QUEUE
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
@@ -35,8 +35,9 @@ export async function POST(req: Request) {
       await tx.queueItem.update({
         where: { id: item.id },
         data: {
-          status: "HELD",
+          status: "QUEUED",
           loadedAt: null,
+          playingAt: null,
         },
       });
 
@@ -44,11 +45,11 @@ export async function POST(req: Request) {
         data: {
           locationId: item.locationId,
           queueItemId: item.id,
-          type: "HELD",
+          type: "QUEUED",
           metadata: {
             queueItemId: item.id,
             requestId: item.requestId,
-            source: "booth_hold",
+            source: "booth_return_to_queue",
           },
         },
       });
@@ -65,14 +66,14 @@ export async function POST(req: Request) {
 
     if (error?.message === "INVALID_STATE") {
       return NextResponse.json(
-        { ok: false, error: "Played or skipped items cannot be held." },
+        { ok: false, error: "Played or skipped items cannot return to queue." },
         { status: 400 }
       );
     }
 
-    console.error("booth hold error", error);
+    console.error("booth return-to-queue error", error);
     return NextResponse.json(
-      { ok: false, error: "Could not hold queue item." },
+      { ok: false, error: "Could not return queue item to queue." },
       { status: 500 }
     );
   }

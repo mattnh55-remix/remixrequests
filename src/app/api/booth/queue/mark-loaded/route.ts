@@ -33,7 +33,10 @@ await prisma.$transaction(async (tx) => {
       status: "LOADED",
       NOT: { id: item.id },
     },
-    data: { status: "QUEUED" },
+    data: {
+  status: "QUEUED",
+  loadedAt: null,
+},
   });
 
   // ✅ SET NEW LOADED
