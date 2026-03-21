@@ -1,5 +1,3 @@
-// HOLD ROUTE
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
@@ -37,6 +35,8 @@ export async function POST(req: Request) {
         data: {
           status: "HELD",
           loadedAt: null,
+          playingAt: null,
+          expectedEndAt: null,
         },
       });
 

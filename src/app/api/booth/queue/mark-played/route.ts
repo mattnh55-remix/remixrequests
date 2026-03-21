@@ -37,6 +37,7 @@ export async function POST(req: Request) {
         data: {
           status: "PLAYED",
           completedAt: now,
+          expectedEndAt: null,
         },
       });
 
@@ -49,6 +50,8 @@ export async function POST(req: Request) {
             queueItemId: item.id,
             requestId: item.requestId,
             source: "booth_mark_played",
+            durationSec: item.durationSec,
+            startedAt: item.playingAt?.toISOString() ?? null,
           },
         },
       });

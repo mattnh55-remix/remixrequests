@@ -1,5 +1,3 @@
-// RETURN TO QUEUE
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
@@ -38,6 +36,7 @@ export async function POST(req: Request) {
           status: "QUEUED",
           loadedAt: null,
           playingAt: null,
+          expectedEndAt: null,
         },
       });
 

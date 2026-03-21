@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
+import { getRulesForLocation } from "@/lib/rules";
+import { removeRequestFromTop10 } from "@/lib/top10";
 
 export async function POST(req: Request) {
   if (!isAdminFromCookie(req.headers.get("cookie"))) {
@@ -10,10 +12,7 @@ export async function POST(req: Request) {
   const { queueItemId } = await req.json();
 
   if (!queueItemId) {
-    return NextResponse.json(
-      { ok: false, error: "Missing queueItemId" },
-      { status: 400 }
-    );
+    return NextResponse.json({ ok: false, error: "Missing queueItemId" }, { status: 400 });
   }
 
   try {
@@ -23,7 +22,11 @@ export async function POST(req: Request) {
       const item = await tx.queueItem.findUnique({
         where: { id: queueItemId },
         include: {
-          request: true,
+          request: {
+            include: {
+              location: { select: { slug: true } },
+            },
+          },
         },
       });
 
@@ -32,10 +35,11 @@ export async function POST(req: Request) {
       }
 
       await tx.queueItem.update({
-        where: { id: item.id },
+        where: { id: queueItemId },
         data: {
           status: "SKIPPED",
           completedAt: now,
+          expectedEndAt: null,
         },
       });
 
@@ -47,36 +51,68 @@ export async function POST(req: Request) {
           metadata: {
             queueItemId: item.id,
             requestId: item.requestId,
-            source: "booth_skip_minimal",
+            source: "booth_skip",
+            durationSec: item.durationSec,
+            startedAt: item.playingAt?.toISOString() ?? null,
           },
         },
       });
 
-      if (item.request && item.request.status !== "REJECTED" && item.request.status !== "PLAYED") {
-        await tx.request.update({
-          where: { id: item.request.id },
-          data: {
-            status: "REJECTED",
-            rejectedAt: now,
-            rejectReason: "Booth skip",
-          },
-        });
+      if (item.request) {
+        if (item.request.status !== "REJECTED" && item.request.status !== "PLAYED") {
+          const { rules } = await getRulesForLocation(item.request.location.slug);
+          const refund =
+            item.request.type === "PLAY_NOW" ? rules.costPlayNow : rules.costRequest;
+
+          await tx.request.update({
+            where: { id: item.request.id },
+            data: {
+              status: "REJECTED",
+              rejectedAt: now,
+              rejectReason: "Booth skip",
+            },
+          });
+
+          if (item.request.top10Bucket) {
+            await removeRequestFromTop10(tx, {
+              locationId: item.request.locationId,
+              sessionId: item.request.sessionId,
+              songId: item.request.songId,
+              bucket: item.request.top10Bucket,
+            });
+          }
+
+          if (refund > 0) {
+            const activeSession = await tx.session.findFirst({
+              where: {
+                locationId: item.request.locationId,
+                endsAt: { gt: now },
+              },
+              select: { endsAt: true },
+              orderBy: { createdAt: "desc" },
+            });
+
+            await tx.creditLedger.create({
+              data: {
+                locationId: item.request.locationId,
+                emailHash: item.request.emailHash ?? "system",
+                delta: refund,
+                reason: "BOOTH_SKIP_REFUND",
+                expiresAt: activeSession?.endsAt ?? null,
+              },
+            });
+          }
+        }
       }
     });
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     if (error?.message === "NOT_FOUND") {
-      return NextResponse.json(
-        { ok: false, error: "Queue item not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ ok: false, error: "Queue item not found" }, { status: 404 });
     }
 
     console.error("booth skip error", error);
-    return NextResponse.json(
-      { ok: false, error: "Could not skip queue item." },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: "Could not skip queue item." }, { status: 500 });
   }
 }

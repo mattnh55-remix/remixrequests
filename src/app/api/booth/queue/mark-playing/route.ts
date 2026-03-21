@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
+import { computeExpectedEndAt, normalizeDurationSec } from "@/lib/booth/queue-runtime";
 
 export async function POST(req: Request) {
   if (!isAdminFromCookie(req.headers.get("cookie"))) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  const { queueItemId } = await req.json();
+  const body = await req.json();
+  const queueItemId = body.queueItemId;
+  const incomingDurationSec = normalizeDurationSec(body.durationSec);
 
   if (!queueItemId) {
     return NextResponse.json(
@@ -41,6 +44,7 @@ export async function POST(req: Request) {
         data: {
           status: "QUEUED",
           playingAt: null,
+          expectedEndAt: null,
         },
       });
 
@@ -56,12 +60,17 @@ export async function POST(req: Request) {
         },
       });
 
+      const durationSec = incomingDurationSec ?? item.durationSec ?? null;
+      const expectedEndAt = computeExpectedEndAt(now, durationSec);
+
       await tx.queueItem.update({
         where: { id: item.id },
         data: {
           status: "PLAYING",
           playingAt: now,
           loadedAt: item.loadedAt ?? now,
+          durationSec,
+          expectedEndAt,
         },
       });
 
@@ -74,6 +83,8 @@ export async function POST(req: Request) {
             queueItemId: item.id,
             requestId: item.requestId,
             source: "booth_mark_playing",
+            durationSec,
+            expectedEndAt: expectedEndAt?.toISOString() ?? null,
           },
         },
       });

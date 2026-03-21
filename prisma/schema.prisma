@@ -246,6 +246,9 @@ model QueueItem {
   introAssigned Boolean         @default(false)
   clusterId     String?
 
+  durationSec   Int?
+  expectedEndAt DateTime?
+
   loadedAt    DateTime?
   playingAt   DateTime?
   completedAt DateTime?

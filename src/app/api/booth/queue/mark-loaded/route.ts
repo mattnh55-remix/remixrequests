@@ -17,45 +17,49 @@ export async function POST(req: Request) {
   }
 
   try {
-await prisma.$transaction(async (tx) => {
-  const now = new Date();
+    await prisma.$transaction(async (tx) => {
+      const now = new Date();
 
-  const item = await tx.queueItem.findUnique({
-    where: { id: queueItemId },
-  });
+      const item = await tx.queueItem.findUnique({
+        where: { id: queueItemId },
+      });
 
-  if (!item) throw new Error("NOT_FOUND");
+      if (!item) throw new Error("NOT_FOUND");
 
-  // 🔥 CLEAR EXISTING LOADED
-  await tx.queueItem.updateMany({
-    where: {
-      locationId: item.locationId,
-      status: "LOADED",
-      NOT: { id: item.id },
-    },
-    data: {
-  status: "QUEUED",
-  loadedAt: null,
-},
-  });
+      await tx.queueItem.updateMany({
+        where: {
+          locationId: item.locationId,
+          status: "LOADED",
+          NOT: { id: item.id },
+        },
+        data: {
+          status: "QUEUED",
+          loadedAt: null,
+        },
+      });
 
-  // ✅ SET NEW LOADED
-  await tx.queueItem.update({
-    where: { id: item.id },
-    data: {
-      status: "LOADED",
-      loadedAt: now,
-    },
-  });
+      await tx.queueItem.update({
+        where: { id: item.id },
+        data: {
+          status: "LOADED",
+          loadedAt: now,
+          expectedEndAt: null,
+        },
+      });
 
-  await tx.playbackEvent.create({
-    data: {
-      locationId: item.locationId,
-      queueItemId: item.id,
-      type: "LOADED",
-    },
-  });
-});
+      await tx.playbackEvent.create({
+        data: {
+          locationId: item.locationId,
+          queueItemId: item.id,
+          type: "LOADED",
+          metadata: {
+            queueItemId: item.id,
+            requestId: item.requestId,
+            source: "booth_mark_loaded",
+          },
+        },
+      });
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
