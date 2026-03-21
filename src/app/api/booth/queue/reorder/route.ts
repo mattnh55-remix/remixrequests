@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/db";
+import { isAdminFromCookie } from "@/lib/adminAuth";
 
 export async function POST(req: Request) {
+  if (!isAdminFromCookie(req.headers.get("cookie"))) {
+    return NextResponse.json({ ok: false }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
 
-    const location = body.location;
+    const location = String(body.location || "").trim();
 
-    // ✅ support BOTH names (prevents future breakage)
     const orderedIds: string[] =
       body.orderedQueuedItemIds || body.orderedQueueItemIds;
 
@@ -18,38 +22,37 @@ export async function POST(req: Request) {
       );
     }
 
-    // fetch current queue (only reorderable items)
     const items = await prisma.queueItem.findMany({
       where: {
         locationId: location,
         status: "QUEUED",
       },
-      orderBy: {
-        sortOrder: "asc",
+      orderBy: [
+        { position: "asc" },
+        { createdAt: "asc" },
+      ],
+      select: {
+        id: true,
       },
     });
 
-    // map id → item
-    const map = new Map(items.map((i) => [i.id, i]));
+    const existingIds = new Set(items.map((item) => item.id));
+    const validIds = orderedIds.filter((id) => existingIds.has(id));
 
-    // safety: only reorder items that exist
-    const validIds = orderedIds.filter((id) => map.has(id));
-
-    // update sortOrder sequentially
-    await Promise.all(
+    await prisma.$transaction(
       validIds.map((id, index) =>
         prisma.queueItem.update({
           where: { id },
-          data: { sortOrder: index },
+          data: { position: index + 1 },
         })
       )
     );
 
     return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error("Reorder error:", err);
+  } catch (error) {
+    console.error("booth reorder error", error);
     return NextResponse.json(
-      { ok: false, error: "Server error" },
+      { ok: false, error: "Could not reorder queue." },
       { status: 500 }
     );
   }
