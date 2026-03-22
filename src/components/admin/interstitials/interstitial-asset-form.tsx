@@ -2,178 +2,119 @@
 
 import { saveInterstitialAsset } from "@/app/admin/[location]/interstitials/actions";
 
-type InterstitialAssetFormProps = {
-  locationId: string;
-  categoryOptions: string[];
-  scheduleOptions: string[];
-  profileOptions: string[];
-  initialValues?: {
-    id?: string;
-    name?: string;
-    category?: string;
-    fileUrl?: string;
-    durationSec?: number | null;
-    active?: boolean;
-    priority?: number;
-    randomWeight?: number;
-    scheduleMode?: string;
-    intervalMinutes?: number | null;
-    allowedProfiles?: string[];
-    blockedProfiles?: string[];
-  };
-  submitLabel?: string;
-};
-
 export function InterstitialAssetForm({
   locationId,
-  categoryOptions,
-  scheduleOptions,
-  profileOptions,
   initialValues,
   submitLabel = "Save Interstitial",
-}: InterstitialAssetFormProps) {
+}: any) {
   return (
-    <form action={saveInterstitialAsset} className="space-y-4">
+    <form action={saveInterstitialAsset} className="space-y-6">
       <input type="hidden" name="id" defaultValue={initialValues?.id ?? ""} />
       <input type="hidden" name="locationId" value={locationId} />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium">Name</label>
+      {/* GRID */}
+      <div className="grid md:grid-cols-2 gap-6">
+
+        {/* LEFT COLUMN */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-zinc-400">IDENTITY</h3>
+
           <input
             name="name"
             defaultValue={initialValues?.name ?? ""}
-            className="w-full rounded-lg border px-3 py-2"
-            placeholder="Birthday shoutout intro"
+            placeholder="Request Block Intro"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
             required
           />
-        </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">File URL</label>
           <input
             name="fileUrl"
             defaultValue={initialValues?.fileUrl ?? ""}
-            className="w-full rounded-lg border px-3 py-2"
             placeholder="https://..."
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
             required
+          />
+
+          <input
+            name="category"
+            defaultValue={initialValues?.category ?? ""}
+            placeholder="CATEGORY"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
           />
         </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">Category</label>
-          <select
-            name="category"
-            defaultValue={initialValues?.category ?? "BRANDING"}
-            className="w-full rounded-lg border px-3 py-2"
-          >
-            {categoryOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* RIGHT COLUMN */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-zinc-400">BEHAVIOR</h3>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">Schedule Mode</label>
-          <select
+          <input
             name="scheduleMode"
-            defaultValue={initialValues?.scheduleMode ?? "NONE"}
-            className="w-full rounded-lg border px-3 py-2"
-          >
-            {scheduleOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
+            defaultValue={initialValues?.scheduleMode ?? ""}
+            placeholder="SCHEDULE MODE"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
+          />
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">Duration (sec)</label>
           <input
             type="number"
             name="durationSec"
             defaultValue={initialValues?.durationSec ?? ""}
-            className="w-full rounded-lg border px-3 py-2"
-            min={0}
+            placeholder="Duration (sec)"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
           />
-        </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">Interval Minutes</label>
           <input
             type="number"
             name="intervalMinutes"
             defaultValue={initialValues?.intervalMinutes ?? ""}
-            className="w-full rounded-lg border px-3 py-2"
-            min={0}
+            placeholder="Interval Minutes"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
           />
-        </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">Priority</label>
           <input
             type="number"
             name="priority"
             defaultValue={initialValues?.priority ?? 0}
-            className="w-full rounded-lg border px-3 py-2"
+            placeholder="Priority"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
           />
-        </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">Random Weight</label>
           <input
             type="number"
             name="randomWeight"
             defaultValue={initialValues?.randomWeight ?? 100}
-            className="w-full rounded-lg border px-3 py-2"
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            Allowed Profiles (comma separated)
-          </label>
-          <input
-            name="allowedProfiles"
-            defaultValue={(initialValues?.allowedProfiles ?? []).join(", ")}
-            className="w-full rounded-lg border px-3 py-2"
-            placeholder={profileOptions.join(", ")}
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            Blocked Profiles (comma separated)
-          </label>
-          <input
-            name="blockedProfiles"
-            defaultValue={(initialValues?.blockedProfiles ?? []).join(", ")}
-            className="w-full rounded-lg border px-3 py-2"
-            placeholder={profileOptions.join(", ")}
+            placeholder="Weight"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
           />
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm">
+      {/* PROFILES */}
+      <div className="grid md:grid-cols-2 gap-6">
         <input
-          type="checkbox"
-          name="active"
-          defaultChecked={initialValues?.active ?? true}
+          name="allowedProfiles"
+          defaultValue={(initialValues?.allowedProfiles ?? []).join(", ")}
+          placeholder="Allowed Profiles"
+          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
         />
+
+        <input
+          name="blockedProfiles"
+          defaultValue={(initialValues?.blockedProfiles ?? []).join(", ")}
+          placeholder="Blocked Profiles"
+          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
+        />
+      </div>
+
+      {/* ACTIVE */}
+      <label className="flex items-center gap-2 text-sm text-zinc-300">
+        <input type="checkbox" name="active" defaultChecked />
         Active
       </label>
 
-      <div>
-        <button
-          type="submit"
-          className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
-        >
-          {submitLabel}
-        </button>
-      </div>
+      {/* SUBMIT */}
+      <button className="bg-amber-400 text-black px-4 py-2 rounded-lg font-medium">
+        {submitLabel}
+      </button>
     </form>
   );
 }
