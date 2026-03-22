@@ -3,23 +3,28 @@
 import { useEffect, useMemo, useState } from "react";
 import QueueItemRow from "./QueueItemRow";
 import {
+  applyOptimisticAction,
   buildReorderPayload,
   isSongDraggable,
+  performQueueAction,
   postFirstJson,
   reorderSongsOnly,
 } from "./booth-utils";
-import type { QueueLikeItem, ReorderState } from "./types";
+import type { BoothActionName, QueueLikeItem, ReorderState } from "./types";
 
 export default function QueueList({
   items,
   location,
   onQueueCommitted,
+  onActionComplete,
 }: {
   items: QueueLikeItem[];
   location: string;
   onQueueCommitted?: (items: QueueLikeItem[]) => void;
+  onActionComplete?: (result: { ok: boolean; message: string }, nextQueue?: QueueLikeItem[]) => void;
 }) {
   const [draftItems, setDraftItems] = useState<QueueLikeItem[]>(items);
+  const [busyActionById, setBusyActionById] = useState<Record<string, BoothActionName | null>>({});
   const [dragState, setDragState] = useState<ReorderState>({
     dirty: false,
     saving: false,
@@ -98,36 +103,46 @@ export default function QueueList({
     }));
   }
 
+  async function handleItemAction(item: QueueLikeItem, action: BoothActionName) {
+    setBusyActionById((prev) => ({ ...prev, [item.id]: action }));
+
+    const optimisticQueue = applyOptimisticAction(draftItems, item.id, action);
+    setDraftItems(optimisticQueue);
+
+    const result = await performQueueAction(location, item, action);
+
+    setBusyActionById((prev) => ({ ...prev, [item.id]: null }));
+    onActionComplete?.(result, result.ok ? optimisticQueue : undefined);
+  }
+
   return (
     <div className="boothQueueManager">
       <div className="boothQueueToolbar">
-        <div className="boothQueueToolbarLeft">
-          <div className="boothQueueToolbarTitle">SONG REORDER MODE</div>
+        <div>
+          <div className="boothQueueToolbarTitle">Song reorder mode</div>
           <div className="boothQueueToolbarSub">
-            Drag songs only. System interstitials remain locked in place.
+            Drag songs only. Interstitials remain locked system inserts.
           </div>
         </div>
 
         <div className="boothQueueToolbarRight">
           <div className="boothQueueToolbarPill">{draggableSongCount} draggable songs</div>
-          {dragState.dirty ? (
-            <>
-              <button className="boothToolbarBtn boothToolbarBtn--ghost" onClick={cancelDraft}>
-                Cancel
-              </button>
-              <button
-                className="boothToolbarBtn"
-                onClick={() => void saveReorder()}
-                disabled={dragState.saving}
-              >
-                {dragState.saving ? "Saving..." : "Save order"}
-              </button>
-            </>
-          ) : (
-            <button className="boothToolbarBtn boothToolbarBtn--muted" disabled>
-              Live synced
-            </button>
-          )}
+          <button
+            type="button"
+            className="boothToolbarBtn boothToolbarBtn--ghost"
+            onClick={cancelDraft}
+            disabled={!dragState.dirty || dragState.saving}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="boothToolbarBtn"
+            onClick={saveReorder}
+            disabled={!dragState.dirty || dragState.saving}
+          >
+            {dragState.saving ? "Saving..." : "Save Reorder"}
+          </button>
         </div>
       </div>
 
@@ -143,18 +158,22 @@ export default function QueueList({
               key={item.id}
               item={item}
               draggable
+              busyAction={busyActionById[item.id] ?? null}
               isDragging={dragState.activeDragId === item.id}
-              isDropTarget={dragState.activeDragId !== null && dragState.activeDragId !== item.id && isSongDraggable(item)}
-              onDragStart={(queueItem) => {
-                if (!isSongDraggable(queueItem)) return;
+              isDropTarget={dragState.activeDragId !== null && dragState.activeDragId !== item.id}
+              onAction={handleItemAction}
+              onDragStart={(draggedItem) => {
                 setDragState((prev) => ({
                   ...prev,
-                  activeDragId: queueItem.id,
+                  activeDragId: draggedItem.id,
                   error: null,
                   success: null,
                 }));
               }}
-              onDrop={(queueItem) => handleDrop(queueItem)}
+              onDragOver={() => {
+                // visual only
+              }}
+              onDrop={handleDrop}
               onDragEnd={() => {
                 setDragState((prev) => ({ ...prev, activeDragId: null }));
               }}

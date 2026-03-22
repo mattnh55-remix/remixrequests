@@ -68,3 +68,12 @@ export type ReorderState = {
   success: string | null;
   activeDragId: string | null;
 };
+
+export type BoothActionName = "load" | "play" | "hold" | "skip" | "played";
+
+export type BoothActionResult = {
+  ok: boolean;
+  action: BoothActionName;
+  message: string;
+  url?: string | null;
+};

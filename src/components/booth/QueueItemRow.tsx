@@ -1,8 +1,9 @@
 "use client";
 
+import BoothActionButtons from "./BoothActionButtons";
 import StatusBadge from "./StatusBadge";
-import { getStatusTone, isInterstitial, isSongDraggable } from "./booth-utils";
-import type { QueueLikeItem } from "./types";
+import { getAllowedActions, getStatusTone, isInterstitial, isSongDraggable } from "./booth-utils";
+import type { BoothActionName, QueueLikeItem } from "./types";
 
 export default function QueueItemRow({
   item,
@@ -10,6 +11,8 @@ export default function QueueItemRow({
   draggable = false,
   isDropTarget = false,
   isDragging = false,
+  busyAction,
+  onAction,
   onDragStart,
   onDragOver,
   onDrop,
@@ -20,6 +23,8 @@ export default function QueueItemRow({
   draggable?: boolean;
   isDropTarget?: boolean;
   isDragging?: boolean;
+  busyAction?: BoothActionName | null;
+  onAction?: (item: QueueLikeItem, action: BoothActionName) => void;
   onDragStart?: (item: QueueLikeItem) => void;
   onDragOver?: (item: QueueLikeItem) => void;
   onDrop?: (item: QueueLikeItem) => void;
@@ -28,6 +33,7 @@ export default function QueueItemRow({
   const interstitial = isInterstitial(item);
   const tone = getStatusTone(item.status);
   const songDraggable = isSongDraggable(item) && draggable;
+  const actions = getAllowedActions(item);
 
   return (
     <div
@@ -73,6 +79,15 @@ export default function QueueItemRow({
             {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
             {item.clusterId ? ` • Cluster ${item.clusterId}` : ""}
           </div>
+
+          {!compact ? (
+            <BoothActionButtons
+              actions={actions}
+              busyAction={busyAction}
+              compact
+              onAction={(action) => onAction?.(item, action)}
+            />
+          ) : null}
         </div>
       </div>
 

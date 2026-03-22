@@ -1,11 +1,21 @@
 "use client";
 
+import BoothActionButtons from "./BoothActionButtons";
 import StatusBadge from "./StatusBadge";
-import { formatDuration, getProgressPercent, isInterstitial } from "./booth-utils";
-import type { QueueLikeItem } from "./types";
+import { formatDuration, getAllowedActions, getProgressPercent, isInterstitial } from "./booth-utils";
+import type { BoothActionName, QueueLikeItem } from "./types";
 
-export default function NowPlayingCard({ item }: { item: QueueLikeItem | null }) {
+export default function NowPlayingCard({
+  item,
+  busyAction,
+  onAction,
+}: {
+  item: QueueLikeItem | null;
+  busyAction?: BoothActionName | null;
+  onAction?: (item: QueueLikeItem, action: BoothActionName) => void;
+}) {
   const progressPct = getProgressPercent(item);
+  const actions = getAllowedActions(item);
 
   return (
     <div className="boothHeroCard boothHeroCard--now">
@@ -40,6 +50,12 @@ export default function NowPlayingCard({ item }: { item: QueueLikeItem | null })
               </div>
             </div>
           </div>
+
+          <BoothActionButtons
+            actions={actions}
+            busyAction={busyAction}
+            onAction={(action) => onAction?.(item, action)}
+          />
         </>
       ) : (
         <div className="boothEmptyState">No active PLAYING item found.</div>

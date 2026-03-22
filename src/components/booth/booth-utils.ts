@@ -1,4 +1,4 @@
-import type { QueueLikeItem } from "./types";
+import type { BoothActionName, QueueLikeItem } from "./types";
 
 export async function safeJson(res: Response) {
   const text = await res.text();
@@ -59,11 +59,7 @@ export function isInterstitial(item: QueueLikeItem | null | undefined) {
   if (!item) return false;
   const sourceType = String(item.sourceType || "").toUpperCase();
   const type = String(item.type || "").toUpperCase();
-  return (
-    sourceType === "INTERSTITIAL" ||
-    type.includes("INTERSTITIAL") ||
-    type.includes("SYSTEM")
-  );
+  return sourceType === "INTERSTITIAL" || type.includes("INTERSTITIAL") || type.includes("SYSTEM");
 }
 
 export function isSongDraggable(item: QueueLikeItem | null | undefined) {
@@ -77,14 +73,7 @@ export function isSongDraggable(item: QueueLikeItem | null | undefined) {
 export function normalizeQueue(payload: any): QueueLikeItem[] {
   if (!payload) return [];
 
-  const candidates = [
-    payload.queueItems,
-    payload.queue,
-    payload.items,
-    payload.upNext,
-    payload.pending,
-  ];
-
+  const candidates = [payload.queueItems, payload.queue, payload.items, payload.upNext, payload.pending];
   const firstArray = candidates.find(Array.isArray);
   if (!Array.isArray(firstArray)) return [];
 
@@ -107,10 +96,7 @@ export function normalizeQueue(payload: any): QueueLikeItem[] {
     startedAt: item.startedAt ?? item.playStartedAt ?? null,
     createdAt: item.createdAt ?? null,
     requestedByLabel:
-      item.requestedByLabel ??
-      item.request?.requestedByLabel ??
-      item.request?.requestedBy ??
-      null,
+      item.requestedByLabel ?? item.request?.requestedByLabel ?? item.request?.requestedBy ?? null,
     boosted: Boolean(item.boosted ?? item.request?.boosted ?? false),
   }));
 }
@@ -130,11 +116,7 @@ export function moveItem<T>(items: T[], fromIndex: number, toIndex: number) {
   return copy;
 }
 
-export function reorderSongsOnly(
-  items: QueueLikeItem[],
-  draggedId: string,
-  targetId: string
-) {
+export function reorderSongsOnly(items: QueueLikeItem[], draggedId: string, targetId: string) {
   const fromIndex = items.findIndex((item) => item.id === draggedId);
   const toIndex = items.findIndex((item) => item.id === targetId);
 
@@ -169,6 +151,111 @@ export function buildReorderPayload(location: string, items: QueueLikeItem[]) {
       status: item.status ?? null,
     })),
   };
+}
+
+export function buildQueueActionPayload(location: string, item: QueueLikeItem, action: BoothActionName) {
+  return {
+    action,
+    location,
+    id: item.id,
+    queueItemId: item.id,
+    requestId: item.requestId ?? null,
+    sourceType: item.sourceType ?? null,
+    status: item.status ?? null,
+    title: item.title ?? null,
+    artist: item.artist ?? null,
+  };
+}
+
+export function getQueueActionUrls(location: string, action: BoothActionName) {
+  const map: Record<BoothActionName, string[]> = {
+    load: [
+      `/api/booth/mark-loaded/${location}`,
+      `/api/booth/load/${location}`,
+      `/api/booth/queue/mark-loaded/${location}`,
+    ],
+    play: [
+      `/api/booth/mark-playing/${location}`,
+      `/api/booth/play/${location}`,
+      `/api/booth/queue/mark-playing/${location}`,
+    ],
+    hold: [
+      `/api/booth/hold/${location}`,
+      `/api/booth/queue/hold/${location}`,
+      `/api/booth/mark-held/${location}`,
+    ],
+    skip: [
+      `/api/booth/skip/${location}`,
+      `/api/booth/queue/skip/${location}`,
+      `/api/booth/mark-skipped/${location}`,
+    ],
+    played: [
+      `/api/booth/mark-played/${location}`,
+      `/api/booth/played/${location}`,
+      `/api/booth/queue/mark-played/${location}`,
+    ],
+  };
+
+  return map[action];
+}
+
+export async function performQueueAction(location: string, item: QueueLikeItem, action: BoothActionName) {
+  const payload = buildQueueActionPayload(location, item, action);
+  const result = await postFirstJson(getQueueActionUrls(location, action), payload);
+
+  if (result.ok) {
+    return {
+      ok: true,
+      action,
+      message: `${formatActionLabel(action)} sent.`,
+      url: result.url,
+    };
+  }
+
+  return {
+    ok: false,
+    action,
+    message: `${formatActionLabel(action)} route not found yet. UI stayed safe.`,
+    url: result.url,
+  };
+}
+
+export function formatActionLabel(action: BoothActionName) {
+  if (action === "played") return "Mark Played";
+  return action.charAt(0).toUpperCase() + action.slice(1);
+}
+
+export function getAllowedActions(item: QueueLikeItem | null | undefined): BoothActionName[] {
+  if (!item) return [];
+  const status = String(item.status || "").toUpperCase();
+
+  if (status === "PLAYING") return ["hold", "skip", "played"];
+  if (status === "LOADED") return ["play", "hold", "skip"];
+  if (status === "HELD") return ["load", "play", "skip"];
+  if (status === "QUEUED") return ["load", "play", "hold", "skip"];
+  if (status === "SKIPPED" || status === "PLAYED") return [];
+  return ["load", "play", "hold", "skip"];
+}
+
+export function applyOptimisticAction(items: QueueLikeItem[], targetId: string, action: BoothActionName) {
+  return items.map((item) => {
+    if (item.id !== targetId) {
+      if (action === "play" && String(item.status || "").toUpperCase() === "PLAYING") {
+        return { ...item, status: "PLAYED" };
+      }
+      if (action === "load" && String(item.status || "").toUpperCase() === "LOADED") {
+        return { ...item, status: "QUEUED" };
+      }
+      return item;
+    }
+
+    if (action === "load") return { ...item, status: "LOADED" };
+    if (action === "play") return { ...item, status: "PLAYING" };
+    if (action === "hold") return { ...item, status: "HELD" };
+    if (action === "skip") return { ...item, status: "SKIPPED" };
+    if (action === "played") return { ...item, status: "PLAYED" };
+    return item;
+  });
 }
 
 export function formatTimeAgo(input?: string | null) {

@@ -8,8 +8,15 @@ import PanelShell from "./PanelShell";
 import QueueList from "./QueueList";
 import RequestPanel from "./RequestPanel";
 import ShoutoutPanel from "./ShoutoutPanel";
-import { fetchFirstJson, isInterstitial, normalizeQueue } from "./booth-utils";
-import type { BoothDataState, RequestItem, RuntimePreview, ShoutoutItem } from "./types";
+import { fetchFirstJson, isInterstitial, normalizeQueue, performQueueAction } from "./booth-utils";
+import type {
+  BoothActionName,
+  BoothDataState,
+  QueueLikeItem,
+  RequestItem,
+  RuntimePreview,
+  ShoutoutItem,
+} from "./types";
 
 export default function BoothLayout({ location }: { location: string }) {
   const [state, setState] = useState<BoothDataState>({
@@ -22,6 +29,8 @@ export default function BoothLayout({ location }: { location: string }) {
     lastUpdated: null,
     errors: [],
   });
+  const [heroBusy, setHeroBusy] = useState<Record<string, BoothActionName | null>>({});
+  const [actionFlash, setActionFlash] = useState<{ tone: "success" | "error"; message: string } | null>(null);
 
   async function load() {
     const errors: string[] = [];
@@ -37,14 +46,8 @@ export default function BoothLayout({ location }: { location: string }) {
         `/api/booth/runtime/preview/${location}`,
         `/api/booth/next-action/${location}`,
       ]),
-      fetchFirstJson([
-        `/api/admin/queue/${location}`,
-        `/api/requests/${location}`,
-      ]),
-      fetchFirstJson([
-        `/api/admin/shoutouts/${location}`,
-        `/api/shoutouts/${location}`,
-      ]),
+      fetchFirstJson([`/api/admin/queue/${location}`, `/api/requests/${location}`]),
+      fetchFirstJson([`/api/admin/shoutouts/${location}`, `/api/shoutouts/${location}`]),
     ]);
 
     if (!queueRes.ok) errors.push("Queue feed unavailable");
@@ -53,7 +56,6 @@ export default function BoothLayout({ location }: { location: string }) {
     if (!shoutoutsRes.ok) errors.push("Shoutouts feed unavailable");
 
     const queue = normalizeQueue(queueRes.data);
-
     const requestsPayload = requestsRes.data || {};
     const shoutoutsPayload = shoutoutsRes.data || {};
 
@@ -92,11 +94,7 @@ export default function BoothLayout({ location }: { location: string }) {
       : [];
 
     const runtimePreview: RuntimePreview | null =
-      previewRes.data?.preview ||
-      previewRes.data?.nextAction ||
-      previewRes.data?.action ||
-      previewRes.data ||
-      null;
+      previewRes.data?.preview || previewRes.data?.nextAction || previewRes.data?.action || previewRes.data || null;
 
     setState({
       queue,
@@ -127,6 +125,12 @@ export default function BoothLayout({ location }: { location: string }) {
     };
   }, [location]);
 
+  useEffect(() => {
+    if (!actionFlash) return;
+    const id = window.setTimeout(() => setActionFlash(null), 2600);
+    return () => window.clearTimeout(id);
+  }, [actionFlash]);
+
   const nowPlaying = useMemo(
     () => state.queue.find((item) => String(item.status).toUpperCase() === "PLAYING") || null,
     [state.queue]
@@ -150,6 +154,16 @@ export default function BoothLayout({ location }: { location: string }) {
   const queueCount = state.queue.length;
   const interstitialCount = state.queue.filter(isInterstitial).length;
   const songCount = state.queue.filter((item) => !isInterstitial(item)).length;
+
+  async function handleHeroAction(item: QueueLikeItem, action: BoothActionName) {
+    setHeroBusy((prev) => ({ ...prev, [item.id]: action }));
+    const result = await performQueueAction(location, item, action);
+    setHeroBusy((prev) => ({ ...prev, [item.id]: null }));
+    setActionFlash({ tone: result.ok ? "success" : "error", message: result.message });
+    if (result.ok) {
+      await load();
+    }
+  }
 
   return (
     <div className="neonRoot">
@@ -186,8 +200,11 @@ export default function BoothLayout({ location }: { location: string }) {
           </div>
         </header>
 
-        {state.errors.length > 0 ? (
-          <div className="boothNotice">Partial data mode: {state.errors.join(" • ")}</div>
+        {state.errors.length > 0 ? <div className="boothNotice">Partial data mode: {state.errors.join(" • ")}</div> : null}
+        {actionFlash ? (
+          <div className={`boothNotice ${actionFlash.tone === "success" ? "boothNotice--success" : "boothNotice--error"}`}>
+            {actionFlash.message}
+          </div>
         ) : null}
 
         <div className="boothGrid">
@@ -197,8 +214,8 @@ export default function BoothLayout({ location }: { location: string }) {
               subtitle="Highest-priority control lane. Now Playing, On Deck, and live queue."
             >
               <div className="boothHeroStack">
-                <NowPlayingCard item={nowPlaying} />
-                <OnDeckCard item={onDeck} />
+                <NowPlayingCard item={nowPlaying} busyAction={nowPlaying ? heroBusy[nowPlaying.id] ?? null : null} onAction={handleHeroAction} />
+                <OnDeckCard item={onDeck} busyAction={onDeck ? heroBusy[onDeck.id] ?? null : null} onAction={handleHeroAction} />
               </div>
 
               <div className="boothSubsectionTitle">LIVE QUEUE</div>
@@ -213,6 +230,17 @@ export default function BoothLayout({ location }: { location: string }) {
                   }));
                   void load();
                 }}
+                onActionComplete={(result, nextQueue) => {
+                  setActionFlash({ tone: result.ok ? "success" : "error", message: result.message });
+                  if (result.ok && nextQueue) {
+                    setState((prev) => ({
+                      ...prev,
+                      queue: nextQueue,
+                      lastUpdated: new Date().toISOString(),
+                    }));
+                    void load();
+                  }
+                }}
               />
             </PanelShell>
           </div>
@@ -226,10 +254,7 @@ export default function BoothLayout({ location }: { location: string }) {
           </div>
 
           <div className="boothColumn">
-            <ShoutoutPanel
-              pendingShoutouts={state.pendingShoutouts}
-              approvedShoutouts={state.approvedShoutouts}
-            />
+            <ShoutoutPanel pendingShoutouts={state.pendingShoutouts} approvedShoutouts={state.approvedShoutouts} />
           </div>
         </div>
       </div>
@@ -324,6 +349,16 @@ export default function BoothLayout({ location }: { location: string }) {
           font-weight: 800;
         }
 
+        .boothNotice--success {
+          border-color: rgba(0, 247, 255, 0.28);
+          background: rgba(0, 247, 255, 0.09);
+        }
+
+        .boothNotice--error {
+          border-color: rgba(255, 120, 120, 0.28);
+          background: rgba(255, 120, 120, 0.1);
+        }
+
         .boothGrid {
           display: grid;
           grid-template-columns: 1.55fr 1fr 1fr 1fr;
@@ -344,7 +379,23 @@ export default function BoothLayout({ location }: { location: string }) {
           gap: 12px;
         }
 
-        .boothSubsectionTitle {
+        .boothHeroCard {
+          border: 1px solid var(--boothBorder);
+          border-radius: 22px;
+          padding: 14px;
+          background: rgba(255,255,255,0.04);
+        }
+
+        .boothHeroCard--now {
+          box-shadow: var(--glowA);
+        }
+
+        .boothHeroCard--deck {
+          box-shadow: var(--glowB);
+        }
+
+        .boothSubsectionTitle,
+        .boothHeroLabel {
           font-size: 11px;
           font-weight: 1000;
           letter-spacing: 1.5px;
@@ -352,6 +403,135 @@ export default function BoothLayout({ location }: { location: string }) {
           text-transform: uppercase;
           margin-top: 2px;
         }
+
+        .boothHeroMain,
+        .boothDeckMini {
+          display: grid;
+          grid-template-columns: 84px 1fr;
+          gap: 14px;
+          align-items: center;
+          margin-top: 10px;
+        }
+
+        .boothHeroArt {
+          width: 84px;
+          height: 84px;
+          border-radius: 18px;
+          border: 1px solid rgba(255,255,255,0.14);
+          background: radial-gradient(circle at 30% 25%, rgba(0,247,255,0.28), transparent 55%),
+                      radial-gradient(circle at 75% 80%, rgba(255,57,212,0.22), transparent 62%),
+                      rgba(255,255,255,0.07);
+          box-shadow: var(--glowA);
+        }
+
+        .boothHeroArt--small {
+          width: 64px;
+          height: 64px;
+          border-radius: 16px;
+        }
+
+        .boothHeroArt--system {
+          background: radial-gradient(circle at 30% 25%, rgba(255,57,212,0.32), transparent 55%),
+                      radial-gradient(circle at 75% 80%, rgba(255,204,0,0.18), transparent 62%),
+                      rgba(255,255,255,0.07);
+          box-shadow: var(--glowB);
+        }
+
+        .boothHeroTitleLine,
+        .boothDeckTitleLine,
+        .boothQueueTitleLine,
+        .boothRequestTitleLine {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+
+        .boothHeroTitle {
+          font-size: 22px;
+          font-weight: 1000;
+          line-height: 1.05;
+        }
+
+        .boothDeckTitle {
+          font-size: 16px;
+          font-weight: 1000;
+        }
+
+        .boothHeroMeta,
+        .boothDeckMeta,
+        .boothQueueMeta,
+        .boothRequestMeta,
+        .boothShoutoutMeta {
+          margin-top: 6px;
+          font-size: 12px;
+          color: var(--muted);
+          line-height: 1.35;
+        }
+
+        .boothProgress {
+          margin-top: 12px;
+          width: 100%;
+          height: 10px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.08);
+          overflow: hidden;
+          border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .boothProgressFill {
+          height: 100%;
+          border-radius: 999px;
+          background: linear-gradient(90deg, rgba(0,247,255,0.9), rgba(255,57,212,0.85));
+          box-shadow: var(--glowA), var(--glowB);
+        }
+
+        .boothProgressMeta {
+          margin-top: 7px;
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          font-size: 11px;
+          color: var(--muted);
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          font-weight: 900;
+        }
+
+        .boothActionBar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 12px;
+        }
+
+        .boothActionBar--compact {
+          margin-top: 10px;
+        }
+
+        .boothActionBtn {
+          appearance: none;
+          border: 1px solid rgba(255,255,255,0.14);
+          border-radius: 10px;
+          padding: 8px 10px;
+          background: rgba(255,255,255,0.06);
+          color: white;
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 0.4px;
+          cursor: pointer;
+        }
+
+        .boothActionBtn:disabled {
+          opacity: 0.64;
+          cursor: default;
+        }
+
+        .boothActionBtn--load { border-color: rgba(255,57,212,0.3); box-shadow: var(--glowB); }
+        .boothActionBtn--play { border-color: rgba(0,247,255,0.3); box-shadow: var(--glowA); }
+        .boothActionBtn--hold { border-color: rgba(255,204,0,0.3); }
+        .boothActionBtn--skip { border-color: rgba(255,120,120,0.32); }
+        .boothActionBtn--played { border-color: rgba(170,170,170,0.26); }
 
         .boothQueueManager {
           display: grid;
@@ -427,12 +607,6 @@ export default function BoothLayout({ location }: { location: string }) {
           box-shadow: none;
         }
 
-        .boothToolbarBtn--muted {
-          border-color: rgba(255,255,255,0.12);
-          background: rgba(255,255,255,0.06);
-          box-shadow: none;
-        }
-
         .boothQueueFeedback {
           padding: 10px 12px;
           border-radius: 14px;
@@ -450,7 +624,9 @@ export default function BoothLayout({ location }: { location: string }) {
           background: rgba(0,247,255,0.08);
         }
 
-        .boothQueueList {
+        .boothQueueList,
+        .boothRequestList,
+        .boothShoutoutList {
           display: grid;
           gap: 10px;
         }
@@ -548,41 +724,111 @@ export default function BoothLayout({ location }: { location: string }) {
           word-break: break-word;
         }
 
-        .boothQueueTitleLine,
-        .boothRequestTitleLine {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          align-items: center;
-        }
-
-        .boothQueueMeta,
-        .boothRequestMeta,
-        .boothShoutoutMeta {
-          margin-top: 6px;
-          font-size: 12px;
-          color: var(--muted);
-          line-height: 1.35;
+        .boothQueueRowRight {
+          flex: 0 0 auto;
         }
 
         .boothDragHandleWrap {
-          display: flex;
-          align-items: center;
-          gap: 8px;
+          display: grid;
+          gap: 6px;
+          justify-items: center;
         }
 
         .boothDragHandle {
-          width: 28px;
-          height: 28px;
+          font-size: 16px;
+          line-height: 1;
+          opacity: 0.85;
+          letter-spacing: -2px;
+        }
+
+        .boothEngineCard {
+          padding: 14px;
+        }
+
+        .boothEngineLabel {
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 1.4px;
+          text-transform: uppercase;
+          color: var(--muted);
+          margin-bottom: 8px;
+        }
+
+        .boothEngineAction {
+          font-size: 22px;
+          font-weight: 1000;
+          line-height: 1.05;
+          margin-bottom: 12px;
+        }
+
+        .boothEngineList {
+          display: grid;
+          gap: 8px;
+        }
+
+        .boothEngineRow {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: flex-start;
+          font-size: 12px;
+          border-top: 1px solid rgba(255,255,255,0.06);
+          padding-top: 8px;
+        }
+
+        .boothEngineRow span {
+          color: var(--muted);
+        }
+
+        .boothMiniStats {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .boothRequestRow {
+          padding: 12px;
+          display: grid;
+          grid-template-columns: 28px 1fr;
+          gap: 10px;
+          align-items: flex-start;
+        }
+
+        .boothShoutoutSplit {
+          display: grid;
+          gap: 14px;
+        }
+
+        .boothShoutoutRow {
+          padding: 12px;
+        }
+
+        .boothShoutoutTop {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+
+        .boothShoutoutText {
+          font-size: 13px;
+          line-height: 1.4;
+          color: rgba(255,255,255,0.92);
+        }
+
+        .boothBadge {
           display: inline-flex;
           align-items: center;
-          justify-content: center;
-          border-radius: 10px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.06);
-          color: rgba(255,255,255,0.74);
+          padding: 5px 9px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.14);
+          background: rgba(0,0,0,0.18);
+          font-size: 10px;
           font-weight: 1000;
-          letter-spacing: 1px;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          white-space: nowrap;
         }
 
         .boothEmptyState {
@@ -620,15 +866,6 @@ export default function BoothLayout({ location }: { location: string }) {
           .boothTopbarStats {
             width: 100%;
           }
-
-          .boothQueueToolbar {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
-          .boothQueueToolbarRight {
-            justify-content: flex-start;
-          }
         }
 
         @media (max-width: 720px) {
@@ -638,6 +875,20 @@ export default function BoothLayout({ location }: { location: string }) {
 
           .boothTopbarStats {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .boothHeroMain,
+          .boothDeckMini {
+            grid-template-columns: 64px 1fr;
+          }
+
+          .boothHeroArt {
+            width: 64px;
+            height: 64px;
+          }
+
+          .boothHeroTitle {
+            font-size: 18px;
           }
         }
       `}</style>
