@@ -26,8 +26,9 @@ export default function OnDeckCard({
 }: OnDeckCardProps) {
   const actions = getAllowedActions(item);
   const isSystem = isInterstitial(item);
-  const isRequest = isRequestLike(item) && !isSystem;
-  const isBoosted = isBoostedLike(item) && !isSystem;
+  const isHouse = item?.sourceType === "HOUSE";
+  const isRequest = !!item && isRequestLike(item) && !isSystem && !isHouse;
+  const isBoosted = !!item && isBoostedLike(item) && !isSystem;
 
   function handleAction(action: BoothActionName) {
     if (!item) return;
@@ -51,7 +52,6 @@ export default function OnDeckCard({
         <div className="deckLine deckLine--single">
           <div className="deckArt">
             {item.artworkUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={item.artworkUrl} alt={item.title || "Artwork"} />
             ) : (
               <div className="deckArt deckArt--placeholder" />

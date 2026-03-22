@@ -24,7 +24,8 @@ type QueueItemRowProps = {
 
 export default function QueueItemRow({ item, busyAction, onLoad, onPlay, onPause, onSkip, onDone }: QueueItemRowProps) {
   const isSystem = isInterstitial(item);
-  const isRequest = isRequestLike(item) && !isSystem;
+  const isHouse = item.sourceType === "HOUSE";
+  const isRequest = isRequestLike(item) && !isSystem && !isHouse;
   const isBoosted = isBoostedLike(item) && !isSystem;
   const actions = getAllowedActions(item);
 

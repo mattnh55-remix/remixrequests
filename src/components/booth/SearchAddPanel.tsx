@@ -10,9 +10,10 @@ type Song = {
 
 type Props = {
   location: string;
+  onAdded?: () => void | Promise<void>;
 };
 
-export default function SearchAddPanel({ location }: Props) {
+export default function SearchAddPanel({ location, onAdded }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Song[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,38 +34,38 @@ export default function SearchAddPanel({ location }: Props) {
       return;
     }
 
-const timeout = setTimeout(async () => {
-  try {
-    setLoading(true);
-    setError("");
+    const timeout = setTimeout(async () => {
+      try {
+        setLoading(true);
+        setError("");
 
-    const res = await fetch(
-      `/api/booth/search-songs/${location}?q=${encodeURIComponent(query.trim())}`,
-      {
-        method: "GET",
-        cache: "no-store",
-        credentials: "same-origin",
+        const res = await fetch(
+          `/api/booth/search-songs/${location}?q=${encodeURIComponent(query.trim())}`,
+          {
+            method: "GET",
+            cache: "no-store",
+            credentials: "same-origin",
+          }
+        );
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data.ok) {
+          setResults([]);
+          setError(data?.error || "Search unavailable.");
+          return;
+        }
+
+        const nextItems = Array.isArray(data.results) ? data.results : [];
+        setResults(nextItems);
+        setActiveIndex(0);
+      } catch {
+        setResults([]);
+        setError("Search unavailable.");
+      } finally {
+        setLoading(false);
       }
-    );
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok || !data.ok) {
-      setResults([]);
-      setError(data?.error || "Search unavailable.");
-      return;
-    }
-
-    const nextItems = Array.isArray(data.results) ? data.results : [];
-    setResults(nextItems);
-    setActiveIndex(0);
-  } catch {
-    setResults([]);
-    setError("Search unavailable.");
-  } finally {
-    setLoading(false);
-  }
-}, 220);
+    }, 220);
 
     return () => clearTimeout(timeout);
   }, [query, location]);
@@ -72,20 +73,24 @@ const timeout = setTimeout(async () => {
   async function addSong(songId: string, mode: "ADD_TO_QUEUE" | "PLAY_NEXT" | "ADD_AFTER_CURRENT") {
     try {
       setSubmittingId(songId);
+      setError("");
 
       const res = await fetch(`/api/booth/add-song/${location}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "same-origin",
         body: JSON.stringify({
           songId,
           mode,
         }),
       });
 
-      if (!res.ok) {
-        throw new Error("Failed to add song");
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data?.error || "Failed to add song");
       }
 
       setQuery("");
@@ -93,8 +98,9 @@ const timeout = setTimeout(async () => {
       setActiveIndex(0);
       setError("");
       inputRef.current?.focus();
-    } catch {
-      setError("Could not add song.");
+      await onAdded?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add song.");
     } finally {
       setSubmittingId(null);
     }
@@ -153,7 +159,7 @@ const timeout = setTimeout(async () => {
     <section className="boothPanel boothPanel--compact">
       <div className="boothPanelHeader">
         <div>
-          <div className="boothPanelTitle">Search & Add</div>
+          <div className="boothPanelTitle">Search &amp; Add</div>
           <div className="boothPanelSub">Arrow keys move • Enter adds • Shift+Enter plays next</div>
         </div>
       </div>

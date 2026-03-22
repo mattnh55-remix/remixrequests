@@ -26,7 +26,7 @@ async function postJson(url: string, body: Record<string, unknown>) {
 }
 
 export default function BoothLayout({ location }: { location: string }) {
-  const [mode, setMode] = useState<BoothMode>("performance");
+  const mode: BoothMode = "performance";
   const [state, setState] = useState<BoothDataState>({
     queue: [],
     runtimePreview: null,
@@ -38,15 +38,6 @@ export default function BoothLayout({ location }: { location: string }) {
     lastUpdated: null,
     errors: [],
   });
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem("rr-booth-mode");
-    if (stored === "performance" || stored === "visual") setMode(stored);
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem("rr-booth-mode", mode);
-  }, [mode]);
 
   async function load() {
     const [queueRes, requestRes, shoutRes] = await Promise.all([
@@ -133,9 +124,8 @@ export default function BoothLayout({ location }: { location: string }) {
     await load();
   }
 
-
   return (
-    <div className={`rrBooth ${mode === "performance" ? "rrBooth--compact" : ""}`}>
+    <div className="rrBooth rrBooth--compact">
       <div className="rrBooth__topbar">
         <div>
           <div className="rrEyebrow">REMIXREQUESTS • LIVE BOOTH</div>
@@ -147,23 +137,6 @@ export default function BoothLayout({ location }: { location: string }) {
         </div>
 
         <div className="rrTopRight">
-          <div className="modeToggle">
-            <button
-              className={`gunmetalBtn ${mode === "visual" ? "gunmetalBtn--neutralActive" : "gunmetalBtn--neutral"}`}
-              onClick={() => setMode("visual")}
-              type="button"
-            >
-              Visual Mode
-            </button>
-            <button
-              className={`gunmetalBtn ${mode === "performance" ? "gunmetalBtn--primary" : "gunmetalBtn--neutral"}`}
-              onClick={() => setMode("performance")}
-              type="button"
-            >
-              Performance Mode
-            </button>
-          </div>
-
           <div className="statBoxes">
             <div className="statBox">
               <span>QUEUE</span>
@@ -227,8 +200,8 @@ export default function BoothLayout({ location }: { location: string }) {
         </section>
 
         <div className="boothStack">
-	<SearchAddPanel location={location} />
-	<EnginePanel
+          <SearchAddPanel location={location} onAdded={load} />
+          <EnginePanel
             preview={state.runtimePreview}
             mode={mode}
             onMaterialize={async () => {
@@ -292,13 +265,13 @@ export default function BoothLayout({ location }: { location: string }) {
         .rrSub {
           color: rgba(235, 241, 255, 0.7);
           font-size: 12px;
+          line-height: 1.4;
         }
         .rrTopRight {
           display: grid;
           gap: 5px;
           justify-items: end;
         }
-        .modeToggle,
         .statBoxes {
           display: flex;
           gap: 5px;
@@ -377,6 +350,7 @@ export default function BoothLayout({ location }: { location: string }) {
           margin-top: 2px;
           color: rgba(235,241,255,0.72);
           font-size: 12px;
+          line-height: 1.35;
         }
         .heroCard {
           border-radius: 3px;
@@ -462,6 +436,7 @@ export default function BoothLayout({ location }: { location: string }) {
         }
         .heroArtist {
           font-size: 12px;
+          line-height: 1.35;
           color: rgba(235,241,255,0.78);
         }
         .heroTelemetry {
@@ -621,6 +596,23 @@ export default function BoothLayout({ location }: { location: string }) {
             inset 0 -1px 0 rgba(0,0,0,0.46),
             0 1px 2px rgba(0,0,0,0.32);
         }
+        .gunmetalInput {
+          width: 100%;
+          min-height: 30px;
+          padding: 0 10px;
+          border-radius: 4px;
+          border: 1px solid rgba(123, 156, 196, 0.32);
+          background: linear-gradient(180deg, rgba(8, 16, 30, 0.94), rgba(7, 13, 24, 0.98));
+          color: #f4f7fd;
+          font-size: 13px;
+          font-weight: 700;
+          outline: none;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 1px rgba(12, 26, 48, 0.34);
+        }
+        .gunmetalInput:focus {
+          border-color: rgba(111, 167, 255, 0.54);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(71, 118, 210, 0.46), 0 0 14px rgba(71, 118, 210, 0.16);
+        }
         .gunmetalBtn:hover {
           filter: brightness(1.06);
         }
@@ -646,9 +638,6 @@ export default function BoothLayout({ location }: { location: string }) {
         }
         .gunmetalBtn--neutral {
           background: linear-gradient(180deg, #4a5467 0%, #303847 52%, #252c38 100%);
-        }
-        .gunmetalBtn--neutralActive {
-          background: linear-gradient(180deg, #626b7d 0%, #404958 52%, #313745 100%);
         }
         .gunmetalBtn--wide {
           width: 100%;
@@ -681,6 +670,7 @@ export default function BoothLayout({ location }: { location: string }) {
         .queueListHelp {
           color: rgba(235,241,255,0.7);
           font-size: 12px;
+          line-height: 1.35;
         }
         .queueListScroller,
         .requestListScroller,
@@ -725,7 +715,7 @@ export default function BoothLayout({ location }: { location: string }) {
           border: 1px solid rgba(255,255,255,0.08);
           background: rgba(255,255,255,0.03);
         }
-                .queueText,
+        .queueText,
         .requestText {
           min-width: 0;
         }
@@ -750,6 +740,7 @@ export default function BoothLayout({ location }: { location: string }) {
           margin-top: 1px;
           color: rgba(235,241,255,0.66);
           font-size: 11px;
+          line-height: 1.3;
           min-width: 0;
           white-space: nowrap;
           overflow: hidden;
@@ -905,6 +896,132 @@ export default function BoothLayout({ location }: { location: string }) {
           width: 100%;
           min-height: 28px;
         }
+        .searchAddPanel {
+          margin-top: 6px;
+        }
+        .searchAddInput {
+          width: 100%;
+        }
+        .searchAddHint {
+          margin-top: 8px;
+          padding: 7px 10px;
+          border: 1px solid rgba(120, 180, 255, 0.16);
+          border-radius: 4px;
+          background: linear-gradient(180deg, rgba(16, 36, 64, 0.42), rgba(8, 18, 34, 0.48));
+          color: rgba(220, 232, 255, 0.76);
+          font-size: 10px;
+          line-height: 1.35;
+          font-weight: 700;
+        }
+        .searchAddState,
+        .searchAddError {
+          margin-top: 8px;
+          padding: 9px 10px;
+          border-radius: 4px;
+          font-size: 11px;
+          line-height: 1.35;
+        }
+        .searchAddState {
+          border: 1px solid rgba(120, 180, 255, 0.14);
+          background: rgba(10, 19, 33, 0.62);
+          color: rgba(220, 232, 255, 0.78);
+        }
+        .searchAddError {
+          border: 1px solid rgba(255, 120, 120, 0.18);
+          background: rgba(60, 16, 22, 0.45);
+          color: #ffb0b0;
+        }
+        .searchAddResults {
+          margin-top: 8px;
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          max-height: 360px;
+          overflow-y: auto;
+          padding-right: 1px;
+        }
+        .searchAddResult {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px;
+          align-items: center;
+          padding: 7px 8px;
+          border-radius: 5px;
+          border: 1px solid rgba(120, 180, 255, 0.12);
+          background:
+            linear-gradient(180deg, rgba(20, 30, 52, 0.88), rgba(10, 16, 30, 0.96));
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.03),
+            0 0 0 1px rgba(20, 34, 60, 0.28);
+        }
+        .searchAddResult--active {
+          border-color: rgba(115, 174, 255, 0.42);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            0 0 0 1px rgba(70, 120, 220, 0.4),
+            0 0 14px rgba(70, 120, 220, 0.14);
+          background:
+            linear-gradient(180deg, rgba(28, 43, 76, 0.9), rgba(12, 20, 38, 1));
+        }
+        .searchAddMain {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          width: 100%;
+          min-width: 0;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          color: inherit;
+          text-align: left;
+          cursor: pointer;
+        }
+        .searchAddMeta {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+        }
+        .searchAddTitle {
+          color: #f7f8fc;
+          font-size: 12px;
+          font-weight: 1000;
+          line-height: 1.1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .searchAddArtist {
+          margin-top: 2px;
+          color: rgba(210, 222, 244, 0.72);
+          font-size: 11px;
+          line-height: 1.25;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .searchAddHotkey {
+          flex: 0 0 auto;
+          padding: 3px 7px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 210, 120, 0.32);
+          background: rgba(110, 82, 18, 0.32);
+          color: #ffd97b;
+          font-size: 9px;
+          font-weight: 1000;
+          letter-spacing: 0.1em;
+        }
+        .searchAddActions {
+          display: flex;
+          gap: 5px;
+          align-items: center;
+        }
+        .searchAddMiniBtn {
+          min-width: 52px;
+          min-height: 22px;
+          padding-inline: 8px;
+          font-size: 10px;
+        }
         @media (max-width: 1480px) {
           .rrBooth__grid {
             grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.96fr) minmax(270px, 0.62fr);
@@ -920,9 +1037,17 @@ export default function BoothLayout({ location }: { location: string }) {
           .rrTopRight {
             justify-items: start;
           }
-          .modeToggle,
           .statBoxes {
             justify-content: flex-start;
+          }
+        }
+        @media (max-width: 1100px) {
+          .searchAddResult {
+            grid-template-columns: 1fr;
+          }
+          .searchAddActions {
+            justify-content: flex-start;
+            flex-wrap: wrap;
           }
         }
         @media (max-width: 760px) {
@@ -952,153 +1077,6 @@ export default function BoothLayout({ location }: { location: string }) {
             text-align: left;
           }
         }
-          .searchAddPanel {
-  margin-top: 10px;
-}
-
-.searchAddInput {
-  width: 100%;
-}
-
-.searchAddHint {
-  margin-top: 8px;
-  padding: 8px 10px;
-  border: 1px solid rgba(120, 180, 255, 0.18);
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(16, 36, 64, 0.66), rgba(8, 18, 34, 0.72));
-  color: rgba(220, 232, 255, 0.82);
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.searchAddState,
-.searchAddError {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  font-size: 12px;
-}
-
-.searchAddState {
-  border: 1px solid rgba(120, 180, 255, 0.14);
-  background: rgba(10, 19, 33, 0.62);
-  color: rgba(220, 232, 255, 0.78);
-}
-
-.searchAddError {
-  border: 1px solid rgba(255, 120, 120, 0.18);
-  background: rgba(60, 16, 22, 0.45);
-  color: #ffb0b0;
-}
-
-.searchAddResults {
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 360px;
-  overflow-y: auto;
-  padding-right: 2px;
-}
-
-.searchAddResult {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(120, 180, 255, 0.14);
-  background:
-    linear-gradient(180deg, rgba(20, 30, 52, 0.95), rgba(10, 16, 30, 0.98));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    0 0 0 1px rgba(20, 34, 60, 0.4);
-}
-
-.searchAddResult--active {
-  border-color: rgba(115, 174, 255, 0.52);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 0 0 1px rgba(70, 120, 220, 0.55),
-    0 0 18px rgba(70, 120, 220, 0.18);
-  background:
-    linear-gradient(180deg, rgba(28, 43, 76, 0.98), rgba(12, 20, 38, 1));
-}
-
-.searchAddMain {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.searchAddMeta {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.searchAddTitle {
-  color: #f7f8fc;
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1.15;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.searchAddArtist {
-  margin-top: 3px;
-  color: rgba(210, 222, 244, 0.78);
-  font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.searchAddHotkey {
-  flex: 0 0 auto;
-  padding: 4px 7px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 210, 120, 0.32);
-  background: rgba(110, 82, 18, 0.32);
-  color: #ffd97b;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-}
-
-.searchAddActions {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.searchAddMiniBtn {
-  min-width: 60px;
-  padding-inline: 10px;
-}
-
-@media (max-width: 1100px) {
-  .searchAddResult {
-    grid-template-columns: 1fr;
-  }
-
-  .searchAddActions {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-}
       `}</style>
     </div>
   );

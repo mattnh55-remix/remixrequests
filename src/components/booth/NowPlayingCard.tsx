@@ -31,8 +31,9 @@ export default function NowPlayingCard({
 }: NowPlayingCardProps) {
   const actions = getAllowedActions(item);
   const isSystem = isInterstitial(item);
-  const isRequest = isRequestLike(item) && !isSystem;
-  const isBoosted = isBoostedLike(item) && !isSystem;
+  const isHouse = item?.sourceType === "HOUSE";
+  const isRequest = !!item && isRequestLike(item) && !isSystem && !isHouse;
+  const isBoosted = !!item && isBoostedLike(item) && !isSystem;
   const progressPct = getProgressPercent(item);
 
   function handleAction(action: BoothActionName) {
@@ -55,7 +56,6 @@ export default function NowPlayingCard({
         <div className="heroMain heroMain--console">
           <div className="heroArtworkWrap">
             {item.artworkUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img className="heroArtwork" src={item.artworkUrl} alt={item.title || "Artwork"} />
             ) : (
               <div className="heroArtwork heroArtwork--placeholder" />
