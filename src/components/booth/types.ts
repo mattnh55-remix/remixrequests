@@ -1,3 +1,5 @@
+export type BoothMode = "visual" | "performance";
+
 export type QueueLikeItem = {
   id: string;
   requestId?: string | null;
@@ -32,7 +34,6 @@ export type RuntimePreview = {
   interstitialTitle?: string | null;
   clusterId?: string | null;
   materialized?: boolean;
-  insertedQueueItemId?: string | null;
 };
 
 export type RequestItem = {
@@ -43,7 +44,6 @@ export type RequestItem = {
   type?: string;
   boosted?: boolean;
   requestedByLabel?: string;
-  artworkUrl?: string | null;
   verified?: boolean;
 };
 
@@ -59,4 +59,16 @@ export type ShoutoutItem = {
 export type BoothNotice = {
   kind: "success" | "error" | "info";
   text: string;
+} | null;
+
+export type BoothDataState = {
+  queue: QueueLikeItem[];
+  runtimePreview: RuntimePreview | null;
+  playNowRequests: RequestItem[];
+  upNextRequests: RequestItem[];
+  pendingShoutouts: ShoutoutItem[];
+  approvedShoutouts: ShoutoutItem[];
+  loading: boolean;
+  lastUpdated: string | null;
+  errors: string[];
 };

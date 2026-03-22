@@ -1,58 +1,82 @@
 "use client";
 
 import BoothActionButtons from "./BoothActionButtons";
-import type { QueueLikeItem } from "./types";
-import { formatDuration, getProgressPercent, labelForStatus } from "./booth-utils";
+import { formatDuration, getStatusTone } from "./booth-utils";
+import type { QueueLikeItem, BoothMode } from "./types";
 
-type Props = {
+export default function NowPlayingCard({
+  item,
+  mode,
+  onPause,
+  onSkip,
+  onDone,
+}: {
   item: QueueLikeItem | null;
-  compactMode: boolean;
-  onAction: (action: "load" | "play" | "pause" | "skip" | "done", itemId: string) => void;
-};
-
-export default function NowPlayingCard({ item, compactMode, onAction }: Props) {
+  mode: BoothMode;
+  onPause?: (id: string) => void;
+  onSkip?: (id: string) => void;
+  onDone?: (id: string) => void;
+}) {
   if (!item) {
     return (
-      <section className="panelSection">
-        <div className="sectionLabel">Now Playing</div>
-        <div className="sectionSub">Highest priority lane</div>
-        <div className="emptySlot">No active playing item.</div>
-      </section>
+      <div className="heroCard">
+        <div className="heroCardHeader">
+          <div>
+            <div className="heroCardTitle">Now Playing</div>
+            <div className="heroCardSub">Live deck</div>
+          </div>
+        </div>
+        <div className="heroEmpty">No active PLAYING item found.</div>
+      </div>
     );
   }
 
-  const progress = getProgressPercent(item);
+  const progress = Math.max(0, Math.min(100, Number(item.progressPercent || 0)));
+  const compact = mode === "performance";
 
   return (
-    <section className={`panelSection ${compactMode ? "panelSection--compactHero" : ""}`}>
-      <div className="sectionLabel">Now Playing</div>
-      <div className="sectionSub">Live deck</div>
-
-      <div className="heroLine">
-        <div className="heroArtWrap">
-          {item.artworkUrl ? <img src={item.artworkUrl} alt={item.title || "Artwork"} className="heroArt" /> : <div className="heroArt heroArt--fallback" />}
+    <div className={`heroCard heroCard--live ${compact ? "heroCard--compact" : ""}`}>
+      <div className="heroCardHeader">
+        <div>
+          <div className="heroCardTitle">Now Playing</div>
+          <div className="heroCardSub">Live deck</div>
         </div>
-
-        <div className="heroMeta">
-          <div className="heroTitleRow">
-            <div className="heroTitle">{item.title || "Untitled"}</div>
-            <span className="rowPill rowPill--live">{labelForStatus(item.status)}</span>
-          </div>
-          <div className="heroArtist">{item.artist || "Unknown artist"}</div>
-
-          <div className="metricStrip">
-            <div className="metricBox"><span>Duration</span><strong>{formatDuration(item.durationSec)}</strong></div>
-            <div className="metricBox"><span>Elapsed</span><strong>{formatDuration(item.elapsedSec)}</strong></div>
-            <div className="metricBox"><span>Remaining</span><strong>{formatDuration(item.remainingSec)}</strong></div>
-            <div className="metricBox"><span>Status</span><strong>{labelForStatus(item.status)}</strong></div>
-          </div>
-
-          <div className="progressLabelRow"><span>Runtime Progress</span><span>{Math.round(progress)}%</span></div>
-          <div className="gunProgress"><div className="gunProgressFill" style={{ width: `${progress}%` }} /></div>
-        </div>
+        <div className={`statusPill statusPill--${getStatusTone(item.status)}`}>{item.status || "PLAYING"}</div>
       </div>
 
-      <BoothActionButtons itemId={item.id} status={item.status} onAction={onAction} compact={compactMode} />
-    </section>
+      <div className="heroMain">
+        <div className="heroArtworkWrap">
+          {item.artworkUrl ? <img className="heroArtwork" src={item.artworkUrl} alt={item.title || "art"} /> : <div className="heroArtwork heroArtwork--placeholder" />}
+        </div>
+        <div className="heroInfo">
+          <div className="heroTitleRow">
+            <div className="heroTitle">{item.title}</div>
+            <div className="statusPill statusPill--playing">PLAYING</div>
+          </div>
+          <div className="heroArtist">{item.artist}</div>
+
+          <div className={`heroStats ${compact ? "heroStats--compact" : ""}`}>
+            <div className="heroStat"><span>Duration</span><strong>{formatDuration(item.durationSec)}</strong></div>
+            <div className="heroStat"><span>Elapsed</span><strong>{formatDuration(item.elapsedSec)}</strong></div>
+            <div className="heroStat"><span>Remaining</span><strong>{formatDuration(item.remainingSec)}</strong></div>
+            <div className="heroStat"><span>Status</span><strong>{item.status || "PLAYING"}</strong></div>
+          </div>
+
+          <div className="progressWrap">
+            <div className="progressBar"><div className="progressFill" style={{ width: `${progress}%` }} /></div>
+            <div className="progressMeta"><span>Runtime progress</span><span>{Math.round(progress)}%</span></div>
+          </div>
+
+          <BoothActionButtons
+            compact={compact}
+            actions={[
+              { name: "pause", onClick: item.id ? () => onPause?.(item.id) : undefined },
+              { name: "skip", onClick: item.id ? () => onSkip?.(item.id) : undefined },
+              { name: "done", onClick: item.id ? () => onDone?.(item.id) : undefined },
+            ]}
+          />
+        </div>
+      </div>
+    </div>
   );
 }

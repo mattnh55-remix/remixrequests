@@ -1,33 +1,38 @@
 "use client";
 
-type Props = {
-  itemId: string;
-  status?: string | null;
-  compact?: boolean;
-  onAction: (action: "load" | "play" | "pause" | "skip" | "done", itemId: string) => void;
+type ActionName = "load" | "play" | "pause" | "skip" | "done" | "remove";
+
+const LABELS: Record<ActionName, string> = {
+  load: "LOAD",
+  play: "PLAY",
+  pause: "PAUSE",
+  skip: "SKIP",
+  done: "DONE",
+  remove: "REMOVE",
 };
 
-export default function BoothActionButtons({ itemId, status, compact = false, onAction }: Props) {
-  const s = String(status || "").toUpperCase();
-  const buttons = [
-    { key: "load" as const, label: "Load", disabled: s === "PLAYING" || s === "LOADED" || s === "PLAYED" },
-    { key: "play" as const, label: "Play", disabled: s === "PLAYING" || s === "PLAYED" },
-    { key: "pause" as const, label: "Pause", disabled: s === "PLAYED" || s === "SKIPPED" },
-    { key: "skip" as const, label: "Skip", disabled: s === "PLAYED" || s === "SKIPPED" },
-    { key: "done" as const, label: "Done", disabled: s === "PLAYED" },
-  ];
-
+export default function BoothActionButtons({
+  actions,
+  compact = false,
+}: {
+  actions: Array<{
+    name: ActionName;
+    onClick?: () => void;
+    disabled?: boolean;
+  }>;
+  compact?: boolean;
+}) {
   return (
-    <div className={`boothBtnGroup ${compact ? "boothBtnGroup--compact" : ""}`}>
-      {buttons.map((button) => (
+    <div className={`boothActionRail ${compact ? "boothActionRail--compact" : ""}`}>
+      {actions.map((action) => (
         <button
-          key={button.key}
+          key={action.name}
           type="button"
-          className={`gunBtn gunBtn--${button.key}`}
-          disabled={button.disabled}
-          onClick={() => onAction(button.key, itemId)}
+          className={`gunmetalBtn gunmetalBtn--${action.name}`}
+          onClick={action.onClick}
+          disabled={action.disabled}
         >
-          {button.label}
+          {LABELS[action.name]}
         </button>
       ))}
     </div>
