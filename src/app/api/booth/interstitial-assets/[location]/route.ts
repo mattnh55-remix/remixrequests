@@ -1,3 +1,5 @@
+// /src/app/api/booth/interstitial-assets/[location]/route.ts
+
 import { NextResponse } from "next/server";
 import { getInterstitialAssets } from "@/lib/booth/get-interstitial-assets";
 

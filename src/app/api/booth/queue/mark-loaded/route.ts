@@ -1,3 +1,5 @@
+// /src/app/api/booth/queue/mark-loaded/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
@@ -37,6 +39,18 @@ export async function POST(req: Request) {
           loadedAt: null,
         },
       });
+
+await tx.queueItem.updateMany({
+  where: {
+    locationId: item.locationId,
+    status: "PLAYING",
+  },
+  data: {
+    status: "QUEUED",
+    playingAt: null,
+    expectedEndAt: null,
+  },
+});
 
       await tx.queueItem.update({
         where: { id: item.id },

@@ -1,3 +1,5 @@
+// /src/app/api/booth/queue/mark-playing/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
@@ -60,8 +62,7 @@ export async function POST(req: Request) {
           })
         : null;
 
-    const durationSec =
-      item.durationSec ?? asset?.durationSec ?? item.request?.song?.durationSec ?? null;
+    const durationSec = item.durationSec ?? null;
 
     const startedAt = new Date();
     const expectedEndAt = computeExpectedEndAt(startedAt, durationSec);

@@ -1,3 +1,5 @@
+// /src/app/api/booth/queue/set-duration/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";

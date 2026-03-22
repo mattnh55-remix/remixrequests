@@ -1,3 +1,6 @@
+// /src/app/api/booth/queue/[location]/route.ts
+
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
@@ -97,8 +100,7 @@ export async function GET(
         const assetId = parseInterstitialAssetId(item.clusterId);
         const asset = assetId ? assetMap.get(assetId) ?? null : null;
 
-        const durationSec =
-          item.durationSec ?? asset?.durationSec ?? item.request?.song?.durationSec ?? null;
+        const durationSec = item.durationSec ?? null;
 
         const runtime = getRuntimeProgress({
           now,

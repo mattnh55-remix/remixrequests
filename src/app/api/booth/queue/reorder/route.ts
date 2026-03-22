@@ -1,3 +1,5 @@
+// /src/app/api/booth/queue/reorder/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
@@ -31,7 +33,7 @@ export async function POST(req: Request) {
       where: {
         locationId: loc.id,
         sessionId: session.id,
-        status: "QUEUED",
+        status: "QUEUED", AND: {sourceType: { not: "INTERSTITIAL" }}
       },
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
       select: {

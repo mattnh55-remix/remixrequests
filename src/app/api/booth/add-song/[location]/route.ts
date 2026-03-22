@@ -1,3 +1,5 @@
+// /src/app/api/booth/add-song/[location]/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";

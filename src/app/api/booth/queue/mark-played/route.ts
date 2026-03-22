@@ -41,10 +41,12 @@ export async function POST(req: Request) {
     await prisma.$transaction([
       prisma.queueItem.update({
         where: { id: queueItemId },
-        data: {
-          status: "PLAYED",
-          completedAt,
-        },
+data: {
+  status: "PLAYED",
+  completedAt,
+  playingAt: null,
+  expectedEndAt: null,
+},
       }),
       prisma.playbackEvent.create({
         data: {
