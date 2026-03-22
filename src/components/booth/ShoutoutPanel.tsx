@@ -1,86 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import PanelShell from "./PanelShell";
-import StatusBadge from "./StatusBadge";
-import { formatTimeAgo, performShoutoutAction } from "./booth-utils";
-import type { ShoutoutActionName, ShoutoutItem } from "./types";
+import type { ShoutoutItem } from "./types";
+import { formatTimeAgo } from "./booth-utils";
 
-export default function ShoutoutPanel({
-  pendingShoutouts,
-  approvedShoutouts,
-  onActionComplete,
-}: {
-  pendingShoutouts: ShoutoutItem[];
-  approvedShoutouts: ShoutoutItem[];
-  onActionComplete?: (result: { ok: boolean; message: string }) => void;
-}) {
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<ShoutoutActionName | null>(null);
+type Props = {
+  pending: ShoutoutItem[];
+  approved: ShoutoutItem[];
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+};
 
-  async function handleAction(item: ShoutoutItem, action: ShoutoutActionName) {
-    setBusyId(item.id);
-    setBusyAction(action);
-    const result = await performShoutoutAction(item, action);
-    setBusyId(null);
-    setBusyAction(null);
-    onActionComplete?.(result);
-  }
-
+function ShoutoutRow({ item, pending, onApprove, onReject }: { item: ShoutoutItem; pending?: boolean; onApprove: (id: string) => void; onReject: (id: string) => void; }) {
   return (
-    <PanelShell title="SHOUTOUTS" subtitle="Message moderation and recently approved callouts.">
-      <div className="boothShoutoutSplit">
-        <div>
-          <div className="boothSubsectionTitle">PENDING</div>
-          <div className="boothShoutoutList">
-            {pendingShoutouts.length === 0 ? (
-              <div className="boothEmptyState">No pending shoutouts.</div>
-            ) : (
-              pendingShoutouts.slice(0, 8).map((item) => {
-                const isBusy = busyId === item.id;
-                return (
-                  <div className="boothShoutoutRow boothShoutoutRow--pending" key={item.id}>
-                    <div className="boothShoutoutTop">
-                      <strong>{item.fromName || "Guest"}</strong>
-                      <StatusBadge label={item.tier || "TIER"} tone="gold" />
-                    </div>
-                    <div className="boothShoutoutText">{item.messageText || "No message text."}</div>
-                    <div className="boothShoutoutMeta">{formatTimeAgo(item.createdAt)}</div>
-                    <div className="boothInlineActions">
-                      <button type="button" className="boothActionBtn boothActionBtn--play" onClick={() => handleAction(item, "approve")} disabled={isBusy}>
-                        {isBusy && busyAction === "approve" ? "Working..." : "Approve"}
-                      </button>
-                      <button type="button" className="boothActionBtn boothActionBtn--skip" onClick={() => handleAction(item, "reject")} disabled={isBusy}>
-                        {isBusy && busyAction === "reject" ? "Working..." : "Reject"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
+    <div className="gunmetalBox shoutRow">
+      <div className="shoutTop"><strong>{item.fromName || "Guest"}</strong><span>{formatTimeAgo(item.createdAt)}</span></div>
+      <div className="shoutText">{item.messageText || "No text."}</div>
+      {pending ? <div className="requestRowActions"><button type="button" className="gunBtn gunBtn--primary" onClick={() => onApprove(item.id)}>Approve</button><button type="button" className="gunBtn gunBtn--danger" onClick={() => onReject(item.id)}>Reject</button></div> : null}
+    </div>
+  );
+}
 
-        <div>
-          <div className="boothSubsectionTitle">APPROVED</div>
-          <div className="boothShoutoutList">
-            {approvedShoutouts.length === 0 ? (
-              <div className="boothEmptyState">No approved shoutouts.</div>
-            ) : (
-              approvedShoutouts.slice(0, 8).map((item) => (
-                <div className="boothShoutoutRow" key={item.id}>
-                  <div className="boothShoutoutTop">
-                    <strong>{item.fromName || "Guest"}</strong>
-                    <StatusBadge label="APPROVED" tone="cyan" />
-                  </div>
-                  <div className="boothShoutoutText">{item.messageText || "No message text."}</div>
-                  <div className="boothShoutoutMeta">{formatTimeAgo(item.createdAt)}</div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-    </PanelShell>
+export default function ShoutoutPanel({ pending, approved, onApprove, onReject }: Props) {
+  return (
+    <div className="columnPanel">
+      <div className="panelHead"><div><h3>Shoutouts</h3><p>Message moderation and recently approved callouts.</p></div></div>
+      <div className="sectionLabel">Pending</div>
+      <div className="requestList">{pending.length === 0 ? <div className="emptyMini">No pending shoutouts.</div> : pending.map((item) => <ShoutoutRow key={item.id} item={item} pending onApprove={onApprove} onReject={onReject} />)}</div>
+      <div className="sectionLabel sectionLabel--spaced">Approved</div>
+      <div className="requestList">{approved.length === 0 ? <div className="emptyMini">No approved shoutouts.</div> : approved.map((item) => <ShoutoutRow key={item.id} item={item} onApprove={onApprove} onReject={onReject} />)}</div>
+    </div>
   );
 }

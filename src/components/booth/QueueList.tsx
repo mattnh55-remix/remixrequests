@@ -1,164 +1,61 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import QueueItemRow from "./QueueItemRow";
-import {
-  applyOptimisticAction,
-  buildReorderPayload,
-  isSongDraggable,
-  performQueueAction,
-  postJson,
-  reorderSongsOnly,
-} from "./booth-utils";
-import type { BoothActionName, QueueLikeItem, ReorderState } from "./types";
+import type { QueueLikeItem } from "./types";
+import { isInterstitial } from "./booth-utils";
 
-export default function QueueList({
-  items,
-  location,
-  onQueueCommitted,
-  onActionComplete,
-}: {
+type Props = {
   items: QueueLikeItem[];
-  location: string;
-  onQueueCommitted?: (items: QueueLikeItem[]) => void;
-  onActionComplete?: (result: { ok: boolean; message: string }, nextQueue?: QueueLikeItem[]) => void;
-}) {
-  const [draftItems, setDraftItems] = useState<QueueLikeItem[]>(items);
-  const [busyActionById, setBusyActionById] = useState<Record<string, BoothActionName | null>>({});
-  const [dragState, setDragState] = useState<ReorderState>({
-    dirty: false,
-    saving: false,
-    error: null,
-    success: null,
-    activeDragId: null,
-  });
+  compactMode: boolean;
+  onAction: (action: "load" | "play" | "pause" | "skip" | "done", itemId: string) => void;
+  onSaveReorder: (orderedQueuedItemIds: string[]) => void;
+};
 
-  useEffect(() => {
-    if (dragState.dirty) return;
-    setDraftItems(items);
-  }, [items, dragState.dirty]);
+export default function QueueList({ items, compactMode, onAction, onSaveReorder }: Props) {
+  const songItems = useMemo(() => items.filter((item) => !isInterstitial(item)), [items]);
+  const [ordered, setOrdered] = useState(songItems.map((item) => item.id));
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
-  const draggableSongCount = useMemo(() => draftItems.filter((item) => isSongDraggable(item)).length, [draftItems]);
+  const orderedSongItems = ordered
+    .map((id) => songItems.find((item) => item.id === id))
+    .filter(Boolean) as QueueLikeItem[];
 
-  async function saveReorder() {
-    setDragState((prev) => ({ ...prev, saving: true, error: null, success: null }));
+  const dirty = ordered.join("|") !== songItems.map((item) => item.id).join("|");
 
-    const payload = buildReorderPayload(location, draftItems);
-    const result = await postJson(`/api/booth/queue/reorder`, payload);
-
-    if (!result.ok) {
-      setDragState((prev) => ({
-        ...prev,
-        saving: false,
-        error: "Could not save the new play order.",
-        success: null,
-      }));
-      return;
-    }
-
-    setDragState({
-      dirty: false,
-      saving: false,
-      error: null,
-      success: "Play order saved.",
-      activeDragId: null,
-    });
-
-    onQueueCommitted?.(draftItems);
-  }
-
-  function cancelDraft() {
-    setDraftItems(items);
-    setDragState({
-      dirty: false,
-      saving: false,
-      error: null,
-      success: null,
-      activeDragId: null,
-    });
-  }
-
-  function handleDrop(targetItem: QueueLikeItem) {
-    if (!dragState.activeDragId) return;
-
-    const nextItems = reorderSongsOnly(draftItems, dragState.activeDragId, targetItem.id);
-
-    setDraftItems(nextItems);
-    setDragState((prev) => ({
-      ...prev,
-      dirty: true,
-      activeDragId: null,
-      error: null,
-      success: null,
-    }));
-  }
-
-  async function handleItemAction(item: QueueLikeItem, action: BoothActionName) {
-    setBusyActionById((prev) => ({ ...prev, [item.id]: action }));
-
-    const optimisticQueue = applyOptimisticAction(draftItems, item.id, action);
-    setDraftItems(optimisticQueue);
-
-    const result = await performQueueAction(location, item, action);
-
-    setBusyActionById((prev) => ({ ...prev, [item.id]: null }));
-    onActionComplete?.(result, result.ok ? optimisticQueue : undefined);
+  function move(id: string, dir: -1 | 1) {
+    const current = [...ordered];
+    const index = current.indexOf(id);
+    if (index < 0) return;
+    const nextIndex = index + dir;
+    if (nextIndex < 0 || nextIndex >= current.length) return;
+    [current[index], current[nextIndex]] = [current[nextIndex], current[index]];
+    setOrdered(current);
   }
 
   return (
-    <div className="boothQueueManager">
-      <div className="boothQueueToolbar">
-        <div>
-          <div className="boothQueueToolbarTitle">Reorder mode</div>
-          <div className="boothQueueToolbarSub">Drag songs to change play order. System inserts stay locked.</div>
-        </div>
+    <section className="queueBlock">
+      <div className="sectionLabel">Live Queue</div>
+      <div className="sectionSub">Reorder mode</div>
+      <div className="queueModeCopy">Drag songs to change play order. System inserts stay locked.</div>
+      <div className="queueModeCopy queueModeCopy--small">{songItems.length} songs ready to move</div>
 
-        <div className="boothQueueToolbarRight">
-          <div className="boothQueueToolbarPill">{draggableSongCount} songs ready to move</div>
-          <button type="button" className="boothToolbarBtn boothToolbarBtn--ghost" onClick={cancelDraft} disabled={!dragState.dirty || dragState.saving}>
-            Cancel
-          </button>
-          <button type="button" className="boothToolbarBtn" onClick={saveReorder} disabled={!dragState.dirty || dragState.saving}>
-            {dragState.saving ? "Saving..." : "Save order"}
-          </button>
-        </div>
+      <div className="reorderBar">
+        <button type="button" className="gunBtn gunBtn--secondary" disabled={!dirty} onClick={() => setOrdered(songItems.map((item) => item.id))}>Cancel</button>
+        <button type="button" className="gunBtn gunBtn--primary" disabled={!dirty} onClick={() => onSaveReorder(ordered)}>Save Order</button>
       </div>
 
-      {dragState.error ? <div className="boothQueueFeedback boothQueueFeedback--error">{dragState.error}</div> : null}
-      {dragState.success ? <div className="boothQueueFeedback boothQueueFeedback--success">{dragState.success}</div> : null}
-
-      <div className="boothQueueList">
-        {draftItems.length === 0 ? (
-          <div className="boothEmptyState">No songs or inserts in the live queue yet.</div>
-        ) : (
-          draftItems.map((item) => (
-            <QueueItemRow
-              key={item.id}
-              item={item}
-              draggable
-              busyAction={busyActionById[item.id] ?? null}
-              isDragging={dragState.activeDragId === item.id}
-              isDropTarget={dragState.activeDragId !== null && dragState.activeDragId !== item.id}
-              onAction={handleItemAction}
-              onDragStart={(draggedItem) => {
-                setDragState((prev) => ({
-                  ...prev,
-                  activeDragId: draggedItem.id,
-                  error: null,
-                  success: null,
-                }));
-              }}
-              onDragOver={() => {
-                // visual only
-              }}
-              onDrop={handleDrop}
-              onDragEnd={() => {
-                setDragState((prev) => ({ ...prev, activeDragId: null }));
-              }}
-            />
-          ))
-        )}
+      <div className="queueListRows">
+        {orderedSongItems.map((item) => (
+          <div key={item.id} className="queueLinearWrap">
+            <QueueItemRow item={item} compactMode={compactMode} dragging={draggingId === item.id} onAction={onAction} />
+            <div className="reorderNudges">
+              <button type="button" className="nudgeBtn" onClick={() => move(item.id, -1)}>↑</button>
+              <button type="button" className="nudgeBtn" onClick={() => move(item.id, 1)}>↓</button>
+            </div>
+          </div>
+        ))}
       </div>
-    </div>
+    </section>
   );
 }

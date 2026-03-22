@@ -1,84 +1,55 @@
 "use client";
 
-import { useState } from "react";
-import PanelShell from "./PanelShell";
-import StatusBadge from "./StatusBadge";
-import { performRequestAction } from "./booth-utils";
-import type { RequestActionName, RequestItem } from "./types";
+import type { RequestItem } from "./types";
 
-export default function RequestPanel({
-  requests,
-  onActionComplete,
-}: {
-  requests: RequestItem[];
-  onActionComplete?: (result: { ok: boolean; message: string }) => void;
-}) {
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<RequestActionName | null>(null);
+type Props = {
+  playNow: RequestItem[];
+  upNext: RequestItem[];
+  onRemove: (requestId: string) => void;
+  onDone: (requestId: string) => void;
+};
 
-  const playNow = requests.filter((item) => item.sortBucket === "PLAY_NOW");
-  const upNext = requests.filter((item) => item.sortBucket !== "PLAY_NOW");
+function RequestRow({ item, index, onRemove, onDone }: { item: RequestItem; index: number; onRemove: (requestId: string) => void; onDone: (requestId: string) => void; }) {
+  return (
+    <div className="requestRow gunmetalBox">
+      <div className="requestRowMain">
+        <div className="requestTitleLine">
+          <span className="requestIndex">{index}</span>
+          <strong>{item.title || "Untitled"}</strong>
+          <span className="rowPill rowPill--queue">Up Next</span>
+        </div>
+        <div className="requestMeta">{item.artist || "Unknown artist"}{item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}{item.verified ? " • VERIFIED" : ""} • Score {item.score ?? 0}</div>
+      </div>
+      <div className="requestRowActions">
+        <button type="button" className="gunBtn gunBtn--danger" onClick={() => onRemove(item.id)}>Remove</button>
+        <button type="button" className="gunBtn gunBtn--secondary" onClick={() => onDone(item.id)}>Done</button>
+      </div>
+    </div>
+  );
+}
 
-  async function handleAction(item: RequestItem, action: RequestActionName) {
-    setBusyId(item.id);
-    setBusyAction(action);
-    const result = await performRequestAction(item, action);
-    setBusyId(null);
-    setBusyAction(null);
-    onActionComplete?.(result);
-  }
-
-  function renderRow(item: RequestItem, idx: number) {
-    const isBusy = busyId === item.id;
-    return (
-      <div className="boothRequestRow boothRequestRow--actionable" key={item.id}>
-        <div className="boothRequestIndex">{idx + 1}</div>
-        <div className="boothRequestMain">
-          <div className="boothRequestTitleLine">
-            <div className="boothRequestTitle">{item.title || "Untitled"}</div>
-            {item.sortBucket === "PLAY_NOW" ? (
-              <StatusBadge label="Play now" tone="pink" />
-            ) : item.boosted ? (
-              <StatusBadge label="Boost" tone="gold" />
-            ) : (
-              <StatusBadge label="Up next" tone="cyan" />
-            )}
-          </div>
-          <div className="boothRequestMeta">
-            {item.artist || "Unknown artist"}
-            {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
-            {typeof item.score === "number" ? ` • Score ${item.score}` : ""}
-          </div>
-
-          <div className="boothInlineActions">
-            <button type="button" className="boothActionBtn boothActionBtn--skip" onClick={() => handleAction(item, "reject")} disabled={isBusy}>
-              {isBusy && busyAction === "reject" ? "Working..." : "Remove"}
-            </button>
-            <button type="button" className="boothActionBtn boothActionBtn--played" onClick={() => handleAction(item, "played")} disabled={isBusy}>
-              {isBusy && busyAction === "played" ? "Working..." : "Done"}
-            </button>
-          </div>
+export default function RequestPanel({ playNow, upNext, onRemove, onDone }: Props) {
+  return (
+    <div className="columnPanel">
+      <div className="panelHead">
+        <div>
+          <h3>Requests</h3>
+          <p>Live customer demand waiting to be worked into the booth queue.</p>
         </div>
       </div>
-    );
-  }
 
-  return (
-    <PanelShell title="REQUESTS" subtitle="Live customer demand waiting to be worked into the booth queue.">
-      <div className="boothMiniStats">
-        <StatusBadge label={`Play now ${playNow.length}`} tone="pink" />
-        <StatusBadge label={`Up next ${upNext.length}`} tone="cyan" />
+      <div className="requestTabRow">
+        <span className="rowPill rowPill--pink">Play Now {playNow.length}</span>
+        <span className="rowPill rowPill--cyan">Up Next {upNext.length}</span>
       </div>
 
-      <div className="boothRequestSectionTitle">Play now</div>
-      <div className="boothRequestList">
-        {playNow.length === 0 ? <div className="boothEmptyState">No play-now requests.</div> : playNow.slice(0, 6).map(renderRow)}
-      </div>
+      <div className="sectionLabel">Play Now</div>
+      <div className="emptyMini">{playNow.length ? `${playNow.length} priority requests ready.` : "No play-now requests."}</div>
 
-      <div className="boothRequestSectionTitle">Up next</div>
-      <div className="boothRequestList">
-        {upNext.length === 0 ? <div className="boothEmptyState">No up-next requests.</div> : upNext.slice(0, 10).map(renderRow)}
+      <div className="sectionLabel sectionLabel--spaced">Up Next</div>
+      <div className="requestList">
+        {upNext.length === 0 ? <div className="emptyMini">No Up Next requests.</div> : upNext.map((item, idx) => <RequestRow key={item.id} item={item} index={idx + 1} onRemove={onRemove} onDone={onDone} />)}
       </div>
-    </PanelShell>
+    </div>
   );
 }

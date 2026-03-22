@@ -1,33 +1,35 @@
 "use client";
 
-import { formatActionLabel } from "./booth-utils";
-import type { BoothActionName } from "./types";
-
-export default function BoothActionButtons({
-  actions,
-  busyAction,
-  disabled,
-  compact = false,
-  onAction,
-}: {
-  actions: BoothActionName[];
-  busyAction?: BoothActionName | null;
-  disabled?: boolean;
+type Props = {
+  itemId: string;
+  status?: string | null;
   compact?: boolean;
-  onAction: (action: BoothActionName) => void;
-}) {
-  if (actions.length === 0) return null;
+  onAction: (action: "load" | "play" | "pause" | "skip" | "done", itemId: string) => void;
+};
+
+export default function BoothActionButtons({ itemId, status, compact = false, onAction }: Props) {
+  const s = String(status || "").toUpperCase();
+  const buttons = [
+    { key: "load" as const, label: "Load", disabled: s === "PLAYING" || s === "LOADED" || s === "PLAYED" },
+    { key: "play" as const, label: "Play", disabled: s === "PLAYING" || s === "PLAYED" },
+    { key: "pause" as const, label: "Pause", disabled: s === "PLAYED" || s === "SKIPPED" },
+    { key: "skip" as const, label: "Skip", disabled: s === "PLAYED" || s === "SKIPPED" },
+    { key: "done" as const, label: "Done", disabled: s === "PLAYED" },
+  ];
 
   return (
-    <div className={`boothActionBar ${compact ? "boothActionBar--compact" : ""}`}>
-      {actions.map((action) => {
-        const isBusy = busyAction === action;
-        return (
-          <button key={action} type="button" className={`boothActionBtn boothActionBtn--${action}`} disabled={disabled || !!busyAction} onClick={() => onAction(action)}>
-            {isBusy ? "Working..." : formatActionLabel(action)}
-          </button>
-        );
-      })}
+    <div className={`boothBtnGroup ${compact ? "boothBtnGroup--compact" : ""}`}>
+      {buttons.map((button) => (
+        <button
+          key={button.key}
+          type="button"
+          className={`gunBtn gunBtn--${button.key}`}
+          disabled={button.disabled}
+          onClick={() => onAction(button.key, itemId)}
+        >
+          {button.label}
+        </button>
+      ))}
     </div>
   );
 }

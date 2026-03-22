@@ -1,110 +1,36 @@
 "use client";
 
 import BoothActionButtons from "./BoothActionButtons";
-import StatusBadge from "./StatusBadge";
-import { formatDuration, getAllowedActions, getStatusTone, isInterstitial, isSongDraggable } from "./booth-utils";
-import type { BoothActionName, QueueLikeItem } from "./types";
+import type { QueueLikeItem } from "./types";
+import { isInterstitial, labelForStatus } from "./booth-utils";
 
-export default function QueueItemRow({
-  item,
-  compact = false,
-  draggable = false,
-  isDropTarget = false,
-  isDragging = false,
-  busyAction,
-  onAction,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  onDragEnd,
-}: {
+type Props = {
   item: QueueLikeItem;
-  compact?: boolean;
-  draggable?: boolean;
-  isDropTarget?: boolean;
-  isDragging?: boolean;
-  busyAction?: BoothActionName | null;
-  onAction?: (item: QueueLikeItem, action: BoothActionName) => void;
-  onDragStart?: (item: QueueLikeItem) => void;
-  onDragOver?: (item: QueueLikeItem) => void;
-  onDrop?: (item: QueueLikeItem) => void;
-  onDragEnd?: () => void;
-}) {
-  const interstitial = isInterstitial(item);
-  const tone = getStatusTone(item.status);
-  const songDraggable = isSongDraggable(item) && draggable;
-  const actions = getAllowedActions(item);
+  compactMode: boolean;
+  dragging?: boolean;
+  onAction: (action: "load" | "play" | "pause" | "skip" | "done", itemId: string) => void;
+};
+
+export default function QueueItemRow({ item, compactMode, dragging = false, onAction }: Props) {
+  const system = isInterstitial(item);
 
   return (
-    <div
-      className={`boothQueueRow ${interstitial ? "boothQueueRow--system" : ""} ${compact ? "boothQueueRow--compact" : ""} ${songDraggable ? "boothQueueRow--canDrag" : ""} ${isDropTarget ? "boothQueueRow--dropTarget" : ""} ${isDragging ? "boothQueueRow--dragging" : ""}`}
-      draggable={songDraggable}
-      onDragStart={(event) => {
-        if (!songDraggable) return;
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", item.id);
-        onDragStart?.(item);
-      }}
-      onDragOver={(event) => {
-        if (!songDraggable) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-        onDragOver?.(item);
-      }}
-      onDrop={(event) => {
-        if (!songDraggable) return;
-        event.preventDefault();
-        onDrop?.(item);
-      }}
-      onDragEnd={() => onDragEnd?.()}
-    >
-      <div className="boothQueueRowLeft">
-        <div className="boothQueueIndex">{item.position ?? item.sortOrder ?? "—"}</div>
-
-        <div className={`boothQueueArt ${interstitial ? "boothQueueArt--system" : ""}`}>
-          {item.artworkUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.artworkUrl} alt={item.title || "Artwork"} className="boothQueueArtImg" />
-          ) : (
-            <div className="boothQueueArtFallback">{(item.artist || item.title || "RM").slice(0, 2).toUpperCase()}</div>
-          )}
-        </div>
-
-        <div className="boothQueueMain">
-          <div className="boothQueueTitleLine">
-            <div className="boothQueueTitle">{item.title || "Untitled"}</div>
-            {interstitial ? (
-              <StatusBadge label="SYSTEM / INTERSTITIAL" tone="pink" />
-            ) : (
-              <StatusBadge label={String(item.status || "QUEUED")} tone={tone} />
-            )}
-            {item.boosted ? <StatusBadge label="BOOST" tone="gold" /> : null}
+    <div className={`queueRow ${system ? "queueRow--system" : ""} ${dragging ? "queueRow--dragging" : ""}`} draggable={!system}>
+      <div className="queueRowLeft">
+        <div className="queueIndex">{item.position ?? "—"}</div>
+        {item.artworkUrl ? <img src={item.artworkUrl} alt={item.title || "Artwork"} className="queueArt" /> : <div className="queueArt queueArt--fallback" />}
+        <div className="queueText">
+          <div className="queueTitleLine">
+            <strong className="queueTitle">{item.title || "Untitled"}</strong>
+            <span className={`rowPill ${system ? "rowPill--system" : "rowPill--queue"}`}>{system ? "System" : labelForStatus(item.status)}</span>
+            {!system ? <span className="dragToken">Drag Song</span> : null}
           </div>
-
-          <div className="boothQueueMeta">
-            {item.artist || "Unknown artist"}
-            {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
-            {item.durationSec ? ` • ${formatDuration(item.durationSec)}` : ""}
-            {item.clusterId ? ` • ${item.clusterId}` : ""}
-          </div>
-
-          {!compact ? (
-            <BoothActionButtons actions={actions} busyAction={busyAction} compact onAction={(action) => onAction?.(item, action)} />
-          ) : null}
+          <div className="queueMeta">{item.artist || "Unknown artist"}{item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}</div>
         </div>
       </div>
 
-      <div className="boothQueueRowRight">
-        {songDraggable ? (
-          <div className="boothDragHandleWrap">
-            <StatusBadge label="DRAG SONG" tone="cyan" />
-            <div className="boothDragHandle" aria-hidden="true">⋮⋮</div>
-          </div>
-        ) : interstitial ? (
-          <StatusBadge label="LOCKED SYSTEM" tone="muted" />
-        ) : (
-          <StatusBadge label="LOCKED STATUS" tone="muted" />
-        )}
+      <div className="queueRowRight">
+        {!system ? <BoothActionButtons itemId={item.id} status={item.status} onAction={onAction} compact={compactMode} /> : <span className="systemLock">Locked</span>}
       </div>
     </div>
   );
