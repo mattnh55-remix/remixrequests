@@ -26,7 +26,7 @@ export default function BoothActionButtons({
           <button
             key={action}
             type="button"
-            className={`gunmetalBtn gunmetalBtn--${action}`}
+            className={`gunmetalBtn gunmetalBtn--${action} ${compact ? "gunmetalBtn--mini" : ""}`}
             disabled={disabled || !!busyAction}
             onClick={() => onAction(action)}
           >

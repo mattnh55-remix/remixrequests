@@ -256,7 +256,7 @@ export default function BoothLayout({ location }: { location: string }) {
       <style jsx global>{`
         .rrBooth {
           min-height: 100vh;
-          padding: 8px 10px 12px;
+          padding: 6px 8px 10px;
           background:
             radial-gradient(circle at 10% 12%, rgba(0, 180, 214, 0.16), transparent 20%),
             radial-gradient(circle at 72% 18%, rgba(164, 50, 186, 0.14), transparent 22%),
@@ -268,16 +268,16 @@ export default function BoothLayout({ location }: { location: string }) {
           --panel-radius: 6px;
           --card-radius: 5px;
           --soft-radius: 4px;
-          --row-gap: 6px;
+          --row-gap: 5px;
           --inset-border: rgba(255,255,255,0.1);
         }
         .rrBooth__topbar {
           display: grid;
           grid-template-columns: 1fr auto;
-          gap: 14px;
+          gap: 12px;
           align-items: center;
-          padding: 12px 14px;
-          border-radius: 7px;
+          padding: 10px 12px;
+          border-radius: 4px;
           border: 1px solid rgba(84, 122, 162, 0.32);
           background:
             linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02)),
@@ -286,41 +286,41 @@ export default function BoothLayout({ location }: { location: string }) {
             inset 0 1px 0 rgba(255,255,255,0.08),
             inset 0 -1px 0 rgba(0,0,0,0.35),
             0 10px 24px rgba(0,0,0,0.28);
-          margin-bottom: 10px;
+          margin-bottom: 8px;
         }
         .rrEyebrow {
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 900;
           letter-spacing: 2.2px;
           opacity: 0.72;
         }
         .rrTitle {
           margin: 6px 0 5px;
-          font-size: 32px;
+          font-size: 30px;
           line-height: 1;
           font-weight: 1000;
           letter-spacing: -1px;
         }
         .rrSub {
           color: rgba(235, 241, 255, 0.7);
-          font-size: 13px;
+          font-size: 12px;
         }
         .rrTopRight {
           display: grid;
-          gap: 8px;
+          gap: 5px;
           justify-items: end;
         }
         .modeToggle,
         .statBoxes {
           display: flex;
-          gap: 6px;
+          gap: 5px;
           flex-wrap: wrap;
           justify-content: flex-end;
         }
         .statBox {
           min-width: 112px;
           padding: 10px 12px;
-          border-radius: 6px;
+          border-radius: 4px;
           border: 1px solid rgba(255,255,255,0.1);
           background:
             linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)),
@@ -330,49 +330,49 @@ export default function BoothLayout({ location }: { location: string }) {
         .statBox span {
           display: block;
           margin-bottom: 5px;
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 900;
           letter-spacing: 1.8px;
           opacity: 0.7;
         }
         .statBox strong {
-          font-size: 16px;
+          font-size: 13px;
           font-weight: 1000;
         }
         .rrBooth__grid {
           display: grid;
-          grid-template-columns: minmax(0, 1.68fr) minmax(350px, 0.95fr) minmax(290px, 0.62fr);
-          gap: 10px;
+          grid-template-columns: minmax(0, 1.72fr) minmax(350px, 0.96fr) minmax(290px, 0.6fr);
+          gap: 5px;
           align-items: start;
         }
         .boothStack {
           display: grid;
-          gap: 10px;
+          gap: 5px;
           align-content: start;
         }
         .boothPanel {
           min-width: 0;
-          border-radius: 6px;
-          border: 1px solid rgba(77, 107, 143, 0.3);
+          border-radius: 5px;
+          border: 1px solid rgba(77, 107, 143, 0.28);
           background:
             linear-gradient(180deg, rgba(21,27,41,0.95), rgba(8,13,23,0.94));
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,0.05),
             inset 0 -1px 0 rgba(0,0,0,0.35),
             0 12px 26px rgba(0,0,0,0.24);
-          padding: 9px;
+          padding: 7px;
         }
         .boothPanel--primary {
           display: grid;
-          gap: 8px;
+          gap: 5px;
         }
         .panelHead,
         .boothPanelHeader {
           display: flex;
           justify-content: space-between;
-          gap: 10px;
+          gap: 8px;
           align-items: flex-start;
-          margin-bottom: 6px;
+          margin-bottom: 4px;
         }
         .panelHead--tight,
         .boothPanelHeader {
@@ -391,23 +391,23 @@ export default function BoothLayout({ location }: { location: string }) {
           font-size: 12px;
         }
         .heroCard {
-          border-radius: 5px;
-          border: 1px solid rgba(255,255,255,0.09);
+          border-radius: 3px;
+          border: 1px solid rgba(255,255,255,0.085);
           background:
             linear-gradient(90deg, rgba(255,255,255,0.028), rgba(255,255,255,0.04) 45%, rgba(255,255,255,0.02)),
             linear-gradient(180deg, rgba(28,36,53,0.96), rgba(10,17,29,0.96));
           box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.32);
-          padding: 9px;
+          padding: 7px;
         }
         .heroCardHeader {
           display: flex;
           justify-content: space-between;
-          gap: 8px;
+          gap: 5px;
           align-items: flex-start;
-          margin-bottom: 7px;
+          margin-bottom: 5px;
         }
         .heroCardTitle {
-          font-size: 11px;
+          font-size: 10px;
           text-transform: uppercase;
           letter-spacing: 1.7px;
           font-weight: 1000;
@@ -422,15 +422,15 @@ export default function BoothLayout({ location }: { location: string }) {
         .emptyBox,
         .insertBlockBody {
           border: 1px dashed rgba(255,255,255,0.1);
-          border-radius: 4px;
-          padding: 14px;
+          border-radius: 3px;
+          padding: 12px;
           color: rgba(235,241,255,0.7);
           background: rgba(255,255,255,0.015);
         }
         .heroMain {
           display: grid;
-          grid-template-columns: 80px minmax(0, 1fr);
-          gap: 10px;
+          grid-template-columns: 68px minmax(0, 1fr);
+          gap: 5px;
           align-items: start;
         }
         .heroArtwork,
@@ -440,40 +440,40 @@ export default function BoothLayout({ location }: { location: string }) {
           height: 100%;
           object-fit: cover;
           display: block;
-          border-radius: 4px;
+          border-radius: 3px;
         }
         .heroArtworkWrap {
-          width: 80px;
-          height: 80px;
+          width: 68px;
+          height: 68px;
         }
         .heroArtwork--placeholder,
         .deckArt--placeholder,
         .queueMediaPlaceholder {
           width: 100%;
           height: 100%;
-          border-radius: 4px;
+          border-radius: 3px;
           background: linear-gradient(135deg, rgba(59,139,177,0.34), rgba(111,56,126,0.3));
           border: 1px solid rgba(255,255,255,0.12);
         }
         .heroInfo {
           display: grid;
-          gap: 6px;
+          gap: 5px;
           min-width: 0;
         }
         .heroTitleRow {
           display: flex;
-          gap: 7px;
+          gap: 5px;
           align-items: center;
           flex-wrap: wrap;
         }
         .heroTitle {
-          font-size: 20px;
+          font-size: 18px;
           font-weight: 1000;
           line-height: 1.05;
           letter-spacing: -0.4px;
         }
         .heroArtist {
-          font-size: 13px;
+          font-size: 12px;
           color: rgba(235,241,255,0.78);
         }
         .heroTelemetry {
@@ -481,12 +481,12 @@ export default function BoothLayout({ location }: { location: string }) {
           grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 0;
           border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 4px;
+          border-radius: 3px;
           overflow: hidden;
           background: rgba(255,255,255,0.02);
         }
         .heroTelemetryCell {
-          padding: 7px 10px 8px;
+          padding: 6px 8px 7px;
           border-right: 1px solid rgba(255,255,255,0.08);
           min-width: 0;
         }
@@ -495,7 +495,7 @@ export default function BoothLayout({ location }: { location: string }) {
         }
         .heroTelemetryCell span {
           display: block;
-          font-size: 10px;
+          font-size: 9px;
           text-transform: uppercase;
           letter-spacing: 1.6px;
           opacity: 0.68;
@@ -503,7 +503,7 @@ export default function BoothLayout({ location }: { location: string }) {
         }
         .heroTelemetryCell strong {
           display: block;
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 1000;
           white-space: nowrap;
           overflow: hidden;
@@ -514,7 +514,7 @@ export default function BoothLayout({ location }: { location: string }) {
           gap: 5px;
         }
         .progressBar {
-          height: 14px;
+          height: 12px;
           border-radius: 999px;
           background: rgba(255,255,255,0.07);
           box-shadow: inset 0 1px 3px rgba(0,0,0,0.45);
@@ -528,7 +528,7 @@ export default function BoothLayout({ location }: { location: string }) {
         .progressMeta {
           display: flex;
           justify-content: space-between;
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 900;
           letter-spacing: 1.3px;
           text-transform: uppercase;
@@ -536,32 +536,32 @@ export default function BoothLayout({ location }: { location: string }) {
         }
         .deckLine {
           display: grid;
-          grid-template-columns: 54px minmax(0, 1fr) auto;
+          grid-template-columns: 44px minmax(0, 1fr) auto;
           gap: 10px;
           align-items: center;
         }
         .deckArt {
-          width: 54px;
-          height: 54px;
+          width: 44px;
+          height: 44px;
         }
         .deckTitle {
-          font-size: 16px;
+          font-size: 13px;
           font-weight: 1000;
           line-height: 1.05;
         }
         .deckArtist {
-          margin-top: 3px;
+          margin-top: 0;
           color: rgba(235,241,255,0.76);
           font-size: 12px;
         }
         .statusPill {
           display: inline-flex;
           align-items: center;
-          padding: 3px 8px;
+          padding: 2px 6px;
           border-radius: 999px;
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 1000;
-          letter-spacing: 1.2px;
+          letter-spacing: 0.9px;
           text-transform: uppercase;
           border: 1px solid rgba(255,255,255,0.14);
           background: rgba(255,255,255,0.04);
@@ -596,12 +596,12 @@ export default function BoothLayout({ location }: { location: string }) {
           appearance: none;
           border: 1px solid rgba(255,255,255,0.12);
           cursor: pointer;
-          min-height: 32px;
-          padding: 0 11px;
-          border-radius: 4px;
-          font-size: 11px;
+          min-height: 24px;
+          padding: 0 8px;
+          border-radius: 3px;
+          font-size: 10px;
           font-weight: 1000;
-          letter-spacing: 0.8px;
+          letter-spacing: 0.4px;
           color: #f1f5fb;
           text-transform: none;
           background: linear-gradient(180deg, #4a5467 0%, #2d3441 52%, #232935 100%);
@@ -644,24 +644,24 @@ export default function BoothLayout({ location }: { location: string }) {
         }
         .boothActionRail {
           display: flex;
-          gap: 4px;
+          gap: 3px;
           flex-wrap: wrap;
         }
         .queueListShell {
           display: grid;
-          gap: 6px;
+          gap: 5px;
         }
         .queueListHeader {
           display: flex;
           justify-content: space-between;
           align-items: end;
-          gap: 8px;
+          gap: 5px;
         }
         .queueListTitle,
         .listSectionTitle,
         .insertBlockTitle,
         .engineLabel {
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 1000;
           letter-spacing: 1.7px;
           text-transform: uppercase;
@@ -675,8 +675,8 @@ export default function BoothLayout({ location }: { location: string }) {
         .requestListScroller,
         .shoutoutListScroller {
           display: grid;
-          gap: 6px;
-          max-height: 460px;
+          gap: 5px;
+          max-height: 540px;
           overflow: auto;
           padding-right: 1px;
         }
@@ -685,47 +685,43 @@ export default function BoothLayout({ location }: { location: string }) {
         .shoutoutRow {
           display: grid;
           align-items: center;
-          gap: 8px;
+          gap: 5px;
           border-radius: 5px;
           border: 1px solid rgba(255,255,255,0.085);
           background:
             linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015)),
             linear-gradient(180deg, rgba(25,31,44,0.92), rgba(14,19,31,0.92));
-          padding: 7px 8px;
+          padding: 5px 7px;
           box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), inset 0 -1px 0 rgba(0,0,0,0.25);
         }
         .queueRow {
-          grid-template-columns: 26px 38px minmax(0, 1fr) auto;
+          grid-template-columns: 22px minmax(0, 1fr) auto;
         }
         .requestRow {
           grid-template-columns: 24px minmax(0, 1fr) auto;
         }
         .queueIndex,
         .requestIndex {
-          font-size: 15px;
+          font-size: 13px;
           font-weight: 1000;
           line-height: 1;
           color: rgba(235,241,255,0.92);
-          width: 26px;
-          height: 26px;
-          border-radius: 6px;
+          width: 22px;
+          height: 22px;
+          border-radius: 4px;
           display: grid;
           place-items: center;
           border: 1px solid rgba(255,255,255,0.08);
           background: rgba(255,255,255,0.03);
         }
-        .queueMedia {
-          width: 38px;
-          height: 38px;
-        }
-        .queueText,
+                .queueText,
         .requestText {
           min-width: 0;
         }
         .queueTitleLine,
         .requestTitleLine {
           display: flex;
-          gap: 6px;
+          gap: 5px;
           align-items: center;
           flex-wrap: wrap;
           min-width: 0;
@@ -733,16 +729,16 @@ export default function BoothLayout({ location }: { location: string }) {
         .queueTitle,
         .requestTitleLine strong,
         .requestTitle {
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 1000;
           line-height: 1.05;
         }
         .queueMeta,
         .requestMeta,
         .shoutoutMeta {
-          margin-top: 2px;
+          margin-top: 1px;
           color: rgba(235,241,255,0.66);
-          font-size: 12px;
+          font-size: 11px;
           min-width: 0;
           white-space: nowrap;
           overflow: hidden;
@@ -752,7 +748,7 @@ export default function BoothLayout({ location }: { location: string }) {
         .queueActions,
         .boothRequestActions {
           display: flex;
-          gap: 4px;
+          gap: 3px;
           justify-content: flex-end;
           flex-wrap: wrap;
         }
@@ -765,10 +761,10 @@ export default function BoothLayout({ location }: { location: string }) {
           background:
             linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015)),
             linear-gradient(180deg, rgba(18,24,38,0.94), rgba(10,15,26,0.94));
-          padding: 8px;
+          padding: 7px;
         }
         .engineAction {
-          font-size: 17px;
+          font-size: 16px;
           line-height: 1;
           font-weight: 1000;
           margin: 6px 0 8px;
@@ -777,7 +773,7 @@ export default function BoothLayout({ location }: { location: string }) {
           display: grid;
           gap: 0;
           border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 4px;
+          border-radius: 3px;
           overflow: hidden;
         }
         .engineRow {
@@ -785,7 +781,7 @@ export default function BoothLayout({ location }: { location: string }) {
           grid-template-columns: 120px minmax(0, 1fr);
           gap: 10px;
           align-items: center;
-          padding: 8px 10px;
+          padding: 7px 8px;
           border-top: 1px solid rgba(255,255,255,0.07);
           font-size: 12px;
         }
@@ -807,17 +803,17 @@ export default function BoothLayout({ location }: { location: string }) {
         }
         .shoutoutRow {
           align-items: start;
-          gap: 6px;
+          gap: 5px;
         }
         .shoutoutTop {
           display: flex;
           justify-content: space-between;
-          gap: 6px;
+          gap: 5px;
           align-items: flex-start;
         }
         .shoutoutBadges {
           display: flex;
-          gap: 4px;
+          gap: 3px;
           flex-wrap: wrap;
           justify-content: flex-end;
         }
@@ -828,7 +824,75 @@ export default function BoothLayout({ location }: { location: string }) {
         }
         .boothSplit {
           display: grid;
+          gap: 5px;
+        }
+        .heroCard--live {
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.32), 0 0 0 1px rgba(40,170,212,0.12);
+        }
+        .heroCard--deck {
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.32), 0 0 0 1px rgba(203,152,51,0.10);
+        }
+        .heroInfoTop {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
           gap: 8px;
+          align-items: start;
+        }
+        .heroActions,
+        .deckActions {
+          display: flex;
+          justify-content: flex-end;
+          align-items: flex-start;
+        }
+        .heroActions--topRight .boothActionRail,
+        .deckActions .boothActionRail {
+          justify-content: flex-end;
+        }
+        .deckLine--single {
+          grid-template-columns: 44px minmax(0, 1fr) auto;
+        }
+        .deckText--single {
+          min-width: 0;
+        }
+        .deckSingleLine {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          min-width: 0;
+          white-space: nowrap;
+          overflow: hidden;
+        }
+        .deckSingleLine > * {
+          flex: 0 0 auto;
+        }
+        .deckTitle {
+          flex: 0 1 auto;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .deckArtist--inline,
+        .deckRequestor {
+          flex: 0 1 auto;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          min-width: 0;
+        }
+        .deckDivider {
+          opacity: 0.55;
+        }
+        .queueRow--dense {
+          grid-template-columns: 22px minmax(0, 1fr) auto;
+        }
+        .gunmetalBtn--mini {
+          min-height: 24px;
+          padding: 0 8px;
+          font-size: 10px;
+        }
+        .gunmetalBtn--wide {
+          width: 100%;
+          min-height: 28px;
         }
         @media (max-width: 1480px) {
           .rrBooth__grid {
@@ -853,9 +917,14 @@ export default function BoothLayout({ location }: { location: string }) {
         @media (max-width: 760px) {
           .heroMain,
           .deckLine,
-          .queueRow,
           .requestRow,
           .engineRow {
+            grid-template-columns: 1fr;
+          }
+          .queueRow {
+            grid-template-columns: 1fr;
+          }
+          .heroInfoTop {
             grid-template-columns: 1fr;
           }
           .heroTelemetry {

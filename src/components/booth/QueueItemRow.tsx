@@ -29,17 +29,8 @@ export default function QueueItemRow({ item, busyAction, onLoad, onPlay, onPause
   }
 
   return (
-    <div className="queueRow">
+    <div className="queueRow queueRow--dense">
       <div className="queueIndex">{item.position ?? "—"}</div>
-
-      <div className="queueMedia">
-        {item.artworkUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.artworkUrl} alt={item.title || "Artwork"} />
-        ) : (
-          <div className="queueMediaPlaceholder" />
-        )}
-      </div>
 
       <div className="queueText">
         <div className="queueTitleLine">

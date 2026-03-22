@@ -39,18 +39,17 @@ export default function NowPlayingCard({
   }
 
   return (
-    <div className={`heroCard ${mode === "performance" ? "heroCard--compact" : ""}`}>
+    <div className={`heroCard heroCard--live ${mode === "performance" ? "heroCard--compact" : ""}`}>
       <div className="heroCardHeader">
         <div>
           <div className="heroCardTitle">Now Playing</div>
           <div className="heroCardSub">Primary live lane</div>
         </div>
-        {item ? <StatusBadge label={isSystem ? "SYSTEM" : "LIVE"} tone={isSystem ? "pink" : "cyan"} /> : null}
       </div>
 
       {item ? (
         <>
-          <div className="heroMain">
+          <div className="heroMain heroMain--console">
             <div className="heroArtworkWrap">
               {item.artworkUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -61,15 +60,23 @@ export default function NowPlayingCard({
             </div>
 
             <div className="heroInfo">
-              <div className="heroTitleRow">
-                <div className="heroTitle">{item.title || "Untitled"}</div>
-                <StatusBadge label={isSystem ? "INTERSTITIAL" : "PLAYING"} tone={isSystem ? "pink" : "cyan"} />
-                {item.isEndingSoon ? <StatusBadge label="ENDING" tone="gold" /> : null}
-              </div>
+              <div className="heroInfoTop">
+                <div className="heroInfoCopy">
+                  <div className="heroTitleRow">
+                    <div className="heroTitle">{item.title || "Untitled"}</div>
+                    <StatusBadge label={isSystem ? "INTERSTITIAL" : "PLAYING"} tone={isSystem ? "pink" : "cyan"} />
+                    {item.isEndingSoon ? <StatusBadge label="ENDING" tone="gold" /> : null}
+                  </div>
 
-              <div className="heroArtist">
-                {item.artist || "Unknown artist"}
-                {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
+                  <div className="heroArtist">
+                    {item.artist || "Unknown artist"}
+                    {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
+                  </div>
+                </div>
+
+                <div className="heroActions heroActions--topRight">
+                  <BoothActionButtons actions={actions} busyAction={busyAction} onAction={handleAction} compact />
+                </div>
               </div>
 
               <div className="heroTelemetry">
@@ -101,10 +108,6 @@ export default function NowPlayingCard({
                 </div>
               </div>
             </div>
-          </div>
-
-          <div style={{ marginTop: 8 }}>
-            <BoothActionButtons actions={actions} busyAction={busyAction} onAction={handleAction} compact />
           </div>
         </>
       ) : (

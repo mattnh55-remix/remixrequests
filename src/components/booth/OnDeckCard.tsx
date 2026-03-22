@@ -36,7 +36,7 @@ export default function OnDeckCard({
   }
 
   return (
-    <div className={`heroCard ${mode === "performance" ? "heroCard--compact" : ""}`}>
+    <div className={`heroCard heroCard--deck ${mode === "performance" ? "heroCard--compact" : ""}`}>
       <div className="heroCardHeader">
         <div>
           <div className="heroCardTitle">On Deck</div>
@@ -46,32 +46,30 @@ export default function OnDeckCard({
       </div>
 
       {item ? (
-        <>
-          <div className="deckLine">
-            <div className="deckArt">
-              {item.artworkUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.artworkUrl} alt={item.title || "Artwork"} />
-              ) : (
-                <div className="deckArt deckArt--placeholder" />
-              )}
-            </div>
-
-            <div>
-              <div className="deckTitle">{item.title || "Untitled"}</div>
-              <div className="deckArtist">
-                {item.artist || "Unknown artist"}
-                {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
-              </div>
-            </div>
-
-            {isSystem ? <StatusBadge label="INTERSTITIAL" tone="pink" /> : null}
+        <div className="deckLine deckLine--single">
+          <div className="deckArt">
+            {item.artworkUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.artworkUrl} alt={item.title || "Artwork"} />
+            ) : (
+              <div className="deckArt deckArt--placeholder" />
+            )}
           </div>
 
-          <div style={{ marginTop: 8 }}>
+          <div className="deckText deckText--single">
+            <div className="deckSingleLine">
+              <span className="deckTitle">{item.title || "Untitled"}</span>
+              <span className="deckDivider">—</span>
+              <span className="deckArtist deckArtist--inline">{item.artist || "Unknown artist"}</span>
+              {item.requestedByLabel ? <span className="deckRequestor">• {item.requestedByLabel}</span> : null}
+              {isSystem ? <StatusBadge label="INTERSTITIAL" tone="pink" /> : null}
+            </div>
+          </div>
+
+          <div className="deckActions">
             <BoothActionButtons actions={actions} busyAction={busyAction} onAction={handleAction} compact />
           </div>
-        </>
+        </div>
       ) : (
         <div className="heroEmpty">Nothing loaded or queued yet.</div>
       )}
