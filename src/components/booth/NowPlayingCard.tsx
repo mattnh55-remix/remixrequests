@@ -6,7 +6,9 @@ import {
   formatDuration,
   getAllowedActions,
   getProgressPercent,
+  isBoostedLike,
   isInterstitial,
+  isRequestLike,
 } from "./booth-utils";
 import type { BoothActionName, BoothMode, QueueLikeItem } from "./types";
 
@@ -29,6 +31,8 @@ export default function NowPlayingCard({
 }: NowPlayingCardProps) {
   const actions = getAllowedActions(item);
   const isSystem = isInterstitial(item);
+  const isRequest = isRequestLike(item) && !isSystem;
+  const isBoosted = isBoostedLike(item) && !isSystem;
   const progressPct = getProgressPercent(item);
 
   function handleAction(action: BoothActionName) {
@@ -48,68 +52,69 @@ export default function NowPlayingCard({
       </div>
 
       {item ? (
-        <>
-          <div className="heroMain heroMain--console">
-            <div className="heroArtworkWrap">
-              {item.artworkUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="heroArtwork" src={item.artworkUrl} alt={item.title || "Artwork"} />
-              ) : (
-                <div className="heroArtwork heroArtwork--placeholder" />
-              )}
+        <div className="heroMain heroMain--console">
+          <div className="heroArtworkWrap">
+            {item.artworkUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="heroArtwork" src={item.artworkUrl} alt={item.title || "Artwork"} />
+            ) : (
+              <div className="heroArtwork heroArtwork--placeholder" />
+            )}
+          </div>
+
+          <div className="heroInfo">
+            <div className="heroInfoTop">
+              <div className="heroInfoCopy">
+                <div className="heroTitleRow">
+                  <div className="heroTitle">{item.title || "Untitled"}</div>
+                  {isBoosted ? <StatusBadge label="BOOSTED" tone="boost" /> : null}
+                  {isRequest ? <StatusBadge label="REQUEST" tone="alert" /> : null}
+                  <StatusBadge label={isSystem ? "INTERSTITIAL" : "PLAYING"} tone={isSystem ? "pink" : "cyan"} />
+                  {item.isEndingSoon ? <StatusBadge label="ENDING" tone="gold" /> : null}
+                </div>
+
+                <div className="heroArtist">
+                  {item.artist || "Unknown artist"}
+                  {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
+                  {item.verified ? " • VERIFIED" : ""}
+                </div>
+              </div>
+
+              <div className="heroActions heroActions--topRight">
+                <BoothActionButtons actions={actions} busyAction={busyAction} onAction={handleAction} compact />
+              </div>
             </div>
 
-            <div className="heroInfo">
-              <div className="heroInfoTop">
-                <div className="heroInfoCopy">
-                  <div className="heroTitleRow">
-                    <div className="heroTitle">{item.title || "Untitled"}</div>
-                    <StatusBadge label={isSystem ? "INTERSTITIAL" : "PLAYING"} tone={isSystem ? "pink" : "cyan"} />
-                    {item.isEndingSoon ? <StatusBadge label="ENDING" tone="gold" /> : null}
-                  </div>
-
-                  <div className="heroArtist">
-                    {item.artist || "Unknown artist"}
-                    {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
-                  </div>
-                </div>
-
-                <div className="heroActions heroActions--topRight">
-                  <BoothActionButtons actions={actions} busyAction={busyAction} onAction={handleAction} compact />
-                </div>
+            <div className="heroTelemetry">
+              <div className="heroTelemetryCell">
+                <span>Duration</span>
+                <strong>{formatDuration(item.durationSec)}</strong>
               </div>
-
-              <div className="heroTelemetry">
-                <div className="heroTelemetryCell">
-                  <span>Duration</span>
-                  <strong>{formatDuration(item.durationSec)}</strong>
-                </div>
-                <div className="heroTelemetryCell">
-                  <span>Elapsed</span>
-                  <strong>{typeof item.elapsedSec === "number" ? formatDuration(item.elapsedSec) : "—"}</strong>
-                </div>
-                <div className="heroTelemetryCell">
-                  <span>Remaining</span>
-                  <strong>{typeof item.remainingSec === "number" ? formatDuration(item.remainingSec) : "—"}</strong>
-                </div>
-                <div className="heroTelemetryCell">
-                  <span>Status</span>
-                  <strong>{String(item.status || "PLAYING")}</strong>
-                </div>
+              <div className="heroTelemetryCell">
+                <span>Elapsed</span>
+                <strong>{typeof item.elapsedSec === "number" ? formatDuration(item.elapsedSec) : "—"}</strong>
               </div>
+              <div className="heroTelemetryCell">
+                <span>Remaining</span>
+                <strong>{typeof item.remainingSec === "number" ? formatDuration(item.remainingSec) : "—"}</strong>
+              </div>
+              <div className="heroTelemetryCell">
+                <span>Status</span>
+                <strong>{String(item.status || "PLAYING")}</strong>
+              </div>
+            </div>
 
-              <div className="progressWrap">
-                <div className="progressBar">
-                  <div className="progressFill" style={{ width: `${progressPct}%` }} />
-                </div>
-                <div className="progressMeta">
-                  <span>Runtime Progress</span>
-                  <span>{Math.round(progressPct)}%</span>
-                </div>
+            <div className="progressWrap">
+              <div className="progressBar">
+                <div className="progressFill" style={{ width: `${progressPct}%` }} />
+              </div>
+              <div className="progressMeta">
+                <span>Runtime Progress</span>
+                <span>{Math.round(progressPct)}%</span>
               </div>
             </div>
           </div>
-        </>
+        </div>
       ) : (
         <div className="heroEmpty">No active PLAYING item found.</div>
       )}

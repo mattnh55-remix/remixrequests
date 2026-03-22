@@ -2,7 +2,7 @@
 
 import BoothActionButtons from "./BoothActionButtons";
 import StatusBadge from "./StatusBadge";
-import { getAllowedActions, isInterstitial } from "./booth-utils";
+import { getAllowedActions, isBoostedLike, isInterstitial, isRequestLike } from "./booth-utils";
 import type { BoothActionName, BoothMode, QueueLikeItem } from "./types";
 
 type OnDeckCardProps = {
@@ -26,6 +26,8 @@ export default function OnDeckCard({
 }: OnDeckCardProps) {
   const actions = getAllowedActions(item);
   const isSystem = isInterstitial(item);
+  const isRequest = isRequestLike(item) && !isSystem;
+  const isBoosted = isBoostedLike(item) && !isSystem;
 
   function handleAction(action: BoothActionName) {
     if (!item) return;
@@ -61,6 +63,8 @@ export default function OnDeckCard({
               <span className="deckTitle">{item.title || "Untitled"}</span>
               <span className="deckDivider">—</span>
               <span className="deckArtist deckArtist--inline">{item.artist || "Unknown artist"}</span>
+              {isBoosted ? <StatusBadge label="BOOSTED" tone="boost" /> : null}
+              {isRequest ? <StatusBadge label="REQUEST" tone="alert" /> : null}
               {item.requestedByLabel ? <span className="deckRequestor">• {item.requestedByLabel}</span> : null}
               {isSystem ? <StatusBadge label="INTERSTITIAL" tone="pink" /> : null}
             </div>

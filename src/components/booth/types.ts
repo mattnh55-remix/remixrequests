@@ -24,6 +24,13 @@ export type QueueLikeItem = {
   requestedByLabel?: string | null;
   boosted?: boolean | null;
   artworkUrl?: string | null;
+  verified?: boolean | null;
+  upvotes?: number | null;
+  downvotes?: number | null;
+  score?: number | null;
+  redemptionCode?: string | null;
+  requestType?: string | null;
+  isRequest?: boolean | null;
 };
 
 export type RuntimePreview = {
@@ -52,6 +59,10 @@ export type RequestItem = {
   boosted?: boolean;
   requestedByLabel?: string;
   sortBucket?: "PLAY_NOW" | "UP_NEXT";
+  verified?: boolean;
+  upvotes?: number;
+  downvotes?: number;
+  redemptionCode?: string | null;
 };
 
 export type ShoutoutItem = {

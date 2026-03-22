@@ -7,5 +7,6 @@ export default function StatusBadge({
   label: string;
   tone?: string;
 }) {
-  return <span className={`statusPill statusPill--${tone}`}>{label}</span>;
+  const toneClass = tone === "red" ? "alert" : tone;
+  return <span className={`statusPill statusPill--${toneClass}`}>{label}</span>;
 }

@@ -5,9 +5,8 @@ import EnginePanel from "./EnginePanel";
 import NowPlayingCard from "./NowPlayingCard";
 import OnDeckCard from "./OnDeckCard";
 import QueueList from "./QueueList";
-import RequestPanel from "./RequestPanel";
 import ShoutoutPanel from "./ShoutoutPanel";
-import { normalizeQueue, queueSummary, safeJson } from "./booth-utils";
+import { enrichQueueWithRequests, normalizeQueue, queueSummary, safeJson } from "./booth-utils";
 import type {
   BoothDataState,
   BoothMode,
@@ -59,13 +58,16 @@ export default function BoothLayout({ location }: { location: string }) {
     const requestPayload = requestRes.ok ? await safeJson(requestRes) : null;
     const shoutPayload = shoutRes.ok ? await safeJson(shoutRes) : null;
 
-    const queue = normalizeQueue(queuePayload);
     const playNowRequests: RequestItem[] = Array.isArray(requestPayload?.playNow)
       ? requestPayload.playNow
       : [];
     const upNextRequests: RequestItem[] = Array.isArray(requestPayload?.upNext)
       ? requestPayload.upNext
       : [];
+    const queue = enrichQueueWithRequests(
+      normalizeQueue(queuePayload),
+      [...playNowRequests, ...upNextRequests]
+    );
     const pendingShoutouts: ShoutoutItem[] = Array.isArray(shoutPayload?.pending)
       ? shoutPayload.pending
       : [];
@@ -130,14 +132,6 @@ export default function BoothLayout({ location }: { location: string }) {
     await load();
   }
 
-  async function requestAction(
-    endpoint: string,
-    requestId: string,
-    bodyKey: string = "requestId"
-  ) {
-    await postJson(endpoint, { [bodyKey]: requestId });
-    await load();
-  }
 
   return (
     <div className={`rrBooth ${mode === "performance" ? "rrBooth--compact" : ""}`}>
@@ -146,8 +140,8 @@ export default function BoothLayout({ location }: { location: string }) {
           <div className="rrEyebrow">REMIXREQUESTS • LIVE BOOTH</div>
           <div className="rrTitle">PERFORMANCE CONSOLE</div>
           <div className="rrSub">
-            Gunmetal booth surface for now playing, on deck, queue flow, runtime insertions,
-            requests, and shoutouts.
+            Gunmetal booth surface for now playing, on deck, unified queue flow, runtime insertions,
+            and shoutouts.
           </div>
         </div>
 
@@ -222,7 +216,7 @@ export default function BoothLayout({ location }: { location: string }) {
           />
 
           <QueueList
-            items={state.queue.filter((item) => item.status !== "PLAYING" && item.id !== onDeck?.id)}
+            items={state.queue.filter((item) => item.status !== "PLAYING" && item.id !== onDeck?.id && item.status !== "PLAYED")}
             mode={mode}
             onLoad={(id) => queueAction("/api/booth/queue/mark-loaded", id)}
             onPlay={(id) => queueAction("/api/booth/queue/mark-playing", id)}
@@ -239,14 +233,6 @@ export default function BoothLayout({ location }: { location: string }) {
               await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
               await load();
             }}
-          />
-
-          <RequestPanel
-            playNow={state.playNowRequests}
-            upNext={state.upNextRequests}
-            mode={mode}
-            onRemove={(id) => requestAction("/api/admin/queue/reject", id)}
-            onDone={(id) => requestAction("/api/admin/queue/played", id)}
           />
         </div>
 
@@ -341,7 +327,7 @@ export default function BoothLayout({ location }: { location: string }) {
         }
         .rrBooth__grid {
           display: grid;
-          grid-template-columns: minmax(0, 1.72fr) minmax(350px, 0.96fr) minmax(290px, 0.6fr);
+          grid-template-columns: minmax(0, 1.85fr) minmax(340px, 0.98fr) minmax(280px, 0.62fr);
           gap: 5px;
           align-items: start;
         }
@@ -591,6 +577,29 @@ export default function BoothLayout({ location }: { location: string }) {
         .statusPill--muted {
           border-color: rgba(255,255,255,0.16);
           opacity: 0.88;
+        }
+        .statusPill--alert {
+          border-color: rgba(255,92,92,0.62);
+          background: linear-gradient(180deg, rgba(128,24,24,0.78), rgba(68,9,9,0.88));
+          box-shadow: 0 0 14px rgba(255,70,70,0.2);
+        }
+        .statusPill--boost {
+          border-color: rgba(255,92,92,0.72);
+          background: linear-gradient(180deg, rgba(164,18,18,0.82), rgba(86,8,8,0.92));
+          box-shadow: 0 0 16px rgba(255,60,60,0.26);
+        }
+        .queueMetaMinor {
+          opacity: 0.7;
+        }
+        .queueMetaStrong {
+          color: rgba(255,255,255,0.9);
+        }
+        .queueRow--request {
+          border-color: rgba(255,92,92,0.18);
+        }
+        .queueRow--boosted {
+          border-color: rgba(255,92,92,0.28);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(255,92,92,0.06);
         }
         .gunmetalBtn {
           appearance: none;
@@ -896,7 +905,7 @@ export default function BoothLayout({ location }: { location: string }) {
         }
         @media (max-width: 1480px) {
           .rrBooth__grid {
-            grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.95fr) minmax(280px, 0.62fr);
+            grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.96fr) minmax(270px, 0.62fr);
           }
         }
         @media (max-width: 1280px) {
