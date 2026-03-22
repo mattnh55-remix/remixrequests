@@ -7,7 +7,6 @@ type RequestPanelProps = {
   playNow: RequestItem[];
   upNext: RequestItem[];
   mode?: BoothMode;
-  busyKey?: string | null;
   onRemove?: (requestId: string) => void | Promise<unknown>;
   onDone?: (requestId: string) => void | Promise<unknown>;
 };
@@ -16,60 +15,47 @@ function RequestRow({
   item,
   index,
   tone,
-  busyKey,
   onRemove,
   onDone,
 }: {
   item: RequestItem;
   index: number;
   tone: "pink" | "cyan";
-  busyKey?: string | null;
   onRemove?: (requestId: string) => void | Promise<unknown>;
   onDone?: (requestId: string) => void | Promise<unknown>;
 }) {
-  const busyDone = busyKey === `${item.id}:done`;
-  const busyRemove = busyKey === `${item.id}:remove`;
-
   return (
-    <div className="boothRequestRow">
-      <div className="boothRequestIndex">{index + 1}</div>
+    <div className="requestRow">
+      <div className="requestIndex">{index + 1}</div>
 
-      <div className="boothRequestMain">
-        <div className="boothRequestTitleLine">
-          <div className="boothRequestTitle">{item.title || "Untitled"}</div>
-          <StatusBadge label={tone === "pink" ? "Play Now" : "Up Next"} tone={tone} />
-          {item.boosted ? <StatusBadge label="Boost" tone="gold" /> : null}
+      <div className="requestText">
+        <div className="requestTitleLine">
+          <strong>{item.title || "Untitled"}</strong>
+          <StatusBadge label={tone === "pink" ? "PLAY NOW" : "UP NEXT"} tone={tone} />
+          {item.boosted ? <StatusBadge label="BOOST" tone="gold" /> : null}
         </div>
-
-        <div className="boothRequestMeta">
+        <div className="requestMeta">
           {item.artist || "Unknown artist"}
           {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
           {typeof item.score === "number" ? ` • Score ${item.score}` : ""}
         </div>
       </div>
 
-      <div className="boothRequestActions">
-        <button type="button" className="gunmetalBtn" onClick={() => void onDone?.(item.id)} disabled={!!busyKey}>
-          {busyDone ? "Working..." : "Done"}
+      <div className="requestActions">
+        <button type="button" className="gunmetalBtn gunmetalBtn--done" onClick={() => void onDone?.(item.id)}>
+          Done
         </button>
-        <button type="button" className="gunmetalBtn gunmetalBtn--remove" onClick={() => void onRemove?.(item.id)} disabled={!!busyKey}>
-          {busyRemove ? "Working..." : "Remove"}
+        <button type="button" className="gunmetalBtn gunmetalBtn--remove" onClick={() => void onRemove?.(item.id)}>
+          Remove
         </button>
       </div>
     </div>
   );
 }
 
-export default function RequestPanel({
-  playNow,
-  upNext,
-  mode = "visual",
-  busyKey,
-  onRemove,
-  onDone,
-}: RequestPanelProps) {
+export default function RequestPanel({ playNow, upNext, mode = "performance", onRemove, onDone }: RequestPanelProps) {
   return (
-    <section className={`boothPanel ${mode === "performance" ? "is-compact" : ""}`}>
+    <section className={`boothPanel ${mode === "performance" ? "boothPanel--compact" : ""}`}>
       <div className="boothPanelHeader">
         <div>
           <div className="boothPanelTitle">Requests</div>
@@ -77,44 +63,30 @@ export default function RequestPanel({
         </div>
       </div>
 
-      <div className="boothRequestSection">
-        <div className="boothSubsectionTitle">Play Now</div>
-        <div className="boothRequestList">
+      <div className="boothSplit">
+        <div className="requestSection">
+          <div className="listSectionTitle" style={{ marginBottom: 6 }}>Play Now</div>
           {playNow.length ? (
-            playNow.map((item, index) => (
-              <RequestRow
-                key={item.id}
-                item={item}
-                index={index}
-                tone="pink"
-                busyKey={busyKey}
-                onRemove={onRemove}
-                onDone={onDone}
-              />
-            ))
+            <div className="requestListScroller">
+              {playNow.map((item, index) => (
+                <RequestRow key={item.id} item={item} index={index} tone="pink" onRemove={onRemove} onDone={onDone} />
+              ))}
+            </div>
           ) : (
-            <div className="boothEmptyState">No Play Now requests.</div>
+            <div className="emptyBox">No Play Now requests.</div>
           )}
         </div>
-      </div>
 
-      <div className="boothRequestSection">
-        <div className="boothSubsectionTitle">Up Next</div>
-        <div className="boothRequestList">
+        <div className="requestSection">
+          <div className="listSectionTitle" style={{ marginBottom: 6 }}>Up Next</div>
           {upNext.length ? (
-            upNext.map((item, index) => (
-              <RequestRow
-                key={item.id}
-                item={item}
-                index={index}
-                tone="cyan"
-                busyKey={busyKey}
-                onRemove={onRemove}
-                onDone={onDone}
-              />
-            ))
+            <div className="requestListScroller">
+              {upNext.map((item, index) => (
+                <RequestRow key={item.id} item={item} index={index} tone="cyan" onRemove={onRemove} onDone={onDone} />
+              ))}
+            </div>
           ) : (
-            <div className="boothEmptyState">No Up Next requests.</div>
+            <div className="emptyBox">No Up Next requests.</div>
           )}
         </div>
       </div>

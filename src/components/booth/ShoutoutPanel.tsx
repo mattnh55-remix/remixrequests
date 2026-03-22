@@ -10,36 +10,25 @@ type ShoutoutPanelProps = {
   mode?: BoothMode;
 };
 
-function ShoutoutRow({
-  item,
-  tone,
-}: {
-  item: ShoutoutItem;
-  tone: "gold" | "cyan";
-}) {
+function ShoutoutRow({ item, tone }: { item: ShoutoutItem; tone: "gold" | "cyan" }) {
   return (
-    <div className="boothShoutoutRow">
-      <div className="boothShoutoutTop">
+    <div className="shoutoutRow">
+      <div className="shoutoutTop">
         <strong>{item.fromName || "Guest"}</strong>
-        <div className="boothShoutoutBadges">
+        <div className="shoutoutBadges">
           {item.tier ? <StatusBadge label={item.tier} tone="pink" /> : null}
-          <StatusBadge label={tone === "gold" ? "Pending" : "Approved"} tone={tone} />
+          <StatusBadge label={tone === "gold" ? "PENDING" : "APPROVED"} tone={tone} />
         </div>
       </div>
-
-      <div className="boothShoutoutText">{item.messageText || "No message text."}</div>
-      <div className="boothShoutoutMeta">{item.createdAt ? formatTimeAgo(item.createdAt) : "—"}</div>
+      <div className="shoutoutText">{item.messageText || "No message text."}</div>
+      <div className="shoutoutMeta">{item.createdAt ? formatTimeAgo(item.createdAt) : "—"}</div>
     </div>
   );
 }
 
-export default function ShoutoutPanel({
-  pending,
-  approved,
-  mode = "visual",
-}: ShoutoutPanelProps) {
+export default function ShoutoutPanel({ pending, approved, mode = "performance" }: ShoutoutPanelProps) {
   return (
-    <section className={`boothPanel ${mode === "performance" ? "is-compact" : ""}`}>
+    <section className={`boothPanel ${mode === "performance" ? "boothPanel--compact" : ""}`}>
       <div className="boothPanelHeader">
         <div>
           <div className="boothPanelTitle">Shoutouts</div>
@@ -47,27 +36,31 @@ export default function ShoutoutPanel({
         </div>
       </div>
 
-      <div className="boothShoutoutSplit">
-        <div>
-          <div className="boothSubsectionTitle">Pending</div>
-          <div className="boothShoutoutList">
-            {pending.length ? (
-              pending.map((item) => <ShoutoutRow key={item.id} item={item} tone="gold" />)
-            ) : (
-              <div className="boothEmptyState">No pending shoutouts.</div>
-            )}
-          </div>
+      <div className="boothSplit">
+        <div className="shoutoutSection">
+          <div className="listSectionTitle" style={{ marginBottom: 6 }}>Pending</div>
+          {pending.length ? (
+            <div className="shoutoutListScroller">
+              {pending.map((item) => (
+                <ShoutoutRow key={item.id} item={item} tone="gold" />
+              ))}
+            </div>
+          ) : (
+            <div className="emptyBox">No pending shoutouts.</div>
+          )}
         </div>
 
-        <div>
-          <div className="boothSubsectionTitle">Approved</div>
-          <div className="boothShoutoutList">
-            {approved.length ? (
-              approved.map((item) => <ShoutoutRow key={item.id} item={item} tone="cyan" />)
-            ) : (
-              <div className="boothEmptyState">No approved shoutouts.</div>
-            )}
-          </div>
+        <div className="shoutoutSection">
+          <div className="listSectionTitle" style={{ marginBottom: 6 }}>Approved</div>
+          {approved.length ? (
+            <div className="shoutoutListScroller">
+              {approved.map((item) => (
+                <ShoutoutRow key={item.id} item={item} tone="cyan" />
+              ))}
+            </div>
+          ) : (
+            <div className="emptyBox">No approved shoutouts.</div>
+          )}
         </div>
       </div>
     </section>

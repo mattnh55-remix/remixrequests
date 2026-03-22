@@ -1,12 +1,12 @@
 "use client";
 
 import QueueItemRow from "./QueueItemRow";
-import type { BoothMode, QueueLikeItem } from "./types";
+import type { BoothActionName, BoothMode, QueueLikeItem } from "./types";
 
 type QueueListProps = {
   items: QueueLikeItem[];
   mode?: BoothMode;
-  busyKey?: string | null;
+  busyAction?: BoothActionName | null;
   onLoad?: (queueItemId: string) => void | Promise<void>;
   onPlay?: (queueItemId: string) => void | Promise<void>;
   onPause?: (queueItemId: string) => void | Promise<void>;
@@ -14,31 +14,24 @@ type QueueListProps = {
   onDone?: (queueItemId: string) => void | Promise<void>;
 };
 
-export default function QueueList({
-  items,
-  mode = "visual",
-  busyKey,
-  onLoad,
-  onPlay,
-  onPause,
-  onSkip,
-  onDone,
-}: QueueListProps) {
+export default function QueueList({ items, busyAction, onLoad, onPlay, onPause, onSkip, onDone }: QueueListProps) {
   return (
-    <div>
-      <div className="boothQueueSectionHead">
-        <div className="boothQueueSectionTitle">Queue Feed</div>
-        <div className="boothQueueSectionCount">{items.length} items</div>
+    <div className="queueListShell">
+      <div className="queueListHeader">
+        <div>
+          <div className="queueListTitle">Queue Feed</div>
+          <div className="queueListSub">Live playable order below the deck slot.</div>
+        </div>
+        <div className="queueListHelp">{items.length} item{items.length === 1 ? "" : "s"}</div>
       </div>
 
       {items.length ? (
-        <div className="boothQueueList">
+        <div className="queueListScroller">
           {items.map((item) => (
             <QueueItemRow
               key={item.id}
               item={item}
-              mode={mode}
-              busyKey={busyKey}
+              busyAction={busyAction}
               onLoad={onLoad}
               onPlay={onPlay}
               onPause={onPause}
@@ -48,7 +41,7 @@ export default function QueueList({
           ))}
         </div>
       ) : (
-        <div className="boothEmptyState">Queue feed is empty.</div>
+        <div className="emptyBox">No additional queue items.</div>
       )}
     </div>
   );

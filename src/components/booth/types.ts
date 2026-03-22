@@ -83,7 +83,13 @@ export type ReorderState = {
   activeDragId: string | null;
 };
 
-export type BoothActionName = "load" | "play" | "pause" | "skip" | "done" | "remove";
+export type BoothActionName =
+  | "load"
+  | "play"
+  | "pause"
+  | "skip"
+  | "done"
+  | "remove";
 
 export type BoothActionResult = {
   ok: boolean;

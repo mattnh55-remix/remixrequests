@@ -22,7 +22,6 @@ async function postJson(url: string, body: Record<string, unknown>) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-
   return { ok: res.ok, data: await safeJson(res) };
 }
 
@@ -39,13 +38,10 @@ export default function BoothLayout({ location }: { location: string }) {
     lastUpdated: null,
     errors: [],
   });
-  const [busyKey, setBusyKey] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = window.localStorage.getItem("rr-booth-mode");
-    if (stored === "performance" || stored === "visual") {
-      setMode(stored);
-    }
+    if (stored === "performance" || stored === "visual") setMode(stored);
   }, []);
 
   useEffect(() => {
@@ -83,7 +79,6 @@ export default function BoothLayout({ location }: { location: string }) {
         queue.find((item) => item.status === "LOADED") ||
         queue.find((item) => item.status === "QUEUED") ||
         null;
-
       runtimePreview = {
         action: target ? "PLAY_QUEUE_ITEM" : "NO_ACTION",
         reason: target ? "DIRECT_PLAY" : "NO_PLAYABLE_QUEUE_ITEM",
@@ -93,10 +88,7 @@ export default function BoothLayout({ location }: { location: string }) {
         clusterId: target?.clusterId ?? null,
       };
     } else {
-      runtimePreview = {
-        action: "NO_ACTION",
-        reason: "NO_PLAYABLE_QUEUE_ITEM",
-      };
+      runtimePreview = { action: "NO_ACTION", reason: "NO_PLAYABLE_QUEUE_ITEM" };
     }
 
     setState((prev) => ({
@@ -109,16 +101,12 @@ export default function BoothLayout({ location }: { location: string }) {
       approvedShoutouts,
       loading: false,
       lastUpdated: new Date().toISOString(),
-      errors: [],
     }));
   }
 
   useEffect(() => {
     void load();
-    const id = window.setInterval(() => {
-      void load();
-    }, 3000);
-
+    const id = window.setInterval(load, 3000);
     return () => window.clearInterval(id);
   }, [location]);
 
@@ -137,40 +125,24 @@ export default function BoothLayout({ location }: { location: string }) {
 
   const summary = useMemo(() => queueSummary(state.queue), [state.queue]);
 
-  async function runQueueAction(endpoint: string, queueItemId: string, action: string) {
-    setBusyKey(`${queueItemId}:${action}`);
-    try {
-      await postJson(endpoint, { queueItemId });
-      await load();
-    } finally {
-      setBusyKey(null);
-    }
+  async function queueAction(endpoint: string, queueItemId: string) {
+    await postJson(endpoint, { queueItemId });
+    await load();
   }
 
-  async function runRequestAction(endpoint: string, requestId: string, action: string) {
-    setBusyKey(`${requestId}:${action}`);
-    try {
-      await postJson(endpoint, { requestId });
-      await load();
-    } finally {
-      setBusyKey(null);
-    }
-  }
-
-  async function runMaterialize() {
-    setBusyKey("runtime:materialize");
-    try {
-      await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
-      await load();
-    } finally {
-      setBusyKey(null);
-    }
+  async function requestAction(
+    endpoint: string,
+    requestId: string,
+    bodyKey: string = "requestId"
+  ) {
+    await postJson(endpoint, { [bodyKey]: requestId });
+    await load();
   }
 
   return (
-    <div className={`rrBooth rrBooth--gunmetal ${mode === "performance" ? "rrBooth--compact" : ""}`}>
+    <div className={`rrBooth ${mode === "performance" ? "rrBooth--compact" : ""}`}>
       <div className="rrBooth__topbar">
-        <div className="rrBrandBlock">
+        <div>
           <div className="rrEyebrow">REMIXREQUESTS • LIVE BOOTH</div>
           <div className="rrTitle">PERFORMANCE CONSOLE</div>
           <div className="rrSub">
@@ -182,16 +154,16 @@ export default function BoothLayout({ location }: { location: string }) {
         <div className="rrTopRight">
           <div className="modeToggle">
             <button
-              type="button"
-              className={`gunmetalBtn ${mode === "visual" ? "gunmetalBtn--olive" : "gunmetalBtn--neutral"}`}
+              className={`gunmetalBtn ${mode === "visual" ? "gunmetalBtn--neutralActive" : "gunmetalBtn--neutral"}`}
               onClick={() => setMode("visual")}
+              type="button"
             >
               Visual Mode
             </button>
             <button
-              type="button"
               className={`gunmetalBtn ${mode === "performance" ? "gunmetalBtn--primary" : "gunmetalBtn--neutral"}`}
               onClick={() => setMode("performance")}
+              type="button"
             >
               Performance Mode
             </button>
@@ -199,19 +171,19 @@ export default function BoothLayout({ location }: { location: string }) {
 
           <div className="statBoxes">
             <div className="statBox">
-              <span>Queue</span>
+              <span>QUEUE</span>
               <strong>{summary.total}</strong>
             </div>
             <div className="statBox">
-              <span>Songs</span>
+              <span>SONGS</span>
               <strong>{summary.songs}</strong>
             </div>
             <div className="statBox">
-              <span>Interstitials</span>
+              <span>INTERSTITIALS</span>
               <strong>{summary.interstitials}</strong>
             </div>
             <div className="statBox">
-              <span>Updated</span>
+              <span>UPDATED</span>
               <strong>
                 {state.lastUpdated ? new Date(state.lastUpdated).toLocaleTimeString() : "—"}
               </strong>
@@ -221,796 +193,683 @@ export default function BoothLayout({ location }: { location: string }) {
       </div>
 
       <div className="rrBooth__grid">
-        <section className="boothPanel boothPanel--primary boothPanel--queue">
-          <div className="panelHead">
+        <section className="boothPanel boothPanel--primary">
+          <div className="panelHead panelHead--tight">
             <div>
               <div className="panelTitle">Playback / Queue</div>
               <div className="panelSub">Primary operator lane for now playing, on deck, and live order.</div>
             </div>
-            <div className="panelMetaBadge">{state.loading ? "Refreshing" : "Live"}</div>
+            <div className="panelHeadBadge">
+              <span className="statusPill statusPill--playing">LIVE</span>
+            </div>
           </div>
 
           <NowPlayingCard
             item={nowPlaying}
             mode={mode}
-            busyKey={busyKey}
-            onPause={(id) => runQueueAction("/api/booth/queue/hold", id, "pause")}
-            onSkip={(id) => runQueueAction("/api/booth/queue/skip", id, "skip")}
-            onDone={(id) => runQueueAction("/api/booth/queue/mark-played", id, "done")}
+            onPause={(id) => queueAction("/api/booth/queue/hold", id)}
+            onSkip={(id) => queueAction("/api/booth/queue/skip", id)}
+            onDone={(id) => queueAction("/api/booth/queue/mark-played", id)}
           />
 
           <OnDeckCard
             item={onDeck}
             mode={mode}
-            busyKey={busyKey}
-            onLoad={(id) => runQueueAction("/api/booth/queue/mark-loaded", id, "load")}
-            onPlay={(id) => runQueueAction("/api/booth/queue/mark-playing", id, "play")}
-            onPause={(id) => runQueueAction("/api/booth/queue/hold", id, "pause")}
-            onSkip={(id) => runQueueAction("/api/booth/queue/skip", id, "skip")}
+            onLoad={(id) => queueAction("/api/booth/queue/mark-loaded", id)}
+            onPlay={(id) => queueAction("/api/booth/queue/mark-playing", id)}
+            onPause={(id) => queueAction("/api/booth/queue/hold", id)}
+            onSkip={(id) => queueAction("/api/booth/queue/skip", id)}
           />
 
           <QueueList
             items={state.queue.filter((item) => item.status !== "PLAYING" && item.id !== onDeck?.id)}
             mode={mode}
-            busyKey={busyKey}
-            onLoad={(id) => runQueueAction("/api/booth/queue/mark-loaded", id, "load")}
-            onPlay={(id) => runQueueAction("/api/booth/queue/mark-playing", id, "play")}
-            onPause={(id) => runQueueAction("/api/booth/queue/hold", id, "pause")}
-            onSkip={(id) => runQueueAction("/api/booth/queue/skip", id, "skip")}
-            onDone={(id) => runQueueAction("/api/booth/queue/mark-played", id, "done")}
+            onLoad={(id) => queueAction("/api/booth/queue/mark-loaded", id)}
+            onPlay={(id) => queueAction("/api/booth/queue/mark-playing", id)}
+            onPause={(id) => queueAction("/api/booth/queue/hold", id)}
+            onSkip={(id) => queueAction("/api/booth/queue/skip", id)}
           />
         </section>
 
-        <section className="boothSideStack">
+        <div className="boothStack">
           <EnginePanel
             preview={state.runtimePreview}
             mode={mode}
-            busy={busyKey === "runtime:materialize"}
-            onMaterialize={runMaterialize}
+            onMaterialize={async () => {
+              await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
+              await load();
+            }}
           />
 
           <RequestPanel
             playNow={state.playNowRequests}
             upNext={state.upNextRequests}
             mode={mode}
-            busyKey={busyKey}
-            onRemove={(id) => runRequestAction("/api/admin/queue/reject", id, "remove")}
-            onDone={(id) => runRequestAction("/api/admin/queue/played", id, "done")}
+            onRemove={(id) => requestAction("/api/admin/queue/reject", id)}
+            onDone={(id) => requestAction("/api/admin/queue/played", id)}
           />
+        </div>
 
-          <ShoutoutPanel
-            pending={state.pendingShoutouts}
-            approved={state.approvedShoutouts}
-            mode={mode}
-          />
-        </section>
+        <ShoutoutPanel pending={state.pendingShoutouts} approved={state.approvedShoutouts} mode={mode} />
       </div>
 
       <style jsx global>{`
-        :root {
-          --rr-bg-0: #050c14;
-          --rr-bg-1: #0b1620;
-          --rr-bg-2: #111d29;
-          --rr-bg-3: #172636;
-          --rr-ink-0: #f5f8ff;
-          --rr-ink-1: #d5e0ec;
-          --rr-ink-2: #93a7bb;
-          --rr-line: rgba(164, 186, 207, 0.18);
-          --rr-line-strong: rgba(164, 186, 207, 0.34);
-          --rr-shadow: 0 24px 60px rgba(0, 0, 0, 0.38);
-          --rr-cyan: #53d6ec;
-          --rr-pink: #e372ff;
-          --rr-gold: #f4c76b;
-          --rr-red: #ff6d76;
-          --rr-olive: #8bcf8a;
-        }
-
         .rrBooth {
           min-height: 100vh;
-          padding: 12px;
+          padding: 8px 10px 12px;
           background:
-            radial-gradient(circle at 8% 10%, rgba(83, 214, 236, 0.14), transparent 22%),
-            radial-gradient(circle at 86% 16%, rgba(227, 114, 255, 0.1), transparent 24%),
-            linear-gradient(180deg, #07111a 0%, #081018 28%, #050b11 100%);
-          color: var(--rr-ink-0);
+            radial-gradient(circle at 10% 12%, rgba(0, 180, 214, 0.16), transparent 20%),
+            radial-gradient(circle at 72% 18%, rgba(164, 50, 186, 0.14), transparent 22%),
+            linear-gradient(90deg, #07111c 0%, #0a1625 52%, #120c1d 100%);
+          color: #f2f5fb;
           font-family: Inter, ui-sans-serif, system-ui, sans-serif;
         }
-
         .rrBooth--compact {
-          --lane-gap: 10px;
-          --panel-pad: 12px;
-          --row-pad-y: 10px;
-          --row-pad-x: 12px;
-          --thumb-size: 52px;
-          --hero-thumb: 92px;
+          --panel-radius: 6px;
+          --card-radius: 5px;
+          --soft-radius: 4px;
+          --row-gap: 6px;
+          --inset-border: rgba(255,255,255,0.1);
         }
-
-        .rrBooth:not(.rrBooth--compact) {
-          --lane-gap: 14px;
-          --panel-pad: 14px;
-          --row-pad-y: 12px;
-          --row-pad-x: 14px;
-          --thumb-size: 60px;
-          --hero-thumb: 108px;
-        }
-
         .rrBooth__topbar {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          gap: 16px;
+          grid-template-columns: 1fr auto;
+          gap: 14px;
           align-items: center;
-          margin-bottom: 12px;
-          padding: 16px 18px;
-          border: 1px solid rgba(135, 163, 187, 0.18);
-          border-radius: 22px;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025));
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), var(--rr-shadow);
-          backdrop-filter: blur(18px);
+          padding: 12px 14px;
+          border-radius: 7px;
+          border: 1px solid rgba(84, 122, 162, 0.32);
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02)),
+            linear-gradient(90deg, rgba(24,36,52,0.9), rgba(9,18,31,0.86));
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.08),
+            inset 0 -1px 0 rgba(0,0,0,0.35),
+            0 10px 24px rgba(0,0,0,0.28);
+          margin-bottom: 10px;
         }
-
-        .rrBrandBlock { min-width: 0; }
         .rrEyebrow {
-          font-size: 11px;
-          letter-spacing: 0.22em;
-          text-transform: uppercase;
-          color: var(--rr-ink-2);
-          font-weight: 800;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 2.2px;
+          opacity: 0.72;
         }
         .rrTitle {
-          margin-top: 6px;
-          font-size: clamp(28px, 4vw, 40px);
-          line-height: 0.98;
-          letter-spacing: -0.03em;
+          margin: 6px 0 5px;
+          font-size: 32px;
+          line-height: 1;
           font-weight: 1000;
+          letter-spacing: -1px;
         }
         .rrSub {
-          margin-top: 8px;
-          max-width: 760px;
-          color: var(--rr-ink-2);
+          color: rgba(235, 241, 255, 0.7);
           font-size: 13px;
         }
-
         .rrTopRight {
           display: grid;
-          gap: 10px;
+          gap: 8px;
           justify-items: end;
         }
-
         .modeToggle,
         .statBoxes {
           display: flex;
+          gap: 6px;
           flex-wrap: wrap;
-          gap: 8px;
           justify-content: flex-end;
         }
-
         .statBox {
-          min-width: 102px;
+          min-width: 112px;
           padding: 10px 12px;
-          border-radius: 14px;
-          border: 1px solid var(--rr-line);
-          background: rgba(255, 255, 255, 0.04);
+          border-radius: 6px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)),
+            linear-gradient(180deg, rgba(19,24,37,0.92), rgba(11,16,27,0.92));
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.28);
         }
         .statBox span {
           display: block;
+          margin-bottom: 5px;
           font-size: 10px;
-          text-transform: uppercase;
-          letter-spacing: 0.16em;
-          color: var(--rr-ink-2);
-          margin-bottom: 4px;
-          font-weight: 800;
+          font-weight: 900;
+          letter-spacing: 1.8px;
+          opacity: 0.7;
         }
         .statBox strong {
-          display: block;
           font-size: 16px;
-          line-height: 1.1;
-          font-weight: 900;
+          font-weight: 1000;
         }
-
         .rrBooth__grid {
           display: grid;
-          grid-template-columns: minmax(0, 1.4fr) minmax(360px, 0.92fr);
-          gap: 12px;
+          grid-template-columns: minmax(0, 1.68fr) minmax(350px, 0.95fr) minmax(290px, 0.62fr);
+          gap: 10px;
           align-items: start;
         }
-
-        .boothSideStack {
+        .boothStack {
           display: grid;
-          gap: 12px;
+          gap: 10px;
+          align-content: start;
         }
-
         .boothPanel {
-          border-radius: 22px;
-          border: 1px solid var(--rr-line);
-          background: linear-gradient(180deg, rgba(18, 28, 39, 0.92), rgba(10, 17, 25, 0.94));
-          box-shadow: var(--rr-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-          overflow: hidden;
+          min-width: 0;
+          border-radius: 6px;
+          border: 1px solid rgba(77, 107, 143, 0.3);
+          background:
+            linear-gradient(180deg, rgba(21,27,41,0.95), rgba(8,13,23,0.94));
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.05),
+            inset 0 -1px 0 rgba(0,0,0,0.35),
+            0 12px 26px rgba(0,0,0,0.24);
+          padding: 9px;
         }
-
         .boothPanel--primary {
-          padding: var(--panel-pad);
+          display: grid;
+          gap: 8px;
         }
-
-        .boothPanel:not(.boothPanel--primary) {
-          padding: var(--panel-pad);
-        }
-
         .panelHead,
         .boothPanelHeader {
           display: flex;
-          align-items: flex-start;
           justify-content: space-between;
-          gap: 12px;
-          margin-bottom: 12px;
+          gap: 10px;
+          align-items: flex-start;
+          margin-bottom: 6px;
         }
-
+        .panelHead--tight,
+        .boothPanelHeader {
+          margin-bottom: 4px;
+        }
         .panelTitle,
         .boothPanelTitle {
-          font-size: 18px;
-          line-height: 1.1;
-          font-weight: 900;
-          letter-spacing: -0.02em;
+          font-size: 12px;
+          font-weight: 1000;
+          letter-spacing: 0.4px;
         }
-
         .panelSub,
         .boothPanelSub {
-          margin-top: 4px;
-          color: var(--rr-ink-2);
+          margin-top: 2px;
+          color: rgba(235,241,255,0.72);
           font-size: 12px;
         }
-
-        .panelMetaBadge {
-          padding: 6px 10px;
-          border-radius: 999px;
-          background: rgba(83, 214, 236, 0.12);
-          color: var(--rr-cyan);
-          border: 1px solid rgba(83, 214, 236, 0.22);
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-        }
-
-        .boothQueueList,
-        .boothRequestList,
-        .boothShoutoutList {
-          display: grid;
-          gap: 10px;
-        }
-
-        .boothSubsectionTitle {
-          margin: 0 0 8px;
-          color: var(--rr-ink-2);
-          font-size: 11px;
-          font-weight: 900;
-          text-transform: uppercase;
-          letter-spacing: 0.16em;
-        }
-
-        .boothHeroCard,
-        .boothLaneCard,
-        .boothEngineCard,
-        .boothRequestSection {
-          border: 1px solid var(--rr-line);
-          border-radius: 18px;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.018));
-          padding: 12px;
-        }
-
-        .boothHeroCard {
-          margin-bottom: 12px;
-        }
-
-        .boothHeroCard--now {
+        .heroCard {
+          border-radius: 5px;
+          border: 1px solid rgba(255,255,255,0.09);
           background:
-            radial-gradient(circle at 88% 18%, rgba(83, 214, 236, 0.1), transparent 22%),
-            linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+            linear-gradient(90deg, rgba(255,255,255,0.028), rgba(255,255,255,0.04) 45%, rgba(255,255,255,0.02)),
+            linear-gradient(180deg, rgba(28,36,53,0.96), rgba(10,17,29,0.96));
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.32);
+          padding: 9px;
         }
-
-        .boothHeroCard--deck {
-          background:
-            radial-gradient(circle at 92% 18%, rgba(244, 199, 107, 0.08), transparent 20%),
-            linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
-        }
-
-        .boothHeroHeader {
+        .heroCardHeader {
           display: flex;
-          align-items: flex-start;
           justify-content: space-between;
-          gap: 12px;
-          margin-bottom: 12px;
+          gap: 8px;
+          align-items: flex-start;
+          margin-bottom: 7px;
         }
-
-        .boothHeroLabel {
+        .heroCardTitle {
           font-size: 11px;
           text-transform: uppercase;
-          letter-spacing: 0.16em;
-          color: var(--rr-ink-2);
-          font-weight: 900;
+          letter-spacing: 1.7px;
+          font-weight: 1000;
+          opacity: 0.9;
         }
-
-        .boothHeroKicker {
-          margin-top: 3px;
+        .heroCardSub {
           font-size: 12px;
-          color: var(--rr-ink-1);
-          font-weight: 700;
+          color: rgba(235,241,255,0.72);
+          margin-top: 2px;
         }
-
-        .boothHeroMain {
+        .heroEmpty,
+        .emptyBox,
+        .insertBlockBody {
+          border: 1px dashed rgba(255,255,255,0.1);
+          border-radius: 4px;
+          padding: 14px;
+          color: rgba(235,241,255,0.7);
+          background: rgba(255,255,255,0.015);
+        }
+        .heroMain {
           display: grid;
-          grid-template-columns: var(--hero-thumb) minmax(0, 1fr);
-          gap: 14px;
+          grid-template-columns: 80px minmax(0, 1fr);
+          gap: 10px;
           align-items: start;
         }
-
-        .boothDeckMini {
-          display: grid;
-          grid-template-columns: 64px minmax(0, 1fr);
-          gap: 12px;
-          align-items: center;
-        }
-
-        .boothHeroArt,
-        .boothQueueArt,
-        .boothMiniArt {
-          width: var(--thumb-size);
-          height: var(--thumb-size);
-          border-radius: 14px;
-          overflow: hidden;
-          border: 1px solid rgba(255, 255, 255, 0.06);
-          background: linear-gradient(180deg, rgba(60, 79, 97, 0.8), rgba(26, 39, 50, 0.88));
-          display: grid;
-          place-items: center;
-          flex-shrink: 0;
-        }
-
-        .boothHeroArt--poster {
-          width: var(--hero-thumb);
-          height: var(--hero-thumb);
-          border-radius: 18px;
-        }
-
-        .boothHeroArt--small {
-          width: 64px;
-          height: 64px;
-        }
-
-        .boothQueueArt {
-          width: 52px;
-          height: 52px;
-          border-radius: 12px;
-        }
-
-        .boothHeroArt--system,
-        .boothQueueArt--system,
-        .boothMiniArt--system {
-          background: linear-gradient(180deg, rgba(115, 66, 135, 0.55), rgba(59, 31, 74, 0.9));
-        }
-
-        .boothHeroArtImg {
+        .heroArtwork,
+        .deckArt,
+        .queueMedia img {
           width: 100%;
           height: 100%;
           object-fit: cover;
           display: block;
+          border-radius: 4px;
         }
-
-        .boothHeroArtFallback {
-          font-size: 18px;
-          font-weight: 900;
-          letter-spacing: 0.04em;
-          color: white;
+        .heroArtworkWrap {
+          width: 80px;
+          height: 80px;
         }
-
-        .boothHeroInfo,
-        .boothDeckInfo,
-        .boothQueueMain,
-        .boothRequestMain,
-        .boothShoutoutMain {
+        .heroArtwork--placeholder,
+        .deckArt--placeholder,
+        .queueMediaPlaceholder {
+          width: 100%;
+          height: 100%;
+          border-radius: 4px;
+          background: linear-gradient(135deg, rgba(59,139,177,0.34), rgba(111,56,126,0.3));
+          border: 1px solid rgba(255,255,255,0.12);
+        }
+        .heroInfo {
+          display: grid;
+          gap: 6px;
           min-width: 0;
         }
-
-        .boothHeroTitleLine,
-        .boothDeckTitleLine,
-        .boothQueueTitleLine,
-        .boothRequestTitleLine,
-        .boothShoutoutTop {
+        .heroTitleRow {
           display: flex;
+          gap: 7px;
           align-items: center;
-          gap: 8px;
           flex-wrap: wrap;
-          min-width: 0;
         }
-
-        .boothHeroTitle,
-        .boothDeckTitle,
-        .boothQueueTitle,
-        .boothRequestTitle {
-          min-width: 0;
-          font-weight: 900;
-          letter-spacing: -0.02em;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+        .heroTitle {
+          font-size: 20px;
+          font-weight: 1000;
+          line-height: 1.05;
+          letter-spacing: -0.4px;
         }
-
-        .boothHeroTitle { font-size: clamp(22px, 3vw, 30px); }
-        .boothDeckTitle { font-size: 19px; }
-        .boothQueueTitle,
-        .boothRequestTitle { font-size: 15px; }
-
-        .boothHeroMeta,
-        .boothDeckMeta,
-        .boothQueueMeta,
-        .boothRequestMeta,
-        .boothShoutoutMeta {
-          margin-top: 6px;
-          color: var(--rr-ink-2);
-          font-size: 12px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+        .heroArtist {
+          font-size: 13px;
+          color: rgba(235,241,255,0.78);
         }
-
-        .boothHeroReadouts {
+        .heroTelemetry {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 8px;
-          margin-top: 12px;
+          gap: 0;
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 4px;
+          overflow: hidden;
+          background: rgba(255,255,255,0.02);
         }
-
-        .boothReadout {
-          border-radius: 14px;
-          padding: 10px 12px;
-          border: 1px solid var(--rr-line);
-          background: rgba(255, 255, 255, 0.03);
+        .heroTelemetryCell {
+          padding: 7px 10px 8px;
+          border-right: 1px solid rgba(255,255,255,0.08);
           min-width: 0;
         }
-        .boothReadout span {
+        .heroTelemetryCell:last-child {
+          border-right: none;
+        }
+        .heroTelemetryCell span {
           display: block;
           font-size: 10px;
-          color: var(--rr-ink-2);
           text-transform: uppercase;
-          letter-spacing: 0.14em;
-          font-weight: 800;
+          letter-spacing: 1.6px;
+          opacity: 0.68;
           margin-bottom: 4px;
         }
-        .boothReadout strong {
+        .heroTelemetryCell strong {
           display: block;
-          font-size: 14px;
-          font-weight: 900;
+          font-size: 13px;
+          font-weight: 1000;
+          white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          white-space: nowrap;
         }
-
-        .boothProgress {
-          margin-top: 12px;
-          height: 10px;
+        .progressWrap {
+          display: grid;
+          gap: 5px;
+        }
+        .progressBar {
+          height: 14px;
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.07);
+          background: rgba(255,255,255,0.07);
+          box-shadow: inset 0 1px 3px rgba(0,0,0,0.45);
           overflow: hidden;
-          border: 1px solid rgba(255, 255, 255, 0.04);
         }
-
-        .boothProgressFill {
+        .progressFill {
           height: 100%;
-          border-radius: inherit;
-          background: linear-gradient(90deg, var(--rr-cyan), #6df5ff);
-          box-shadow: 0 0 18px rgba(83, 214, 236, 0.34);
+          background: linear-gradient(90deg, #2790c8 0%, #36d2ff 52%, #53e3ff 100%);
+          box-shadow: 0 0 16px rgba(43, 208, 255, 0.4);
         }
-
-        .boothProgressMeta {
+        .progressMeta {
           display: flex;
           justify-content: space-between;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 1.3px;
+          text-transform: uppercase;
+          color: rgba(235,241,255,0.76);
+        }
+        .deckLine {
+          display: grid;
+          grid-template-columns: 54px minmax(0, 1fr) auto;
           gap: 10px;
-          margin-top: 6px;
-          font-size: 11px;
-          color: var(--rr-ink-2);
-          font-weight: 700;
+          align-items: center;
         }
-
-        .boothActionBar,
-        .boothRequestActions,
-        .boothEngineActions {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-top: 12px;
+        .deckArt {
+          width: 54px;
+          height: 54px;
         }
-
-        .boothActionBar--compact {
-          gap: 6px;
+        .deckTitle {
+          font-size: 16px;
+          font-weight: 1000;
+          line-height: 1.05;
         }
-
-        .gunmetalBtn,
-        .boothActionBtn {
-          appearance: none;
-          border: 1px solid var(--rr-line-strong);
-          background: linear-gradient(180deg, rgba(39, 53, 67, 0.96), rgba(23, 33, 43, 0.96));
-          color: var(--rr-ink-0);
-          padding: 9px 12px;
-          border-radius: 12px;
+        .deckArtist {
+          margin-top: 3px;
+          color: rgba(235,241,255,0.76);
           font-size: 12px;
-          font-weight: 800;
-          letter-spacing: 0.02em;
-          cursor: pointer;
-          transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
         }
-
-        .gunmetalBtn:hover,
-        .boothActionBtn:hover {
-          transform: translateY(-1px);
-          border-color: rgba(255, 255, 255, 0.24);
-        }
-
-        .gunmetalBtn:disabled,
-        .boothActionBtn:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        .gunmetalBtn--neutral { background: linear-gradient(180deg, rgba(53, 67, 79, 0.9), rgba(28, 38, 47, 0.9)); }
-        .gunmetalBtn--primary,
-        .boothActionBtn--play,
-        .boothActionBtn--done {
-          border-color: rgba(83, 214, 236, 0.32);
-          background: linear-gradient(180deg, rgba(17, 86, 98, 0.92), rgba(12, 57, 68, 0.92));
-        }
-        .gunmetalBtn--olive,
-        .boothActionBtn--load {
-          border-color: rgba(139, 207, 138, 0.3);
-          background: linear-gradient(180deg, rgba(56, 95, 54, 0.92), rgba(35, 60, 34, 0.92));
-        }
-        .gunmetalBtn--remove,
-        .boothActionBtn--skip,
-        .boothActionBtn--remove {
-          border-color: rgba(255, 109, 118, 0.34);
-          background: linear-gradient(180deg, rgba(110, 41, 50, 0.92), rgba(70, 24, 31, 0.92));
-        }
-        .boothActionBtn--pause {
-          border-color: rgba(244, 199, 107, 0.34);
-          background: linear-gradient(180deg, rgba(108, 81, 30, 0.92), rgba(72, 53, 18, 0.92));
-        }
-
-        .boothBadge {
+        .statusPill {
           display: inline-flex;
           align-items: center;
-          padding: 5px 9px;
+          padding: 3px 8px;
           border-radius: 999px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(255, 255, 255, 0.06);
-          color: var(--rr-ink-0);
           font-size: 10px;
-          line-height: 1;
-          letter-spacing: 0.14em;
+          font-weight: 1000;
+          letter-spacing: 1.2px;
           text-transform: uppercase;
-          font-weight: 900;
+          border: 1px solid rgba(255,255,255,0.14);
+          background: rgba(255,255,255,0.04);
+          color: #f2f5fb;
+          white-space: nowrap;
         }
-        .boothBadge--cyan { color: var(--rr-cyan); border-color: rgba(83, 214, 236, 0.24); background: rgba(83, 214, 236, 0.1); }
-        .boothBadge--pink { color: var(--rr-pink); border-color: rgba(227, 114, 255, 0.24); background: rgba(227, 114, 255, 0.1); }
-        .boothBadge--gold { color: var(--rr-gold); border-color: rgba(244, 199, 107, 0.24); background: rgba(244, 199, 107, 0.1); }
-        .boothBadge--warn { color: var(--rr-red); border-color: rgba(255, 109, 118, 0.24); background: rgba(255, 109, 118, 0.1); }
-        .boothBadge--muted { color: var(--rr-ink-2); }
-
-        .boothQueueSectionHead {
+        .statusPill--playing,
+        .statusPill--cyan {
+          border-color: rgba(46, 193, 234, 0.36);
+          box-shadow: 0 0 12px rgba(46,193,234,0.14);
+        }
+        .statusPill--loaded,
+        .statusPill--pink {
+          border-color: rgba(212, 104, 255, 0.28);
+          box-shadow: 0 0 12px rgba(212,104,255,0.1);
+        }
+        .statusPill--held,
+        .statusPill--gold,
+        .statusPill--warn {
+          border-color: rgba(230, 170, 52, 0.34);
+        }
+        .statusPill--skip {
+          border-color: rgba(219, 95, 95, 0.36);
+        }
+        .statusPill--queued,
+        .statusPill--default,
+        .statusPill--muted {
+          border-color: rgba(255,255,255,0.16);
+          opacity: 0.88;
+        }
+        .gunmetalBtn {
+          appearance: none;
+          border: 1px solid rgba(255,255,255,0.12);
+          cursor: pointer;
+          min-height: 32px;
+          padding: 0 11px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 0.8px;
+          color: #f1f5fb;
+          text-transform: none;
+          background: linear-gradient(180deg, #4a5467 0%, #2d3441 52%, #232935 100%);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.16),
+            inset 0 -1px 0 rgba(0,0,0,0.46),
+            0 1px 2px rgba(0,0,0,0.32);
+        }
+        .gunmetalBtn:hover {
+          filter: brightness(1.06);
+        }
+        .gunmetalBtn:disabled {
+          opacity: 0.58;
+          cursor: not-allowed;
+        }
+        .gunmetalBtn--primary,
+        .gunmetalBtn--load,
+        .gunmetalBtn--play {
+          background: linear-gradient(180deg, #3d7ec0 0%, #245694 52%, #1c4479 100%);
+        }
+        .gunmetalBtn--pause,
+        .gunmetalBtn--hold {
+          background: linear-gradient(180deg, #8a6a1d 0%, #735515 52%, #5a430f 100%);
+        }
+        .gunmetalBtn--skip,
+        .gunmetalBtn--remove {
+          background: linear-gradient(180deg, #8d4450 0%, #713341 52%, #5b2834 100%);
+        }
+        .gunmetalBtn--done {
+          background: linear-gradient(180deg, #1d8095 0%, #166779 52%, #105766 100%);
+        }
+        .gunmetalBtn--neutral {
+          background: linear-gradient(180deg, #4a5467 0%, #303847 52%, #252c38 100%);
+        }
+        .gunmetalBtn--neutralActive {
+          background: linear-gradient(180deg, #626b7d 0%, #404958 52%, #313745 100%);
+        }
+        .gunmetalBtn--wide {
+          width: 100%;
+        }
+        .boothActionRail {
           display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          margin: 14px 0 8px;
+          gap: 4px;
+          flex-wrap: wrap;
         }
-        .boothQueueSectionTitle {
-          font-size: 11px;
-          color: var(--rr-ink-2);
-          text-transform: uppercase;
-          letter-spacing: 0.16em;
-          font-weight: 900;
-        }
-        .boothQueueSectionCount {
-          color: var(--rr-ink-2);
-          font-size: 11px;
-          font-weight: 700;
-        }
-
-        .boothQueueRow,
-        .boothRequestRow,
-        .boothShoutoutRow {
+        .queueListShell {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          gap: 12px;
-          align-items: center;
-          padding: var(--row-pad-y) var(--row-pad-x);
-          border-radius: 16px;
-          border: 1px solid var(--rr-line);
-          background: rgba(255, 255, 255, 0.028);
+          gap: 6px;
         }
-
-        .boothQueueRowLeft,
-        .boothRequestRowLeft {
+        .queueListHeader {
           display: flex;
-          align-items: center;
-          gap: 12px;
-          min-width: 0;
+          justify-content: space-between;
+          align-items: end;
+          gap: 8px;
         }
-
-        .boothQueueIndex,
-        .boothRequestIndex {
-          width: 32px;
-          height: 32px;
-          border-radius: 10px;
+        .queueListTitle,
+        .listSectionTitle,
+        .insertBlockTitle,
+        .engineLabel {
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 1.7px;
+          text-transform: uppercase;
+        }
+        .queueListSub,
+        .queueListHelp {
+          color: rgba(235,241,255,0.7);
+          font-size: 12px;
+        }
+        .queueListScroller,
+        .requestListScroller,
+        .shoutoutListScroller {
+          display: grid;
+          gap: 6px;
+          max-height: 460px;
+          overflow: auto;
+          padding-right: 1px;
+        }
+        .queueRow,
+        .requestRow,
+        .shoutoutRow {
+          display: grid;
+          align-items: center;
+          gap: 8px;
+          border-radius: 5px;
+          border: 1px solid rgba(255,255,255,0.085);
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015)),
+            linear-gradient(180deg, rgba(25,31,44,0.92), rgba(14,19,31,0.92));
+          padding: 7px 8px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), inset 0 -1px 0 rgba(0,0,0,0.25);
+        }
+        .queueRow {
+          grid-template-columns: 26px 38px minmax(0, 1fr) auto;
+        }
+        .requestRow {
+          grid-template-columns: 24px minmax(0, 1fr) auto;
+        }
+        .queueIndex,
+        .requestIndex {
+          font-size: 15px;
+          font-weight: 1000;
+          line-height: 1;
+          color: rgba(235,241,255,0.92);
+          width: 26px;
+          height: 26px;
+          border-radius: 6px;
           display: grid;
           place-items: center;
-          flex-shrink: 0;
-          font-size: 12px;
-          font-weight: 900;
-          color: var(--rr-ink-1);
-          border: 1px solid var(--rr-line);
-          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03);
         }
-
-        .boothQueueRow--system {
-          background: rgba(133, 72, 164, 0.08);
+        .queueMedia {
+          width: 38px;
+          height: 38px;
         }
-
-        .boothQueueAux {
+        .queueText,
+        .requestText {
+          min-width: 0;
+        }
+        .queueTitleLine,
+        .requestTitleLine {
           display: flex;
+          gap: 6px;
           align-items: center;
-          gap: 8px;
           flex-wrap: wrap;
-          margin-top: 8px;
+          min-width: 0;
         }
-
-        .boothMiniMeta {
-          font-size: 11px;
-          color: var(--rr-ink-2);
-        }
-
-        .boothRequestSection + .boothRequestSection {
-          margin-top: 10px;
-        }
-
-        .boothRequestRow {
-          grid-template-columns: 40px minmax(0, 1fr) auto;
-          align-items: center;
-        }
-
-        .boothRequestActions {
-          margin-top: 0;
-          justify-content: flex-end;
-        }
-
-        .boothEngineCard {
-          display: grid;
-          gap: 12px;
-        }
-
-        .boothEngineLabel {
-          font-size: 11px;
-          color: var(--rr-ink-2);
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-          font-weight: 900;
-        }
-
-        .boothEngineAction {
-          font-size: 28px;
-          line-height: 1;
-          letter-spacing: -0.03em;
+        .queueTitle,
+        .requestTitleLine strong,
+        .requestTitle {
+          font-size: 14px;
           font-weight: 1000;
+          line-height: 1.05;
         }
-
-        .boothEngineList {
-          display: grid;
-          gap: 8px;
+        .queueMeta,
+        .requestMeta,
+        .shoutoutMeta {
+          margin-top: 2px;
+          color: rgba(235,241,255,0.66);
+          font-size: 12px;
+          min-width: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
-
-        .boothEngineRow {
+        .requestActions,
+        .queueActions,
+        .boothRequestActions {
           display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          padding: 10px 12px;
-          border-radius: 14px;
-          border: 1px solid var(--rr-line);
-          background: rgba(255, 255, 255, 0.028);
+          gap: 4px;
+          justify-content: flex-end;
+          flex-wrap: wrap;
         }
-        .boothEngineRow span {
-          color: var(--rr-ink-2);
+        .engineBox,
+        .insertBlock,
+        .requestSection,
+        .shoutoutSection {
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 5px;
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015)),
+            linear-gradient(180deg, rgba(18,24,38,0.94), rgba(10,15,26,0.94));
+          padding: 8px;
+        }
+        .engineAction {
+          font-size: 17px;
+          line-height: 1;
+          font-weight: 1000;
+          margin: 6px 0 8px;
+        }
+        .engineGrid {
+          display: grid;
+          gap: 0;
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        .engineRow {
+          display: grid;
+          grid-template-columns: 120px minmax(0, 1fr);
+          gap: 10px;
+          align-items: center;
+          padding: 8px 10px;
+          border-top: 1px solid rgba(255,255,255,0.07);
           font-size: 12px;
         }
-        .boothEngineRow strong {
+        .engineRow:first-child {
+          border-top: none;
+        }
+        .engineRow span {
+          color: rgba(235,241,255,0.64);
+          text-transform: uppercase;
+          letter-spacing: 0.9px;
+          font-weight: 800;
+        }
+        .engineRow strong {
           text-align: right;
-          font-size: 12px;
-          color: var(--rr-ink-0);
+          min-width: 0;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
-
-        .boothShoutoutSplit {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px;
-        }
-
-        .boothShoutoutRow {
-          grid-template-columns: minmax(0, 1fr);
+        .shoutoutRow {
           align-items: start;
-        }
-
-        .boothShoutoutBadges {
-          display: flex;
-          flex-wrap: wrap;
           gap: 6px;
+        }
+        .shoutoutTop {
+          display: flex;
+          justify-content: space-between;
+          gap: 6px;
+          align-items: flex-start;
+        }
+        .shoutoutBadges {
+          display: flex;
+          gap: 4px;
+          flex-wrap: wrap;
           justify-content: flex-end;
         }
-
-        .boothShoutoutText {
-          margin-top: 8px;
-          color: var(--rr-ink-1);
-          font-size: 13px;
-          line-height: 1.4;
+        .shoutoutText {
+          font-size: 12px;
+          line-height: 1.35;
+          color: rgba(243,246,255,0.9);
         }
-
-        .boothEmptyState {
-          padding: 18px 16px;
-          border-radius: 16px;
-          border: 1px dashed rgba(147, 167, 187, 0.22);
-          background: rgba(255, 255, 255, 0.022);
-          color: var(--rr-ink-2);
-          text-align: center;
-          font-size: 13px;
-          font-weight: 700;
+        .boothSplit {
+          display: grid;
+          gap: 8px;
         }
-
-        .boothEmptyState--hero {
-          padding: 28px 16px;
+        @media (max-width: 1480px) {
+          .rrBooth__grid {
+            grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.95fr) minmax(280px, 0.62fr);
+          }
         }
-
-        @media (max-width: 1180px) {
+        @media (max-width: 1280px) {
           .rrBooth__grid {
             grid-template-columns: 1fr;
           }
-
-          .boothShoutoutSplit {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 820px) {
           .rrBooth__topbar {
             grid-template-columns: 1fr;
           }
-
           .rrTopRight {
             justify-items: start;
           }
-
           .modeToggle,
           .statBoxes {
             justify-content: flex-start;
           }
-
-          .boothHeroMain,
-          .boothDeckMini,
-          .boothQueueRow,
-          .boothRequestRow {
+        }
+        @media (max-width: 760px) {
+          .heroMain,
+          .deckLine,
+          .queueRow,
+          .requestRow,
+          .engineRow {
             grid-template-columns: 1fr;
           }
-
-          .boothHeroReadouts {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+          .heroTelemetry {
+            grid-template-columns: 1fr 1fr;
           }
-
-          .boothQueueRow,
-          .boothRequestRow {
-            gap: 10px;
+          .heroTelemetryCell {
+            border-right: none;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
           }
-
-          .boothRequestActions,
-          .boothActionBar,
-          .boothEngineActions {
-            justify-content: flex-start;
+          .heroTelemetryCell:nth-last-child(-n+2) {
+            border-bottom: none;
+          }
+          .engineRow strong {
+            text-align: left;
           }
         }
       `}</style>

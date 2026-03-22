@@ -5,15 +5,13 @@ import type { BoothActionName } from "./types";
 
 export default function BoothActionButtons({
   actions,
-  busyKey,
-  activeBusyKey,
+  busyAction,
   disabled,
   compact = false,
   onAction,
 }: {
   actions: BoothActionName[];
-  busyKey?: string | null;
-  activeBusyKey?: string | null;
+  busyAction?: BoothActionName | null;
   disabled?: boolean;
   compact?: boolean;
   onAction: (action: BoothActionName) => void;
@@ -21,17 +19,15 @@ export default function BoothActionButtons({
   if (actions.length === 0) return null;
 
   return (
-    <div className={`boothActionBar ${compact ? "boothActionBar--compact" : ""}`}>
+    <div className={`boothActionRail ${compact ? "boothActionRail--compact" : ""}`}>
       {actions.map((action) => {
-        const fullKey = `${busyKey || ""}${action}`;
-        const isBusy = activeBusyKey === fullKey;
-
+        const isBusy = busyAction === action;
         return (
           <button
             key={action}
             type="button"
-            className={`boothActionBtn boothActionBtn--${action}`}
-            disabled={disabled || !!activeBusyKey}
+            className={`gunmetalBtn gunmetalBtn--${action}`}
+            disabled={disabled || !!busyAction}
             onClick={() => onAction(action)}
           >
             {isBusy ? "Working..." : formatActionLabel(action)}

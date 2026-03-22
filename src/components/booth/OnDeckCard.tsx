@@ -12,24 +12,23 @@ type OnDeckCardProps = {
   onPlay?: (queueItemId: string) => void | Promise<void>;
   onPause?: (queueItemId: string) => void | Promise<void>;
   onSkip?: (queueItemId: string) => void | Promise<void>;
-  busyKey?: string | null;
+  busyAction?: BoothActionName | null;
 };
 
 export default function OnDeckCard({
   item,
-  mode = "visual",
+  mode = "performance",
   onLoad,
   onPlay,
   onPause,
   onSkip,
-  busyKey,
+  busyAction,
 }: OnDeckCardProps) {
-  const isSystem = isInterstitial(item);
   const actions = getAllowedActions(item);
+  const isSystem = isInterstitial(item);
 
   function handleAction(action: BoothActionName) {
     if (!item) return;
-
     if (action === "load") return void onLoad?.(item.id);
     if (action === "play") return void onPlay?.(item.id);
     if (action === "pause") return void onPause?.(item.id);
@@ -37,57 +36,44 @@ export default function OnDeckCard({
   }
 
   return (
-    <div className={`boothHeroCard boothHeroCard--deck ${mode === "performance" ? "is-compact" : ""}`}>
-      <div className="boothHeroHeader">
+    <div className={`heroCard ${mode === "performance" ? "heroCard--compact" : ""}`}>
+      <div className="heroCardHeader">
         <div>
-          <div className="boothHeroLabel">On Deck</div>
-          <div className="boothHeroKicker">Immediate next item</div>
+          <div className="heroCardTitle">On Deck</div>
+          <div className="heroCardSub">Immediate next item</div>
         </div>
-        {item ? (
-          isSystem ? (
-            <StatusBadge label="System" tone="pink" />
-          ) : (
-            <StatusBadge label={String(item.status || "Queued")} tone="gold" />
-          )
-        ) : null}
+        {item ? <StatusBadge label={isSystem ? "SYSTEM" : String(item.status || "QUEUED")} tone={isSystem ? "pink" : "gold"} /> : null}
       </div>
 
       {item ? (
         <>
-          <div className="boothDeckMini">
-            <div className={`boothHeroArt boothHeroArt--small ${isSystem ? "boothHeroArt--system" : ""}`}>
+          <div className="deckLine">
+            <div className="deckArt">
               {item.artworkUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.artworkUrl} alt={item.title || "Artwork"} className="boothHeroArtImg" />
+                <img src={item.artworkUrl} alt={item.title || "Artwork"} />
               ) : (
-                <div className="boothHeroArtFallback">
-                  {(item.artist || item.title || "RM").slice(0, 2).toUpperCase()}
-                </div>
+                <div className="deckArt deckArt--placeholder" />
               )}
             </div>
 
-            <div className="boothDeckInfo">
-              <div className="boothDeckTitleLine">
-                <div className="boothDeckTitle">{item.title || "Untitled"}</div>
-                {isSystem ? <StatusBadge label="Interstitial" tone="pink" /> : null}
-              </div>
-              <div className="boothDeckMeta">
+            <div>
+              <div className="deckTitle">{item.title || "Untitled"}</div>
+              <div className="deckArtist">
                 {item.artist || "Unknown artist"}
                 {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
               </div>
             </div>
+
+            {isSystem ? <StatusBadge label="INTERSTITIAL" tone="pink" /> : null}
           </div>
 
-          <BoothActionButtons
-            actions={actions}
-            busyKey={item ? `${item.id}:` : null}
-            activeBusyKey={busyKey}
-            compact={mode === "performance"}
-            onAction={handleAction}
-          />
+          <div style={{ marginTop: 8 }}>
+            <BoothActionButtons actions={actions} busyAction={busyAction} onAction={handleAction} compact />
+          </div>
         </>
       ) : (
-        <div className="boothEmptyState">Nothing loaded or queued yet.</div>
+        <div className="heroEmpty">Nothing loaded or queued yet.</div>
       )}
     </div>
   );
