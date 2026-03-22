@@ -33,27 +33,38 @@ export default function SearchAddPanel({ location }: Props) {
       return;
     }
 
-    const timeout = setTimeout(async () => {
-      try {
-        setLoading(true);
-        setError("");
+const timeout = setTimeout(async () => {
+  try {
+    setLoading(true);
+    setError("");
 
-        const res = await fetch(`/api/booth/search-songs/${location}?q=${encodeURIComponent(query.trim())}`);
-        if (!res.ok) {
-          throw new Error("Search failed");
-        }
-
-        const data = await res.json();
-        const nextItems = Array.isArray(data.items) ? data.items : [];
-        setResults(nextItems);
-        setActiveIndex(0);
-      } catch {
-        setResults([]);
-        setError("Search unavailable.");
-      } finally {
-        setLoading(false);
+    const res = await fetch(
+      `/api/booth/search-songs/${location}?q=${encodeURIComponent(query.trim())}`,
+      {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
       }
-    }, 220);
+    );
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.ok) {
+      setResults([]);
+      setError(data?.error || "Search unavailable.");
+      return;
+    }
+
+    const nextItems = Array.isArray(data.results) ? data.results : [];
+    setResults(nextItems);
+    setActiveIndex(0);
+  } catch {
+    setResults([]);
+    setError("Search unavailable.");
+  } finally {
+    setLoading(false);
+  }
+}, 220);
 
     return () => clearTimeout(timeout);
   }, [query, location]);
