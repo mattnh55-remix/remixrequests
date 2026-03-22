@@ -336,17 +336,27 @@ export async function performShoutoutAction(item: ShoutoutItem, action: Shoutout
 }
 
 export function formatActionLabel(action: BoothActionName) {
-  if (action === "played") return "Mark Played";
-  return action.charAt(0).toUpperCase() + action.slice(1);
+  const mapping: Record<BoothActionName, string> = {
+    load: "Load",
+    play: "Play",
+    hold: "Pause",
+    skip: "Skip",
+    played: "Done",
+  };
+  return mapping[action];
 }
 
 export function formatRequestActionLabel(action: RequestActionName) {
-  if (action === "played") return "Mark Played";
-  return action.charAt(0).toUpperCase() + action.slice(1);
+  const mapping: Record<RequestActionName, string> = {
+    reject: "Remove",
+    played: "Done",
+  };
+  return mapping[action];
 }
 
 export function formatShoutoutActionLabel(action: ShoutoutActionName) {
-  return action.charAt(0).toUpperCase() + action.slice(1);
+  const mapping: Record<ShoutoutActionName, string> = { approve: "Approve", reject: "Reject" };
+  return mapping[action];
 }
 
 export function getAllowedActions(item: QueueLikeItem | null | undefined): BoothActionName[] {

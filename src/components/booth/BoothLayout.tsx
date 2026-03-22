@@ -150,13 +150,13 @@ export default function BoothLayout({ location }: { location: string }) {
 
         <div className="boothGrid">
           <div className="boothColumn boothColumn--wide">
-            <PanelShell title="BOOTH / QUEUE ENGINE" subtitle="Highest-priority control lane. Now Playing, On Deck, and live queue.">
+            <PanelShell title="BOOTH / QUEUE" subtitle="Now Playing, On Deck, and the live play order.">
               <div className="boothHeroStack">
                 <NowPlayingCard item={nowPlaying} busyAction={nowPlaying ? heroBusy[nowPlaying.id] ?? null : null} onAction={handleHeroAction} />
                 <OnDeckCard item={onDeck} busyAction={onDeck ? heroBusy[onDeck.id] ?? null : null} onAction={handleHeroAction} />
               </div>
 
-              <div className="boothSubsectionTitle">LIVE QUEUE</div>
+              <div className="boothSubsectionTitle">Live queue</div>
               <QueueList
                 items={state.queue}
                 location={location}
@@ -187,7 +187,7 @@ export default function BoothLayout({ location }: { location: string }) {
             />
           </div>
 
-          <div className="boothColumn">
+          <div className="boothColumn boothColumn--requests">
             <RequestPanel
               requests={state.pendingRequests}
               onActionComplete={(result) => {
@@ -197,7 +197,7 @@ export default function BoothLayout({ location }: { location: string }) {
             />
           </div>
 
-          <div className="boothColumn">
+          <div className="boothColumn boothColumn--shoutouts">
             <ShoutoutPanel
               pendingShoutouts={state.pendingShoutouts}
               approvedShoutouts={state.approvedShoutouts}
@@ -213,9 +213,13 @@ export default function BoothLayout({ location }: { location: string }) {
       <style jsx>{`
         .boothWrap {
           --boothBorder: rgba(255, 255, 255, 0.12);
-          --boothSurface: rgba(8, 12, 30, 0.7);
-          --boothSurfaceStrong: rgba(13, 18, 40, 0.88);
+          --boothSurface: rgba(8, 12, 30, 0.72);
+          --boothSurfaceStrong: rgba(13, 18, 40, 0.9);
           --boothSurfaceSoft: rgba(255, 255, 255, 0.045);
+          width: calc(100vw - 32px);
+          max-width: none;
+          margin: 0 auto;
+          padding: 14px 0 22px;
         }
 
         .boothTopbar {
@@ -223,7 +227,7 @@ export default function BoothLayout({ location }: { location: string }) {
           justify-content: space-between;
           gap: 18px;
           align-items: flex-start;
-          margin-bottom: 16px;
+          margin-bottom: 14px;
           padding: 18px 20px;
           border: 1px solid var(--boothBorder);
           border-radius: 28px;
@@ -245,7 +249,7 @@ export default function BoothLayout({ location }: { location: string }) {
 
         .boothPageTitle {
           margin: 0;
-          font-size: 32px;
+          font-size: 34px;
           line-height: 1;
           font-weight: 1000;
           text-transform: uppercase;
@@ -255,15 +259,15 @@ export default function BoothLayout({ location }: { location: string }) {
         .boothPageSub {
           margin-top: 8px;
           color: var(--muted);
-          max-width: 720px;
+          max-width: 760px;
           font-size: 13px;
         }
 
         .boothTopbarStats {
           display: grid;
-          grid-template-columns: repeat(4, minmax(92px, 1fr));
+          grid-template-columns: repeat(4, minmax(104px, 1fr));
           gap: 10px;
-          width: min(100%, 500px);
+          width: min(100%, 520px);
         }
 
         .boothStat {
@@ -297,7 +301,7 @@ export default function BoothLayout({ location }: { location: string }) {
 
         .boothNotice {
           margin-bottom: 12px;
-          padding: 12px 14px;
+          padding: 11px 14px;
           border-radius: 18px;
           border: 1px solid rgba(255, 204, 0, 0.24);
           background: rgba(255, 204, 0, 0.08);
@@ -318,7 +322,7 @@ export default function BoothLayout({ location }: { location: string }) {
 
         .boothGrid {
           display: grid;
-          grid-template-columns: 1.65fr 1fr 1fr 1fr;
+          grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr) minmax(360px, 1.35fr) minmax(280px, 0.9fr);
           gap: 14px;
           align-items: start;
         }
@@ -326,8 +330,8 @@ export default function BoothLayout({ location }: { location: string }) {
         .boothColumn { min-width: 0; }
 
         :global(.boothPanel) {
-          min-height: 760px;
-          padding: 16px;
+          min-height: calc(100vh - 210px);
+          padding: 14px;
           border-radius: 24px;
           background:
             radial-gradient(circle at top left, rgba(0, 247, 255, 0.08), transparent 28%),
@@ -343,8 +347,8 @@ export default function BoothLayout({ location }: { location: string }) {
           justify-content: space-between;
           gap: 12px;
           align-items: flex-start;
-          margin-bottom: 14px;
-          padding-bottom: 12px;
+          margin-bottom: 12px;
+          padding-bottom: 10px;
           border-bottom: 1px solid rgba(255,255,255,0.08);
         }
 
@@ -359,36 +363,25 @@ export default function BoothLayout({ location }: { location: string }) {
           margin-top: 4px;
           color: var(--muted);
           font-size: 12px;
-          line-height: 1.4;
+          line-height: 1.35;
         }
 
-        :global(.boothPanelBody) {
-          display: grid;
-          gap: 14px;
-        }
+        :global(.boothPanelBody) { display: grid; gap: 12px; }
 
-        .boothHeroStack {
-          display: grid;
-          gap: 12px;
-        }
+        .boothHeroStack { display: grid; gap: 10px; }
 
         :global(.boothHeroCard) {
           border: 1px solid var(--boothBorder);
           border-radius: 22px;
-          padding: 14px;
+          padding: 12px;
           background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02));
           box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
           display: grid;
-          gap: 12px;
+          gap: 10px;
         }
 
-        :global(.boothHeroCard--now.is-live) {
-          box-shadow: var(--glowA), inset 0 1px 0 rgba(255,255,255,0.04);
-        }
-
-        :global(.boothHeroCard--deck) {
-          box-shadow: var(--glowB), inset 0 1px 0 rgba(255,255,255,0.03);
-        }
+        :global(.boothHeroCard--now.is-live) { box-shadow: var(--glowA), inset 0 1px 0 rgba(255,255,255,0.04); }
+        :global(.boothHeroCard--deck) { box-shadow: var(--glowB), inset 0 1px 0 rgba(255,255,255,0.03); }
 
         :global(.boothHeroHeader) {
           display: flex;
@@ -413,185 +406,61 @@ export default function BoothLayout({ location }: { location: string }) {
           color: var(--muted);
         }
 
-        :global(.boothHeroMain) {
-          display: grid;
-          grid-template-columns: 84px 1fr;
-          gap: 14px;
-          align-items: center;
-        }
+        :global(.boothHeroMain) { display: grid; grid-template-columns: 84px 1fr; gap: 14px; align-items: center; }
+        :global(.boothHeroMain--large) { grid-template-columns: 112px 1fr; align-items: stretch; }
 
-        :global(.boothHeroMain--large) {
-          grid-template-columns: 112px 1fr;
-          align-items: stretch;
-        }
-
-        :global(.boothHeroArt),
-        :global(.boothQueueArt) {
+        :global(.boothHeroArt), :global(.boothQueueArt) {
           position: relative;
           overflow: hidden;
           border: 1px solid rgba(255,255,255,0.14);
           background: radial-gradient(circle at 30% 25%, rgba(0,247,255,0.28), transparent 55%), radial-gradient(circle at 75% 80%, rgba(255,57,212,0.22), transparent 62%), rgba(255,255,255,0.07);
         }
 
-        :global(.boothHeroArt) {
-          width: 84px;
-          height: 84px;
-          border-radius: 18px;
-          box-shadow: var(--glowA);
-        }
-
-        :global(.boothHeroArt--poster) {
-          width: 112px;
-          height: 112px;
-          border-radius: 22px;
-        }
-
-        :global(.boothHeroArt--small) {
-          width: 68px;
-          height: 68px;
-          border-radius: 16px;
-        }
-
-        :global(.boothHeroArt--system),
-        :global(.boothQueueArt--system) {
+        :global(.boothHeroArt) { width: 84px; height: 84px; border-radius: 18px; box-shadow: var(--glowA); }
+        :global(.boothHeroArt--poster) { width: 112px; height: 112px; border-radius: 22px; }
+        :global(.boothHeroArt--small) { width: 68px; height: 68px; border-radius: 16px; }
+        :global(.boothHeroArt--system), :global(.boothQueueArt--system) {
           background: radial-gradient(circle at 30% 25%, rgba(255,57,212,0.32), transparent 55%), radial-gradient(circle at 75% 80%, rgba(255,204,0,0.18), transparent 62%), rgba(255,255,255,0.07);
           box-shadow: var(--glowB);
         }
 
-        :global(.boothHeroArtImg),
-        :global(.boothQueueArtImg) {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          display: block;
-        }
-
-        :global(.boothHeroArtFallback),
-        :global(.boothQueueArtFallback) {
-          width: 100%;
-          height: 100%;
-          display: grid;
-          place-items: center;
-          font-size: 28px;
-          font-weight: 1000;
-          letter-spacing: 1px;
-          color: rgba(255,255,255,0.92);
-        }
-
+        :global(.boothHeroArtImg), :global(.boothQueueArtImg) { width: 100%; height: 100%; object-fit: cover; display: block; }
+        :global(.boothHeroArtFallback), :global(.boothQueueArtFallback) { width: 100%; height: 100%; display: grid; place-items: center; font-size: 28px; font-weight: 1000; letter-spacing: 1px; color: rgba(255,255,255,0.92); }
         :global(.boothQueueArtFallback) { font-size: 14px; }
 
-        :global(.boothHeroTitleLine),
-        :global(.boothDeckTitleLine),
-        :global(.boothQueueTitleLine),
-        :global(.boothRequestTitleLine) {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          align-items: center;
-        }
+        :global(.boothHeroTitleLine), :global(.boothDeckTitleLine), :global(.boothQueueTitleLine), :global(.boothRequestTitleLine) { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        :global(.boothHeroTitle) { font-size: 24px; font-weight: 1000; line-height: 1.04; }
+        :global(.boothDeckTitle) { font-size: 17px; font-weight: 1000; }
 
-        :global(.boothHeroTitle) {
-          font-size: 25px;
-          font-weight: 1000;
-          line-height: 1.04;
-        }
-
-        :global(.boothDeckTitle) {
-          font-size: 18px;
-          font-weight: 1000;
-        }
-
-        :global(.boothHeroMeta),
-        :global(.boothDeckMeta),
-        :global(.boothQueueMeta),
-        :global(.boothRequestMeta),
-        :global(.boothShoutoutMeta) {
-          margin-top: 6px;
+        :global(.boothHeroMeta), :global(.boothDeckMeta), :global(.boothQueueMeta), :global(.boothRequestMeta), :global(.boothShoutoutMeta) {
+          margin-top: 5px;
           font-size: 12px;
           color: var(--muted);
           line-height: 1.4;
         }
 
-        :global(.boothHeroMeta--big) { font-size: 13px; }
+        :global(.boothHeroMeta--big) { font-size: 13px; color: rgba(255,255,255,0.8); }
 
-        :global(.boothHeroReadouts) {
-          margin-top: 14px;
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 8px;
-        }
+        :global(.boothHeroReadouts) { margin-top: 12px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+        :global(.boothReadout) { border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; background: rgba(255,255,255,0.04); padding: 8px 10px; display: grid; gap: 4px; }
+        :global(.boothReadout span) { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 900; }
+        :global(.boothReadout strong) { font-size: 13px; font-weight: 900; }
 
-        :global(.boothReadout) {
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 14px;
-          background: rgba(255,255,255,0.04);
-          padding: 9px 10px;
-          display: grid;
-          gap: 4px;
-        }
-
-        :global(.boothReadout span) {
-          font-size: 10px;
-          color: var(--muted);
-          text-transform: uppercase;
-          letter-spacing: 1px;
-          font-weight: 900;
-        }
-
-        :global(.boothReadout strong) {
-          font-size: 13px;
-          font-weight: 900;
-        }
-
-        :global(.boothProgress) {
-          width: 100%;
-          height: 12px;
-          border-radius: 999px;
-          background: rgba(255,255,255,0.08);
-          overflow: hidden;
-          border: 1px solid rgba(255,255,255,0.08);
-          margin-top: 12px;
-        }
-
+        :global(.boothProgress) { width: 100%; height: 12px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; border: 1px solid rgba(255,255,255,0.08); margin-top: 12px; }
         :global(.boothProgress--hero) { height: 14px; }
+        :global(.boothProgressFill) { height: 100%; border-radius: 999px; background: linear-gradient(90deg, rgba(0,247,255,0.95), rgba(255,57,212,0.88)); box-shadow: var(--glowA), var(--glowB); }
+        :global(.boothProgressMeta) { margin-top: 7px; display: flex; justify-content: space-between; gap: 12px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 900; }
 
-        :global(.boothProgressFill) {
-          height: 100%;
-          border-radius: 999px;
-          background: linear-gradient(90deg, rgba(0,247,255,0.95), rgba(255,57,212,0.88));
-          box-shadow: var(--glowA), var(--glowB);
-        }
+        :global(.boothQueueList), :global(.boothRequestList), :global(.boothShoutoutList) { display: grid; gap: 8px; }
 
-        :global(.boothProgressMeta) {
-          margin-top: 7px;
-          display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          font-size: 11px;
-          color: var(--muted);
-          text-transform: uppercase;
-          letter-spacing: 0.8px;
-          font-weight: 900;
-        }
-
-        :global(.boothQueueList),
-        :global(.boothRequestList),
-        :global(.boothShoutoutList) {
-          display: grid;
-          gap: 10px;
-        }
-
-        :global(.boothQueueRow),
-        :global(.boothRequestRow),
-        :global(.boothShoutoutRow),
-        :global(.boothEngineCard) {
+        :global(.boothQueueRow), :global(.boothRequestRow), :global(.boothShoutoutRow), :global(.boothEngineCard) {
           border: 1px solid var(--boothBorder);
           border-radius: 18px;
           background: rgba(255,255,255,0.04);
         }
 
         :global(.boothQueueRow) {
-          padding: 12px;
+          padding: 10px;
           display: flex;
           justify-content: space-between;
           gap: 12px;
@@ -599,78 +468,28 @@ export default function BoothLayout({ location }: { location: string }) {
           transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
         }
 
-        :global(.boothQueueRow--system) {
-          border-color: rgba(255,57,212,0.28);
-          background: linear-gradient(180deg, rgba(255,57,212,0.09), rgba(255,255,255,0.03));
-        }
-
-        :global(.boothQueueRow--canDrag:hover) {
-          transform: translateY(-1px);
-          border-color: rgba(0,247,255,0.28);
-          box-shadow: var(--glowA);
-        }
-
-        :global(.boothQueueRow--dropTarget) {
-          border-color: rgba(0,247,255,0.34);
-          box-shadow: var(--glowA);
-        }
-
+        :global(.boothQueueRow--system) { border-color: rgba(255,57,212,0.28); background: linear-gradient(180deg, rgba(255,57,212,0.09), rgba(255,255,255,0.03)); }
+        :global(.boothQueueRow--canDrag:hover) { transform: translateY(-1px); border-color: rgba(0,247,255,0.28); box-shadow: var(--glowA); }
+        :global(.boothQueueRow--dropTarget) { border-color: rgba(0,247,255,0.34); box-shadow: var(--glowA); }
         :global(.boothQueueRow--dragging) { opacity: 0.55; }
 
-        :global(.boothQueueRowLeft) {
-          min-width: 0;
-          flex: 1;
-          display: grid;
-          grid-template-columns: 36px 46px 1fr;
-          gap: 10px;
-          align-items: center;
-        }
-
-        :global(.boothQueueIndex),
-        :global(.boothRequestIndex) {
-          font-weight: 1000;
-          font-size: 19px;
-          color: rgba(255,255,255,0.9);
-          text-align: center;
-        }
-
-        :global(.boothQueueArt) {
-          width: 46px;
-          height: 46px;
-          border-radius: 12px;
-        }
-
-        :global(.boothQueueMain),
-        :global(.boothRequestMain) { min-width: 0; }
-
-        :global(.boothQueueTitle),
-        :global(.boothRequestTitle) {
-          font-size: 14px;
-          font-weight: 1000;
-          line-height: 1.12;
-          word-break: break-word;
-        }
-
+        :global(.boothQueueRowLeft) { min-width: 0; flex: 1; display: grid; grid-template-columns: 32px 46px 1fr; gap: 10px; align-items: center; }
+        :global(.boothQueueIndex), :global(.boothRequestIndex) { font-weight: 1000; font-size: 18px; color: rgba(255,255,255,0.92); text-align: center; }
+        :global(.boothQueueArt) { width: 46px; height: 46px; border-radius: 12px; }
+        :global(.boothQueueMain), :global(.boothRequestMain) { min-width: 0; }
+        :global(.boothQueueTitle), :global(.boothRequestTitle) { font-size: 16px; font-weight: 1000; line-height: 1.12; word-break: break-word; }
         :global(.boothQueueRowRight) { flex: 0 0 auto; }
 
-        :global(.boothActionBar),
-        :global(.boothInlineActions) {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-top: 10px;
-        }
-
+        :global(.boothActionBar), :global(.boothInlineActions) { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
         :global(.boothActionBar--compact) { margin-top: 8px; }
 
-        :global(.boothActionBtn),
-        :global(.boothToolbarBtn) {
+        :global(.boothActionBtn), :global(.boothToolbarBtn) {
           appearance: none;
           border: 1px solid rgba(255,255,255,0.14);
           background: linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
           color: rgba(255,255,255,0.95);
           border-radius: 12px;
-          padding: 8px 10px;
+          padding: 8px 11px;
           font-size: 11px;
           font-weight: 1000;
           text-transform: uppercase;
@@ -679,18 +498,8 @@ export default function BoothLayout({ location }: { location: string }) {
           transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, opacity 0.14s ease;
         }
 
-        :global(.boothActionBtn:hover:not(:disabled)),
-        :global(.boothToolbarBtn:hover:not(:disabled)) {
-          transform: translateY(-1px);
-          box-shadow: var(--glowA);
-        }
-
-        :global(.boothActionBtn:disabled),
-        :global(.boothToolbarBtn:disabled) {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-
+        :global(.boothActionBtn:hover:not(:disabled)), :global(.boothToolbarBtn:hover:not(:disabled)) { transform: translateY(-1px); box-shadow: var(--glowA); }
+        :global(.boothActionBtn:disabled), :global(.boothToolbarBtn:disabled) { opacity: 0.55; cursor: not-allowed; }
         :global(.boothActionBtn--play) { border-color: rgba(0,247,255,0.28); box-shadow: var(--glowA); }
         :global(.boothActionBtn--load) { border-color: rgba(255,57,212,0.24); box-shadow: var(--glowB); }
         :global(.boothActionBtn--hold) { border-color: rgba(255,204,0,0.28); }
@@ -698,116 +507,28 @@ export default function BoothLayout({ location }: { location: string }) {
         :global(.boothActionBtn--played) { border-color: rgba(140,255,170,0.22); }
         :global(.boothToolbarBtn--primary) { border-color: rgba(255,57,212,0.28); box-shadow: var(--glowB); }
 
-        :global(.boothEngineCard) { padding: 14px; }
+        :global(.boothEngineCard) { padding: 12px; }
         :global(.boothEngineCard--hero) { box-shadow: var(--glowB); }
-
-        :global(.boothEngineHeader) {
-          display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          align-items: flex-start;
-        }
-
-        :global(.boothEngineLabel) {
-          font-size: 11px;
-          font-weight: 1000;
-          letter-spacing: 1.4px;
-          text-transform: uppercase;
-          color: var(--muted);
-          margin-bottom: 6px;
-        }
-
-        :global(.boothEngineAction) {
-          font-size: 24px;
-          font-weight: 1000;
-          line-height: 1.06;
-          text-transform: uppercase;
-        }
-
-        :global(.boothEngineList) {
-          display: grid;
-          gap: 8px;
-          margin-top: 14px;
-        }
-
-        :global(.boothEngineRow) {
-          display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          align-items: flex-start;
-          font-size: 12px;
-          border-top: 1px solid rgba(255,255,255,0.06);
-          padding-top: 8px;
-        }
-
+        :global(.boothEngineHeader) { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+        :global(.boothEngineLabel) { font-size: 11px; font-weight: 1000; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+        :global(.boothEngineAction) { font-size: 22px; font-weight: 1000; line-height: 1.06; text-transform: uppercase; }
+        :global(.boothEngineList) { display: grid; gap: 8px; margin-top: 14px; }
+        :global(.boothEngineRow) { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; }
         :global(.boothEngineRow span) { color: var(--muted); }
-
-        :global(.boothEngineExplain) {
-          margin-top: 12px;
-          padding: 12px;
-          border-radius: 14px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.035);
-          color: rgba(255,255,255,0.9);
-          font-size: 12px;
-          line-height: 1.45;
-        }
-
+        :global(.boothEngineExplain) { margin-top: 12px; padding: 12px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.035); color: rgba(255,255,255,0.9); font-size: 12px; line-height: 1.45; }
         :global(.boothEngineActions) { margin-top: 12px; }
 
-        :global(.boothMiniStats) {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
+        :global(.boothMiniStats) { display: flex; gap: 8px; flex-wrap: wrap; }
         :global(.boothRequestSectionTitle) { margin-top: 2px; }
-
-        :global(.boothRequestRow) {
-          padding: 12px;
-          display: grid;
-          grid-template-columns: 28px 1fr;
-          gap: 10px;
-          align-items: flex-start;
-        }
-
-        :global(.boothRequestRow--actionable) {
-          background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.025));
-        }
-
-        :global(.boothShoutoutSplit) { display: grid; gap: 14px; }
-
+        :global(.boothRequestRow) { padding: 12px; display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: flex-start; }
+        :global(.boothRequestRow--actionable) { background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.025)); }
+        :global(.boothShoutoutSplit) { display: grid; gap: 12px; }
         :global(.boothShoutoutRow) { padding: 12px; }
         :global(.boothShoutoutRow--pending) { background: linear-gradient(180deg, rgba(255,204,0,0.06), rgba(255,255,255,0.03)); }
+        :global(.boothShoutoutTop) { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 8px; }
+        :global(.boothShoutoutText) { font-size: 13px; line-height: 1.45; color: rgba(255,255,255,0.94); }
 
-        :global(.boothShoutoutTop) {
-          display: flex;
-          justify-content: space-between;
-          gap: 10px;
-          align-items: center;
-          margin-bottom: 8px;
-        }
-
-        :global(.boothShoutoutText) {
-          font-size: 13px;
-          line-height: 1.45;
-          color: rgba(255,255,255,0.94);
-        }
-
-        :global(.boothBadge) {
-          display: inline-flex;
-          align-items: center;
-          padding: 5px 9px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,0.14);
-          background: rgba(0,0,0,0.18);
-          font-size: 10px;
-          font-weight: 1000;
-          text-transform: uppercase;
-          letter-spacing: 0.8px;
-          white-space: nowrap;
-        }
-
+        :global(.boothBadge) { display: inline-flex; align-items: center; padding: 5px 9px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); background: rgba(0,0,0,0.18); font-size: 10px; font-weight: 1000; text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap; }
         :global(.boothBadge--default) { border-color: rgba(255,255,255,0.14); }
         :global(.boothBadge--cyan) { border-color: rgba(0,247,255,0.32); box-shadow: var(--glowA); }
         :global(.boothBadge--pink) { border-color: rgba(255,57,212,0.32); box-shadow: var(--glowB); }
@@ -815,45 +536,32 @@ export default function BoothLayout({ location }: { location: string }) {
         :global(.boothBadge--warn) { border-color: rgba(255,120,120,0.35); }
         :global(.boothBadge--muted) { opacity: 0.74; }
 
-        :global(.boothEmptyState) {
-          padding: 14px;
-          border-radius: 16px;
-          border: 1px dashed rgba(255,255,255,0.14);
-          color: var(--muted);
-          font-size: 13px;
-          background: rgba(255,255,255,0.025);
-        }
-
+        :global(.boothEmptyState) { padding: 14px; border-radius: 16px; border: 1px dashed rgba(255,255,255,0.14); color: var(--muted); font-size: 13px; background: rgba(255,255,255,0.025); }
         :global(.boothEmptyState--hero) { min-height: 90px; display: grid; place-items: center; }
+        :global(.boothDragHandleWrap) { display: grid; justify-items: end; gap: 6px; }
+        :global(.boothDragHandle) { font-size: 18px; line-height: 1; color: rgba(255,255,255,0.6); user-select: none; }
 
-        :global(.boothDragHandleWrap) {
-          display: grid;
-          justify-items: end;
-          gap: 6px;
+        @media (max-width: 1600px) {
+          .boothGrid { grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.95fr) minmax(340px, 1.15fr) minmax(260px, 0.85fr); }
         }
 
-        :global(.boothDragHandle) {
-          font-size: 18px;
-          line-height: 1;
-          color: rgba(255,255,255,0.6);
-          user-select: none;
-        }
-
-        @media (max-width: 1440px) {
-          .boothGrid { grid-template-columns: 1.4fr 1fr 1fr; }
-          .boothColumn:last-child { grid-column: span 3; }
+        @media (max-width: 1380px) {
+          .boothGrid { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 1.1fr); }
+          .boothColumn--shoutouts { grid-column: 1 / -1; }
           :global(.boothPanel) { min-height: 0; }
         }
 
         @media (max-width: 1120px) {
+          .boothWrap { width: calc(100vw - 20px); }
           .boothGrid { grid-template-columns: 1fr 1fr; }
-          .boothColumn:last-child { grid-column: auto; }
+          .boothColumn--requests, .boothColumn--shoutouts { grid-column: auto; }
           .boothTopbar { flex-direction: column; }
           .boothTopbarStats { width: 100%; }
           :global(.boothHeroReadouts) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
 
         @media (max-width: 720px) {
+          .boothWrap { width: calc(100vw - 14px); }
           .boothGrid { grid-template-columns: 1fr; }
           .boothTopbarStats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           :global(.boothHeroMain), :global(.boothHeroMain--large) { grid-template-columns: 72px 1fr; }

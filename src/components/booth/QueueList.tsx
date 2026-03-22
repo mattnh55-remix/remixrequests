@@ -50,7 +50,7 @@ export default function QueueList({
       setDragState((prev) => ({
         ...prev,
         saving: false,
-        error: "Reorder failed against the real booth route.",
+        error: "Could not save the new play order.",
         success: null,
       }));
       return;
@@ -60,7 +60,7 @@ export default function QueueList({
       dirty: false,
       saving: false,
       error: null,
-      success: "Queue order saved.",
+      success: "Play order saved.",
       activeDragId: null,
     });
 
@@ -109,17 +109,17 @@ export default function QueueList({
     <div className="boothQueueManager">
       <div className="boothQueueToolbar">
         <div>
-          <div className="boothQueueToolbarTitle">Song reorder mode</div>
-          <div className="boothQueueToolbarSub">Drag songs only. Interstitials remain locked system inserts.</div>
+          <div className="boothQueueToolbarTitle">Reorder mode</div>
+          <div className="boothQueueToolbarSub">Drag songs to change play order. System inserts stay locked.</div>
         </div>
 
         <div className="boothQueueToolbarRight">
-          <div className="boothQueueToolbarPill">{draggableSongCount} draggable songs</div>
+          <div className="boothQueueToolbarPill">{draggableSongCount} songs ready to move</div>
           <button type="button" className="boothToolbarBtn boothToolbarBtn--ghost" onClick={cancelDraft} disabled={!dragState.dirty || dragState.saving}>
             Cancel
           </button>
           <button type="button" className="boothToolbarBtn" onClick={saveReorder} disabled={!dragState.dirty || dragState.saving}>
-            {dragState.saving ? "Saving..." : "Save Reorder"}
+            {dragState.saving ? "Saving..." : "Save order"}
           </button>
         </div>
       </div>
@@ -129,7 +129,7 @@ export default function QueueList({
 
       <div className="boothQueueList">
         {draftItems.length === 0 ? (
-          <div className="boothEmptyState">Queue feed is empty.</div>
+          <div className="boothEmptyState">No songs or inserts in the live queue yet.</div>
         ) : (
           draftItems.map((item) => (
             <QueueItemRow

@@ -37,11 +37,11 @@ export default function RequestPanel({
           <div className="boothRequestTitleLine">
             <div className="boothRequestTitle">{item.title || "Untitled"}</div>
             {item.sortBucket === "PLAY_NOW" ? (
-              <StatusBadge label="PLAY NOW" tone="pink" />
+              <StatusBadge label="Play now" tone="pink" />
             ) : item.boosted ? (
-              <StatusBadge label="BOOST" tone="gold" />
+              <StatusBadge label="Boost" tone="gold" />
             ) : (
-              <StatusBadge label="UP NEXT" tone="cyan" />
+              <StatusBadge label="Up next" tone="cyan" />
             )}
           </div>
           <div className="boothRequestMeta">
@@ -52,10 +52,10 @@ export default function RequestPanel({
 
           <div className="boothInlineActions">
             <button type="button" className="boothActionBtn boothActionBtn--skip" onClick={() => handleAction(item, "reject")} disabled={isBusy}>
-              {isBusy && busyAction === "reject" ? "Working..." : "Reject"}
+              {isBusy && busyAction === "reject" ? "Working..." : "Remove"}
             </button>
             <button type="button" className="boothActionBtn boothActionBtn--played" onClick={() => handleAction(item, "played")} disabled={isBusy}>
-              {isBusy && busyAction === "played" ? "Working..." : "Mark Played"}
+              {isBusy && busyAction === "played" ? "Working..." : "Done"}
             </button>
           </div>
         </div>
@@ -64,20 +64,20 @@ export default function RequestPanel({
   }
 
   return (
-    <PanelShell title="REQUESTS PANEL" subtitle="Live customer demand from the request queue.">
+    <PanelShell title="REQUESTS" subtitle="Live customer demand waiting to be worked into the booth queue.">
       <div className="boothMiniStats">
-        <StatusBadge label={`PLAY NOW ${playNow.length}`} tone="pink" />
-        <StatusBadge label={`UP NEXT ${upNext.length}`} tone="cyan" />
+        <StatusBadge label={`Play now ${playNow.length}`} tone="pink" />
+        <StatusBadge label={`Up next ${upNext.length}`} tone="cyan" />
       </div>
 
-      <div className="boothRequestSectionTitle">PLAY NOW</div>
+      <div className="boothRequestSectionTitle">Play now</div>
       <div className="boothRequestList">
-        {playNow.length === 0 ? <div className="boothEmptyState">No Play Now requests.</div> : playNow.slice(0, 6).map(renderRow)}
+        {playNow.length === 0 ? <div className="boothEmptyState">No play-now requests.</div> : playNow.slice(0, 6).map(renderRow)}
       </div>
 
-      <div className="boothRequestSectionTitle">UP NEXT</div>
+      <div className="boothRequestSectionTitle">Up next</div>
       <div className="boothRequestList">
-        {upNext.length === 0 ? <div className="boothEmptyState">No Up Next requests.</div> : upNext.slice(0, 10).map(renderRow)}
+        {upNext.length === 0 ? <div className="boothEmptyState">No up-next requests.</div> : upNext.slice(0, 10).map(renderRow)}
       </div>
     </PanelShell>
   );

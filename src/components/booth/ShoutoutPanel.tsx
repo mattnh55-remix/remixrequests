@@ -28,7 +28,7 @@ export default function ShoutoutPanel({
   }
 
   return (
-    <PanelShell title="SHOUTOUTS PANEL" subtitle="Pending moderation and recently approved messages.">
+    <PanelShell title="SHOUTOUTS" subtitle="Message moderation and recently approved callouts.">
       <div className="boothShoutoutSplit">
         <div>
           <div className="boothSubsectionTitle">PENDING</div>
