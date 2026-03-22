@@ -177,30 +177,65 @@ export async function POST(req: Request) {
           },
         });
 
-        // Phase 1 playback shadow layer:
+         // Phase 1 playback shadow layer:
         // create a QueueItem for every newly approved request
-        const lastQueueItem = await tx.queueItem.findFirst({
+        // play_next => bottom
+        // play_now  => insert like PLAY_NEXT in the new booth system
+
+        const queuedItems = await tx.queueItem.findMany({
           where: {
             locationId: loc.id,
             sessionId: session.id,
+            status: { in: ["PLAYING", "LOADED", "QUEUED"] },
           },
-          orderBy: { position: "desc" },
-          select: { position: true },
+          orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+          select: {
+            id: true,
+            status: true,
+            position: true,
+            createdAt: true,
+          },
         });
 
-        const nextPosition = (lastQueueItem?.position ?? 0) + 1;
+        const resolvePublicInsertIndex = () => {
+          if (!isPlayNow) return queuedItems.length;
 
+          const loadedIndex = queuedItems.findIndex((item) => item.status === "LOADED");
+          if (loadedIndex >= 0) return loadedIndex + 1;
+
+          const playingIndex = queuedItems.findIndex((item) => item.status === "PLAYING");
+          if (playingIndex >= 0) return playingIndex + 1;
+
+          return 0;
+        };
+
+        const insertIndex = resolvePublicInsertIndex();
+
+        // Create temporarily at the end, then normalize all positions below
         const queueItem = await tx.queueItem.create({
           data: {
             requestId: reqRow.id,
             locationId: loc.id,
             sessionId: session.id,
             status: "QUEUED",
-            position: nextPosition,
+            position: queuedItems.length + 1,
             sourceType: "REQUEST",
             introAssigned: false,
           },
         });
+
+        const orderedIds = [
+          ...queuedItems.slice(0, insertIndex).map((item) => item.id),
+          queueItem.id,
+          ...queuedItems.slice(insertIndex).map((item) => item.id),
+        ];
+
+        for (let i = 0; i < orderedIds.length; i++) {
+          await tx.queueItem.update({
+            where: { id: orderedIds[i] },
+            data: { position: i + 1 },
+          });
+        }
 
         await tx.playbackEvent.create({
           data: {
