@@ -1,3 +1,5 @@
+// SRC APP BOOTH LOCATION PAGE.TSX
+
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -8,8 +10,6 @@ import { computeNextPlaybackAction } from "@/lib/booth/compute-next-playback-act
 import type { InterstitialAsset } from "@/lib/booth/interstitial-types";
 import { mockInterstitialAssets } from "@/lib/booth/mock-interstitial-assets";
 import { mapDbInterstitialAssetsToPreview } from "@/lib/booth/map-db-interstitial-assets-to-preview";
-import type { BoothSearchResult } from "@/lib/booth/booth-search-types";
-import { canReorderBoothItem, canShowBoothSearchActions } from "@/lib/booth/queue-permissions";
 
 type BoothQueueItem = {
   id: string;
@@ -17,20 +17,33 @@ type BoothQueueItem = {
   position: number;
   status: string;
   sourceType: string;
+  itemType?: "SONG" | "INTERSTITIAL";
   introAssigned: boolean;
   clusterId: string | null;
   loadedAt: string | null;
   playingAt: string | null;
+  startedAt: string | null;
+  expectedEndAt: string | null;
   completedAt: string | null;
   createdAt: string;
+  durationSec: number | null;
+  elapsedSec: number;
+  remainingSec: number | null;
+  progressPercent: number;
+  isEndingSoon: boolean;
   title: string | null;
   artist: string | null;
   artworkUrl: string | null;
   explicit: boolean | null;
 };
 
-type BoothTab = "queue" | "held" | "search" | "smart" | "history";
-type AddMode = "BOTTOM" | "PLAY_NEXT" | "AFTER_CURRENT";
+type SearchResult = {
+  id: string;
+  title: string;
+  artist: string;
+  artworkUrl: string | null;
+  explicit: boolean | null;
+};
 
 export default function BoothLocationPage() {
   const params = useParams();
@@ -46,15 +59,13 @@ export default function BoothLocationPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<BoothTab>("queue");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchOpen, setSearchOpen] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchBusy, setSearchBusy] = useState(false);
   const [searchError, setSearchError] = useState("");
-  const [searchResults, setSearchResults] = useState<BoothSearchResult[]>([]);
-  const [addBusySongId, setAddBusySongId] = useState<string | null>(null);
-  const [reorderBusy, setReorderBusy] = useState(false);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const searchTimer = useRef<number | null>(null);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [clockMs, setClockMs] = useState(Date.now());
+  const materializeBusyRef = useRef(false);
 
   const queueUrl = useMemo(() => {
     return location ? `/api/booth/queue/${location}` : "";
@@ -62,14 +73,6 @@ export default function BoothLocationPage() {
 
   const interstitialAssetsUrl = useMemo(() => {
     return location ? `/api/booth/interstitial-assets/${location}` : "";
-  }, [location]);
-
-  const searchUrl = useMemo(() => {
-    return location ? `/api/booth/search-songs/${location}` : "";
-  }, [location]);
-
-  const addSongUrl = useMemo(() => {
-    return location ? `/api/booth/add-song/${location}` : "";
   }, [location]);
 
   async function loadQueue(showSpinner = false) {
@@ -93,7 +96,7 @@ export default function BoothLocationPage() {
         return;
       }
 
-      setItems(data.items || []);
+      setItems(Array.isArray(data.items) ? data.items : []);
     } catch {
       setItems([]);
       setError("Could not load booth queue.");
@@ -125,10 +128,10 @@ export default function BoothLocationPage() {
     }
   }
 
-  async function loadSearchResults(query: string) {
-    if (!searchUrl) return;
-
-    if (!query.trim()) {
+  async function loadSearch(q: string) {
+    if (!location) return;
+    const trimmed = q.trim();
+    if (!trimmed) {
       setSearchResults([]);
       setSearchError("");
       return;
@@ -138,11 +141,14 @@ export default function BoothLocationPage() {
       setSearchBusy(true);
       setSearchError("");
 
-      const res = await fetch(`${searchUrl}?q=${encodeURIComponent(query.trim())}`, {
-        method: "GET",
-        cache: "no-store",
-        credentials: "same-origin",
-      });
+      const res = await fetch(
+        `/api/booth/search-songs/${location}?q=${encodeURIComponent(trimmed)}`,
+        {
+          method: "GET",
+          cache: "no-store",
+          credentials: "same-origin",
+        }
+      );
 
       const data = await res.json().catch(() => ({}));
 
@@ -152,12 +158,49 @@ export default function BoothLocationPage() {
         return;
       }
 
-      setSearchResults(data.results || []);
+      setSearchResults(Array.isArray(data.results) ? data.results : []);
     } catch {
       setSearchResults([]);
       setSearchError("Search unavailable.");
     } finally {
       setSearchBusy(false);
+    }
+  }
+
+  async function addSong(
+    mode: "ADD_TO_QUEUE" | "PLAY_NEXT" | "ADD_AFTER_CURRENT",
+    songId: string
+  ) {
+    if (!location) return;
+
+    try {
+      setBusyId(`search:${songId}`);
+      setError("");
+
+      const res = await fetch(`/api/booth/add-song/${location}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          songId,
+          mode,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok) {
+        setError(data?.error || "Could not add song.");
+        return;
+      }
+
+      await loadQueue(false);
+    } catch {
+      setError("Could not add song.");
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -190,47 +233,25 @@ export default function BoothLocationPage() {
     }
   }
 
-  async function addSong(songId: string, mode: AddMode) {
-    if (!addSongUrl) return;
+  async function moveQueuedItem(itemId: string, direction: "up" | "down") {
+    const queuedSongs = sections.queued.filter((item) => item.sourceType !== "INTERSTITIAL");
+    const currentIndex = queuedSongs.findIndex((item) => item.id === itemId);
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= queuedSongs.length) return;
+
+    const nextOrdered = [...queuedSongs];
+    const [moved] = nextOrdered.splice(currentIndex, 1);
+    nextOrdered.splice(targetIndex, 0, moved);
+
+    const orderedQueuedItemIds = nextOrdered.map((item) => item.id);
 
     try {
-      setAddBusySongId(songId);
-      setError("");
-      setSearchError("");
-
-      const res = await fetch(addSongUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "same-origin",
-        body: JSON.stringify({ songId, mode }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok || !data.ok) {
-        setSearchError(data?.error || "Could not add song.");
-        return;
-      }
-
-      setActiveTab("queue");
-      await loadQueue(false);
-    } catch {
-      setSearchError("Could not add song.");
-    } finally {
-      setAddBusySongId(null);
-    }
-  }
-
-  async function reorderQueuedItems(orderedQueuedItemIds: string[]) {
-    if (!location || orderedQueuedItemIds.length === 0) return;
-
-    try {
-      setReorderBusy(true);
+      setBusyId(itemId);
       setError("");
 
-      const res = await fetch("/api/booth/queue/reorder", {
+      const res = await fetch(`/api/booth/queue/reorder`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -253,47 +274,9 @@ export default function BoothLocationPage() {
     } catch {
       setError("Could not reorder queue.");
     } finally {
-      setReorderBusy(false);
-      setDraggingId(null);
+      setBusyId(null);
     }
   }
-
-  useEffect(() => {
-    if (!location) return;
-
-    async function loadInitial() {
-      await Promise.all([loadQueue(true), loadInterstitialAssets()]);
-    }
-
-    loadInitial();
-  }, [location, interstitialAssetsUrl]);
-
-  useEffect(() => {
-    if (!location) return;
-
-    const timer = window.setInterval(() => {
-      loadQueue(false);
-      loadInterstitialAssets();
-    }, 4000);
-
-    return () => window.clearInterval(timer);
-  }, [location, queueUrl, interstitialAssetsUrl]);
-
-  useEffect(() => {
-    if (searchTimer.current) {
-      window.clearTimeout(searchTimer.current);
-    }
-
-    searchTimer.current = window.setTimeout(() => {
-      loadSearchResults(searchTerm);
-    }, 250);
-
-    return () => {
-      if (searchTimer.current) {
-        window.clearTimeout(searchTimer.current);
-      }
-    };
-  }, [searchTerm, searchUrl]);
 
   const sections = useMemo(() => deriveBoothSections(items), [items]);
   const smartInsert = useMemo(() => buildSmartInsertContext(items), [items]);
@@ -319,7 +302,9 @@ export default function BoothLocationPage() {
       return null;
     }
 
-    return previewInterstitialAssets.find((asset) => asset.id === nextPlaybackAction.assetId) || null;
+    return (
+      previewInterstitialAssets.find((asset) => asset.id === nextPlaybackAction.assetId) || null
+    );
   }, [nextPlaybackAction, previewInterstitialAssets]);
 
   const plannedQueueItem = useMemo(() => {
@@ -333,57 +318,108 @@ export default function BoothLocationPage() {
     return items.find((item) => item.id === nextPlaybackAction.queueItemId) || null;
   }, [items, nextPlaybackAction]);
 
-  const nowPlaying = sections.playing || null;
-  const onDeck = sections.loaded || null;
-  const nextUp = sections.loaded ? sections.queued[0] || null : sections.queued[0] || null;
   const visibleQueueItems = sections.loaded ? sections.queued : sections.queued.slice(1);
-  const movableQueuedIds = sections.queued.filter(canReorderBoothItem).map((item) => item.id);
+  const nowPlaying = sections.playing || null;
 
-  function moveQueueItem(queueItemId: string, direction: -1 | 1) {
-    const currentIndex = movableQueuedIds.findIndex((id) => id === queueItemId);
-    if (currentIndex === -1) return;
+  const liveProgressPercent = useMemo(() => {
+    if (!nowPlaying) return 0;
+    const durationSec = nowPlaying.durationSec || 0;
+    if (!durationSec) return 0;
 
-    const targetIndex = currentIndex + direction;
-    if (targetIndex < 0 || targetIndex >= movableQueuedIds.length) return;
+    const startedMs = nowPlaying.startedAt
+      ? new Date(nowPlaying.startedAt).getTime()
+      : nowPlaying.playingAt
+      ? new Date(nowPlaying.playingAt).getTime()
+      : null;
 
-    const nextIds = [...movableQueuedIds];
-    const [moved] = nextIds.splice(currentIndex, 1);
-    nextIds.splice(targetIndex, 0, moved);
-    reorderQueuedItems(nextIds);
-  }
-
-  function dropQueueItem(targetQueueItemId: string) {
-    if (!draggingId || draggingId === targetQueueItemId) {
-      setDraggingId(null);
-      return;
+    if (!startedMs) {
+      return nowPlaying.progressPercent || 0;
     }
 
-    const sourceIndex = movableQueuedIds.findIndex((id) => id === draggingId);
-    const targetIndex = movableQueuedIds.findIndex((id) => id === targetQueueItemId);
-    if (sourceIndex === -1 || targetIndex === -1) {
-      setDraggingId(null);
-      return;
+    const elapsedSec = Math.max(0, (clockMs - startedMs) / 1000);
+    return Math.min(100, Math.max(0, (elapsedSec / durationSec) * 100));
+  }, [clockMs, nowPlaying]);
+
+  const liveRemainingSec = useMemo(() => {
+    if (!nowPlaying) return null;
+    const durationSec = nowPlaying.durationSec || 0;
+    const startedMs = nowPlaying.startedAt
+      ? new Date(nowPlaying.startedAt).getTime()
+      : nowPlaying.playingAt
+      ? new Date(nowPlaying.playingAt).getTime()
+      : null;
+
+    if (!durationSec || !startedMs) {
+      return nowPlaying.remainingSec;
     }
 
-    const nextIds = [...movableQueuedIds];
-    const [moved] = nextIds.splice(sourceIndex, 1);
-    nextIds.splice(targetIndex, 0, moved);
-    reorderQueuedItems(nextIds);
+    const elapsedSec = Math.max(0, Math.floor((clockMs - startedMs) / 1000));
+    return Math.max(0, durationSec - elapsedSec);
+  }, [clockMs, nowPlaying]);
+
+  async function maybeMaterializeNext() {
+    if (!location || materializeBusyRef.current) return;
+    materializeBusyRef.current = true;
+
+    try {
+      await fetch(`/api/booth/runtime/materialize-next/${location}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "same-origin",
+      });
+    } catch {
+      // best effort only
+    } finally {
+      materializeBusyRef.current = false;
+    }
   }
 
-  function dropAtQueueBottom() {
-    if (!draggingId) return;
-    const sourceIndex = movableQueuedIds.findIndex((id) => id === draggingId);
-    if (sourceIndex === -1 || sourceIndex === movableQueuedIds.length - 1) {
-      setDraggingId(null);
-      return;
+  useEffect(() => {
+    if (!location) return;
+
+    async function loadInitial() {
+      await Promise.all([loadQueue(true), loadInterstitialAssets()]);
+      await maybeMaterializeNext();
+      await loadQueue(false);
     }
 
-    const nextIds = [...movableQueuedIds];
-    const [moved] = nextIds.splice(sourceIndex, 1);
-    nextIds.push(moved);
-    reorderQueuedItems(nextIds);
-  }
+    loadInitial();
+  }, [location]);
+
+  useEffect(() => {
+    if (!location) return;
+
+    const timer = window.setInterval(async () => {
+      setClockMs(Date.now());
+      await loadQueue(false);
+    }, 4000);
+
+    return () => window.clearInterval(timer);
+  }, [location, queueUrl]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setClockMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadSearch(searchQuery);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [searchQuery, location]);
+
+  useEffect(() => {
+    if (!location) return;
+    if (!nowPlaying || !nowPlaying.isEndingSoon) return;
+    maybeMaterializeNext();
+  }, [location, nowPlaying?.id, nowPlaying?.isEndingSoon]);
 
   return (
     <div
@@ -395,15 +431,24 @@ export default function BoothLocationPage() {
         fontFamily: "Arial, sans-serif",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "flex-start",
+          marginBottom: 20,
+          flexWrap: "wrap",
+        }}
+      >
         <div>
-          <h1 style={{ fontSize: 40, marginBottom: 8 }}>🎧 Booth Control</h1>
-          <p style={{ opacity: 0.82, marginTop: 0, marginBottom: 0 }}>
+          <h1 style={{ fontSize: 42, marginBottom: 8 }}>🎧 Booth Control</h1>
+          <p style={{ opacity: 0.8, marginTop: 0, marginBottom: 0 }}>
             Location: <strong>{location || "unknown"}</strong>
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <button
             onClick={async () => {
               await Promise.all([loadQueue(true), loadInterstitialAssets()]);
@@ -412,313 +457,180 @@ export default function BoothLocationPage() {
           >
             {loading ? "Refreshing..." : "Refresh"}
           </button>
-          <button onClick={() => setActiveTab("search")}>Search & Add</button>
+
+          <button onClick={() => setSearchOpen((prev) => !prev)}>
+            {searchOpen ? "Hide Search" : "Search & Add"}
+          </button>
         </div>
       </div>
 
-      {error ? <ErrorBanner text={error} /> : null}
+      {error ? (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            border: "1px solid #663",
+            background: "#221",
+            borderRadius: 8,
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+
+      {!loading && items.length === 0 ? <p>No booth queue items found.</p> : null}
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1.6fr) minmax(340px, 0.9fr)",
+          gridTemplateColumns: searchOpen ? "2fr 1fr" : "1fr",
           gap: 20,
           alignItems: "start",
-          marginTop: 20,
         }}
       >
-        <div style={{ display: "grid", gap: 16 }}>
+        <div style={{ display: "grid", gap: 20 }}>
           <QueueSection title="NOW PLAYING">
-            {nowPlaying ? (
-              <BoothCard item={nowPlaying} tone="playing" busyId={busyId} hit={hit} />
+            {sections.playing ? (
+              <QueueCard
+                item={sections.playing}
+                hit={hit}
+                busyId={busyId}
+                tone="playing"
+                progressPercent={liveProgressPercent}
+                remainingSec={liveRemainingSec}
+                canMove={false}
+                onMoveUp={() => {}}
+                onMoveDown={() => {}}
+              />
             ) : (
               <EmptyState text="Nothing is currently playing." />
             )}
           </QueueSection>
 
           <QueueSection title="ON DECK">
-            {onDeck ? (
-              <BoothCard item={onDeck} tone="loaded" busyId={busyId} hit={hit} />
+            {sections.loaded ? (
+              <QueueCard
+                item={sections.loaded}
+                hit={hit}
+                busyId={busyId}
+                tone="loaded"
+                canMove={false}
+                onMoveUp={() => {}}
+                onMoveDown={() => {}}
+              />
             ) : (
               <EmptyState text="No item is loaded yet." />
             )}
           </QueueSection>
 
           <QueueSection title="NEXT UP">
-            {nextUp ? (
-              <BoothCard item={nextUp} tone="queued" busyId={busyId} hit={hit} />
+            {sections.nextUp && !sections.loaded ? (
+              <QueueCard
+                item={sections.nextUp}
+                hit={hit}
+                busyId={busyId}
+                tone="next"
+                canMove={false}
+                onMoveUp={() => {}}
+                onMoveDown={() => {}}
+              />
             ) : (
               <EmptyState text="No queued songs yet." />
             )}
           </QueueSection>
 
-          {activeTab === "queue" ? (
-            <QueueSection title={`QUEUE (${visibleQueueItems.length})`}>
-              {visibleQueueItems.length === 0 ? (
-                <EmptyState text="No additional queued songs." />
-              ) : (
-                <>
-                  {visibleQueueItems.map((item) => (
-                    <QueueReorderCard
-                      key={item.id}
-                      item={item}
-                      busyId={busyId}
-                      hit={hit}
-                      reorderBusy={reorderBusy}
-                      canMove={canReorderBoothItem(item)}
-                      isDragging={draggingId === item.id}
-                      onMoveUp={() => moveQueueItem(item.id, -1)}
-                      onMoveDown={() => moveQueueItem(item.id, 1)}
-                      onDragStart={() => setDraggingId(item.id)}
-                      onDragEnd={() => setDraggingId(null)}
-                      onDrop={() => dropQueueItem(item.id)}
-                    />
-                  ))}
+          <QueueSection
+            title={`QUEUE${
+              visibleQueueItems.length ? ` (${visibleQueueItems.length})` : ""
+            }`}
+          >
+            {visibleQueueItems.length === 0 ? (
+              <EmptyState text="No additional queued items." />
+            ) : (
+              visibleQueueItems.map((item, index) => {
+                const songQueue = visibleQueueItems.filter(
+                  (row) => row.sourceType !== "INTERSTITIAL"
+                );
+                const songIndex = songQueue.findIndex((row) => row.id === item.id);
 
-                  {movableQueuedIds.length > 1 ? (
-                    <div
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={dropAtQueueBottom}
-                      style={{
-                        border: "1px dashed #2c5d8a",
-                        borderRadius: 12,
-                        padding: 12,
-                        opacity: 0.7,
-                        textAlign: "center",
-                        fontSize: 13,
-                      }}
-                    >
-                      Drag here to move song to bottom of movable queue
-                    </div>
-                  ) : null}
-                </>
-              )}
-            </QueueSection>
-          ) : null}
+                return (
+                  <QueueCard
+                    key={item.id}
+                    item={item}
+                    hit={hit}
+                    busyId={busyId}
+                    canMove={item.sourceType !== "INTERSTITIAL"}
+                    onMoveUp={() => moveQueuedItem(item.id, "up")}
+                    onMoveDown={() => moveQueuedItem(item.id, "down")}
+                    disableMoveUp={item.sourceType === "INTERSTITIAL" || songIndex <= 0}
+                    disableMoveDown={
+                      item.sourceType === "INTERSTITIAL" ||
+                      songIndex === -1 ||
+                      songIndex >= songQueue.length - 1
+                    }
+                  />
+                );
+              })
+            )}
+          </QueueSection>
 
-          {activeTab === "held" ? (
+          {sections.held.length > 0 ? (
             <QueueSection title={`HELD (${sections.held.length})`}>
-              {sections.held.length === 0 ? (
-                <EmptyState text="No held songs." />
-              ) : (
-                sections.held.map((item) => (
-                  <BoothCard key={item.id} item={item} tone="held" busyId={busyId} hit={hit} />
-                ))
-              )}
+              {sections.held.map((item) => (
+                <QueueCard
+                  key={item.id}
+                  item={item}
+                  hit={hit}
+                  busyId={busyId}
+                  tone="held"
+                  canMove={false}
+                  onMoveUp={() => {}}
+                  onMoveDown={() => {}}
+                />
+              ))}
             </QueueSection>
           ) : null}
 
-          {activeTab === "history" ? (
+          {sections.history.length > 0 ? (
             <QueueSection title={`RECENTLY FINISHED (${sections.history.length})`}>
-              {sections.history.length === 0 ? (
-                <EmptyState text="No recent history yet." />
-              ) : (
-                sections.history.map((item) => (
-                  <BoothCard key={item.id} item={item} tone="history" busyId={busyId} hit={hit} />
-                ))
-              )}
+              {sections.history.map((item) => (
+                <QueueCard
+                  key={item.id}
+                  item={item}
+                  hit={hit}
+                  busyId={busyId}
+                  tone="history"
+                  canMove={false}
+                  onMoveUp={() => {}}
+                  onMoveDown={() => {}}
+                />
+              ))}
             </QueueSection>
           ) : null}
         </div>
 
-        <div style={{ display: "grid", gap: 16 }}>
-          {activeTab === "search" ? (
-            <SearchPanel
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
+        {searchOpen ? (
+          <div style={{ display: "grid", gap: 20 }}>
+            <NextPlaybackActionPanel
+              nextPlaybackAction={nextPlaybackAction}
+              plannedAsset={plannedAsset}
+              plannedQueueItem={plannedQueueItem}
+            />
+            <SearchAddPanel
+              query={searchQuery}
+              setQuery={setSearchQuery}
+              busyId={busyId}
               searchBusy={searchBusy}
               searchError={searchError}
-              searchResults={searchResults}
-              addBusySongId={addBusySongId}
-              onAddSong={addSong}
+              results={searchResults}
+              addSong={addSong}
             />
-          ) : null}
-
-          {activeTab === "smart" || activeTab === "queue" ? (
-            <>
-              <NextPlaybackActionPanel
-                nextPlaybackAction={nextPlaybackAction}
-                plannedAsset={plannedAsset}
-                plannedQueueItem={plannedQueueItem}
-              />
-              <SmartInsertPanel smartInsert={smartInsert} />
-              <QueueRulesPanel />
-            </>
-          ) : null}
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 24 }}>
-        <TabButton active={activeTab === "queue"} onClick={() => setActiveTab("queue")} text="Queue" />
-        <TabButton active={activeTab === "held"} onClick={() => setActiveTab("held")} text="Held" />
-        <TabButton active={activeTab === "search"} onClick={() => setActiveTab("search")} text="Search & Add" />
-        <TabButton active={activeTab === "smart"} onClick={() => setActiveTab("smart")} text="Smart Insert" />
-        <TabButton active={activeTab === "history"} onClick={() => setActiveTab("history")} text="History" />
-      </div>
-    </div>
-  );
-}
-
-function ErrorBanner({ text }: { text: string }) {
-  return (
-    <div
-      style={{
-        marginTop: 16,
-        padding: 12,
-        border: "1px solid #663",
-        background: "#221",
-        borderRadius: 10,
-      }}
-    >
-      {text}
-    </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  text,
-}: {
-  active: boolean;
-  onClick: () => void;
-  text: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "10px 14px",
-        borderRadius: 10,
-        border: active ? "1px solid #3b82f6" : "1px solid #333",
-        background: active ? "#15233d" : "#0c0c0c",
-        color: "#fff",
-        fontWeight: 700,
-      }}
-    >
-      {text}
-    </button>
-  );
-}
-
-function SearchPanel({
-  searchTerm,
-  setSearchTerm,
-  searchBusy,
-  searchError,
-  searchResults,
-  addBusySongId,
-  onAddSong,
-}: {
-  searchTerm: string;
-  setSearchTerm: (value: string) => void;
-  searchBusy: boolean;
-  searchError: string;
-  searchResults: BoothSearchResult[];
-  addBusySongId: string | null;
-  onAddSong: (songId: string, mode: AddMode) => void;
-}) {
-  return (
-    <section
-      style={{
-        border: "1px solid #1f2a3d",
-        borderRadius: 16,
-        background: "#08111c",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          padding: "14px 16px",
-          borderBottom: "1px solid #1b2a3b",
-          fontWeight: 700,
-          fontSize: 18,
-        }}
-      >
-        Search & Add
-      </div>
-
-      <div style={{ padding: 16, display: "grid", gap: 12 }}>
-        <input
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search title or artist"
-          style={{
-            width: "100%",
-            padding: "12px 14px",
-            borderRadius: 10,
-            border: "1px solid #334155",
-            background: "#0b1624",
-            color: "#fff",
-            outline: "none",
-          }}
-        />
-
-        <div
-          style={{
-            padding: 12,
-            borderRadius: 10,
-            background: "#0d1f14",
-            border: "1px solid #284835",
-            fontSize: 13,
-            lineHeight: 1.45,
-            opacity: 0.92,
-          }}
-        >
-          Search stays staff-only. Add to Queue puts the song at the bottom. Play Next places it right after the active playing/loaded area. Add After Current places it right after the current live song.
-        </div>
-
-        {searchBusy ? <div style={{ opacity: 0.7 }}>Searching…</div> : null}
-        {searchError ? <div style={{ color: "#ffb4b4" }}>{searchError}</div> : null}
-        {!searchBusy && !searchError && searchTerm.trim() && searchResults.length === 0 ? (
-          <div style={{ opacity: 0.7 }}>No results.</div>
+            <SmartInsertPanel smartInsert={smartInsert} />
+            <QueueRulesPanel />
+          </div>
         ) : null}
-
-        <div style={{ display: "grid", gap: 10 }}>
-          {searchResults.map((result) => (
-            <div
-              key={result.id}
-              style={{
-                border: "1px solid #243244",
-                borderRadius: 12,
-                background: "#0b1624",
-                padding: 12,
-                display: "grid",
-                gap: 8,
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 700 }}>{result.title}</div>
-                  <div style={{ opacity: 0.88 }}>{result.artist}</div>
-                </div>
-                {result.explicit ? (
-                  <span style={{ fontSize: 12, padding: "4px 6px", borderRadius: 999, background: "#432", color: "#ffd3d3" }}>
-                    Explicit
-                  </span>
-                ) : null}
-              </div>
-
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {canShowBoothSearchActions(result) ? (
-                  <>
-                    <button disabled={addBusySongId === result.id} onClick={() => onAddSong(result.id, "BOTTOM")}>
-                      {addBusySongId === result.id ? "Adding..." : "Add to Queue"}
-                    </button>
-                    <button disabled={addBusySongId === result.id} onClick={() => onAddSong(result.id, "PLAY_NEXT")}>
-                      Play Next
-                    </button>
-                    <button disabled={addBusySongId === result.id} onClick={() => onAddSong(result.id, "AFTER_CURRENT")}>
-                      Add After Current
-                    </button>
-                  </>
-                ) : null}
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -770,141 +682,183 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
-function QueueReorderCard({
+function QueueCard({
   item,
-  busyId,
   hit,
-  reorderBusy,
+  busyId,
+  tone,
+  progressPercent,
+  remainingSec,
   canMove,
-  isDragging,
   onMoveUp,
   onMoveDown,
-  onDragStart,
-  onDragEnd,
-  onDrop,
+  disableMoveUp,
+  disableMoveDown,
 }: {
   item: BoothQueueItem;
+  hit: (endpoint: string, queueItemId: string) => Promise<void>;
   busyId: string | null;
-  hit: (endpoint: string, queueItemId: string) => void;
-  reorderBusy: boolean;
+  tone?: "playing" | "loaded" | "next" | "held" | "history";
+  progressPercent?: number | null;
+  remainingSec?: number | null;
   canMove: boolean;
-  isDragging: boolean;
   onMoveUp: () => void;
   onMoveDown: () => void;
-  onDragStart: () => void;
-  onDragEnd: () => void;
-  onDrop: () => void;
-}) {
-  return (
-    <div
-      draggable={canMove && !reorderBusy}
-      onDragStart={() => {
-        if (!canMove || reorderBusy) return;
-        onDragStart();
-      }}
-      onDragEnd={onDragEnd}
-      onDragOver={(e) => {
-        if (!canMove) return;
-        e.preventDefault();
-      }}
-      onDrop={(e) => {
-        if (!canMove) return;
-        e.preventDefault();
-        onDrop();
-      }}
-      style={{ opacity: isDragging ? 0.55 : 1 }}
-    >
-      <BoothCard item={item} tone="queued" busyId={busyId} hit={hit} />
-      {canMove ? (
-        <div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end" }}>
-          <button onClick={onMoveUp} disabled={reorderBusy}>↑ Move Up</button>
-          <button onClick={onMoveDown} disabled={reorderBusy}>↓ Move Down</button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function BoothCard({
-  item,
-  tone,
-  busyId,
-  hit,
-}: {
-  item: BoothQueueItem;
-  tone: "playing" | "loaded" | "queued" | "held" | "history";
-  busyId: string | null;
-  hit: (endpoint: string, queueItemId: string) => void;
+  disableMoveUp?: boolean;
+  disableMoveDown?: boolean;
 }) {
   const isBusy = busyId === item.id;
-  const cardTone =
-    tone === "playing"
-      ? { border: "#1f4f2a", background: "#07110a" }
-      : tone === "loaded"
-      ? { border: "#29456a", background: "#08101b" }
-      : tone === "held"
-      ? { border: "#6a5229", background: "#1a1208" }
-      : tone === "history"
-      ? { border: "#333", background: "#0a0a0a" }
-      : { border: "#2b2b2b", background: "#0b0b0b" };
+  const isInterstitial = item.sourceType === "INTERSTITIAL";
+  const duration = item.durationSec != null ? formatDuration(item.durationSec) : null;
+  const barPercent =
+    progressPercent != null ? progressPercent : item.progressPercent || 0;
+  const remainingLabel =
+    remainingSec != null
+      ? `Ending in ${formatDuration(remainingSec)}`
+      : item.remainingSec != null
+      ? `Ending in ${formatDuration(item.remainingSec)}`
+      : null;
 
-  const title = item.title || "Unknown Title";
-  const artist = item.artist || "Unknown Artist";
+  const palette =
+    tone === "playing"
+      ? { border: "#14532d", bg: "#03190d", badge: "#16a34a" }
+      : tone === "loaded"
+      ? { border: "#1d4ed8", bg: "#031328", badge: "#2563eb" }
+      : tone === "held"
+      ? { border: "#7c2d12", bg: "#211008", badge: "#c2410c" }
+      : tone === "history"
+      ? { border: "#3f3f46", bg: "#111114", badge: "#52525b" }
+      : isInterstitial
+      ? { border: "#6b21a8", bg: "#170726", badge: "#9333ea" }
+      : { border: "#2a2a2a", bg: "#0b0b0b", badge: "#3f3f46" };
 
   return (
     <div
       style={{
-        border: `1px solid ${cardTone.border}`,
-        background: cardTone.background,
-        borderRadius: 14,
-        padding: 14,
-        display: "grid",
-        gap: 10,
+        border: `1px solid ${palette.border}`,
+        background: palette.bg,
+        borderRadius: isInterstitial ? 12 : 16,
+        padding: isInterstitial ? "10px 14px" : 14,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr auto",
+          gap: 12,
+          alignItems: "start",
+        }}
+      >
         <div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>{title}</div>
-          <div style={{ opacity: 0.86 }}>{artist}</div>
+          <div
+            style={{
+              fontSize: isInterstitial ? 14 : 16,
+              fontWeight: 700,
+              lineHeight: 1.25,
+            }}
+          >
+            {item.title || (isInterstitial ? "Interstitial" : "Untitled")}
+          </div>
+          <div style={{ opacity: 0.9, marginTop: 2 }}>
+            {item.artist || (isInterstitial ? "System insert" : "Unknown artist")}
+          </div>
+          <div style={{ opacity: 0.75, marginTop: 8, fontSize: 13 }}>
+            Source: {item.sourceType}
+            {duration ? ` · ${duration}` : ""}
+          </div>
         </div>
 
-        <div style={{ display: "grid", gap: 6, justifyItems: "end" }}>
-          <StatusPill status={item.status} sourceType={item.sourceType} />
-          <div style={{ fontSize: 12, opacity: 0.7 }}>#{item.position}</div>
+        <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
+          <div
+            style={{
+              background: palette.badge,
+              borderRadius: 999,
+              padding: "4px 10px",
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            {item.status}
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.85 }}>#{item.position}</div>
         </div>
       </div>
 
-      <div style={{ fontSize: 13, opacity: 0.78 }}>
-        Source: {item.sourceType} {item.introAssigned ? "• Intro assigned" : ""}
-      </div>
+      {item.status === "PLAYING" ? (
+        <div style={{ marginTop: 12 }}>
+          <div
+            style={{
+              width: "100%",
+              height: 10,
+              borderRadius: 999,
+              background: "#1f2937",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${barPercent}%`,
+                height: "100%",
+                background: isInterstitial ? "#a855f7" : "#22c55e",
+                transition: "width 900ms linear",
+              }}
+            />
+          </div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div
+            style={{
+              marginTop: 8,
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              fontSize: 13,
+              opacity: 0.92,
+            }}
+          >
+            <div>
+              {item.isEndingSoon ? "Ending soon…" : "In progress"}
+            </div>
+            <div>{remainingLabel || "—"}</div>
+          </div>
+        </div>
+      ) : null}
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
         {item.status === "QUEUED" ? (
           <>
-            <button disabled={isBusy} onClick={() => hit("/api/booth/queue/mark-loaded", item.id)}>
+            <button
+              disabled={isBusy}
+              onClick={() => hit("/api/booth/queue/mark-loaded", item.id)}
+            >
               Load
             </button>
-            <button disabled={isBusy} onClick={() => hit("/api/booth/queue/mark-playing", item.id)}>
-              Play
-            </button>
-            <button disabled={isBusy} onClick={() => hit("/api/booth/queue/hold", item.id)}>
+            <button
+              disabled={isBusy}
+              onClick={() => hit("/api/booth/queue/hold", item.id)}
+            >
               Hold
-            </button>
-            <button disabled={isBusy} onClick={() => hit("/api/booth/queue/skip", item.id)}>
-              Skip
             </button>
           </>
         ) : null}
 
         {item.status === "LOADED" ? (
           <>
-            <button disabled={isBusy} onClick={() => hit("/api/booth/queue/mark-playing", item.id)}>
+            <button
+              disabled={isBusy}
+              onClick={() => hit("/api/booth/queue/mark-playing", item.id)}
+            >
               Play
             </button>
-            <button disabled={isBusy} onClick={() => hit("/api/booth/queue/return-to-queue", item.id)}>
+            <button
+              disabled={isBusy}
+              onClick={() => hit("/api/booth/queue/return-to-queue", item.id)}
+            >
               Return
             </button>
-            <button disabled={isBusy} onClick={() => hit("/api/booth/queue/hold", item.id)}>
+            <button
+              disabled={isBusy}
+              onClick={() => hit("/api/booth/queue/hold", item.id)}
+            >
               Hold
             </button>
           </>
@@ -912,57 +866,165 @@ function BoothCard({
 
         {item.status === "PLAYING" ? (
           <>
-            <button disabled={isBusy} onClick={() => hit("/api/booth/queue/mark-played", item.id)}>
+            <button
+              disabled={isBusy}
+              onClick={() => hit("/api/booth/queue/mark-played", item.id)}
+            >
               Mark Played
             </button>
-            <button disabled={isBusy} onClick={() => hit("/api/booth/queue/return-to-queue", item.id)}>
+            <button
+              disabled={isBusy}
+              onClick={() => hit("/api/booth/queue/return-to-queue", item.id)}
+            >
               Return
             </button>
-            <button disabled={isBusy} onClick={() => hit("/api/booth/queue/hold", item.id)}>
+            <button
+              disabled={isBusy}
+              onClick={() => hit("/api/booth/queue/hold", item.id)}
+            >
               Hold
             </button>
           </>
         ) : null}
 
         {item.status === "HELD" ? (
-          <button disabled={isBusy} onClick={() => hit("/api/booth/queue/return-to-queue", item.id)}>
+          <button
+            disabled={isBusy}
+            onClick={() => hit("/api/booth/queue/return-to-queue", item.id)}
+          >
             Return to Queue
           </button>
+        ) : null}
+
+        {canMove ? (
+          <>
+            <button disabled={!!disableMoveUp || isBusy} onClick={onMoveUp}>
+              Move Up
+            </button>
+            <button disabled={!!disableMoveDown || isBusy} onClick={onMoveDown}>
+              Move Down
+            </button>
+          </>
         ) : null}
       </div>
     </div>
   );
 }
 
-function StatusPill({ status, sourceType }: { status: string; sourceType: string }) {
-  const background =
-    status === "PLAYING"
-      ? "#1b5e20"
-      : status === "LOADED"
-      ? "#0d47a1"
-      : status === "HELD"
-      ? "#8d6e00"
-      : status === "PLAYED" || status === "SKIPPED"
-      ? "#444"
-      : sourceType === "INTERSTITIAL"
-      ? "#4a148c"
-      : "#333";
-
+function SearchAddPanel({
+  query,
+  setQuery,
+  busyId,
+  searchBusy,
+  searchError,
+  results,
+  addSong,
+}: {
+  query: string;
+  setQuery: (next: string) => void;
+  busyId: string | null;
+  searchBusy: boolean;
+  searchError: string;
+  results: SearchResult[];
+  addSong: (
+    mode: "ADD_TO_QUEUE" | "PLAY_NEXT" | "ADD_AFTER_CURRENT",
+    songId: string
+  ) => Promise<void>;
+}) {
   return (
-    <span
+    <section
       style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "5px 9px",
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 700,
-        background,
+        border: "1px solid #183153",
+        borderRadius: 16,
+        background: "#06101c",
+        overflow: "hidden",
       }}
     >
-      {status}
-    </span>
+      <div
+        style={{
+          padding: "14px 16px",
+          borderBottom: "1px solid #1c2f48",
+          fontWeight: 700,
+          fontSize: 18,
+        }}
+      >
+        Search & Add
+      </div>
+
+      <div style={{ padding: 16, display: "grid", gap: 12 }}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search title or artist"
+          style={{
+            width: "100%",
+            borderRadius: 10,
+            border: "1px solid #29425f",
+            background: "#08192d",
+            color: "#fff",
+            padding: "12px 14px",
+          }}
+        />
+
+        <div
+          style={{
+            padding: 12,
+            borderRadius: 12,
+            background: "#0b2a15",
+            border: "1px solid #1f6f3e",
+            fontSize: 13,
+            lineHeight: 1.5,
+            color: "#d6fbe3",
+          }}
+        >
+          Search stays staff-only. Add to Queue puts the song at the bottom. Play Next places
+          it right after the active playing/loaded area. Add After Current places it right after
+          the current live song.
+        </div>
+
+        {searchBusy ? <div>Searching…</div> : null}
+        {searchError ? <div style={{ color: "#fca5a5" }}>{searchError}</div> : null}
+
+        <div style={{ display: "grid", gap: 10 }}>
+          {results.map((song) => {
+            const rowBusy = busyId === `search:${song.id}`;
+            return (
+              <div
+                key={song.id}
+                style={{
+                  border: "1px solid #20334d",
+                  borderRadius: 12,
+                  padding: 12,
+                  display: "grid",
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 700 }}>{song.title}</div>
+                  <div style={{ opacity: 0.82 }}>{song.artist}</div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button disabled={rowBusy} onClick={() => addSong("ADD_TO_QUEUE", song.id)}>
+                    Add to Queue
+                  </button>
+                  <button disabled={rowBusy} onClick={() => addSong("PLAY_NEXT", song.id)}>
+                    Play Next
+                  </button>
+                  <button disabled={rowBusy} onClick={() => addSong("ADD_AFTER_CURRENT", song.id)}>
+                    Add After Current
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {!searchBusy && !searchError && query.trim() && results.length === 0 ? (
+            <div style={{ opacity: 0.72 }}>No songs found.</div>
+          ) : null}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -991,7 +1053,14 @@ function NextPlaybackActionPanel({
         overflow: "hidden",
       }}
     >
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid #1a2f22", fontWeight: 700, fontSize: 18 }}>
+      <div
+        style={{
+          padding: "14px 16px",
+          borderBottom: "1px solid #1a2f22",
+          fontWeight: 700,
+          fontSize: 18,
+        }}
+      >
         Next Playback Action
       </div>
 
@@ -1004,8 +1073,8 @@ function NextPlaybackActionPanel({
           <>
             <PlanningRow label="Planned interstitial" value={plannedAsset.name} />
             <PlanningRow label="Category" value={plannedAsset.category} />
-            <PlanningRow label="Duration" value={`${plannedAsset.durationSec ?? 0} sec`} />
-            <PlanningRow label="File" value={(plannedAsset as any).filePath || (plannedAsset as any).fileUrl || "—"} />
+            <PlanningRow label="Duration" value={`${plannedAsset.durationSec} sec`} />
+            <PlanningRow label="File" value={plannedAsset.filePath || "—"} />
           </>
         ) : (
           <PlanningRow label="Planned interstitial" value="None" />
@@ -1031,17 +1100,22 @@ function SmartInsertPanel({ smartInsert }: { smartInsert: any }) {
         overflow: "hidden",
       }}
     >
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid #1b2a3b", fontWeight: 700, fontSize: 18 }}>
+      <div
+        style={{
+          padding: "14px 16px",
+          borderBottom: "1px solid #1b2a3b",
+          fontWeight: 700,
+          fontSize: 18,
+        }}
+      >
         Smart Insert Planning
       </div>
 
       <div style={{ padding: 16, display: "grid", gap: 12 }}>
         <PlanningRow label="Next playable" value={formatTrackLabel(smartInsert.nextPlayable)} />
         <PlanningRow label="Current playable" value={formatTrackLabel(smartInsert.currentPlayable)} />
-        <PlanningRow label="Queue depth" value={String(smartInsert.queueDepth)} />
-        <PlanningRow label="Upcoming request count" value={String(smartInsert.consecutiveRequestCount)} />
-        <PlanningRow label="Planning mode" value={requestMode} valueTone={smartInsert.requestClusterDetected ? "#7ee787" : smartInsert.singleRequestDetected ? "#79c0ff" : "#d2d2d2"} />
-        <PlanningRow label="Intro already assigned" value={smartInsert.introAlreadyAssigned ? "Yes" : "No"} />
+        <PlanningRow label="Request mode" value={requestMode} />
+        <PlanningRow label="Queued requests" value={String(smartInsert.requestCount || 0)} />
       </div>
     </section>
   );
@@ -1051,20 +1125,27 @@ function QueueRulesPanel() {
   return (
     <section
       style={{
-        border: "1px solid #2d2d2d",
+        border: "1px solid #2a2a2a",
         borderRadius: 16,
         background: "#090909",
         overflow: "hidden",
       }}
     >
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid #202020", fontWeight: 700, fontSize: 18 }}>
-        Booth Notes
+      <div
+        style={{
+          padding: "14px 16px",
+          borderBottom: "1px solid #1f1f1f",
+          fontWeight: 700,
+          fontSize: 18,
+        }}
+      >
+        Queue Rules
       </div>
-      <div style={{ padding: 16, display: "grid", gap: 10, fontSize: 14, lineHeight: 1.5, opacity: 0.9 }}>
-        <div>• Staff can search and add songs directly from the booth.</div>
-        <div>• Drag/drop and move buttons only reorder queued song rows.</div>
-        <div>• Interstitial timing remains backend-managed.</div>
-        <div>• Search actions create queue-safe booth items without changing the public request flow.</div>
+
+      <div style={{ padding: 16, display: "grid", gap: 10, opacity: 0.88, lineHeight: 1.5 }}>
+        <div>• Songs can be searched, added, and reordered by staff.</div>
+        <div>• Interstitial rows are backend-managed and stay locked in place.</div>
+        <div>• Runtime inserts are created as real queue rows before the target song.</div>
       </div>
     </section>
   );
@@ -1081,7 +1162,7 @@ function PlanningRow({
 }) {
   return (
     <div style={{ display: "grid", gap: 4 }}>
-      <div style={{ fontSize: 12, opacity: 0.68, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ textTransform: "uppercase", fontSize: 12, opacity: 0.65 }}>{label}</div>
       <div style={{ fontWeight: 700, color: valueTone || "#fff" }}>{value}</div>
     </div>
   );
@@ -1089,10 +1170,17 @@ function PlanningRow({
 
 function formatTrackLabel(item: BoothQueueItem | null | undefined) {
   if (!item) return "None";
-  return `${item.title || "Unknown Title"} — ${item.artist || "Unknown Artist"}`;
+  return `${item.title || "Untitled"} — ${item.artist || "Unknown artist"}`;
 }
 
-function formatReason(value: string | null | undefined) {
-  if (!value) return "—";
-  return String(value).replaceAll("_", " ");
+function formatReason(reason: string | null | undefined) {
+  if (!reason) return "—";
+  return reason.replaceAll("_", " ");
+}
+
+function formatDuration(totalSec: number) {
+  const safe = Math.max(0, Math.floor(totalSec));
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }

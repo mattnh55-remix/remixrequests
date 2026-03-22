@@ -1,88 +1,69 @@
+// BOOTH QUEUE MARK-PLAYED ROUTE
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 
 export async function POST(req: Request) {
   if (!isAdminFromCookie(req.headers.get("cookie"))) {
-    return NextResponse.json({ ok: false }, { status: 401 });
-  }
-
-  const { queueItemId } = await req.json();
-
-  if (!queueItemId) {
-    return NextResponse.json({ ok: false, error: "Missing queueItemId" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const now = new Date();
+    const body = await req.json();
+    const queueItemId = String(body.queueItemId || "").trim();
 
-      const item = await tx.queueItem.findUnique({
-        where: { id: queueItemId },
-        include: {
-          request: {
-            include: {
-              song: true,
-            },
-          },
-        },
-      });
+    if (!queueItemId) {
+      return NextResponse.json(
+        { ok: false, error: "Missing queueItemId." },
+        { status: 400 }
+      );
+    }
 
-      if (!item) {
-        throw new Error("NOT_FOUND");
-      }
+    const item = await prisma.queueItem.findUnique({
+      where: { id: queueItemId },
+      select: {
+        id: true,
+        locationId: true,
+        sourceType: true,
+      },
+    });
 
-      await tx.queueItem.update({
+    if (!item) {
+      return NextResponse.json(
+        { ok: false, error: "Queue item not found." },
+        { status: 404 }
+      );
+    }
+
+    const completedAt = new Date();
+
+    await prisma.$transaction([
+      prisma.queueItem.update({
         where: { id: queueItemId },
         data: {
           status: "PLAYED",
-          completedAt: now,
-          expectedEndAt: null,
+          completedAt,
         },
-      });
-
-      await tx.playbackEvent.create({
+      }),
+      prisma.playbackEvent.create({
         data: {
           locationId: item.locationId,
           queueItemId: item.id,
           type: "PLAYED",
           metadata: {
-            queueItemId: item.id,
-            requestId: item.requestId,
-            source: "booth_mark_played",
-            durationSec: item.durationSec,
-            startedAt: item.playingAt?.toISOString() ?? null,
+            sourceType: item.sourceType,
           },
         },
-      });
-
-      if (item.request) {
-        await tx.request.update({
-          where: { id: item.request.id },
-          data: {
-            status: "PLAYED",
-            playedAt: now,
-          },
-        });
-
-        await tx.playHistory.create({
-          data: {
-            locationId: item.request.locationId,
-            songId: item.request.songId,
-            artistKey: item.request.song.artistKey,
-            playedAt: now,
-          },
-        });
-      }
-    });
+      }),
+    ]);
 
     return NextResponse.json({ ok: true });
-  } catch (error: any) {
-    if (error?.message === "NOT_FOUND") {
-      return NextResponse.json({ ok: false, error: "Queue item not found" }, { status: 404 });
-    }
-
-    console.error("booth mark-played error", error);
-    return NextResponse.json({ ok: false, error: "Could not mark queue item played." }, { status: 500 });
+  } catch (error) {
+    console.error("mark-played error", error);
+    return NextResponse.json(
+      { ok: false, error: "Could not mark item played." },
+      { status: 500 }
+    );
   }
 }

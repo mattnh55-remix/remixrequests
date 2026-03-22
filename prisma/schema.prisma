@@ -42,6 +42,7 @@ model Song {
   artworkUrl String?
   explicit   Boolean  @default(false)
   tags       String[] @default([])
+  durationSec Int?
 
   createdAt    DateTime      @default(now())
   Request      Request[]
@@ -246,13 +247,12 @@ model QueueItem {
   introAssigned Boolean         @default(false)
   clusterId     String?
 
+  loadedAt      DateTime?
+  playingAt     DateTime?
   durationSec   Int?
   expectedEndAt DateTime?
-
-  loadedAt    DateTime?
-  playingAt   DateTime?
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
 
   playbackEvents PlaybackEvent[]
 

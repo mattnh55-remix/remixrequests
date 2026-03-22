@@ -1,114 +1,102 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
-import { computeExpectedEndAt, normalizeDurationSec } from "@/lib/booth/queue-runtime";
+import { computeExpectedEndAt } from "@/lib/booth/queue-runtime";
+
+function parseInterstitialAssetId(clusterId: string | null | undefined) {
+  if (!clusterId) return null;
+
+  const prefix = "interstitial:";
+  if (!clusterId.startsWith(prefix)) return null;
+
+  const assetId = clusterId.slice(prefix.length).trim();
+  return assetId || null;
+}
 
 export async function POST(req: Request) {
   if (!isAdminFromCookie(req.headers.get("cookie"))) {
-    return NextResponse.json({ ok: false }, { status: 401 });
-  }
-
-  const body = await req.json();
-  const queueItemId = body.queueItemId;
-  const incomingDurationSec = normalizeDurationSec(body.durationSec);
-
-  if (!queueItemId) {
-    return NextResponse.json(
-      { ok: false, error: "Missing queueItemId" },
-      { status: 400 }
-    );
+    return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const now = new Date();
+    const body = await req.json();
+    const queueItemId = String(body.queueItemId || "").trim();
 
-      const item = await tx.queueItem.findUnique({
+    if (!queueItemId) {
+      return NextResponse.json(
+        { ok: false, error: "Missing queueItemId." },
+        { status: 400 }
+      );
+    }
+
+    const item = await prisma.queueItem.findUnique({
+      where: { id: queueItemId },
+      include: {
+        request: {
+          include: {
+            song: {
+              select: {
+                durationSec: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!item) {
+      return NextResponse.json(
+        { ok: false, error: "Queue item not found." },
+        { status: 404 }
+      );
+    }
+
+    const assetId = parseInterstitialAssetId(item.clusterId);
+    const asset =
+      item.sourceType === "INTERSTITIAL" && assetId
+        ? await prisma.interstitialAsset.findUnique({
+            where: { id: assetId },
+            select: { durationSec: true },
+          })
+        : null;
+
+    const durationSec =
+      item.durationSec ?? asset?.durationSec ?? item.request?.song?.durationSec ?? null;
+
+    const startedAt = new Date();
+    const expectedEndAt = computeExpectedEndAt(startedAt, durationSec);
+
+    await prisma.$transaction([
+      prisma.queueItem.update({
         where: { id: queueItemId },
-      });
-
-      if (!item) {
-        throw new Error("NOT_FOUND");
-      }
-
-      if (item.status === "PLAYED" || item.status === "SKIPPED") {
-        throw new Error("INVALID_STATE");
-      }
-
-      await tx.queueItem.updateMany({
-        where: {
-          locationId: item.locationId,
-          status: "PLAYING",
-          NOT: { id: item.id },
-        },
-        data: {
-          status: "QUEUED",
-          playingAt: null,
-          expectedEndAt: null,
-        },
-      });
-
-      await tx.queueItem.updateMany({
-        where: {
-          locationId: item.locationId,
-          status: "LOADED",
-          NOT: { id: item.id },
-        },
-        data: {
-          status: "QUEUED",
-          loadedAt: null,
-        },
-      });
-
-      const durationSec = incomingDurationSec ?? item.durationSec ?? null;
-      const expectedEndAt = computeExpectedEndAt(now, durationSec);
-
-      await tx.queueItem.update({
-        where: { id: item.id },
         data: {
           status: "PLAYING",
-          playingAt: now,
-          loadedAt: item.loadedAt ?? now,
+          loadedAt: item.loadedAt ?? startedAt,
+          playingAt: startedAt,
           durationSec,
           expectedEndAt,
+          completedAt: null,
         },
-      });
-
-      await tx.playbackEvent.create({
+      }),
+      prisma.playbackEvent.create({
         data: {
           locationId: item.locationId,
           queueItemId: item.id,
           type: "PLAYING",
           metadata: {
-            queueItemId: item.id,
-            requestId: item.requestId,
-            source: "booth_mark_playing",
+            sourceType: item.sourceType,
             durationSec,
             expectedEndAt: expectedEndAt?.toISOString() ?? null,
           },
         },
-      });
-    });
+      }),
+    ]);
 
     return NextResponse.json({ ok: true });
-  } catch (error: any) {
-    if (error?.message === "NOT_FOUND") {
-      return NextResponse.json(
-        { ok: false, error: "Queue item not found" },
-        { status: 404 }
-      );
-    }
-
-    if (error?.message === "INVALID_STATE") {
-      return NextResponse.json(
-        { ok: false, error: "Played or skipped items cannot be marked playing." },
-        { status: 400 }
-      );
-    }
-
-    console.error("booth mark-playing error", error);
+  } catch (error) {
+    console.error("mark-playing error", error);
     return NextResponse.json(
-      { ok: false, error: "Could not mark queue item playing." },
+      { ok: false, error: "Could not mark item playing." },
       { status: 500 }
     );
   }
