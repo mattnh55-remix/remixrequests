@@ -568,6 +568,66 @@ export default function BoothLayout({ location }: { location: string }) {
         .queueMetaMinor {
           opacity: 0.7;
         }
+
+        .queueRow--interstitial {
+          position: relative;
+          border-color: rgba(255, 191, 89, 0.24);
+          background:
+            linear-gradient(90deg, rgba(255, 185, 68, 0.13) 0%, rgba(255, 185, 68, 0.05) 14%, rgba(255,255,255,0.02) 14.1%, rgba(255,255,255,0.015) 100%),
+            linear-gradient(180deg, rgba(44, 38, 29, 0.96), rgba(18, 19, 26, 0.96));
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.04),
+            inset 0 -1px 0 rgba(0,0,0,0.32),
+            0 0 0 1px rgba(255,185,68,0.04);
+        }
+        .queueRow--interstitial::before {
+          content: "";
+          position: absolute;
+          inset: 0 auto 0 0;
+          width: 4px;
+          border-radius: 5px 0 0 5px;
+          background: linear-gradient(180deg, rgba(255, 210, 122, 0.95), rgba(216, 132, 38, 0.95));
+          box-shadow: 0 0 10px rgba(255, 187, 77, 0.32);
+        }
+        .queueIndex--interstitial {
+          border-color: rgba(255, 214, 139, 0.18);
+          background: linear-gradient(180deg, rgba(78, 62, 28, 0.52), rgba(39, 28, 13, 0.55));
+          color: #ffe2ad;
+        }
+        .queueText--interstitial {
+          display: grid;
+          gap: 3px;
+        }
+        .queueTitleLine--interstitial {
+          gap: 6px;
+          align-items: center;
+        }
+        .interstitialEyebrow {
+          display: inline-flex;
+          align-items: center;
+          padding: 2px 6px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 214, 139, 0.22);
+          background: rgba(255, 194, 94, 0.08);
+          color: rgba(255, 224, 168, 0.86);
+          font-size: 9px;
+          font-weight: 1000;
+          letter-spacing: 1.45px;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+        .queueTitle--interstitial {
+          font-style: italic;
+          letter-spacing: 0.1px;
+          color: #fff4de;
+          text-shadow: 0 1px 0 rgba(0,0,0,0.28);
+        }
+        .queueMeta--interstitial {
+          color: rgba(255, 233, 196, 0.74);
+        }
+        .interstitialContext {
+          color: rgba(255, 241, 214, 0.94);
+        }
         .queueMetaStrong {
           color: rgba(255,255,255,0.9);
         }

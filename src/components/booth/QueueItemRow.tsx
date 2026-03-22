@@ -1,6 +1,7 @@
 "use client";
 
 import BoothActionButtons from "./BoothActionButtons";
+import InterstitialRow from "./InterstitialRow";
 import StatusBadge from "./StatusBadge";
 import {
   getAllowedActions,
@@ -22,7 +23,15 @@ type QueueItemRowProps = {
   onDone?: (queueItemId: string) => void | Promise<void>;
 };
 
-export default function QueueItemRow({ item, busyAction, onLoad, onPlay, onPause, onSkip, onDone }: QueueItemRowProps) {
+export default function QueueItemRow({
+  item,
+  busyAction,
+  onLoad,
+  onPlay,
+  onPause,
+  onSkip,
+  onDone,
+}: QueueItemRowProps) {
   const isSystem = isInterstitial(item);
   const isHouse = item.sourceType === "HOUSE";
   const isRequest = isRequestLike(item) && !isSystem && !isHouse;
@@ -37,8 +46,24 @@ export default function QueueItemRow({ item, busyAction, onLoad, onPlay, onPause
     if (action === "done") return void onDone?.(item.id);
   }
 
+  if (isSystem) {
+    return (
+      <InterstitialRow
+        item={item}
+        busyAction={busyAction}
+        onLoad={onLoad}
+        onPlay={onPlay}
+        onPause={onPause}
+        onSkip={onSkip}
+        onDone={onDone}
+      />
+    );
+  }
+
   return (
-    <div className={`queueRow queueRow--dense ${isRequest ? "queueRow--request" : ""} ${isBoosted ? "queueRow--boosted" : ""}`}>
+    <div
+      className={`queueRow queueRow--dense ${isRequest ? "queueRow--request" : ""} ${isBoosted ? "queueRow--boosted" : ""}`}
+    >
       <div className="queueIndex">{item.position ?? "—"}</div>
 
       <div className="queueText">
@@ -46,11 +71,10 @@ export default function QueueItemRow({ item, busyAction, onLoad, onPlay, onPause
           <div className="queueTitle">{item.title || "Untitled"}</div>
           {isBoosted ? <StatusBadge label="BOOSTED" tone="boost" /> : null}
           {isRequest ? <StatusBadge label="REQUEST" tone="alert" /> : null}
-          {isSystem ? (
-            <StatusBadge label="SYSTEM" tone="pink" />
-          ) : (
-            <StatusBadge label={String(item.status || "QUEUED")} tone={getStatusTone(item.status)} />
-          )}
+          <StatusBadge
+            label={String(item.status || "QUEUED")}
+            tone={getStatusTone(item.status)}
+          />
         </div>
 
         <div className="queueMeta">
@@ -60,12 +84,19 @@ export default function QueueItemRow({ item, busyAction, onLoad, onPlay, onPause
           {typeof item.upvotes === "number" ? <span> • 👍 {item.upvotes}</span> : null}
           {typeof item.downvotes === "number" ? <span> • 👎 {item.downvotes}</span> : null}
           {typeof item.score === "number" ? <span> • Score {item.score}</span> : null}
-          {item.redemptionCode ? <span className="queueMetaMinor"> • Code {item.redemptionCode}</span> : null}
+          {item.redemptionCode ? (
+            <span className="queueMetaMinor"> • Code {item.redemptionCode}</span>
+          ) : null}
         </div>
       </div>
 
       <div className="queueActions">
-        <BoothActionButtons actions={actions} busyAction={busyAction} onAction={handleAction} compact />
+        <BoothActionButtons
+          actions={actions}
+          busyAction={busyAction}
+          onAction={handleAction}
+          compact
+        />
       </div>
     </div>
   );
