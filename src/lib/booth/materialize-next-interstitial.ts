@@ -35,15 +35,17 @@ type MaterializeNextInterstitialResult =
       insertedPosition: number;
     };
 
-function mapRulesForPlanner(rules: {
-  requestClusterThreshold?: number | null;
-  requestLookaheadWindow?: number | null;
-  singleRequestIntroEnabled?: boolean | null;
-  blockRequestIntroEnabled?: boolean | null;
-  brandingDropMinSongsApart?: number | null;
-  hourlyRulesEnabled?: boolean | null;
-  maxInsertsPer15Min?: number | null;
-} | null) {
+function mapRulesForPlanner(
+  rules: {
+    requestClusterThreshold?: number | null;
+    requestLookaheadWindow?: number | null;
+    singleRequestIntroEnabled?: boolean | null;
+    blockRequestIntroEnabled?: boolean | null;
+    brandingDropMinSongsApart?: number | null;
+    hourlyRulesEnabled?: boolean | null;
+    maxInsertsPer15Min?: number | null;
+  } | null
+) {
   return {
     requestClusterThreshold: rules?.requestClusterThreshold ?? undefined,
     lookaheadWindow: rules?.requestLookaheadWindow ?? undefined,
@@ -153,11 +155,18 @@ export async function materializeNextInterstitial(
 
   const inserted = await prisma.$transaction(async (tx) => {
     const liveQueue = await tx.queueItem.findMany({
-      where: { locationId, sessionId },
+      where: {
+        locationId,
+        sessionId,
+        status: {
+          in: ["QUEUED", "LOADED", "PLAYING", "HELD"],
+        },
+      },
       orderBy: { position: "asc" },
       select: {
         id: true,
         position: true,
+        status: true,
         sourceType: true,
         clusterId: true,
       },
@@ -166,6 +175,17 @@ export async function materializeNextInterstitial(
     const liveTarget = liveQueue.find((item) => item.id === action.queueItemId);
     if (!liveTarget) {
       return { kind: "TARGET_NOT_FOUND" as const };
+    }
+
+    const alreadyExistsAnywhere = liveQueue.some(
+      (item) =>
+        item.sourceType === "INTERSTITIAL" &&
+        item.clusterId === clusterId &&
+        item.id !== liveTarget.id
+    );
+
+    if (alreadyExistsAnywhere) {
+      return { kind: "DUPLICATE_ALREADY_PRESENT" as const };
     }
 
     const previousItem = liveQueue.find((item) => item.position === liveTarget.position - 1);
@@ -182,6 +202,9 @@ export async function materializeNextInterstitial(
         locationId,
         sessionId,
         position: { gte: liveTarget.position },
+        status: {
+          in: ["QUEUED", "LOADED", "PLAYING", "HELD"],
+        },
       },
       data: {
         position: { increment: 1 },

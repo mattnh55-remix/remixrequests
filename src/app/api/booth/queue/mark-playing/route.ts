@@ -73,54 +73,52 @@ export async function POST(req: Request) {
     const startedAt = new Date();
     const expectedEndAt = computeExpectedEndAt(startedAt, durationSec);
 
-await prisma.$transaction([
-  prisma.queueItem.update({
-    where: { id: item.id },
-    data: {
-      status: "PLAYING",
-      loadedAt: item.loadedAt ?? startedAt,
-      playingAt: startedAt,
-      durationSec,
-      expectedEndAt,
-      completedAt: null,
-    },
-  }),
+    await prisma.$transaction([
+      prisma.queueItem.update({
+        where: { id: item.id },
+        data: {
+          status: "PLAYING",
+          loadedAt: item.loadedAt ?? startedAt,
+          playingAt: startedAt,
+          durationSec,
+          expectedEndAt,
+          completedAt: null,
+        },
+      }),
 
-  prisma.playbackEvent.create({
-    data: {
-      locationId: item.locationId,
-      queueItemId: item.id,
-      type: "PLAYING",
-      metadata: {
-        sourceType: item.sourceType,
-        clusterId: item.clusterId ?? null,
-        durationSec,
-        expectedEndAt: expectedEndAt?.toISOString() ?? null,
-        interstitialAssetId: asset?.id ?? null,
-        sessionId: item.sessionId,
-      },
-    },
-  }),
-
-  ...(item.sourceType === "INTERSTITIAL" && assetId
-    ? [
-        prisma.interstitialEvent.updateMany({
-          where: {
-            locationId: item.locationId,
+      prisma.playbackEvent.create({
+        data: {
+          locationId: item.locationId,
+          queueItemId: item.id,
+          type: "PLAYING",
+          metadata: {
+            sourceType: item.sourceType,
+            clusterId: item.clusterId ?? null,
+            durationSec,
+            expectedEndAt: expectedEndAt?.toISOString() ?? null,
+            interstitialAssetId: asset?.id ?? null,
             sessionId: item.sessionId,
-            assetId,
-            status: "PLANNED",
           },
-          data: {
-            status: "PLAYED",
-            playedAt: startedAt,
-          },
-        }),
-      ]
-    : []),
-]);
+        },
+      }),
 
-
+      ...(item.sourceType === "INTERSTITIAL" && assetId
+        ? [
+            prisma.interstitialEvent.updateMany({
+              where: {
+                locationId: item.locationId,
+                sessionId: item.sessionId,
+                assetId,
+                status: "PLANNED",
+              },
+              data: {
+                status: "PLAYED",
+                playedAt: startedAt,
+              },
+            }),
+          ]
+        : []),
+    ]);
 
     return NextResponse.json({
       ok: true,

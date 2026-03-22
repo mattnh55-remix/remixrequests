@@ -51,6 +51,7 @@ export async function POST(req: Request) {
         data: {
           status: "PLAYED",
           completedAt,
+          expectedEndAt: null,
         },
       }),
 
