@@ -1,12 +1,13 @@
-// BOOTH QUEUE MARK-PLAYED ROUTE
-
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 
 export async function POST(req: Request) {
   if (!isAdminFromCookie(req.headers.get("cookie"))) {
-    return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: "Unauthorized." },
+      { status: 401 }
+    );
   }
 
   try {
@@ -25,7 +26,13 @@ export async function POST(req: Request) {
       select: {
         id: true,
         locationId: true,
+        sessionId: true,
+        status: true,
         sourceType: true,
+        clusterId: true,
+        loadedAt: true,
+        playingAt: true,
+        completedAt: true,
       },
     });
 
@@ -40,14 +47,13 @@ export async function POST(req: Request) {
 
     await prisma.$transaction([
       prisma.queueItem.update({
-        where: { id: queueItemId },
-data: {
-  status: "PLAYED",
-  completedAt,
-  playingAt: null,
-  expectedEndAt: null,
-},
+        where: { id: item.id },
+        data: {
+          status: "PLAYED",
+          completedAt,
+        },
       }),
+
       prisma.playbackEvent.create({
         data: {
           locationId: item.locationId,
@@ -55,14 +61,25 @@ data: {
           type: "PLAYED",
           metadata: {
             sourceType: item.sourceType,
+            clusterId: item.clusterId ?? null,
+            sessionId: item.sessionId,
+            loadedAt: item.loadedAt?.toISOString() ?? null,
+            playingAt: item.playingAt?.toISOString() ?? null,
+            completedAt: completedAt.toISOString(),
           },
         },
       }),
     ]);
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      queueItemId: item.id,
+      status: "PLAYED",
+      completedAt: completedAt.toISOString(),
+    });
   } catch (error) {
     console.error("mark-played error", error);
+
     return NextResponse.json(
       { ok: false, error: "Could not mark item played." },
       { status: 500 }

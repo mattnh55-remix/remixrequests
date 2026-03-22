@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 import { getRulesForLocation } from "@/lib/rules";
 import { getOrCreateCurrentSession } from "@/lib/validators";
+import { materializeNextInterstitial } from "@/lib/booth/materialize-next-interstitial";
 
 export async function POST(
   req: Request,
@@ -27,15 +28,19 @@ export async function POST(
     const { loc } = await getRulesForLocation(locationSlug);
     const session = await getOrCreateCurrentSession(loc.id, 4);
 
+    const result = await materializeNextInterstitial({
+      locationId: loc.id,
+      sessionId: session.id,
+      profile: "GENERAL",
+    });
+
     return NextResponse.json({
-      ok: true,
-      materialized: false,
-      reason: "Materialization temporarily disabled pending hotfix.",
+      ...result,
       sessionId: session.id,
       locationId: loc.id,
     });
   } catch (error) {
-    console.error("materialize-next noop error", error);
+    console.error("materialize-next error", error);
     return NextResponse.json(
       { ok: false, error: "Could not process materialization request." },
       { status: 500 }

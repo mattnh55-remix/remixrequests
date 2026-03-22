@@ -1,23 +1,19 @@
-// /src/app/api/booth/queue/mark-playing/route.ts
-
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 import { isAdminFromCookie } from "@/lib/adminAuth";
-import { computeExpectedEndAt } from "@/lib/booth/queue-runtime";
+import { parseInterstitialAssetId } from "@/lib/booth/runtime-queue";
 
-function parseInterstitialAssetId(clusterId: string | null | undefined) {
-  if (!clusterId) return null;
-
-  const prefix = "interstitial:";
-  if (!clusterId.startsWith(prefix)) return null;
-
-  const assetId = clusterId.slice(prefix.length).trim();
-  return assetId || null;
+function computeExpectedEndAt(startedAt: Date, durationSec: number | null) {
+  if (!durationSec || durationSec <= 0) return null;
+  return new Date(startedAt.getTime() + durationSec * 1000);
 }
 
 export async function POST(req: Request) {
   if (!isAdminFromCookie(req.headers.get("cookie"))) {
-    return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: "Unauthorized." },
+      { status: 401 }
+    );
   }
 
   try {
@@ -53,49 +49,90 @@ export async function POST(req: Request) {
       );
     }
 
-    const assetId = parseInterstitialAssetId(item.clusterId);
+    const assetId =
+      item.sourceType === "INTERSTITIAL"
+        ? parseInterstitialAssetId(item.clusterId)
+        : null;
+
     const asset =
       item.sourceType === "INTERSTITIAL" && assetId
         ? await prisma.interstitialAsset.findUnique({
             where: { id: assetId },
-            select: { durationSec: true },
+            select: {
+              id: true,
+              durationSec: true,
+            },
           })
         : null;
 
-    const durationSec = item.durationSec ?? null;
+    const durationSec =
+      item.sourceType === "INTERSTITIAL"
+        ? (asset?.durationSec ?? item.durationSec ?? null)
+        : (item.durationSec ?? item.request?.song?.durationSec ?? null);
 
     const startedAt = new Date();
     const expectedEndAt = computeExpectedEndAt(startedAt, durationSec);
 
-    await prisma.$transaction([
-      prisma.queueItem.update({
-        where: { id: queueItemId },
-        data: {
-          status: "PLAYING",
-          loadedAt: item.loadedAt ?? startedAt,
-          playingAt: startedAt,
-          durationSec,
-          expectedEndAt,
-          completedAt: null,
-        },
-      }),
-      prisma.playbackEvent.create({
-        data: {
-          locationId: item.locationId,
-          queueItemId: item.id,
-          type: "PLAYING",
-          metadata: {
-            sourceType: item.sourceType,
-            durationSec,
-            expectedEndAt: expectedEndAt?.toISOString() ?? null,
-          },
-        },
-      }),
-    ]);
+await prisma.$transaction([
+  prisma.queueItem.update({
+    where: { id: item.id },
+    data: {
+      status: "PLAYING",
+      loadedAt: item.loadedAt ?? startedAt,
+      playingAt: startedAt,
+      durationSec,
+      expectedEndAt,
+      completedAt: null,
+    },
+  }),
 
-    return NextResponse.json({ ok: true });
+  prisma.playbackEvent.create({
+    data: {
+      locationId: item.locationId,
+      queueItemId: item.id,
+      type: "PLAYING",
+      metadata: {
+        sourceType: item.sourceType,
+        clusterId: item.clusterId ?? null,
+        durationSec,
+        expectedEndAt: expectedEndAt?.toISOString() ?? null,
+        interstitialAssetId: asset?.id ?? null,
+        sessionId: item.sessionId,
+      },
+    },
+  }),
+
+  ...(item.sourceType === "INTERSTITIAL" && assetId
+    ? [
+        prisma.interstitialEvent.updateMany({
+          where: {
+            locationId: item.locationId,
+            sessionId: item.sessionId,
+            assetId,
+            status: "PLANNED",
+          },
+          data: {
+            status: "PLAYED",
+            playedAt: startedAt,
+          },
+        }),
+      ]
+    : []),
+]);
+
+
+
+    return NextResponse.json({
+      ok: true,
+      queueItemId: item.id,
+      sourceType: item.sourceType,
+      durationSec,
+      expectedEndAt: expectedEndAt?.toISOString() ?? null,
+      interstitialTracked: item.sourceType === "INTERSTITIAL",
+    });
   } catch (error) {
     console.error("mark-playing error", error);
+
     return NextResponse.json(
       { ok: false, error: "Could not mark item playing." },
       { status: 500 }
