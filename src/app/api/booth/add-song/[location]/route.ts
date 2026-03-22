@@ -10,6 +10,24 @@ function jsonFail(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
+function normalizeMode(input: unknown): AddMode | null {
+  const value = String(input || "").trim().toUpperCase();
+
+  if (value === "BOTTOM" || value === "ADD_TO_QUEUE" || value === "QUEUE_BOTTOM") {
+    return "BOTTOM";
+  }
+
+  if (value === "PLAY_NEXT" || value === "NEXT") {
+    return "PLAY_NEXT";
+  }
+
+  if (value === "AFTER_CURRENT" || value === "ADD_AFTER_CURRENT") {
+    return "AFTER_CURRENT";
+  }
+
+  return null;
+}
+
 function resolveInsertIndex(
   activeItems: { id: string; status: string }[],
   mode: AddMode
@@ -23,7 +41,9 @@ function resolveInsertIndex(
     .map((item, index) => ({ status: item.status, index }))
     .filter((item) => item.status === "LOADED")
     .map((item) => item.index);
-  const lastLoadedIndex = loadedIndexes.length > 0 ? loadedIndexes[loadedIndexes.length - 1] : -1;
+
+  const lastLoadedIndex =
+    loadedIndexes.length > 0 ? loadedIndexes[loadedIndexes.length - 1] : -1;
 
   if (mode === "AFTER_CURRENT") {
     if (playingIndex >= 0) return playingIndex + 1;
@@ -46,12 +66,10 @@ export async function POST(
 
   const body = await req.json().catch(() => ({}));
   const songId = String(body.songId || "").trim();
-  const mode = String(body.mode || "BOTTOM").trim() as AddMode;
+  const mode = normalizeMode(body.mode ?? "BOTTOM");
 
   if (!songId) return jsonFail("Missing songId.");
-  if (!["BOTTOM", "PLAY_NEXT", "AFTER_CURRENT"].includes(mode)) {
-    return jsonFail("Invalid mode.");
-  }
+  if (!mode) return jsonFail("Invalid mode.");
 
   try {
     const { loc } = await getRulesForLocation(params.location);
