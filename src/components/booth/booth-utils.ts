@@ -31,6 +31,30 @@ export async function fetchFirstJson(urls: string[]) {
   return { ok: false as const, url: null, data: null };
 }
 
+export async function postFirstJson(urls: string[], body: Record<string, unknown>) {
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) continue;
+
+      const data = await safeJson(res);
+      return { ok: true as const, url, data };
+    } catch {
+      // ignore and try next
+    }
+  }
+
+  return { ok: false as const, url: null, data: null };
+}
+
 export function isInterstitial(item: QueueLikeItem | null | undefined) {
   if (!item) return false;
   const sourceType = String(item.sourceType || "").toUpperCase();
@@ -40,6 +64,14 @@ export function isInterstitial(item: QueueLikeItem | null | undefined) {
     type.includes("INTERSTITIAL") ||
     type.includes("SYSTEM")
   );
+}
+
+export function isSongDraggable(item: QueueLikeItem | null | undefined) {
+  if (!item) return false;
+  const status = String(item.status || "").toUpperCase();
+  if (isInterstitial(item)) return false;
+  if (status === "PLAYING" || status === "PLAYED" || status === "SKIPPED") return false;
+  return true;
 }
 
 export function normalizeQueue(payload: any): QueueLikeItem[] {
@@ -81,6 +113,62 @@ export function normalizeQueue(payload: any): QueueLikeItem[] {
       null,
     boosted: Boolean(item.boosted ?? item.request?.boosted ?? false),
   }));
+}
+
+export function renumberQueue(items: QueueLikeItem[]) {
+  return items.map((item, idx) => ({
+    ...item,
+    position: idx + 1,
+    sortOrder: idx + 1,
+  }));
+}
+
+export function moveItem<T>(items: T[], fromIndex: number, toIndex: number) {
+  const copy = [...items];
+  const [moved] = copy.splice(fromIndex, 1);
+  copy.splice(toIndex, 0, moved);
+  return copy;
+}
+
+export function reorderSongsOnly(
+  items: QueueLikeItem[],
+  draggedId: string,
+  targetId: string
+) {
+  const fromIndex = items.findIndex((item) => item.id === draggedId);
+  const toIndex = items.findIndex((item) => item.id === targetId);
+
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+    return renumberQueue(items);
+  }
+
+  const draggedItem = items[fromIndex];
+  const targetItem = items[toIndex];
+
+  if (!isSongDraggable(draggedItem) || !isSongDraggable(targetItem)) {
+    return renumberQueue(items);
+  }
+
+  return renumberQueue(moveItem(items, fromIndex, toIndex));
+}
+
+export function buildReorderPayload(location: string, items: QueueLikeItem[]) {
+  const orderedQueueItemIds = items.map((item) => item.id);
+
+  return {
+    location,
+    orderedQueueItemIds,
+    queueItemIds: orderedQueueItemIds,
+    queue: items.map((item, idx) => ({
+      id: item.id,
+      queueItemId: item.id,
+      requestId: item.requestId ?? null,
+      sortOrder: idx + 1,
+      position: idx + 1,
+      sourceType: item.sourceType ?? null,
+      status: item.status ?? null,
+    })),
+  };
 }
 
 export function formatTimeAgo(input?: string | null) {

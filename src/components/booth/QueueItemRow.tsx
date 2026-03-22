@@ -1,22 +1,56 @@
 "use client";
 
 import StatusBadge from "./StatusBadge";
-import { getStatusTone, isInterstitial } from "./booth-utils";
+import { getStatusTone, isInterstitial, isSongDraggable } from "./booth-utils";
 import type { QueueLikeItem } from "./types";
 
 export default function QueueItemRow({
   item,
   compact = false,
+  draggable = false,
+  isDropTarget = false,
+  isDragging = false,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
 }: {
   item: QueueLikeItem;
   compact?: boolean;
+  draggable?: boolean;
+  isDropTarget?: boolean;
+  isDragging?: boolean;
+  onDragStart?: (item: QueueLikeItem) => void;
+  onDragOver?: (item: QueueLikeItem) => void;
+  onDrop?: (item: QueueLikeItem) => void;
+  onDragEnd?: () => void;
 }) {
   const interstitial = isInterstitial(item);
   const tone = getStatusTone(item.status);
+  const songDraggable = isSongDraggable(item) && draggable;
 
   return (
     <div
-      className={`boothQueueRow ${interstitial ? "boothQueueRow--system" : ""} ${compact ? "boothQueueRow--compact" : ""}`}
+      className={`boothQueueRow ${interstitial ? "boothQueueRow--system" : ""} ${compact ? "boothQueueRow--compact" : ""} ${songDraggable ? "boothQueueRow--canDrag" : ""} ${isDropTarget ? "boothQueueRow--dropTarget" : ""} ${isDragging ? "boothQueueRow--dragging" : ""}`}
+      draggable={songDraggable}
+      onDragStart={(event) => {
+        if (!songDraggable) return;
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", item.id);
+        onDragStart?.(item);
+      }}
+      onDragOver={(event) => {
+        if (!songDraggable) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        onDragOver?.(item);
+      }}
+      onDrop={(event) => {
+        if (!songDraggable) return;
+        event.preventDefault();
+        onDrop?.(item);
+      }}
+      onDragEnd={() => onDragEnd?.()}
     >
       <div className="boothQueueRowLeft">
         <div className="boothQueueIndex">{item.position ?? item.sortOrder ?? "—"}</div>
@@ -43,8 +77,13 @@ export default function QueueItemRow({
       </div>
 
       <div className="boothQueueRowRight">
-        {!interstitial ? (
-          <StatusBadge label="DRAGGABLE SONG" tone="cyan" />
+        {songDraggable ? (
+          <div className="boothDragHandleWrap">
+            <StatusBadge label="DRAG SONG" tone="cyan" />
+            <div className="boothDragHandle" aria-hidden="true">⋮⋮</div>
+          </div>
+        ) : !interstitial ? (
+          <StatusBadge label="LOCKED STATUS" tone="muted" />
         ) : (
           <StatusBadge label="LOCKED" tone="muted" />
         )}

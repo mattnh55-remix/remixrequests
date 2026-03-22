@@ -60,3 +60,11 @@ export type BoothDataState = {
   lastUpdated: string | null;
   errors: string[];
 };
+
+export type ReorderState = {
+  dirty: boolean;
+  saving: boolean;
+  error: string | null;
+  success: string | null;
+  activeDragId: string | null;
+};
