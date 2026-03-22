@@ -1,46 +1,163 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import QueueItemRow from "./QueueItemRow";
-import type { BoothMode, QueueLikeItem } from "./types";
+import {
+  applyOptimisticAction,
+  buildReorderPayload,
+  isSongDraggable,
+  performQueueAction,
+  postJson,
+  reorderSongsOnly,
+} from "./booth-utils";
+import type { BoothActionName, QueueLikeItem, ReorderState } from "./types";
 
 export default function QueueList({
   items,
-  mode,
-  onLoad,
-  onPlay,
-  onPause,
-  onSkip,
+  location,
+  onQueueCommitted,
+  onActionComplete,
 }: {
   items: QueueLikeItem[];
-  mode: BoothMode;
-  onLoad?: (id: string) => void;
-  onPlay?: (id: string) => void;
-  onPause?: (id: string) => void;
-  onSkip?: (id: string) => void;
+  location: string;
+  onQueueCommitted?: (items: QueueLikeItem[]) => void;
+  onActionComplete?: (result: { ok: boolean; message: string }, nextQueue?: QueueLikeItem[]) => void;
 }) {
+  const [draftItems, setDraftItems] = useState<QueueLikeItem[]>(items);
+  const [busyActionById, setBusyActionById] = useState<Record<string, BoothActionName | null>>({});
+  const [dragState, setDragState] = useState<ReorderState>({
+    dirty: false,
+    saving: false,
+    error: null,
+    success: null,
+    activeDragId: null,
+  });
+
+  useEffect(() => {
+    if (dragState.dirty) return;
+    setDraftItems(items);
+  }, [items, dragState.dirty]);
+
+  const draggableSongCount = useMemo(() => draftItems.filter((item) => isSongDraggable(item)).length, [draftItems]);
+
+  async function saveReorder() {
+    setDragState((prev) => ({ ...prev, saving: true, error: null, success: null }));
+
+    const payload = buildReorderPayload(location, draftItems);
+    const result = await postJson(`/api/booth/queue/reorder`, payload);
+
+    if (!result.ok) {
+      setDragState((prev) => ({
+        ...prev,
+        saving: false,
+        error: "Could not save the new play order.",
+        success: null,
+      }));
+      return;
+    }
+
+    setDragState({
+      dirty: false,
+      saving: false,
+      error: null,
+      success: "Play order saved.",
+      activeDragId: null,
+    });
+
+    onQueueCommitted?.(draftItems);
+  }
+
+  function cancelDraft() {
+    setDraftItems(items);
+    setDragState({
+      dirty: false,
+      saving: false,
+      error: null,
+      success: null,
+      activeDragId: null,
+    });
+  }
+
+  function handleDrop(targetItem: QueueLikeItem) {
+    if (!dragState.activeDragId) return;
+
+    const nextItems = reorderSongsOnly(draftItems, dragState.activeDragId, targetItem.id);
+
+    setDraftItems(nextItems);
+    setDragState((prev) => ({
+      ...prev,
+      dirty: true,
+      activeDragId: null,
+      error: null,
+      success: null,
+    }));
+  }
+
+  async function handleItemAction(item: QueueLikeItem, action: BoothActionName) {
+    setBusyActionById((prev) => ({ ...prev, [item.id]: action }));
+
+    const optimisticQueue = applyOptimisticAction(draftItems, item.id, action);
+    setDraftItems(optimisticQueue);
+
+    const result = await performQueueAction(location, item, action);
+
+    setBusyActionById((prev) => ({ ...prev, [item.id]: null }));
+    onActionComplete?.(result, result.ok ? optimisticQueue : undefined);
+  }
+
   return (
-    <div className="queueListShell">
-      <div className="queueListHeader">
-        <div className="queueListTitle">Live Queue</div>
-        <div className="queueListSub">Reorder mode</div>
+    <div className="boothQueueManager">
+      <div className="boothQueueToolbar">
+        <div>
+          <div className="boothQueueToolbarTitle">Reorder mode</div>
+          <div className="boothQueueToolbarSub">Drag songs to change play order. System inserts stay locked.</div>
+        </div>
+
+        <div className="boothQueueToolbarRight">
+          <div className="boothQueueToolbarPill">{draggableSongCount} songs ready to move</div>
+          <button type="button" className="boothToolbarBtn boothToolbarBtn--ghost" onClick={cancelDraft} disabled={!dragState.dirty || dragState.saving}>
+            Cancel
+          </button>
+          <button type="button" className="boothToolbarBtn" onClick={saveReorder} disabled={!dragState.dirty || dragState.saving}>
+            {dragState.saving ? "Saving..." : "Save order"}
+          </button>
+        </div>
       </div>
-      <div className="queueListHelp">Drag songs to change play order. System inserts stay locked.</div>
-      <div className="queueToolbar">
-        <button className="gunmetalBtn gunmetalBtn--neutral" type="button">CANCEL</button>
-        <button className="gunmetalBtn gunmetalBtn--primary" type="button">SAVE ORDER</button>
-      </div>
-      <div className="queueListScroller">
-        {items.map((item) => (
-          <QueueItemRow
-            key={item.id}
-            item={item}
-            mode={mode}
-            onLoad={onLoad}
-            onPlay={onPlay}
-            onPause={onPause}
-            onSkip={onSkip}
-          />
-        ))}
+
+      {dragState.error ? <div className="boothQueueFeedback boothQueueFeedback--error">{dragState.error}</div> : null}
+      {dragState.success ? <div className="boothQueueFeedback boothQueueFeedback--success">{dragState.success}</div> : null}
+
+      <div className="boothQueueList">
+        {draftItems.length === 0 ? (
+          <div className="boothEmptyState">No songs or inserts in the live queue yet.</div>
+        ) : (
+          draftItems.map((item) => (
+            <QueueItemRow
+              key={item.id}
+              item={item}
+              draggable
+              busyAction={busyActionById[item.id] ?? null}
+              isDragging={dragState.activeDragId === item.id}
+              isDropTarget={dragState.activeDragId !== null && dragState.activeDragId !== item.id}
+              onAction={handleItemAction}
+              onDragStart={(draggedItem) => {
+                setDragState((prev) => ({
+                  ...prev,
+                  activeDragId: draggedItem.id,
+                  error: null,
+                  success: null,
+                }));
+              }}
+              onDragOver={() => {
+                // visual only
+              }}
+              onDrop={handleDrop}
+              onDragEnd={() => {
+                setDragState((prev) => ({ ...prev, activeDragId: null }));
+              }}
+            />
+          ))
+        )}
       </div>
     </div>
   );

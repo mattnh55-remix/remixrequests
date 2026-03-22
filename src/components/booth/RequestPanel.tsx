@@ -1,62 +1,84 @@
 "use client";
 
-import BoothActionButtons from "./BoothActionButtons";
-import type { BoothMode, RequestItem } from "./types";
-
-function RequestRow({ item, index, mode, onRemove, onDone }: { item: RequestItem; index: number; mode: BoothMode; onRemove?: (id: string) => void; onDone?: (id: string) => void; }) {
-  return (
-    <div className={`requestRow ${mode === "performance" ? "requestRow--compact" : ""}`}>
-      <div className="requestIndex">{index + 1}</div>
-      <div className="requestText">
-        <div className="requestTitleLine">
-          <strong>{item.title}</strong>
-          <span className="statusPill statusPill--loaded">UP NEXT</span>
-        </div>
-        <div className="requestMeta">{item.artist} {item.requestedByLabel ? `• ${item.requestedByLabel}` : ""} • {item.verified ? "VERIFIED" : "PENDING"} • Score {item.score ?? 0}</div>
-      </div>
-      <div className="requestControls">
-        <BoothActionButtons compact actions={[{ name: "remove", onClick: () => onRemove?.(item.id) }, { name: "done", onClick: () => onDone?.(item.id) }]} />
-      </div>
-    </div>
-  );
-}
+import { useState } from "react";
+import PanelShell from "./PanelShell";
+import StatusBadge from "./StatusBadge";
+import { performRequestAction } from "./booth-utils";
+import type { RequestActionName, RequestItem } from "./types";
 
 export default function RequestPanel({
-  playNow,
-  upNext,
-  mode,
-  onRemove,
-  onDone,
+  requests,
+  onActionComplete,
 }: {
-  playNow: RequestItem[];
-  upNext: RequestItem[];
-  mode: BoothMode;
-  onRemove?: (id: string) => void;
-  onDone?: (id: string) => void;
+  requests: RequestItem[];
+  onActionComplete?: (result: { ok: boolean; message: string }) => void;
 }) {
-  return (
-    <div className={`boothPanel ${mode === "performance" ? "boothPanel--compact" : ""}`}>
-      <div className="panelHead">
-        <div>
-          <div className="panelTitle">Requests</div>
-          <div className="panelSub">Live customer demand waiting to be worked into the booth queue.</div>
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState<RequestActionName | null>(null);
+
+  const playNow = requests.filter((item) => item.sortBucket === "PLAY_NOW");
+  const upNext = requests.filter((item) => item.sortBucket !== "PLAY_NOW");
+
+  async function handleAction(item: RequestItem, action: RequestActionName) {
+    setBusyId(item.id);
+    setBusyAction(action);
+    const result = await performRequestAction(item, action);
+    setBusyId(null);
+    setBusyAction(null);
+    onActionComplete?.(result);
+  }
+
+  function renderRow(item: RequestItem, idx: number) {
+    const isBusy = busyId === item.id;
+    return (
+      <div className="boothRequestRow boothRequestRow--actionable" key={item.id}>
+        <div className="boothRequestIndex">{idx + 1}</div>
+        <div className="boothRequestMain">
+          <div className="boothRequestTitleLine">
+            <div className="boothRequestTitle">{item.title || "Untitled"}</div>
+            {item.sortBucket === "PLAY_NOW" ? (
+              <StatusBadge label="Play now" tone="pink" />
+            ) : item.boosted ? (
+              <StatusBadge label="Boost" tone="gold" />
+            ) : (
+              <StatusBadge label="Up next" tone="cyan" />
+            )}
+          </div>
+          <div className="boothRequestMeta">
+            {item.artist || "Unknown artist"}
+            {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
+            {typeof item.score === "number" ? ` • Score ${item.score}` : ""}
+          </div>
+
+          <div className="boothInlineActions">
+            <button type="button" className="boothActionBtn boothActionBtn--skip" onClick={() => handleAction(item, "reject")} disabled={isBusy}>
+              {isBusy && busyAction === "reject" ? "Working..." : "Remove"}
+            </button>
+            <button type="button" className="boothActionBtn boothActionBtn--played" onClick={() => handleAction(item, "played")} disabled={isBusy}>
+              {isBusy && busyAction === "played" ? "Working..." : "Done"}
+            </button>
+          </div>
         </div>
       </div>
+    );
+  }
 
-      <div className="requestChips">
-        <span className="statusPill statusPill--magenta">PLAY NOW {playNow.length}</span>
-        <span className="statusPill statusPill--loaded">UP NEXT {upNext.length}</span>
+  return (
+    <PanelShell title="REQUESTS" subtitle="Live customer demand waiting to be worked into the booth queue.">
+      <div className="boothMiniStats">
+        <StatusBadge label={`Play now ${playNow.length}`} tone="pink" />
+        <StatusBadge label={`Up next ${upNext.length}`} tone="cyan" />
       </div>
 
-      <div className="listSectionTitle">Play Now</div>
-      <div className="emptyBox">{playNow.length ? "Play-now actions can be added next." : "No play-now requests."}</div>
-
-      <div className="listSectionTitle">Up Next</div>
-      <div className="requestListScroller">
-        {upNext.map((item, index) => (
-          <RequestRow key={item.id} item={item} index={index} mode={mode} onRemove={onRemove} onDone={onDone} />
-        ))}
+      <div className="boothRequestSectionTitle">Play now</div>
+      <div className="boothRequestList">
+        {playNow.length === 0 ? <div className="boothEmptyState">No play-now requests.</div> : playNow.slice(0, 6).map(renderRow)}
       </div>
-    </div>
+
+      <div className="boothRequestSectionTitle">Up next</div>
+      <div className="boothRequestList">
+        {upNext.length === 0 ? <div className="boothEmptyState">No up-next requests.</div> : upNext.slice(0, 10).map(renderRow)}
+      </div>
+    </PanelShell>
   );
 }

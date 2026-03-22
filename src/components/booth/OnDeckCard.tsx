@@ -1,65 +1,62 @@
 "use client";
 
 import BoothActionButtons from "./BoothActionButtons";
-import { getStatusTone } from "./booth-utils";
-import type { BoothMode, QueueLikeItem } from "./types";
+import StatusBadge from "./StatusBadge";
+import { formatDuration, getAllowedActions, isInterstitial } from "./booth-utils";
+import type { BoothActionName, QueueLikeItem } from "./types";
 
 export default function OnDeckCard({
   item,
-  mode,
-  onLoad,
-  onPlay,
-  onPause,
-  onSkip,
+  busyAction,
+  onAction,
 }: {
   item: QueueLikeItem | null;
-  mode: BoothMode;
-  onLoad?: (id: string) => void;
-  onPlay?: (id: string) => void;
-  onPause?: (id: string) => void;
-  onSkip?: (id: string) => void;
+  busyAction?: BoothActionName | null;
+  onAction?: (item: QueueLikeItem, action: BoothActionName) => void;
 }) {
-  if (!item) {
-    return (
-      <div className="heroCard heroCard--deck">
-        <div className="heroCardHeader">
-          <div>
-            <div className="heroCardTitle">On Deck</div>
-            <div className="heroCardSub">Ready after current playback</div>
-          </div>
-        </div>
-        <div className="heroEmpty">Nothing loaded or queued yet.</div>
-      </div>
-    );
-  }
-
-  const compact = mode === "performance";
+  const actions = getAllowedActions(item);
+  const isSystem = isInterstitial(item);
 
   return (
-    <div className={`heroCard heroCard--deck ${compact ? "heroCard--compact" : ""}`}>
-      <div className="heroCardHeader">
+    <div className="boothHeroCard boothHeroCard--deck">
+      <div className="boothHeroHeader">
         <div>
-          <div className="heroCardTitle">On Deck</div>
-          <div className="heroCardSub">Ready after current playback</div>
+          <div className="boothHeroLabel">ON DECK</div>
+          <div className="boothHeroKicker">Ready after current playback</div>
         </div>
-        <div className={`statusPill statusPill--${getStatusTone(item.status)}`}>{item.status || "QUEUED"}</div>
+        {item ? (
+          <StatusBadge label={isSystem ? "SYSTEM" : String(item.status || "QUEUED")} tone={isSystem ? "pink" : "gold"} />
+        ) : null}
       </div>
-      <div className="deckLine">
-        {item.artworkUrl ? <img className="deckArt" src={item.artworkUrl} alt={item.title || "art"} /> : <div className="deckArt deckArt--placeholder" />}
-        <div className="deckText">
-          <div className="deckTitle">{item.title}</div>
-          <div className="deckArtist">{item.artist}</div>
-        </div>
-        <BoothActionButtons
-          compact={compact}
-          actions={[
-            { name: "load", onClick: item.id ? () => onLoad?.(item.id) : undefined },
-            { name: "play", onClick: item.id ? () => onPlay?.(item.id) : undefined },
-            { name: "pause", onClick: item.id ? () => onPause?.(item.id) : undefined },
-            { name: "skip", onClick: item.id ? () => onSkip?.(item.id) : undefined },
-          ]}
-        />
-      </div>
+
+      {item ? (
+        <>
+          <div className="boothDeckMini boothDeckMini--enhanced">
+            <div className={`boothHeroArt boothHeroArt--small ${isSystem ? "boothHeroArt--system" : ""}`}>
+              {item.artworkUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.artworkUrl} alt={item.title || "Artwork"} className="boothHeroArtImg" />
+              ) : (
+                <div className="boothHeroArtFallback">{(item.artist || item.title || "RM").slice(0, 2).toUpperCase()}</div>
+              )}
+            </div>
+            <div className="boothDeckInfo">
+              <div className="boothDeckTitleLine">
+                <div className="boothDeckTitle">{item.title || "Untitled"}</div>
+              </div>
+              <div className="boothDeckMeta">
+                {item.artist || "Unknown artist"}
+                {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
+                {item.durationSec ? ` • ${formatDuration(item.durationSec)}` : ""}
+              </div>
+            </div>
+          </div>
+
+          <BoothActionButtons actions={actions} busyAction={busyAction} onAction={(action) => onAction?.(item, action)} />
+        </>
+      ) : (
+        <div className="boothEmptyState">Nothing loaded or queued yet.</div>
+      )}
     </div>
   );
 }

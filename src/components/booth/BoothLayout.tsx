@@ -165,7 +165,7 @@ export default function BoothLayout({ location }: { location: string }) {
         <ShoutoutPanel pending={state.pendingShoutouts} approved={state.approvedShoutouts} mode={mode} />
       </div>
 
-      <style jsx>{`
+      <style jsx global>{`
         .rrBooth {
           min-height: 100vh;
           padding: 10px 12px 16px;
@@ -302,6 +302,32 @@ export default function BoothLayout({ location }: { location: string }) {
         .engineGrid { display:grid; gap: 8px; }
         .engineRow { display:flex; justify-content:space-between; gap: 10px; border-top:1px solid rgba(255,255,255,0.08); padding-top: 8px; font-size: 13px; }
         .engineRow span { color: rgba(235,241,255,0.72); }
+
+        .rrBooth--compact .boothPanel { padding: 10px; }
+        .rrBooth--compact .heroCard { padding: 10px; border-radius: 18px; }
+        .rrBooth--compact .heroMain { grid-template-columns: 72px 1fr; gap: 10px; }
+        .rrBooth--compact .heroArtworkWrap { width: 72px; height: 72px; }
+        .rrBooth--compact .heroTitle { font-size: 18px; }
+        .rrBooth--compact .heroArtist { font-size: 13px; }
+        .rrBooth--compact .heroStats { gap: 6px; }
+        .rrBooth--compact .heroStat { padding: 6px 8px; }
+        .rrBooth--compact .heroStat span { font-size: 10px; margin-bottom: 2px; }
+        .rrBooth--compact .heroStat strong { font-size: 12px; }
+        .rrBooth--compact .progressBar { height: 10px; }
+        .rrBooth--compact .deckLine { grid-template-columns: 52px 1fr auto; gap: 10px; }
+        .rrBooth--compact .deckArt { width: 52px; height: 52px; }
+        .rrBooth--compact .deckTitle { font-size: 15px; }
+        .rrBooth--compact .gunmetalBtn { min-height: 26px; padding: 0 10px; border-radius: 5px; font-size: 10px; }
+        .rrBooth--compact .queueListScroller, .rrBooth--compact .requestListScroller { gap: 6px; }
+        .rrBooth--compact .queueRow { grid-template-columns: 22px 34px minmax(0,1fr) 48px auto; padding: 7px 8px; gap: 8px; }
+        .rrBooth--compact .requestRow { grid-template-columns: 22px minmax(0,1fr) auto; padding: 7px 8px; gap: 8px; }
+        .rrBooth--compact .queueIndex, .rrBooth--compact .requestIndex { font-size: 20px; }
+        .rrBooth--compact .queueMedia { width: 34px; height: 34px; }
+        .rrBooth--compact .queueTitle, .rrBooth--compact .requestTitleLine strong { font-size: 14px; }
+        .rrBooth--compact .queueMeta, .rrBooth--compact .requestMeta { font-size: 12px; margin-top: 2px; }
+        .rrBooth--compact .statusPill { padding: 4px 8px; font-size: 10px; }
+        .rrBooth--compact .engineBox, .rrBooth--compact .insertBlock { padding: 10px; border-radius: 14px; }
+        .rrBooth--compact .engineAction { font-size: 18px; margin-bottom: 8px; }
         @media (max-width: 1500px) {
           .rrBooth__grid { grid-template-columns: 1.7fr 1fr 1.2fr 0.9fr; }
         }

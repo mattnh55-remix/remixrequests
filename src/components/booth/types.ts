@@ -1,5 +1,3 @@
-export type BoothMode = "visual" | "performance";
-
 export type QueueLikeItem = {
   id: string;
   requestId?: string | null;
@@ -7,17 +5,20 @@ export type QueueLikeItem = {
   artist?: string | null;
   status?: string | null;
   sourceType?: string | null;
-  itemType?: string | null;
   type?: string | null;
   clusterId?: string | null;
   position?: number | null;
   sortOrder?: number | null;
   durationSec?: number | null;
+  runtimeMs?: number | null;
+  progressPct?: number | null;
+  progressPercent?: number | null;
+  elapsedMs?: number | null;
   elapsedSec?: number | null;
   remainingSec?: number | null;
-  progressPercent?: number | null;
   isEndingSoon?: boolean | null;
   startedAt?: string | null;
+  expectedEndAt?: string | null;
   createdAt?: string | null;
   requestedByLabel?: string | null;
   boosted?: boolean | null;
@@ -25,6 +26,7 @@ export type QueueLikeItem = {
 };
 
 export type RuntimePreview = {
+  mode?: "materializer" | "derived" | "idle";
   action?: string;
   reason?: string;
   targetQueueItemId?: string | null;
@@ -34,6 +36,10 @@ export type RuntimePreview = {
   interstitialTitle?: string | null;
   clusterId?: string | null;
   materialized?: boolean;
+  queueItemId?: string | null;
+  assetId?: string | null;
+  insertedQueueItemId?: string | null;
+  insertedPosition?: number | null;
 };
 
 export type RequestItem = {
@@ -44,7 +50,7 @@ export type RequestItem = {
   type?: string;
   boosted?: boolean;
   requestedByLabel?: string;
-  verified?: boolean;
+  sortBucket?: "PLAY_NOW" | "UP_NEXT";
 };
 
 export type ShoutoutItem = {
@@ -56,19 +62,48 @@ export type ShoutoutItem = {
   createdAt?: string;
 };
 
-export type BoothNotice = {
-  kind: "success" | "error" | "info";
-  text: string;
-} | null;
-
 export type BoothDataState = {
   queue: QueueLikeItem[];
   runtimePreview: RuntimePreview | null;
-  playNowRequests: RequestItem[];
-  upNextRequests: RequestItem[];
+  pendingRequests: RequestItem[];
   pendingShoutouts: ShoutoutItem[];
   approvedShoutouts: ShoutoutItem[];
   loading: boolean;
   lastUpdated: string | null;
   errors: string[];
+};
+
+export type ReorderState = {
+  dirty: boolean;
+  saving: boolean;
+  error: string | null;
+  success: string | null;
+  activeDragId: string | null;
+};
+
+export type BoothActionName = "load" | "play" | "hold" | "skip" | "played";
+
+export type BoothActionResult = {
+  ok: boolean;
+  action: BoothActionName;
+  message: string;
+  url?: string | null;
+};
+
+export type RequestActionName = "reject" | "played";
+
+export type RequestActionResult = {
+  ok: boolean;
+  action: RequestActionName;
+  message: string;
+  url?: string | null;
+};
+
+export type ShoutoutActionName = "approve" | "reject";
+
+export type ShoutoutActionResult = {
+  ok: boolean;
+  action: ShoutoutActionName;
+  message: string;
+  url?: string | null;
 };
