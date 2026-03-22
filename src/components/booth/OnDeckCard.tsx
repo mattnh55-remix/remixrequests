@@ -12,7 +12,7 @@ type OnDeckCardProps = {
   onPlay?: (queueItemId: string) => void | Promise<void>;
   onPause?: (queueItemId: string) => void | Promise<void>;
   onSkip?: (queueItemId: string) => void | Promise<void>;
-  busyAction?: BoothActionName | null;
+  busyKey?: string | null;
 };
 
 export default function OnDeckCard({
@@ -22,7 +22,7 @@ export default function OnDeckCard({
   onPlay,
   onPause,
   onSkip,
-  busyAction,
+  busyKey,
 }: OnDeckCardProps) {
   const isSystem = isInterstitial(item);
   const actions = getAllowedActions(item);
@@ -30,43 +30,24 @@ export default function OnDeckCard({
   function handleAction(action: BoothActionName) {
     if (!item) return;
 
-    if (action === "load") {
-      void onLoad?.(item.id);
-      return;
-    }
-
-    if (action === "play") {
-      void onPlay?.(item.id);
-      return;
-    }
-
-    if (action === "pause") {
-      void onPause?.(item.id);
-      return;
-    }
-
-    if (action === "skip") {
-      void onSkip?.(item.id);
-      return;
-    }
+    if (action === "load") return void onLoad?.(item.id);
+    if (action === "play") return void onPlay?.(item.id);
+    if (action === "pause") return void onPause?.(item.id);
+    if (action === "skip") return void onSkip?.(item.id);
   }
 
   return (
-    <div
-      className={`boothHeroCard boothHeroCard--deck ${
-        item ? "is-live" : "is-empty"
-      } ${mode === "performance" ? "is-compact" : ""}`}
-    >
+    <div className={`boothHeroCard boothHeroCard--deck ${mode === "performance" ? "is-compact" : ""}`}>
       <div className="boothHeroHeader">
         <div>
-          <div className="boothHeroLabel">ON DECK</div>
-          <div className="boothHeroKicker">Next up in booth</div>
+          <div className="boothHeroLabel">On Deck</div>
+          <div className="boothHeroKicker">Immediate next item</div>
         </div>
         {item ? (
           isSystem ? (
-            <StatusBadge label="SYSTEM" tone="pink" />
+            <StatusBadge label="System" tone="pink" />
           ) : (
-            <StatusBadge label={String(item.status || "QUEUED")} tone="gold" />
+            <StatusBadge label={String(item.status || "Queued")} tone="gold" />
           )
         ) : null}
       </div>
@@ -74,18 +55,10 @@ export default function OnDeckCard({
       {item ? (
         <>
           <div className="boothDeckMini">
-            <div
-              className={`boothHeroArt boothHeroArt--small ${
-                isSystem ? "boothHeroArt--system" : ""
-              }`}
-            >
+            <div className={`boothHeroArt boothHeroArt--small ${isSystem ? "boothHeroArt--system" : ""}`}>
               {item.artworkUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={item.artworkUrl}
-                  alt={item.title || "Artwork"}
-                  className="boothHeroArtImg"
-                />
+                <img src={item.artworkUrl} alt={item.title || "Artwork"} className="boothHeroArtImg" />
               ) : (
                 <div className="boothHeroArtFallback">
                   {(item.artist || item.title || "RM").slice(0, 2).toUpperCase()}
@@ -96,11 +69,8 @@ export default function OnDeckCard({
             <div className="boothDeckInfo">
               <div className="boothDeckTitleLine">
                 <div className="boothDeckTitle">{item.title || "Untitled"}</div>
-                {isSystem ? (
-                  <StatusBadge label="INTERSTITIAL" tone="pink" />
-                ) : null}
+                {isSystem ? <StatusBadge label="Interstitial" tone="pink" /> : null}
               </div>
-
               <div className="boothDeckMeta">
                 {item.artist || "Unknown artist"}
                 {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
@@ -110,7 +80,9 @@ export default function OnDeckCard({
 
           <BoothActionButtons
             actions={actions}
-            busyAction={busyAction}
+            busyKey={item ? `${item.id}:` : null}
+            activeBusyKey={busyKey}
+            compact={mode === "performance"}
             onAction={handleAction}
           />
         </>

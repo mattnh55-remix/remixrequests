@@ -14,53 +14,23 @@ export async function safeJson(res: Response) {
 export function isInterstitial(item: QueueLikeItem | null | undefined) {
   if (!item) return false;
 
-  const sourceType = String(
-    (item as QueueLikeItem & { sourceType?: string | null }).sourceType || ""
-  ).toUpperCase();
+  const sourceType = String(item.sourceType || "").toUpperCase();
+  const type = String(item.itemType || item.type || "").toUpperCase();
 
-  const type = String(
-    (
-      item as QueueLikeItem & {
-        itemType?: string | null;
-        type?: string | null;
-      }
-    ).itemType ||
-      (item as QueueLikeItem & { type?: string | null }).type ||
-      ""
-  ).toUpperCase();
-
-  return (
-    sourceType === "INTERSTITIAL" ||
-    type.includes("INTERSTITIAL") ||
-    type.includes("SYSTEM")
-  );
+  return sourceType === "INTERSTITIAL" || type.includes("INTERSTITIAL") || type.includes("SYSTEM");
 }
 
-export function getAllowedActions(
-  item: QueueLikeItem | null
-): BoothActionName[] {
+export function getAllowedActions(item: QueueLikeItem | null): BoothActionName[] {
   if (!item) return [];
 
   const status = String(item.status || "").toUpperCase();
-  const isSystem = isInterstitial(item);
+  const systemItem = isInterstitial(item);
 
-  if (isSystem) return [];
-
-  if (status === "PLAYING") {
-    return ["pause", "skip", "done"];
-  }
-
-  if (status === "LOADED") {
-    return ["play", "pause", "skip"];
-  }
-
-  if (status === "QUEUED") {
-    return ["load", "play", "pause", "skip"];
-  }
-
-  if (status === "HELD") {
-    return ["play", "skip"];
-  }
+  if (systemItem) return [];
+  if (status === "PLAYING") return ["pause", "skip", "done"];
+  if (status === "LOADED") return ["play", "pause", "skip"];
+  if (status === "QUEUED") return ["load", "play", "pause", "skip"];
+  if (status === "HELD") return ["play", "skip"];
 
   return [];
 }
@@ -70,7 +40,7 @@ export function formatActionLabel(action: BoothActionName | string) {
 
   if (value === "load") return "Load";
   if (value === "play") return "Play";
-  if (value === "pause") return "Pause";
+  if (value === "pause") return "Hold";
   if (value === "skip") return "Skip";
   if (value === "done") return "Done";
   if (value === "remove") return "Remove";
@@ -78,7 +48,7 @@ export function formatActionLabel(action: BoothActionName | string) {
   return String(action || "");
 }
 
-export function getStatusTone(status?: string | null) {
+export function getStatusTone(status?: string | null): "default" | "cyan" | "pink" | "gold" | "warn" | "muted" {
   const value = String(status || "").toUpperCase();
 
   if (value === "PLAYING") return "cyan";
@@ -112,25 +82,23 @@ export function formatTimeAgo(input?: string | null) {
 
   const diffHr = Math.floor(diffMin / 60);
   if (diffHr === 1) return "1 hr ago";
-  return `${diffHr} hr ago`;
+  if (diffHr < 24) return `${diffHr} hr ago`;
+
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay === 1) return "1 day ago";
+  return `${diffDay} days ago`;
 }
 
 export function getProgressPercent(item: QueueLikeItem | null | undefined) {
   if (!item) return 0;
 
-  const direct = Number(
-    (item as QueueLikeItem & { progressPercent?: number | null }).progressPercent
-  );
-
+  const direct = Number(item.progressPercent);
   if (Number.isFinite(direct) && direct >= 0) {
     return Math.max(0, Math.min(100, direct));
   }
 
-  const elapsedSec = Number(
-    (item as QueueLikeItem & { elapsedSec?: number | null }).elapsedSec
-  );
+  const elapsedSec = Number(item.elapsedSec);
   const durationSec = Number(item.durationSec);
-
   if (Number.isFinite(elapsedSec) && Number.isFinite(durationSec) && durationSec > 0) {
     return Math.max(0, Math.min(100, (elapsedSec / durationSec) * 100));
   }
@@ -160,8 +128,7 @@ export function normalizeQueue(payload: any): QueueLikeItem[] {
     isEndingSoon: item.isEndingSoon ?? false,
     startedAt: item.startedAt ?? null,
     createdAt: item.createdAt ?? null,
-    requestedByLabel:
-      item.requestedByLabel ?? item.request?.requestedByLabel ?? null,
+    requestedByLabel: item.requestedByLabel ?? item.request?.requestedByLabel ?? null,
     boosted: Boolean(item.boosted ?? false),
     artworkUrl: item.artworkUrl ?? item.request?.song?.artworkUrl ?? null,
   }));

@@ -16,7 +16,7 @@ type NowPlayingCardProps = {
   onPause?: (queueItemId: string) => void | Promise<void>;
   onSkip?: (queueItemId: string) => void | Promise<void>;
   onDone?: (queueItemId: string) => void | Promise<void>;
-  busyAction?: BoothActionName | null;
+  busyKey?: string | null;
 };
 
 export default function NowPlayingCard({
@@ -25,7 +25,7 @@ export default function NowPlayingCard({
   onPause,
   onSkip,
   onDone,
-  busyAction,
+  busyKey,
 }: NowPlayingCardProps) {
   const progressPct = getProgressPercent(item);
   const actions = getAllowedActions(item);
@@ -34,57 +34,30 @@ export default function NowPlayingCard({
   function handleAction(action: BoothActionName) {
     if (!item) return;
 
-    if (action === "pause") {
-      void onPause?.(item.id);
-      return;
-    }
-
-    if (action === "skip") {
-      void onSkip?.(item.id);
-      return;
-    }
-
-    if (action === "done") {
-      void onDone?.(item.id);
-      return;
-    }
+    if (action === "pause") return void onPause?.(item.id);
+    if (action === "skip") return void onSkip?.(item.id);
+    if (action === "done") return void onDone?.(item.id);
   }
 
   return (
-    <div
-      className={`boothHeroCard boothHeroCard--now ${
-        item ? "is-live" : "is-empty"
-      } ${mode === "performance" ? "is-compact" : ""}`}
-    >
+    <div className={`boothHeroCard boothHeroCard--now ${mode === "performance" ? "is-compact" : ""}`}>
       <div className="boothHeroHeader">
         <div>
-          <div className="boothHeroLabel">NOW PLAYING</div>
-          <div className="boothHeroKicker">Highest priority lane</div>
+          <div className="boothHeroLabel">Now Playing</div>
+          <div className="boothHeroKicker">Primary live lane</div>
         </div>
         {item ? (
-          isSystem ? (
-            <StatusBadge label="SYSTEM" tone="pink" />
-          ) : (
-            <StatusBadge label="LIVE" tone="cyan" />
-          )
+          isSystem ? <StatusBadge label="System" tone="pink" /> : <StatusBadge label="Live" tone="cyan" />
         ) : null}
       </div>
 
       {item ? (
         <>
-          <div className="boothHeroMain boothHeroMain--large">
-            <div
-              className={`boothHeroArt boothHeroArt--poster ${
-                isSystem ? "boothHeroArt--system" : ""
-              }`}
-            >
+          <div className="boothHeroMain">
+            <div className={`boothHeroArt boothHeroArt--poster ${isSystem ? "boothHeroArt--system" : ""}`}>
               {item.artworkUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={item.artworkUrl}
-                  alt={item.title || "Artwork"}
-                  className="boothHeroArtImg"
-                />
+                <img src={item.artworkUrl} alt={item.title || "Artwork"} className="boothHeroArtImg" />
               ) : (
                 <div className="boothHeroArtFallback">
                   {(item.artist || item.title || "RM").slice(0, 2).toUpperCase()}
@@ -95,16 +68,11 @@ export default function NowPlayingCard({
             <div className="boothHeroInfo">
               <div className="boothHeroTitleLine">
                 <div className="boothHeroTitle">{item.title || "Untitled"}</div>
-                <StatusBadge
-                  label={isSystem ? "INTERSTITIAL" : "PLAYING"}
-                  tone={isSystem ? "pink" : "cyan"}
-                />
-                {item.isEndingSoon ? (
-                  <StatusBadge label="ENDING SOON" tone="gold" />
-                ) : null}
+                <StatusBadge label={isSystem ? "Interstitial" : "Playing"} tone={isSystem ? "pink" : "cyan"} />
+                {item.isEndingSoon ? <StatusBadge label="Ending Soon" tone="gold" /> : null}
               </div>
 
-              <div className="boothHeroMeta boothHeroMeta--big">
+              <div className="boothHeroMeta">
                 {item.artist || "Unknown artist"}
                 {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
               </div>
@@ -116,19 +84,11 @@ export default function NowPlayingCard({
                 </div>
                 <div className="boothReadout">
                   <span>Elapsed</span>
-                  <strong>
-                    {typeof item.elapsedSec === "number"
-                      ? formatDuration(item.elapsedSec)
-                      : "—"}
-                  </strong>
+                  <strong>{typeof item.elapsedSec === "number" ? formatDuration(item.elapsedSec) : "—"}</strong>
                 </div>
                 <div className="boothReadout">
                   <span>Remaining</span>
-                  <strong>
-                    {typeof item.remainingSec === "number"
-                      ? formatDuration(item.remainingSec)
-                      : "—"}
-                  </strong>
+                  <strong>{typeof item.remainingSec === "number" ? formatDuration(item.remainingSec) : "—"}</strong>
                 </div>
                 <div className="boothReadout">
                   <span>Status</span>
@@ -136,13 +96,9 @@ export default function NowPlayingCard({
                 </div>
               </div>
 
-              <div className="boothProgress boothProgress--hero">
-                <div
-                  className="boothProgressFill"
-                  style={{ width: `${progressPct}%` }}
-                />
+              <div className="boothProgress">
+                <div className="boothProgressFill" style={{ width: `${progressPct}%` }} />
               </div>
-
               <div className="boothProgressMeta">
                 <span>Runtime progress</span>
                 <span>{Math.round(progressPct)}%</span>
@@ -152,14 +108,14 @@ export default function NowPlayingCard({
 
           <BoothActionButtons
             actions={actions}
-            busyAction={busyAction}
+            busyKey={item ? `${item.id}:` : null}
+            activeBusyKey={busyKey}
+            compact={mode === "performance"}
             onAction={handleAction}
           />
         </>
       ) : (
-        <div className="boothEmptyState boothEmptyState--hero">
-          No active PLAYING item found.
-        </div>
+        <div className="boothEmptyState boothEmptyState--hero">No active PLAYING item found.</div>
       )}
     </div>
   );

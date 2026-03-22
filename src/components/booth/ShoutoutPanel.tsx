@@ -23,15 +23,12 @@ function ShoutoutRow({
         <strong>{item.fromName || "Guest"}</strong>
         <div className="boothShoutoutBadges">
           {item.tier ? <StatusBadge label={item.tier} tone="pink" /> : null}
-          <StatusBadge label={tone === "gold" ? "PENDING" : "APPROVED"} tone={tone} />
+          <StatusBadge label={tone === "gold" ? "Pending" : "Approved"} tone={tone} />
         </div>
       </div>
 
       <div className="boothShoutoutText">{item.messageText || "No message text."}</div>
-
-      <div className="boothShoutoutMeta">
-        {item.createdAt ? formatTimeAgo(item.createdAt) : "—"}
-      </div>
+      <div className="boothShoutoutMeta">{item.createdAt ? formatTimeAgo(item.createdAt) : "—"}</div>
     </div>
   );
 }
@@ -45,19 +42,17 @@ export default function ShoutoutPanel({
     <section className={`boothPanel ${mode === "performance" ? "is-compact" : ""}`}>
       <div className="boothPanelHeader">
         <div>
-          <div className="boothPanelTitle">SHOUTOUTS</div>
+          <div className="boothPanelTitle">Shoutouts</div>
           <div className="boothPanelSub">Pending and approved messages</div>
         </div>
       </div>
 
       <div className="boothShoutoutSplit">
         <div>
-          <div className="boothSubsectionTitle">PENDING</div>
+          <div className="boothSubsectionTitle">Pending</div>
           <div className="boothShoutoutList">
             {pending.length ? (
-              pending.map((item) => (
-                <ShoutoutRow key={item.id} item={item} tone="gold" />
-              ))
+              pending.map((item) => <ShoutoutRow key={item.id} item={item} tone="gold" />)
             ) : (
               <div className="boothEmptyState">No pending shoutouts.</div>
             )}
@@ -65,12 +60,10 @@ export default function ShoutoutPanel({
         </div>
 
         <div>
-          <div className="boothSubsectionTitle">APPROVED</div>
+          <div className="boothSubsectionTitle">Approved</div>
           <div className="boothShoutoutList">
             {approved.length ? (
-              approved.map((item) => (
-                <ShoutoutRow key={item.id} item={item} tone="cyan" />
-              ))
+              approved.map((item) => <ShoutoutRow key={item.id} item={item} tone="cyan" />)
             ) : (
               <div className="boothEmptyState">No approved shoutouts.</div>
             )}
