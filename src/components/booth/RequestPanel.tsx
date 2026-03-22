@@ -39,7 +39,7 @@ export default function RequestPanel({
             {item.sortBucket === "PLAY_NOW" ? (
               <StatusBadge label="PLAY NOW" tone="pink" />
             ) : item.boosted ? (
-              <StatusBadge label="BOOST" tone="pink" />
+              <StatusBadge label="BOOST" tone="gold" />
             ) : (
               <StatusBadge label="UP NEXT" tone="cyan" />
             )}
@@ -51,20 +51,10 @@ export default function RequestPanel({
           </div>
 
           <div className="boothInlineActions">
-            <button
-              type="button"
-              className="boothActionBtn boothActionBtn--skip"
-              onClick={() => handleAction(item, "reject")}
-              disabled={isBusy}
-            >
+            <button type="button" className="boothActionBtn boothActionBtn--skip" onClick={() => handleAction(item, "reject")} disabled={isBusy}>
               {isBusy && busyAction === "reject" ? "Working..." : "Reject"}
             </button>
-            <button
-              type="button"
-              className="boothActionBtn boothActionBtn--played"
-              onClick={() => handleAction(item, "played")}
-              disabled={isBusy}
-            >
+            <button type="button" className="boothActionBtn boothActionBtn--played" onClick={() => handleAction(item, "played")} disabled={isBusy}>
               {isBusy && busyAction === "played" ? "Working..." : "Mark Played"}
             </button>
           </div>

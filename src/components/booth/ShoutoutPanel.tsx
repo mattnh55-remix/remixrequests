@@ -39,7 +39,7 @@ export default function ShoutoutPanel({
               pendingShoutouts.slice(0, 8).map((item) => {
                 const isBusy = busyId === item.id;
                 return (
-                  <div className="boothShoutoutRow" key={item.id}>
+                  <div className="boothShoutoutRow boothShoutoutRow--pending" key={item.id}>
                     <div className="boothShoutoutTop">
                       <strong>{item.fromName || "Guest"}</strong>
                       <StatusBadge label={item.tier || "TIER"} tone="gold" />
@@ -47,20 +47,10 @@ export default function ShoutoutPanel({
                     <div className="boothShoutoutText">{item.messageText || "No message text."}</div>
                     <div className="boothShoutoutMeta">{formatTimeAgo(item.createdAt)}</div>
                     <div className="boothInlineActions">
-                      <button
-                        type="button"
-                        className="boothActionBtn boothActionBtn--play"
-                        onClick={() => handleAction(item, "approve")}
-                        disabled={isBusy}
-                      >
+                      <button type="button" className="boothActionBtn boothActionBtn--play" onClick={() => handleAction(item, "approve")} disabled={isBusy}>
                         {isBusy && busyAction === "approve" ? "Working..." : "Approve"}
                       </button>
-                      <button
-                        type="button"
-                        className="boothActionBtn boothActionBtn--skip"
-                        onClick={() => handleAction(item, "reject")}
-                        disabled={isBusy}
-                      >
+                      <button type="button" className="boothActionBtn boothActionBtn--skip" onClick={() => handleAction(item, "reject")} disabled={isBusy}>
                         {isBusy && busyAction === "reject" ? "Working..." : "Reject"}
                       </button>
                     </div>

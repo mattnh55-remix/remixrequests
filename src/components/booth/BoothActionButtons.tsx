@@ -23,13 +23,7 @@ export default function BoothActionButtons({
       {actions.map((action) => {
         const isBusy = busyAction === action;
         return (
-          <button
-            key={action}
-            type="button"
-            className={`boothActionBtn boothActionBtn--${action}`}
-            disabled={disabled || !!busyAction}
-            onClick={() => onAction(action)}
-          >
+          <button key={action} type="button" className={`boothActionBtn boothActionBtn--${action}`} disabled={disabled || !!busyAction} onClick={() => onAction(action)}>
             {isBusy ? "Working..." : formatActionLabel(action)}
           </button>
         );
