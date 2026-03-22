@@ -5,6 +5,7 @@ export type QueueLikeItem = {
   artist?: string | null;
   status?: string | null;
   sourceType?: string | null;
+  itemType?: string | null;
   type?: string | null;
   clusterId?: string | null;
   position?: number | null;
@@ -65,7 +66,8 @@ export type ShoutoutItem = {
 export type BoothDataState = {
   queue: QueueLikeItem[];
   runtimePreview: RuntimePreview | null;
-  pendingRequests: RequestItem[];
+  playNowRequests: RequestItem[];
+  upNextRequests: RequestItem[];
   pendingShoutouts: ShoutoutItem[];
   approvedShoutouts: ShoutoutItem[];
   loading: boolean;
@@ -81,7 +83,13 @@ export type ReorderState = {
   activeDragId: string | null;
 };
 
-export type BoothActionName = "load" | "play" | "hold" | "skip" | "played";
+export type BoothActionName =
+  | "load"
+  | "play"
+  | "pause"
+  | "skip"
+  | "done"
+  | "remove";
 
 export type BoothActionResult = {
   ok: boolean;
@@ -91,6 +99,7 @@ export type BoothActionResult = {
 };
 
 export type RequestActionName = "reject" | "played";
+export type BoothMode = "visual" | "performance";
 
 export type RequestActionResult = {
   ok: boolean;
