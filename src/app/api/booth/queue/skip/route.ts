@@ -1,3 +1,6 @@
+// src/app/api/booth/queue/skip/route.ts
+
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminFromCookie } from "@/lib/adminAuth";

@@ -1,3 +1,5 @@
+// src/app/api/booth/runtime/materialize-next/[location]/route.ts
+
 import { NextResponse } from "next/server";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 import { getRulesForLocation } from "@/lib/rules";

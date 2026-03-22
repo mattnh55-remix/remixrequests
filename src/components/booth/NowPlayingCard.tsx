@@ -33,11 +33,13 @@ export default function NowPlayingCard({
                 ) : (
                   <StatusBadge label="PLAYING" tone="cyan" />
                 )}
+                {item.isEndingSoon ? <StatusBadge label="ENDING SOON" tone="gold" /> : null}
               </div>
               <div className="boothHeroMeta">
                 {item.artist || "Unknown artist"}
                 {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
                 {item.durationSec ? ` • ${formatDuration(item.durationSec)}` : ""}
+                {typeof item.remainingSec === "number" ? ` • ${item.remainingSec}s left` : ""}
               </div>
 
               <div className="boothProgress">
@@ -45,17 +47,16 @@ export default function NowPlayingCard({
               </div>
 
               <div className="boothProgressMeta">
-                <span>Runtime progress</span>
+                <span>
+                  Runtime progress
+                  {typeof item.elapsedSec === "number" ? ` • ${item.elapsedSec}s elapsed` : ""}
+                </span>
                 <span>{Math.round(progressPct)}%</span>
               </div>
             </div>
           </div>
 
-          <BoothActionButtons
-            actions={actions}
-            busyAction={busyAction}
-            onAction={(action) => onAction?.(item, action)}
-          />
+          <BoothActionButtons actions={actions} busyAction={busyAction} onAction={(action) => onAction?.(item, action)} />
         </>
       ) : (
         <div className="boothEmptyState">No active PLAYING item found.</div>

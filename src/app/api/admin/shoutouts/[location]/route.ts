@@ -1,3 +1,5 @@
+// src/app/api/admin/shoutouts/[location]/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getOrCreateCurrentSession } from "@/lib/validators";

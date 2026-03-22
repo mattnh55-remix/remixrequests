@@ -7,7 +7,7 @@ import {
   buildReorderPayload,
   isSongDraggable,
   performQueueAction,
-  postFirstJson,
+  postJson,
   reorderSongsOnly,
 } from "./booth-utils";
 import type { BoothActionName, QueueLikeItem, ReorderState } from "./types";
@@ -38,29 +38,19 @@ export default function QueueList({
     setDraftItems(items);
   }, [items, dragState.dirty]);
 
-  const draggableSongCount = useMemo(
-    () => draftItems.filter((item) => isSongDraggable(item)).length,
-    [draftItems]
-  );
+  const draggableSongCount = useMemo(() => draftItems.filter((item) => isSongDraggable(item)).length, [draftItems]);
 
   async function saveReorder() {
     setDragState((prev) => ({ ...prev, saving: true, error: null, success: null }));
 
     const payload = buildReorderPayload(location, draftItems);
-    const result = await postFirstJson(
-      [
-        `/api/booth/reorder/${location}`,
-        `/api/booth/queue/reorder/${location}`,
-        `/api/admin/queue/reorder/${location}`,
-      ],
-      payload
-    );
+    const result = await postJson(`/api/booth/queue/reorder`, payload);
 
     if (!result.ok) {
       setDragState((prev) => ({
         ...prev,
         saving: false,
-        error: "Reorder route not found yet. UI reorder preview is working.",
+        error: "Reorder failed against the real booth route.",
         success: null,
       }));
       return;
@@ -120,27 +110,15 @@ export default function QueueList({
       <div className="boothQueueToolbar">
         <div>
           <div className="boothQueueToolbarTitle">Song reorder mode</div>
-          <div className="boothQueueToolbarSub">
-            Drag songs only. Interstitials remain locked system inserts.
-          </div>
+          <div className="boothQueueToolbarSub">Drag songs only. Interstitials remain locked system inserts.</div>
         </div>
 
         <div className="boothQueueToolbarRight">
           <div className="boothQueueToolbarPill">{draggableSongCount} draggable songs</div>
-          <button
-            type="button"
-            className="boothToolbarBtn boothToolbarBtn--ghost"
-            onClick={cancelDraft}
-            disabled={!dragState.dirty || dragState.saving}
-          >
+          <button type="button" className="boothToolbarBtn boothToolbarBtn--ghost" onClick={cancelDraft} disabled={!dragState.dirty || dragState.saving}>
             Cancel
           </button>
-          <button
-            type="button"
-            className="boothToolbarBtn"
-            onClick={saveReorder}
-            disabled={!dragState.dirty || dragState.saving}
-          >
+          <button type="button" className="boothToolbarBtn" onClick={saveReorder} disabled={!dragState.dirty || dragState.saving}>
             {dragState.saving ? "Saving..." : "Save Reorder"}
           </button>
         </div>

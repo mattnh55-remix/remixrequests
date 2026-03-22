@@ -14,13 +14,19 @@ export type QueueLikeItem = {
   progressPct?: number | null;
   progressPercent?: number | null;
   elapsedMs?: number | null;
+  elapsedSec?: number | null;
+  remainingSec?: number | null;
+  isEndingSoon?: boolean | null;
   startedAt?: string | null;
+  expectedEndAt?: string | null;
   createdAt?: string | null;
   requestedByLabel?: string | null;
   boosted?: boolean | null;
+  artworkUrl?: string | null;
 };
 
 export type RuntimePreview = {
+  mode?: "materializer" | "derived" | "idle";
   action?: string;
   reason?: string;
   targetQueueItemId?: string | null;
@@ -29,6 +35,11 @@ export type RuntimePreview = {
   interstitialAssetId?: string | null;
   interstitialTitle?: string | null;
   clusterId?: string | null;
+  materialized?: boolean;
+  queueItemId?: string | null;
+  assetId?: string | null;
+  insertedQueueItemId?: string | null;
+  insertedPosition?: number | null;
 };
 
 export type RequestItem = {
@@ -39,6 +50,7 @@ export type RequestItem = {
   type?: string;
   boosted?: boolean;
   requestedByLabel?: string;
+  sortBucket?: "PLAY_NOW" | "UP_NEXT";
 };
 
 export type ShoutoutItem = {
@@ -74,6 +86,24 @@ export type BoothActionName = "load" | "play" | "hold" | "skip" | "played";
 export type BoothActionResult = {
   ok: boolean;
   action: BoothActionName;
+  message: string;
+  url?: string | null;
+};
+
+export type RequestActionName = "reject" | "played";
+
+export type RequestActionResult = {
+  ok: boolean;
+  action: RequestActionName;
+  message: string;
+  url?: string | null;
+};
+
+export type ShoutoutActionName = "approve" | "reject";
+
+export type ShoutoutActionResult = {
+  ok: boolean;
+  action: ShoutoutActionName;
   message: string;
   url?: string | null;
 };
