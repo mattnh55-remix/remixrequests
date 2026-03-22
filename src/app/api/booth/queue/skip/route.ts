@@ -1,10 +1,9 @@
-// /src/app/api/booth/queue/skip/route.ts
-
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 import { getRulesForLocation } from "@/lib/rules";
 import { removeRequestFromTop10 } from "@/lib/top10";
+import { parseInterstitialAssetId } from "@/lib/booth/runtime-queue";
 
 export async function POST(req: Request) {
   if (!isAdminFromCookie(req.headers.get("cookie"))) {
@@ -14,7 +13,10 @@ export async function POST(req: Request) {
   const { queueItemId } = await req.json();
 
   if (!queueItemId) {
-    return NextResponse.json({ ok: false, error: "Missing queueItemId" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "Missing queueItemId" },
+      { status: 400 }
+    );
   }
 
   try {
@@ -54,17 +56,45 @@ export async function POST(req: Request) {
             queueItemId: item.id,
             requestId: item.requestId,
             source: "booth_skip",
+            sourceType: item.sourceType,
+            clusterId: item.clusterId ?? null,
             durationSec: item.durationSec,
             startedAt: item.playingAt?.toISOString() ?? null,
+            completedAt: now.toISOString(),
           },
         },
       });
 
+      if (item.sourceType === "INTERSTITIAL") {
+        const assetId = parseInterstitialAssetId(item.clusterId);
+
+        if (assetId) {
+          await tx.interstitialEvent.updateMany({
+            where: {
+              locationId: item.locationId,
+              sessionId: item.sessionId,
+              assetId,
+              status: "PLANNED",
+            },
+            data: {
+              status: "SKIPPED",
+            },
+          });
+        }
+
+        return;
+      }
+
       if (item.request) {
-        if (item.request.status !== "REJECTED" && item.request.status !== "PLAYED") {
+        if (
+          item.request.status !== "REJECTED" &&
+          item.request.status !== "PLAYED"
+        ) {
           const { rules } = await getRulesForLocation(item.request.location.slug);
           const refund =
-            item.request.type === "PLAY_NOW" ? rules.costPlayNow : rules.costRequest;
+            item.request.type === "PLAY_NOW"
+              ? rules.costPlayNow
+              : rules.costRequest;
 
           await tx.request.update({
             where: { id: item.request.id },
@@ -111,10 +141,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     if (error?.message === "NOT_FOUND") {
-      return NextResponse.json({ ok: false, error: "Queue item not found" }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: "Queue item not found" },
+        { status: 404 }
+      );
     }
 
     console.error("booth skip error", error);
-    return NextResponse.json({ ok: false, error: "Could not skip queue item." }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "Could not skip queue item." },
+      { status: 500 }
+    );
   }
 }
