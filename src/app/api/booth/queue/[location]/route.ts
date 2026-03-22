@@ -44,8 +44,8 @@ export async function GET(
         locationId: loc.id,
         sessionId: session.id,
         status: {
-          in: ["QUEUED", "LOADED", "PLAYING", "HELD", "PLAYED", "SKIPPED"],
-        },
+  in: ["QUEUED", "LOADED", "PLAYING", "HELD"],
+},
       },
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
       include: {

@@ -68,6 +68,27 @@ export async function POST(req: Request) {
         },
       });
 
+      const activeItems = await tx.queueItem.findMany({
+        where: {
+          locationId: item.locationId,
+          sessionId: item.sessionId,
+          status: {
+            in: ["PLAYING", "LOADED", "QUEUED", "HELD"],
+          },
+        },
+        orderBy: [{ position: "asc" }],
+        select: {
+          id: true,
+        },
+      });
+
+      for (let i = 0; i < activeItems.length; i++) {
+        await tx.queueItem.update({
+          where: { id: activeItems[i].id },
+          data: { position: i + 1 },
+        });
+      }
+
       if (item.sourceType === "INTERSTITIAL") {
         const assetId = parseInterstitialAssetId(item.clusterId);
 

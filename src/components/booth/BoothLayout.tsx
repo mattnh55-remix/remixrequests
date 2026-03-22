@@ -6,6 +6,7 @@ import NowPlayingCard from "./NowPlayingCard";
 import OnDeckCard from "./OnDeckCard";
 import QueueList from "./QueueList";
 import ShoutoutPanel from "./ShoutoutPanel";
+import SearchAddPanel from "./SearchAddPanel";
 import { enrichQueueWithRequests, normalizeQueue, queueSummary, safeJson } from "./booth-utils";
 import type {
   BoothDataState,
@@ -226,7 +227,8 @@ export default function BoothLayout({ location }: { location: string }) {
         </section>
 
         <div className="boothStack">
-          <EnginePanel
+	<SearchAddPanel location={location} />
+	<EnginePanel
             preview={state.runtimePreview}
             mode={mode}
             onMaterialize={async () => {
@@ -950,6 +952,153 @@ export default function BoothLayout({ location }: { location: string }) {
             text-align: left;
           }
         }
+          .searchAddPanel {
+  margin-top: 10px;
+}
+
+.searchAddInput {
+  width: 100%;
+}
+
+.searchAddHint {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(120, 180, 255, 0.18);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(16, 36, 64, 0.66), rgba(8, 18, 34, 0.72));
+  color: rgba(220, 232, 255, 0.82);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.searchAddState,
+.searchAddError {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.searchAddState {
+  border: 1px solid rgba(120, 180, 255, 0.14);
+  background: rgba(10, 19, 33, 0.62);
+  color: rgba(220, 232, 255, 0.78);
+}
+
+.searchAddError {
+  border: 1px solid rgba(255, 120, 120, 0.18);
+  background: rgba(60, 16, 22, 0.45);
+  color: #ffb0b0;
+}
+
+.searchAddResults {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.searchAddResult {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 180, 255, 0.14);
+  background:
+    linear-gradient(180deg, rgba(20, 30, 52, 0.95), rgba(10, 16, 30, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 0 0 1px rgba(20, 34, 60, 0.4);
+}
+
+.searchAddResult--active {
+  border-color: rgba(115, 174, 255, 0.52);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0 0 1px rgba(70, 120, 220, 0.55),
+    0 0 18px rgba(70, 120, 220, 0.18);
+  background:
+    linear-gradient(180deg, rgba(28, 43, 76, 0.98), rgba(12, 20, 38, 1));
+}
+
+.searchAddMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.searchAddMeta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.searchAddTitle {
+  color: #f7f8fc;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.searchAddArtist {
+  margin-top: 3px;
+  color: rgba(210, 222, 244, 0.78);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.searchAddHotkey {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 210, 120, 0.32);
+  background: rgba(110, 82, 18, 0.32);
+  color: #ffd97b;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.searchAddActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.searchAddMiniBtn {
+  min-width: 60px;
+  padding-inline: 10px;
+}
+
+@media (max-width: 1100px) {
+  .searchAddResult {
+    grid-template-columns: 1fr;
+  }
+
+  .searchAddActions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
       `}</style>
     </div>
   );
