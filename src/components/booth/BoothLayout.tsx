@@ -355,14 +355,15 @@ export default function BoothLayout({ location }: { location: string }) {
 
         <div className="boothStack">
           <SearchAddPanel location={location} onAdded={load} />
-          <EnginePanel
-            preview={state.runtimePreview}
-            mode={mode}
-            onMaterialize={async () => {
-              await materializeRuntimeAndMaybePlay();
-              await load();
-            }}
-          />
+<EnginePanel
+  preview={state.runtimePreview}
+  mode={mode}
+  onMaterialize={async () => {
+    const result = await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
+    await load();
+    return result.data;
+  }}
+/>
         </div>
 
         <ShoutoutPanel
