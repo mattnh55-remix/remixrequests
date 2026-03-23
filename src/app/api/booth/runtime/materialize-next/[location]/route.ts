@@ -7,7 +7,6 @@ import {
   QueueItemStatus,
   QueueSourceType,
   SessionProfile,
-  type InterstitialCategory,
 } from "@prisma/client";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 import { computeNextPlaybackAction } from "@/lib/booth/compute-next-playback-action";
@@ -111,55 +110,6 @@ function extractDurationSec(
   }
 
   return null;
-}
-
-function mapCategoryToLegacy(category: InterstitialCategory) {
-  switch (category) {
-    case "REQUEST_SINGLE":
-      return "REQUEST_INTRO_SINGLE";
-    case "REQUEST_BLOCK":
-      return "REQUEST_INTRO_BLOCK";
-    case "BRANDING":
-      return "BRANDING_SHORT";
-    case "RULES":
-      return "RULES_ANNOUNCEMENT";
-    case "GAME":
-      return "GAME_ANNOUNCEMENT";
-    case "BIRTHDAY":
-      return "BIRTHDAY";
-    case "SAFETY":
-      return "SAFETY";
-    case "MANUAL_ONLY":
-    default:
-      return "MANUAL_ONLY";
-  }
-}
-
-function mapTriggerType(
-  category: InterstitialCategory,
-  scheduleMode: InterstitialScheduleMode
-) {
-  if (scheduleMode === InterstitialScheduleMode.TOP_OF_HOUR_WINDOW) {
-    return "TOP_OF_HOUR_WINDOW";
-  }
-
-  if (scheduleMode === InterstitialScheduleMode.INTERVAL_MINUTES) {
-    return "SCHEDULED_INTERVAL";
-  }
-
-  if (category === "REQUEST_SINGLE") {
-    return "REQUEST_SINGLE";
-  }
-
-  if (category === "REQUEST_BLOCK") {
-    return "REQUEST_CLUSTER";
-  }
-
-  if (category === "MANUAL_ONLY") {
-    return "MANUAL";
-  }
-
-  return "RANDOM_BRANDING";
 }
 
 async function normalizeActiveQueuePositions(
@@ -290,8 +240,19 @@ export async function POST(
       return {
         id: asset.id,
         name: asset.name,
-        category: mapCategoryToLegacy(asset.category),
-        triggerType: mapTriggerType(asset.category, asset.scheduleMode),
+        category: asset.category,
+        triggerType:
+  asset.scheduleMode === InterstitialScheduleMode.TOP_OF_HOUR_WINDOW
+    ? "TOP_OF_HOUR_WINDOW"
+    : asset.scheduleMode === InterstitialScheduleMode.INTERVAL_MINUTES
+    ? "SCHEDULED_INTERVAL"
+    : asset.category === "REQUEST_SINGLE"
+    ? "REQUEST_SINGLE"
+    : asset.category === "REQUEST_BLOCK"
+    ? "REQUEST_CLUSTER"
+    : asset.category === "MANUAL_ONLY"
+    ? "MANUAL"
+    : "RANDOM_BRANDING",
         filePath: asset.fileUrl,
         durationSec: asset.durationSec ?? 0,
         active: asset.active,
@@ -339,15 +300,15 @@ export async function POST(
       metadata: null,
     }));
 
-    const action = computeNextPlaybackAction({
-      locationId: loc.id,
-      sessionId: session.id,
-      profile,
-      queueItems,
-      interstitialAssets,
-      recentInterstitialEvents,
-      nowIso: new Date().toISOString(),
-    });
+const action = computeNextPlaybackAction({
+  locationId: loc.id,
+  sessionId: session.id,
+  profile,
+  queueItems: queueItems as any,
+  interstitialAssets: interstitialAssets as any,
+  recentInterstitialEvents: recentInterstitialEvents as any,
+  nowIso: new Date().toISOString(),
+} as any);
 
     if (!isInterstitialAction(action)) {
       return NextResponse.json({
