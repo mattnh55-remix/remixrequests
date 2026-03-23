@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import {
   InterstitialEventStatus,
-  InterstitialScheduleMode,
   PlaybackEventType,
   Prisma,
   QueueItemStatus,
@@ -9,7 +8,6 @@ import {
   SessionProfile,
 } from "@prisma/client";
 import { isAdminFromCookie } from "@/lib/adminAuth";
-import { computeNextPlaybackAction } from "@/lib/booth/compute-next-playback-action";
 import { buildInterstitialClusterId } from "@/lib/booth/runtime-queue";
 import { prisma } from "@/lib/prisma";
 import { getRulesForLocation } from "@/lib/rules";
@@ -44,72 +42,6 @@ function normalizeProfile(value: unknown): SessionProfile {
     default:
       return SessionProfile.GENERAL;
   }
-}
-
-function isInterstitialAction(action: unknown): boolean {
-  const actionType = String((action as any)?.action ?? "").toUpperCase();
-  return actionType === "PLAY_INTERSTITIAL_THEN_QUEUE_ITEM";
-}
-
-function extractAssetId(action: any): string | null {
-  const candidates = [
-    action?.assetId,
-    action?.interstitialAssetId,
-    action?.asset?.id,
-    action?.interstitialAsset?.id,
-    action?.payload?.assetId,
-    action?.payload?.interstitialAssetId,
-  ];
-
-  for (const value of candidates) {
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return null;
-}
-
-function extractTargetQueueItemId(action: any): string | null {
-  const candidates = [
-    action?.queueItemId,
-    action?.targetQueueItemId,
-    action?.beforeQueueItemId,
-    action?.target?.queueItemId,
-    action?.target?.id,
-    action?.targetSongQueueItemId,
-    action?.song?.queueItemId,
-    action?.payload?.targetQueueItemId,
-  ];
-
-  for (const value of candidates) {
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return null;
-}
-
-function extractDurationSec(
-  action: any,
-  asset: { durationSec: number | null }
-): number | null {
-  const candidates = [
-    action?.durationSec,
-    action?.asset?.durationSec,
-    action?.interstitialAsset?.durationSec,
-    action?.payload?.durationSec,
-    asset.durationSec,
-  ];
-
-  for (const value of candidates) {
-    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-      return Math.round(value);
-    }
-  }
-
-  return null;
 }
 
 async function normalizeActiveQueuePositions(
@@ -160,226 +92,85 @@ export async function POST(
     const body = await req.json().catch(() => ({}));
     const profile = normalizeProfile(body?.profile);
 
-    const [queueItemsRaw, assetsRaw, recentEventsRaw] = await Promise.all([
-      prisma.queueItem.findMany({
-        where: {
-          locationId: loc.id,
-          sessionId: session.id,
-          status: { in: ACTIVE_QUEUE_STATUSES },
-        },
-        orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-        select: {
-          id: true,
-          status: true,
-          position: true,
-          createdAt: true,
-          sourceType: true,
-          introAssigned: true,
-          clusterId: true,
-        },
-      }),
-
-      prisma.interstitialAsset.findMany({
-        where: {
-          locationId: loc.id,
-          active: true,
-        },
-        orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
-        select: {
-          id: true,
-          name: true,
-          category: true,
-          fileUrl: true,
-          durationSec: true,
-          active: true,
-          priority: true,
-          randomWeight: true,
-          scheduleMode: true,
-          intervalMinutes: true,
-          allowedProfiles: true,
-          blockedProfiles: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      }),
-
-      prisma.interstitialEvent.findMany({
-        where: {
-          locationId: loc.id,
-          sessionId: session.id,
-        },
-        orderBy: [{ plannedAt: "desc" }],
-        take: 100,
-        select: {
-          id: true,
-          sessionId: true,
-          locationId: true,
-          assetId: true,
-          status: true,
-          plannedAt: true,
-          playedAt: true,
-        },
-      }),
-    ]);
-
-    const queueItems = queueItemsRaw.map((item) => ({
-      id: item.id,
-      status: item.status,
-      position: item.position,
-      createdAt: item.createdAt.toISOString(),
-      sourceType: item.sourceType,
-      introAssigned: item.introAssigned,
-      clusterId: item.clusterId,
-    }));
-
-    const interstitialAssets = assetsRaw.map((asset) => {
-      const manualOnly =
-        asset.category === "MANUAL_ONLY" ||
-        asset.scheduleMode === InterstitialScheduleMode.MANUAL_ONLY;
-
-      return {
-        id: asset.id,
-        name: asset.name,
-        category: asset.category,
-        triggerType:
-  asset.scheduleMode === InterstitialScheduleMode.TOP_OF_HOUR_WINDOW
-    ? "TOP_OF_HOUR_WINDOW"
-    : asset.scheduleMode === InterstitialScheduleMode.INTERVAL_MINUTES
-    ? "SCHEDULED_INTERVAL"
-    : asset.category === "REQUEST_SINGLE"
-    ? "REQUEST_SINGLE"
-    : asset.category === "REQUEST_BLOCK"
-    ? "REQUEST_CLUSTER"
-    : asset.category === "MANUAL_ONLY"
-    ? "MANUAL"
-    : "RANDOM_BRANDING",
-        filePath: asset.fileUrl,
-        durationSec: asset.durationSec ?? 0,
-        active: asset.active,
-        priority: asset.priority,
-        randomWeight: asset.randomWeight ?? 100,
-        cooldownSongs: null,
-        cooldownMinutes: null,
-        allowedProfiles: asset.allowedProfiles.map(String),
-        blockedProfiles: asset.blockedProfiles.map(String),
-        scheduleMode: asset.scheduleMode,
-        intervalMinutes: asset.intervalMinutes,
-        minSongsBetweenPlays: null,
-        maxUsesPerSession: null,
-        cleanTransitionOnly: false,
-        requestClusterEligible: asset.category === "REQUEST_BLOCK",
-        requestSingleEligible: asset.category === "REQUEST_SINGLE",
-        brandingEligible:
-          asset.category === "BRANDING" ||
-          asset.category === "RULES" ||
-          asset.category === "GAME" ||
-          asset.category === "SAFETY" ||
-          asset.category === "BIRTHDAY",
-        startsBlock: asset.category === "REQUEST_BLOCK",
-        manualOnly,
-        createdAt: asset.createdAt.toISOString(),
-        updatedAt: asset.updatedAt.toISOString(),
-      };
+    const activeQueue = await prisma.queueItem.findMany({
+      where: {
+        locationId: loc.id,
+        sessionId: session.id,
+        status: { in: ACTIVE_QUEUE_STATUSES },
+      },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        position: true,
+        status: true,
+        sourceType: true,
+        clusterId: true,
+        createdAt: true,
+      },
     });
 
-    const recentInterstitialEvents = recentEventsRaw.map((event) => ({
-      id: event.id,
-      sessionId: event.sessionId ?? session.id,
-      locationId: event.locationId,
-      assetId: event.assetId,
-      status: event.status,
-      reason: "BRANDING_GAP_FILL" as const,
-      insertedBeforeQueueItemId: null,
-      insertedAfterQueueItemId: null,
-      linkedRequestClusterId: null,
-      plannedAt: event.plannedAt.toISOString(),
-      playedAt: event.playedAt ? event.playedAt.toISOString() : null,
-      skippedAt: null,
-      operatorOverride: false,
-      overrideNote: null,
-      metadata: null,
-    }));
+    const targetQueueItem =
+      activeQueue.find((item) => item.status === QueueItemStatus.LOADED) ||
+      activeQueue.find((item) => item.status === QueueItemStatus.QUEUED) ||
+      null;
 
-const action = computeNextPlaybackAction({
-  locationId: loc.id,
-  sessionId: session.id,
-  profile,
-  queueItems: queueItems as any,
-  interstitialAssets: interstitialAssets as any,
-  recentInterstitialEvents: recentInterstitialEvents as any,
-  nowIso: new Date().toISOString(),
-} as any);
-
-    if (!isInterstitialAction(action)) {
+    if (!targetQueueItem) {
       return NextResponse.json({
         ok: true,
         materialized: false,
-        reason: "NO_INTERSTITIAL_ACTION",
-        action,
+        reason: "NO_TARGET_QUEUE_ITEM",
         sessionId: session.id,
         locationId: loc.id,
         locationSlug,
+        profile,
       });
     }
 
-    const assetId = extractAssetId(action);
-    if (!assetId) {
-      return jsonFail("Interstitial action did not include an assetId.", 500);
-    }
-
-    const targetQueueItemId = extractTargetQueueItemId(action);
-    if (!targetQueueItemId) {
-      return jsonFail("Interstitial action did not include a target queue item.", 500);
-    }
-
-    const asset = await prisma.interstitialAsset.findFirst({
+    const assets = await prisma.interstitialAsset.findMany({
       where: {
-        id: assetId,
         locationId: loc.id,
         active: true,
       },
+      orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
       select: {
         id: true,
         name: true,
         category: true,
-        durationSec: true,
         fileUrl: true,
+        durationSec: true,
+        allowedProfiles: true,
+        blockedProfiles: true,
       },
     });
 
-    if (!asset) {
-      return jsonFail("Interstitial asset not found or inactive.", 404);
+    const eligibleAssets = assets.filter((asset) => {
+      const blocked = asset.blockedProfiles.map(String);
+      const allowed = asset.allowedProfiles.map(String);
+
+      if (blocked.includes(profile)) return false;
+      if (allowed.length > 0 && !allowed.includes(profile)) return false;
+      if (!asset.fileUrl || !String(asset.fileUrl).trim()) return false;
+      if (!asset.durationSec || asset.durationSec <= 0) return false;
+
+      return true;
+    });
+
+    if (eligibleAssets.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        materialized: false,
+        reason: "NO_INTERSTITIAL_ACTION",
+        sessionId: session.id,
+        locationId: loc.id,
+        locationSlug,
+        profile,
+      });
     }
 
-    const clusterId = buildInterstitialClusterId(assetId);
-    const durationSec = extractDurationSec(action, asset);
+    const asset = eligibleAssets[0];
+    const clusterId = buildInterstitialClusterId(asset.id);
 
     const result = await prisma.$transaction(async (tx) => {
-      const activeItems = await tx.queueItem.findMany({
-        where: {
-          locationId: loc.id,
-          sessionId: session.id,
-          status: { in: ACTIVE_QUEUE_STATUSES },
-        },
-        orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-        select: {
-          id: true,
-          position: true,
-          status: true,
-          sourceType: true,
-          clusterId: true,
-          createdAt: true,
-        },
-      });
-
-      const targetIndex = activeItems.findIndex(
-        (item) => item.id === targetQueueItemId
-      );
-
-      if (targetIndex === -1) {
-        throw new Error("TARGET_QUEUE_ITEM_NOT_FOUND");
-      }
-
       const existingMatchingInterstitial = await tx.queueItem.findFirst({
         where: {
           locationId: loc.id,
@@ -403,22 +194,20 @@ const action = computeNextPlaybackAction({
           assetFileUrl: asset.fileUrl,
           bridgePlaybackFilename: asset.fileUrl,
           clusterId,
-          targetQueueItemId,
+          targetQueueItemId: targetQueueItem.id,
         };
       }
-
-      const insertPosition = activeItems[targetIndex].position;
 
       const queueItem = await tx.queueItem.create({
         data: {
           locationId: loc.id,
           sessionId: session.id,
           status: QueueItemStatus.QUEUED,
-          position: insertPosition,
+          position: targetQueueItem.position,
           sourceType: QueueSourceType.INTERSTITIAL,
           introAssigned: false,
           clusterId,
-          durationSec,
+          durationSec: asset.durationSec,
         },
         select: {
           id: true,
@@ -436,10 +225,9 @@ const action = computeNextPlaybackAction({
         assetCategory: asset.category,
         fileUrl: asset.fileUrl,
         clusterId,
-        targetQueueItemId,
-        insertedBeforeQueueItemId: targetQueueItemId,
-        materializedBy: "runtime/materialize-next",
-        plannedFromActionType: String((action as any)?.action ?? "PLAY_INTERSTITIAL_THEN_QUEUE_ITEM"),
+        targetQueueItemId: targetQueueItem.id,
+        insertedBeforeQueueItemId: targetQueueItem.id,
+        materializedBy: "runtime/materialize-next-simple",
         profile,
       } satisfies Prisma.JsonObject;
 
@@ -501,13 +289,12 @@ const action = computeNextPlaybackAction({
         assetFileUrl: asset.fileUrl,
         bridgePlaybackFilename: asset.fileUrl,
         clusterId,
-        targetQueueItemId,
+        targetQueueItemId: targetQueueItem.id,
       };
     });
 
     return NextResponse.json({
       ...result,
-      action,
       sessionId: session.id,
       locationId: loc.id,
       locationSlug,
