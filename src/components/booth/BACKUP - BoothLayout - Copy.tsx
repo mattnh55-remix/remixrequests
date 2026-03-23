@@ -16,109 +16,17 @@ import type {
   ShoutoutItem,
 } from "./types";
 
-type PostJsonResult = {
-  ok: boolean;
-  data: any;
-};
-
-type MaterializeResult = {
-  ok?: boolean;
-  materialized?: boolean;
-  assetFileUrl?: string | null;
-  assetName?: string | null;
-  bridgePlaybackFilename?: string | null;
-  reason?: string;
-};
-
-const DEFAULT_LOCAL_BRIDGE_BASE_URL = "http://127.0.0.1:8787";
-const BRIDGE_BASE_URL_STORAGE_KEY = "rr.bridgeBaseUrl";
-
-async function postJson(url: string, body: Record<string, unknown>): Promise<PostJsonResult> {
+async function postJson(url: string, body: Record<string, unknown>) {
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-
   return { ok: res.ok, data: await safeJson(res) };
-}
-
-function getBridgeBaseUrl() {
-  if (typeof window === "undefined") {
-    return DEFAULT_LOCAL_BRIDGE_BASE_URL;
-  }
-
-  const override = window.localStorage.getItem(BRIDGE_BASE_URL_STORAGE_KEY)?.trim();
-  if (override) {
-    return override.replace(/\/+$/, "");
-  }
-
-  return DEFAULT_LOCAL_BRIDGE_BASE_URL;
-}
-
-function toBridgeFilename(raw: unknown): string | null {
-  const value = String(raw ?? "").trim();
-  if (!value) return null;
-
-  const withoutQuery = value.split("?")[0].split("#")[0];
-  const normalized = withoutQuery.replace(/\\/g, "/");
-  const lastSegment = normalized.split("/").filter(Boolean).pop() || "";
-
-  if (!lastSegment) return null;
-
-  try {
-    return decodeURIComponent(lastSegment).trim() || null;
-  } catch {
-    return lastSegment.trim() || null;
-  }
-}
-
-async function triggerLocalBridgePlay(rawFilename: unknown) {
-  const filename = toBridgeFilename(rawFilename);
-
-  if (!filename) {
-    console.error("Bridge playback skipped: invalid filename", { rawFilename });
-    return { ok: false, reason: "INVALID_FILENAME" as const };
-  }
-
-  const bridgeBaseUrl = getBridgeBaseUrl();
-  const bridgeUrl = `${bridgeBaseUrl}/play`;
-
-  try {
-    const res = await fetch(bridgeUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ filename }),
-    });
-
-    const payload = await safeJson(res);
-
-    if (!res.ok) {
-      console.error("Bridge playback failed", {
-        bridgeUrl,
-        filename,
-        status: res.status,
-        payload,
-      });
-
-      return { ok: false, reason: "BRIDGE_HTTP_ERROR" as const, status: res.status, payload };
-    }
-
-    return { ok: true, payload };
-  } catch (error) {
-    console.error("Bridge playback request threw", {
-      bridgeUrl,
-      filename,
-      error,
-    });
-
-    return { ok: false, reason: "BRIDGE_FETCH_ERROR" as const, error };
-  }
 }
 
 export default function BoothLayout({ location }: { location: string }) {
   const mode: BoothMode = "performance";
-
   const [state, setState] = useState<BoothDataState>({
     queue: [],
     runtimePreview: null,
@@ -148,12 +56,10 @@ export default function BoothLayout({ location }: { location: string }) {
     const upNextRequests: RequestItem[] = Array.isArray(requestPayload?.upNext)
       ? requestPayload.upNext
       : [];
-
     const queue = enrichQueueWithRequests(
       normalizeQueue(queuePayload),
       [...playNowRequests, ...upNextRequests]
     );
-
     const pendingShoutouts: ShoutoutItem[] = Array.isArray(shoutPayload?.pending)
       ? shoutPayload.pending
       : [];
@@ -162,13 +68,11 @@ export default function BoothLayout({ location }: { location: string }) {
       : [];
 
     let runtimePreview: RuntimePreview | null = null;
-
     if (queue.length > 0) {
       const target =
         queue.find((item) => item.status === "LOADED") ||
         queue.find((item) => item.status === "QUEUED") ||
         null;
-
       runtimePreview = {
         action: target ? "PLAY_QUEUE_ITEM" : "NO_ACTION",
         reason: target ? "DIRECT_PLAY" : "NO_PLAYABLE_QUEUE_ITEM",
@@ -215,45 +119,8 @@ export default function BoothLayout({ location }: { location: string }) {
 
   const summary = useMemo(() => queueSummary(state.queue), [state.queue]);
 
-  async function materializeRuntimeAndMaybePlay() {
-    const result = await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
-    const payload = (result.data ?? {}) as MaterializeResult;
-
-    if (!result.ok) {
-      console.error("Runtime materialization request failed", payload);
-      return payload;
-    }
-
-    const playbackFilename = payload.bridgePlaybackFilename || payload.assetFileUrl || null;
-
-    if (payload.materialized && playbackFilename) {
-      await triggerLocalBridgePlay(playbackFilename);
-    }
-
-    return payload;
-  }
-
-  async function queueAction(
-    endpoint: string,
-    queueItemId: string,
-    options?: { materializeAfter?: boolean }
-  ) {
-    const actionResult = await postJson(endpoint, { queueItemId });
-
-    if (!actionResult.ok) {
-      console.error("Queue action failed", {
-        endpoint,
-        queueItemId,
-        response: actionResult.data,
-      });
-      await load();
-      return;
-    }
-
-    if (options?.materializeAfter) {
-      await materializeRuntimeAndMaybePlay();
-    }
-
+  async function queueAction(endpoint: string, queueItemId: string) {
+    await postJson(endpoint, { queueItemId });
     await load();
   }
 
@@ -298,9 +165,7 @@ export default function BoothLayout({ location }: { location: string }) {
           <div className="panelHead panelHead--tight">
             <div>
               <div className="panelTitle">Playback / Queue</div>
-              <div className="panelSub">
-                Primary operator lane for now playing, on deck, and live order.
-              </div>
+              <div className="panelSub">Primary operator lane for now playing, on deck, and live order.</div>
             </div>
             <div className="panelHeadBadge">
               <span className="statusPill statusPill--playing">LIVE</span>
@@ -311,16 +176,8 @@ export default function BoothLayout({ location }: { location: string }) {
             item={nowPlaying}
             mode={mode}
             onPause={(id) => queueAction("/api/booth/queue/hold", id)}
-            onSkip={(id) =>
-              queueAction("/api/booth/queue/skip", id, {
-                materializeAfter: true,
-              })
-            }
-            onDone={(id) =>
-              queueAction("/api/booth/queue/mark-played", id, {
-                materializeAfter: true,
-              })
-            }
+            onSkip={(id) => queueAction("/api/booth/queue/skip", id)}
+            onDone={(id) => queueAction("/api/booth/queue/mark-played", id)}
           />
 
           <OnDeckCard
@@ -329,27 +186,16 @@ export default function BoothLayout({ location }: { location: string }) {
             onLoad={(id) => queueAction("/api/booth/queue/mark-loaded", id)}
             onPlay={(id) => queueAction("/api/booth/queue/mark-playing", id)}
             onPause={(id) => queueAction("/api/booth/queue/hold", id)}
-            onSkip={(id) =>
-              queueAction("/api/booth/queue/skip", id, {
-                materializeAfter: true,
-              })
-            }
+            onSkip={(id) => queueAction("/api/booth/queue/skip", id)}
           />
 
           <QueueList
-            items={state.queue.filter(
-              (item) =>
-                item.status !== "PLAYING" && item.id !== onDeck?.id && item.status !== "PLAYED"
-            )}
+            items={state.queue.filter((item) => item.status !== "PLAYING" && item.id !== onDeck?.id && item.status !== "PLAYED")}
             mode={mode}
             onLoad={(id) => queueAction("/api/booth/queue/mark-loaded", id)}
             onPlay={(id) => queueAction("/api/booth/queue/mark-playing", id)}
             onPause={(id) => queueAction("/api/booth/queue/hold", id)}
-            onSkip={(id) =>
-              queueAction("/api/booth/queue/skip", id, {
-                materializeAfter: true,
-              })
-            }
+            onSkip={(id) => queueAction("/api/booth/queue/skip", id)}
           />
         </section>
 
@@ -359,17 +205,13 @@ export default function BoothLayout({ location }: { location: string }) {
             preview={state.runtimePreview}
             mode={mode}
             onMaterialize={async () => {
-              await materializeRuntimeAndMaybePlay();
+              await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
               await load();
             }}
           />
         </div>
 
-        <ShoutoutPanel
-          pending={state.pendingShoutouts}
-          approved={state.approvedShoutouts}
-          mode={mode}
-        />
+        <ShoutoutPanel pending={state.pendingShoutouts} approved={state.approvedShoutouts} mode={mode} />
       </div>
 
       <style jsx global>{`
