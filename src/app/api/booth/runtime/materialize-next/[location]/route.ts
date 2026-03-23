@@ -11,6 +11,7 @@ import {
 } from "@prisma/client";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 import { computeNextPlaybackAction } from "@/lib/booth/compute-next-playback-action";
+import { triggerInterstitialPlayback } from "@/lib/booth/bridge-client";
 import { prisma } from "@/lib/prisma";
 import { getRulesForLocation } from "@/lib/rules";
 import { getOrCreateCurrentSession } from "@/lib/validators";
@@ -47,8 +48,8 @@ function normalizeProfile(value: unknown): SessionProfile {
 }
 
 function isInterstitialAction(action: unknown): boolean {
-  const type = String((action as any)?.type ?? "").toUpperCase();
-  return type === "INTERSTITIAL" || type === "INSERT_INTERSTITIAL";
+  const actionType = String((action as any)?.action ?? "").toUpperCase();
+  return actionType === "PLAY_INTERSTITIAL_THEN_QUEUE_ITEM";
 }
 
 function extractAssetId(action: any): string | null {
@@ -89,6 +90,7 @@ function extractClusterId(action: any, assetId: string): string {
 
 function extractTargetQueueItemId(action: any): string | null {
   const candidates = [
+    action?.queueItemId,
     action?.targetQueueItemId,
     action?.beforeQueueItemId,
     action?.target?.queueItemId,
@@ -107,7 +109,10 @@ function extractTargetQueueItemId(action: any): string | null {
   return null;
 }
 
-function extractDurationSec(action: any, asset: { durationSec: number | null }): number | null {
+function extractDurationSec(
+  action: any,
+  asset: { durationSec: number | null }
+): number | null {
   const candidates = [
     action?.durationSec,
     action?.asset?.durationSec,
@@ -128,7 +133,7 @@ function extractDurationSec(action: any, asset: { durationSec: number | null }):
 async function normalizeActiveQueuePositions(
   tx: Prisma.TransactionClient,
   locationId: string,
-  sessionId: string,
+  sessionId: string
 ) {
   const activeItems = await tx.queueItem.findMany({
     where: {
@@ -145,8 +150,8 @@ async function normalizeActiveQueuePositions(
       tx.queueItem.update({
         where: { id: item.id },
         data: { position: index + 1 },
-      }),
-    ),
+      })
+    )
   );
 
   return activeItems.length;
@@ -154,7 +159,7 @@ async function normalizeActiveQueuePositions(
 
 export async function POST(
   req: Request,
-  { params }: { params: { location: string } },
+  { params }: { params: { location: string } }
 ) {
   if (!isAdminFromCookie(req.headers.get("cookie"))) {
     return jsonFail("Unauthorized.", 401);
@@ -183,6 +188,7 @@ export async function POST(
       return NextResponse.json({
         ok: true,
         materialized: false,
+        bridgeTriggered: false,
         reason: "NO_INTERSTITIAL_ACTION",
         action,
         sessionId: session.id,
@@ -198,7 +204,10 @@ export async function POST(
 
     const targetQueueItemId = extractTargetQueueItemId(action);
     if (!targetQueueItemId) {
-      return jsonFail("Interstitial action did not include a target queue item.", 500);
+      return jsonFail(
+        "Interstitial action did not include a target queue item.",
+        500
+      );
     }
 
     const asset = await prisma.interstitialAsset.findFirst({
@@ -241,7 +250,10 @@ export async function POST(
         },
       });
 
-      const targetIndex = activeItems.findIndex((item) => item.id === targetQueueItemId);
+      const targetIndex = activeItems.findIndex(
+        (item) => item.id === targetQueueItemId
+      );
+
       if (targetIndex === -1) {
         throw new Error("TARGET_QUEUE_ITEM_NOT_FOUND");
       }
@@ -266,6 +278,7 @@ export async function POST(
           queuePosition: existingMatchingInterstitial.position,
           assetId: asset.id,
           assetName: asset.name,
+          assetFileUrl: asset.fileUrl,
           clusterId,
           targetQueueItemId,
         };
@@ -304,7 +317,7 @@ export async function POST(
         targetQueueItemId,
         insertedBeforeQueueItemId: targetQueueItemId,
         materializedBy: "runtime/materialize-next",
-        plannedFromActionType: String((action as any)?.type ?? "INTERSTITIAL"),
+        plannedFromActionType: String((action as any)?.action ?? "INTERSTITIAL"),
         profile,
       } satisfies Prisma.JsonObject;
 
@@ -363,10 +376,43 @@ export async function POST(
         interstitialEvent,
         assetId: asset.id,
         assetName: asset.name,
+        assetFileUrl: asset.fileUrl,
         clusterId,
         targetQueueItemId,
       };
     });
+
+    let bridgeResult:
+      | Awaited<ReturnType<typeof triggerInterstitialPlayback>>
+      | null = null;
+
+    if (result.assetFileUrl) {
+      bridgeResult = await triggerInterstitialPlayback({
+        filename: result.assetFileUrl,
+        locationId: loc.id,
+        sessionId: session.id,
+        assetId: result.assetId,
+      });
+
+      if (!bridgeResult.ok) {
+        console.error("Bridge playback trigger failed", {
+          locationId: loc.id,
+          locationSlug,
+          sessionId: session.id,
+          assetId: result.assetId,
+          assetName: result.assetName,
+          bridgeResult,
+        });
+      }
+    } else {
+      console.error("Bridge playback skipped: asset fileUrl missing", {
+        locationId: loc.id,
+        locationSlug,
+        sessionId: session.id,
+        assetId: result.assetId,
+        assetName: result.assetName,
+      });
+    }
 
     return NextResponse.json({
       ...result,
@@ -375,9 +421,14 @@ export async function POST(
       locationId: loc.id,
       locationSlug,
       profile,
+      bridgeTriggered: Boolean(bridgeResult?.attempted),
+      bridge: bridgeResult,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "TARGET_QUEUE_ITEM_NOT_FOUND") {
+    if (
+      error instanceof Error &&
+      error.message === "TARGET_QUEUE_ITEM_NOT_FOUND"
+    ) {
       return jsonFail("Target queue item was not found in the active queue.", 409);
     }
 
