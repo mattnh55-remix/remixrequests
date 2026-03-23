@@ -1,17 +1,17 @@
-// src/app/api/booth/runtime/materialize-next/[location]/route.ts
-
 import { NextResponse } from "next/server";
 import {
   InterstitialEventStatus,
+  InterstitialScheduleMode,
   PlaybackEventType,
+  Prisma,
   QueueItemStatus,
   QueueSourceType,
   SessionProfile,
-  Prisma,
+  type InterstitialCategory,
 } from "@prisma/client";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 import { computeNextPlaybackAction } from "@/lib/booth/compute-next-playback-action";
-import { triggerInterstitialPlayback } from "@/lib/booth/bridge-client";
+import { buildInterstitialClusterId } from "@/lib/booth/runtime-queue";
 import { prisma } from "@/lib/prisma";
 import { getRulesForLocation } from "@/lib/rules";
 import { getOrCreateCurrentSession } from "@/lib/validators";
@@ -71,23 +71,6 @@ function extractAssetId(action: any): string | null {
   return null;
 }
 
-function extractClusterId(action: any, assetId: string): string {
-  const candidates = [
-    action?.clusterId,
-    action?.payload?.clusterId,
-    action?.targetClusterId,
-    action?.interstitial?.clusterId,
-  ];
-
-  for (const value of candidates) {
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return `INTERSTITIAL:${assetId}`;
-}
-
 function extractTargetQueueItemId(action: any): string | null {
   const candidates = [
     action?.queueItemId,
@@ -128,6 +111,55 @@ function extractDurationSec(
   }
 
   return null;
+}
+
+function mapCategoryToLegacy(category: InterstitialCategory) {
+  switch (category) {
+    case "REQUEST_SINGLE":
+      return "REQUEST_INTRO_SINGLE";
+    case "REQUEST_BLOCK":
+      return "REQUEST_INTRO_BLOCK";
+    case "BRANDING":
+      return "BRANDING_SHORT";
+    case "RULES":
+      return "RULES_ANNOUNCEMENT";
+    case "GAME":
+      return "GAME_ANNOUNCEMENT";
+    case "BIRTHDAY":
+      return "BIRTHDAY";
+    case "SAFETY":
+      return "SAFETY";
+    case "MANUAL_ONLY":
+    default:
+      return "MANUAL_ONLY";
+  }
+}
+
+function mapTriggerType(
+  category: InterstitialCategory,
+  scheduleMode: InterstitialScheduleMode
+) {
+  if (scheduleMode === InterstitialScheduleMode.TOP_OF_HOUR_WINDOW) {
+    return "TOP_OF_HOUR_WINDOW";
+  }
+
+  if (scheduleMode === InterstitialScheduleMode.INTERVAL_MINUTES) {
+    return "SCHEDULED_INTERVAL";
+  }
+
+  if (category === "REQUEST_SINGLE") {
+    return "REQUEST_SINGLE";
+  }
+
+  if (category === "REQUEST_BLOCK") {
+    return "REQUEST_CLUSTER";
+  }
+
+  if (category === "MANUAL_ONLY") {
+    return "MANUAL";
+  }
+
+  return "RANDOM_BRANDING";
 }
 
 async function normalizeActiveQueuePositions(
@@ -178,17 +210,149 @@ export async function POST(
     const body = await req.json().catch(() => ({}));
     const profile = normalizeProfile(body?.profile);
 
-    const action = await computeNextPlaybackAction({
+    const [queueItemsRaw, assetsRaw, recentEventsRaw] = await Promise.all([
+      prisma.queueItem.findMany({
+        where: {
+          locationId: loc.id,
+          sessionId: session.id,
+          status: { in: ACTIVE_QUEUE_STATUSES },
+        },
+        orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          status: true,
+          position: true,
+          createdAt: true,
+          sourceType: true,
+          introAssigned: true,
+          clusterId: true,
+        },
+      }),
+
+      prisma.interstitialAsset.findMany({
+        where: {
+          locationId: loc.id,
+          active: true,
+        },
+        orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          fileUrl: true,
+          durationSec: true,
+          active: true,
+          priority: true,
+          randomWeight: true,
+          scheduleMode: true,
+          intervalMinutes: true,
+          allowedProfiles: true,
+          blockedProfiles: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+
+      prisma.interstitialEvent.findMany({
+        where: {
+          locationId: loc.id,
+          sessionId: session.id,
+        },
+        orderBy: [{ plannedAt: "desc" }],
+        take: 100,
+        select: {
+          id: true,
+          sessionId: true,
+          locationId: true,
+          assetId: true,
+          status: true,
+          plannedAt: true,
+          playedAt: true,
+        },
+      }),
+    ]);
+
+    const queueItems = queueItemsRaw.map((item) => ({
+      id: item.id,
+      status: item.status,
+      position: item.position,
+      createdAt: item.createdAt.toISOString(),
+      sourceType: item.sourceType,
+      introAssigned: item.introAssigned,
+      clusterId: item.clusterId,
+    }));
+
+    const interstitialAssets = assetsRaw.map((asset) => {
+      const manualOnly =
+        asset.category === "MANUAL_ONLY" ||
+        asset.scheduleMode === InterstitialScheduleMode.MANUAL_ONLY;
+
+      return {
+        id: asset.id,
+        name: asset.name,
+        category: mapCategoryToLegacy(asset.category),
+        triggerType: mapTriggerType(asset.category, asset.scheduleMode),
+        filePath: asset.fileUrl,
+        durationSec: asset.durationSec ?? 0,
+        active: asset.active,
+        priority: asset.priority,
+        randomWeight: asset.randomWeight ?? 100,
+        cooldownSongs: null,
+        cooldownMinutes: null,
+        allowedProfiles: asset.allowedProfiles.map(String),
+        blockedProfiles: asset.blockedProfiles.map(String),
+        scheduleMode: asset.scheduleMode,
+        intervalMinutes: asset.intervalMinutes,
+        minSongsBetweenPlays: null,
+        maxUsesPerSession: null,
+        cleanTransitionOnly: false,
+        requestClusterEligible: asset.category === "REQUEST_BLOCK",
+        requestSingleEligible: asset.category === "REQUEST_SINGLE",
+        brandingEligible:
+          asset.category === "BRANDING" ||
+          asset.category === "RULES" ||
+          asset.category === "GAME" ||
+          asset.category === "SAFETY" ||
+          asset.category === "BIRTHDAY",
+        startsBlock: asset.category === "REQUEST_BLOCK",
+        manualOnly,
+        createdAt: asset.createdAt.toISOString(),
+        updatedAt: asset.updatedAt.toISOString(),
+      };
+    });
+
+    const recentInterstitialEvents = recentEventsRaw.map((event) => ({
+      id: event.id,
+      sessionId: event.sessionId ?? session.id,
+      locationId: event.locationId,
+      assetId: event.assetId,
+      status: event.status,
+      reason: "BRANDING_GAP_FILL" as const,
+      insertedBeforeQueueItemId: null,
+      insertedAfterQueueItemId: null,
+      linkedRequestClusterId: null,
+      plannedAt: event.plannedAt.toISOString(),
+      playedAt: event.playedAt ? event.playedAt.toISOString() : null,
+      skippedAt: null,
+      operatorOverride: false,
+      overrideNote: null,
+      metadata: null,
+    }));
+
+    const action = computeNextPlaybackAction({
       locationId: loc.id,
       sessionId: session.id,
       profile,
-    } as any);
+      queueItems,
+      interstitialAssets,
+      recentInterstitialEvents,
+      nowIso: new Date().toISOString(),
+    });
 
     if (!isInterstitialAction(action)) {
       return NextResponse.json({
         ok: true,
         materialized: false,
-        bridgeTriggered: false,
         reason: "NO_INTERSTITIAL_ACTION",
         action,
         sessionId: session.id,
@@ -204,10 +368,7 @@ export async function POST(
 
     const targetQueueItemId = extractTargetQueueItemId(action);
     if (!targetQueueItemId) {
-      return jsonFail(
-        "Interstitial action did not include a target queue item.",
-        500
-      );
+      return jsonFail("Interstitial action did not include a target queue item.", 500);
     }
 
     const asset = await prisma.interstitialAsset.findFirst({
@@ -229,7 +390,7 @@ export async function POST(
       return jsonFail("Interstitial asset not found or inactive.", 404);
     }
 
-    const clusterId = extractClusterId(action, assetId);
+    const clusterId = buildInterstitialClusterId(assetId);
     const durationSec = extractDurationSec(action, asset);
 
     const result = await prisma.$transaction(async (tx) => {
@@ -279,6 +440,7 @@ export async function POST(
           assetId: asset.id,
           assetName: asset.name,
           assetFileUrl: asset.fileUrl,
+          bridgePlaybackFilename: asset.fileUrl,
           clusterId,
           targetQueueItemId,
         };
@@ -304,7 +466,6 @@ export async function POST(
           sourceType: true,
           clusterId: true,
           durationSec: true,
-          createdAt: true,
         },
       });
 
@@ -317,7 +478,7 @@ export async function POST(
         targetQueueItemId,
         insertedBeforeQueueItemId: targetQueueItemId,
         materializedBy: "runtime/materialize-next",
-        plannedFromActionType: String((action as any)?.action ?? "INTERSTITIAL"),
+        plannedFromActionType: String((action as any)?.action ?? "PLAY_INTERSTITIAL_THEN_QUEUE_ITEM"),
         profile,
       } satisfies Prisma.JsonObject;
 
@@ -377,42 +538,11 @@ export async function POST(
         assetId: asset.id,
         assetName: asset.name,
         assetFileUrl: asset.fileUrl,
+        bridgePlaybackFilename: asset.fileUrl,
         clusterId,
         targetQueueItemId,
       };
     });
-
-    let bridgeResult:
-      | Awaited<ReturnType<typeof triggerInterstitialPlayback>>
-      | null = null;
-
-    if (result.assetFileUrl) {
-      bridgeResult = await triggerInterstitialPlayback({
-        filename: result.assetFileUrl,
-        locationId: loc.id,
-        sessionId: session.id,
-        assetId: result.assetId,
-      });
-
-      if (!bridgeResult.ok) {
-        console.error("Bridge playback trigger failed", {
-          locationId: loc.id,
-          locationSlug,
-          sessionId: session.id,
-          assetId: result.assetId,
-          assetName: result.assetName,
-          bridgeResult,
-        });
-      }
-    } else {
-      console.error("Bridge playback skipped: asset fileUrl missing", {
-        locationId: loc.id,
-        locationSlug,
-        sessionId: session.id,
-        assetId: result.assetId,
-        assetName: result.assetName,
-      });
-    }
 
     return NextResponse.json({
       ...result,
@@ -421,8 +551,6 @@ export async function POST(
       locationId: loc.id,
       locationSlug,
       profile,
-      bridgeTriggered: Boolean(bridgeResult?.attempted),
-      bridge: bridgeResult,
     });
   } catch (error) {
     if (
