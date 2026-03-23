@@ -2,119 +2,255 @@
 
 import { saveInterstitialAsset } from "@/app/admin/[location]/interstitials/actions";
 
+type InterstitialAssetFormProps = {
+  locationId: string;
+  categoryOptions: string[];
+  scheduleOptions: string[];
+  profileOptions: string[];
+  initialValues?: {
+    id?: string;
+    name?: string;
+    category?: string;
+    fileUrl?: string;
+    durationSec?: number | null;
+    active?: boolean;
+    priority?: number;
+    randomWeight?: number;
+    scheduleMode?: string;
+    intervalMinutes?: number | null;
+    allowedProfiles?: string[];
+    blockedProfiles?: string[];
+  };
+  submitLabel?: string;
+};
+
 export function InterstitialAssetForm({
   locationId,
+  categoryOptions,
+  scheduleOptions,
+  profileOptions,
   initialValues,
   submitLabel = "Save Interstitial",
-}: any) {
+}: InterstitialAssetFormProps) {
   return (
-    <form action={saveInterstitialAsset} className="space-y-6">
+    <form action={saveInterstitialAsset} className="rrFormGrid">
       <input type="hidden" name="id" defaultValue={initialValues?.id ?? ""} />
       <input type="hidden" name="locationId" value={locationId} />
 
-      {/* GRID */}
-      <div className="grid md:grid-cols-2 gap-6">
-
-        {/* LEFT COLUMN */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-zinc-400">IDENTITY</h3>
-
-          <input
-            name="name"
-            defaultValue={initialValues?.name ?? ""}
-            placeholder="Request Block Intro"
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
-            required
-          />
-
-          <input
-            name="fileUrl"
-            defaultValue={initialValues?.fileUrl ?? ""}
-            placeholder="https://..."
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
-            required
-          />
-
-          <input
-            name="category"
-            defaultValue={initialValues?.category ?? ""}
-            placeholder="CATEGORY"
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
-          />
+      <section className="rrFormSection">
+        <div className="rrFormSectionHeader">
+          <div>
+            <div className="rrSectionEyebrow">Identity</div>
+            <div className="rrFormSectionSub">
+              Define the label operators see and the exact booth-local MP3
+              filename.
+            </div>
+          </div>
+          <span className="rrStatusPill rrStatusPill--gold">LOCAL FILE</span>
         </div>
 
-        {/* RIGHT COLUMN */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-zinc-400">BEHAVIOR</h3>
+        <div className="rrFormGrid rrFormGrid--triple">
+          <div>
+            <label className="rrControlLabel" htmlFor="asset-name">
+              Asset Name
+            </label>
+            <input
+              id="asset-name"
+              name="name"
+              defaultValue={initialValues?.name ?? ""}
+              className="gunmetalInput"
+              placeholder="Request Block Intro"
+              required
+            />
+          </div>
 
-          <input
-            name="scheduleMode"
-            defaultValue={initialValues?.scheduleMode ?? ""}
-            placeholder="SCHEDULE MODE"
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
-          />
+          <div>
+            <label className="rrControlLabel" htmlFor="asset-file">
+              Local File Name
+            </label>
+            <input
+              id="asset-file"
+              name="fileUrl"
+              defaultValue={initialValues?.fileUrl ?? ""}
+              className="gunmetalInput"
+              placeholder="request-block-intro.mp3"
+              required
+            />
+            <div className="rrFieldHint">
+              Store the filename only. The booth machine will combine it with
+              its configured local interstitial folder.
+            </div>
+          </div>
 
-          <input
-            type="number"
-            name="durationSec"
-            defaultValue={initialValues?.durationSec ?? ""}
-            placeholder="Duration (sec)"
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
-          />
+          <div>
+            <label className="rrControlLabel" htmlFor="asset-category">
+              Category
+            </label>
+            <select
+              id="asset-category"
+              name="category"
+              defaultValue={initialValues?.category ?? "BRANDING"}
+              className="gunmetalSelect"
+            >
+              {categoryOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
 
-          <input
-            type="number"
-            name="intervalMinutes"
-            defaultValue={initialValues?.intervalMinutes ?? ""}
-            placeholder="Interval Minutes"
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
-          />
+      <section className="rrFormSection">
+        <div className="rrFormSectionHeader">
+          <div>
+            <div className="rrSectionEyebrow">Behavior</div>
+            <div className="rrFormSectionSub">
+              Set playback length, cadence, and selection weight so runtime
+              rules can materialize cleanly.
+            </div>
+          </div>
+        </div>
 
-          <input
-            type="number"
-            name="priority"
-            defaultValue={initialValues?.priority ?? 0}
-            placeholder="Priority"
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
-          />
+        <div className="rrFormGrid rrFormGrid--five">
+          <div>
+            <label className="rrControlLabel" htmlFor="asset-schedule">
+              Schedule Mode
+            </label>
+            <select
+              id="asset-schedule"
+              name="scheduleMode"
+              defaultValue={initialValues?.scheduleMode ?? "NONE"}
+              className="gunmetalSelect"
+            >
+              {scheduleOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
 
+          <div>
+            <label className="rrControlLabel" htmlFor="asset-duration">
+              Duration (sec)
+            </label>
+            <input
+              id="asset-duration"
+              type="number"
+              name="durationSec"
+              defaultValue={initialValues?.durationSec ?? ""}
+              className="gunmetalInput"
+              min={0}
+              placeholder="12"
+            />
+          </div>
+
+          <div>
+            <label className="rrControlLabel" htmlFor="asset-interval">
+              Interval Minutes
+            </label>
+            <input
+              id="asset-interval"
+              type="number"
+              name="intervalMinutes"
+              defaultValue={initialValues?.intervalMinutes ?? ""}
+              className="gunmetalInput"
+              min={0}
+              placeholder="60"
+            />
+          </div>
+
+          <div>
+            <label className="rrControlLabel" htmlFor="asset-priority">
+              Priority
+            </label>
+            <input
+              id="asset-priority"
+              type="number"
+              name="priority"
+              defaultValue={initialValues?.priority ?? 0}
+              className="gunmetalInput"
+              placeholder="0"
+            />
+          </div>
+
+          <div>
+            <label className="rrControlLabel" htmlFor="asset-weight">
+              Random Weight
+            </label>
+            <input
+              id="asset-weight"
+              type="number"
+              name="randomWeight"
+              defaultValue={initialValues?.randomWeight ?? 100}
+              className="gunmetalInput"
+              placeholder="100"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="rrFormSection">
+        <div className="rrFormSectionHeader">
+          <div>
+            <div className="rrSectionEyebrow">Audience Targeting</div>
+            <div className="rrFormSectionSub">
+              Optional profile filters. Leave blank to allow broad use.
+            </div>
+          </div>
+        </div>
+
+        <div className="rrFormGrid rrFormGrid--double">
+          <div>
+            <label className="rrControlLabel" htmlFor="asset-allowed">
+              Allowed Profiles
+            </label>
+            <input
+              id="asset-allowed"
+              name="allowedProfiles"
+              defaultValue={(initialValues?.allowedProfiles ?? []).join(", ")}
+              className="gunmetalInput"
+              placeholder={profileOptions.join(", ")}
+            />
+          </div>
+
+          <div>
+            <label className="rrControlLabel" htmlFor="asset-blocked">
+              Blocked Profiles
+            </label>
+            <input
+              id="asset-blocked"
+              name="blockedProfiles"
+              defaultValue={(initialValues?.blockedProfiles ?? []).join(", ")}
+              className="gunmetalInput"
+              placeholder={profileOptions.join(", ")}
+            />
+          </div>
+        </div>
+      </section>
+
+      <div
+        className="rrFormGrid rrFormGrid--double"
+        style={{ alignItems: "center" }}
+      >
+        <label className="gunmetalCheckboxRow">
           <input
-            type="number"
-            name="randomWeight"
-            defaultValue={initialValues?.randomWeight ?? 100}
-            placeholder="Weight"
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
+            type="checkbox"
+            name="active"
+            defaultChecked={initialValues?.active ?? true}
+            className="gunmetalCheckbox"
           />
+          Active and eligible for runtime materialization
+        </label>
+
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button type="submit" className="gunmetalBtn gunmetalBtn--primary">
+            {submitLabel}
+          </button>
         </div>
       </div>
-
-      {/* PROFILES */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <input
-          name="allowedProfiles"
-          defaultValue={(initialValues?.allowedProfiles ?? []).join(", ")}
-          placeholder="Allowed Profiles"
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
-        />
-
-        <input
-          name="blockedProfiles"
-          defaultValue={(initialValues?.blockedProfiles ?? []).join(", ")}
-          placeholder="Blocked Profiles"
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2"
-        />
-      </div>
-
-      {/* ACTIVE */}
-      <label className="flex items-center gap-2 text-sm text-zinc-300">
-        <input type="checkbox" name="active" defaultChecked />
-        Active
-      </label>
-
-      {/* SUBMIT */}
-      <button className="bg-amber-400 text-black px-4 py-2 rounded-lg font-medium">
-        {submitLabel}
-      </button>
     </form>
   );
 }
