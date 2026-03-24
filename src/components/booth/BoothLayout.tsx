@@ -328,7 +328,7 @@ async function queueAction(
     await triggerLocalBridgeStop();
   }
 
-  if (options?.materializeAfter) {
+  if (options?.materializeAfter && !itemIsInterstitial) {
     await materializeRuntimeAndMaybePlay();
   }
 
