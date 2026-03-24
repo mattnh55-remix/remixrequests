@@ -1,5 +1,3 @@
-// src/app/api/booth/queue/mark-playing/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminFromCookie } from "@/lib/adminAuth";
@@ -63,6 +61,8 @@ export async function POST(req: Request) {
             select: {
               id: true,
               durationSec: true,
+              fileUrl: true,
+              name: true,
             },
           })
         : null;
@@ -129,6 +129,10 @@ export async function POST(req: Request) {
       durationSec,
       expectedEndAt: expectedEndAt?.toISOString() ?? null,
       interstitialTracked: item.sourceType === "INTERSTITIAL",
+      interstitialAssetId: asset?.id ?? null,
+      interstitialAssetName: asset?.name ?? null,
+      bridgePlaybackFilename:
+        item.sourceType === "INTERSTITIAL" ? asset?.fileUrl ?? null : null,
     });
   } catch (error) {
     console.error("mark-playing error", error);

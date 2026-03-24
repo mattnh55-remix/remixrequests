@@ -7,7 +7,13 @@ import OnDeckCard from "./OnDeckCard";
 import QueueList from "./QueueList";
 import ShoutoutPanel from "./ShoutoutPanel";
 import SearchAddPanel from "./SearchAddPanel";
-import { enrichQueueWithRequests, normalizeQueue, queueSummary, safeJson } from "./booth-utils";
+import {
+  enrichQueueWithRequests,
+  isInterstitial,
+  normalizeQueue,
+  queueSummary,
+  safeJson,
+} from "./booth-utils";
 import type {
   BoothDataState,
   BoothMode,
@@ -116,6 +122,49 @@ async function triggerLocalBridgePlay(rawFilename: unknown) {
   }
 }
 
+async function triggerLocalBridgeStop() {
+  const bridgeBaseUrl = getBridgeBaseUrl();
+  const bridgeUrl = `${bridgeBaseUrl}/stop`;
+
+  try {
+    const res = await fetch(bridgeUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+
+    const payload = await safeJson(res);
+
+    if (!res.ok) {
+      console.error("Bridge stop failed", {
+        bridgeUrl,
+        status: res.status,
+        payload,
+      });
+
+      return {
+        ok: false,
+        reason: "BRIDGE_STOP_HTTP_ERROR" as const,
+        status: res.status,
+        payload,
+      };
+    }
+
+    return { ok: true, payload };
+  } catch (error) {
+    console.error("Bridge stop request threw", {
+      bridgeUrl,
+      error,
+    });
+
+    return {
+      ok: false,
+      reason: "BRIDGE_STOP_FETCH_ERROR" as const,
+      error,
+    };
+  }
+}
+
 export default function BoothLayout({ location }: { location: string }) {
   const mode: BoothMode = "performance";
 
@@ -215,6 +264,10 @@ export default function BoothLayout({ location }: { location: string }) {
 
   const summary = useMemo(() => queueSummary(state.queue), [state.queue]);
 
+function getQueueItem(queueItemId: string) {
+  return state.queue.find((item) => item.id === queueItemId) ?? null;
+}
+
   async function materializeRuntimeAndMaybePlay() {
     const result = await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
     const payload = (result.data ?? {}) as MaterializeResult;
@@ -233,29 +286,55 @@ export default function BoothLayout({ location }: { location: string }) {
     return payload;
   }
 
-  async function queueAction(
-    endpoint: string,
-    queueItemId: string,
-    options?: { materializeAfter?: boolean }
-  ) {
-    const actionResult = await postJson(endpoint, { queueItemId });
+async function queueAction(
+  endpoint: string,
+  queueItemId: string,
+  options?: { materializeAfter?: boolean }
+) {
+  const queueItem = getQueueItem(queueItemId);
+  const itemIsInterstitial = isInterstitial(queueItem);
 
-    if (!actionResult.ok) {
-      console.error("Queue action failed", {
-        endpoint,
+  const actionResult = await postJson(endpoint, { queueItemId });
+
+  if (!actionResult.ok) {
+    console.error("Queue action failed", {
+      endpoint,
+      queueItemId,
+      response: actionResult.data,
+    });
+    await load();
+    return actionResult.data;
+  }
+
+  if (endpoint === "/api/booth/queue/mark-playing" && itemIsInterstitial) {
+    const playbackFilename = actionResult.data?.bridgePlaybackFilename ?? null;
+
+    if (playbackFilename) {
+      await triggerLocalBridgePlay(playbackFilename);
+    } else {
+      console.error("Interstitial play was marked PLAYING but no filename was returned.", {
         queueItemId,
         response: actionResult.data,
       });
-      await load();
-      return;
     }
-
-    if (options?.materializeAfter) {
-      await materializeRuntimeAndMaybePlay();
-    }
-
-    await load();
   }
+
+  if (
+    itemIsInterstitial &&
+    (endpoint === "/api/booth/queue/hold" ||
+      endpoint === "/api/booth/queue/skip" ||
+      endpoint === "/api/booth/queue/mark-played")
+  ) {
+    await triggerLocalBridgeStop();
+  }
+
+  if (options?.materializeAfter) {
+    await materializeRuntimeAndMaybePlay();
+  }
+
+  await load();
+  return actionResult.data;
+}
 
   return (
     <div className="rrBooth rrBooth--compact">

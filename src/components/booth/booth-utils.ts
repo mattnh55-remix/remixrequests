@@ -38,7 +38,6 @@ export function getAllowedActions(item: QueueLikeItem | null): BoothActionName[]
   if (!item) return [];
 
   const status = String(item.status || "").toUpperCase();
-  if (isInterstitial(item)) return [];
 
   if (status === "PLAYING") return ["pause", "skip", "done"];
   if (status === "LOADED") return ["play", "pause", "skip"];
