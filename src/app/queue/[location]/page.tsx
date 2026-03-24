@@ -266,18 +266,6 @@ export default function QueuePage({ params }: { params: { location: string } }) 
 
   return (
     <PublicTheme>
-        <div className="rrMiniStat">
-          <div className="rrMiniStatLabel">Voting</div>
-          <div className="rrMiniStatValue">{votingOn ? "ON" : "OFF"}</div>
-          <div className="rrMiniStatSub">{upvoteCost}pt up • {downvoteCost}pt down</div>
-        </div>
-        <div className="rrMiniStat">
-          <div className="rrMiniStatLabel">Session</div>
-          <div className="rrMiniStatValue">LIVE</div>
-          <div className="rrMiniStatSub">{sessionCountdown}</div>
-        </div>
-      </div>
-
       <div className="rrPublicTopbar">
         <div className="rrBrandLockup">
           <BrandLogo logoUrl={logoUrl} />
