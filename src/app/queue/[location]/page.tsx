@@ -48,10 +48,6 @@ type BalanceRes = {
   error?: string;
 };
 
-function logoKey(location: string) {
-  return `rr_admin_logoUrl:${location}`;
-}
-
 function getTitle(item: QueueItem) {
   return String(item.title || item.song?.title || "Untitled");
 }
@@ -121,8 +117,9 @@ function QueueRow({ item, rank, emphasis }: { item: QueueItem; rank: number; emp
   const score = Number(item.score || 0);
 
   return (
-    <div className={`rrQueueRow${emphasis ? " rrQueueRow--emphasis" : ""}`}>
+    <div className={`rrQueueRow ${emphasis ? "rrQueueRow--emphasis" : ""}`}>
       <div className="rrQueueRank">{rank}</div>
+
       <TinyArt src={getArtwork(item)} alt={getTitle(item)} />
 
       <div className="rrQueueCopy">
@@ -151,7 +148,6 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   const [sessionCountdown, setSessionCountdown] = useState("Session live");
   const [identityId, setIdentityId] = useState("");
   const mountedRef = useRef(true);
-  const [logoUrl, setLogoUrl] = useState<string>("");
 
   useEffect(() => {
     mountedRef.current = true;
@@ -162,13 +158,6 @@ export default function QueuePage({ params }: { params: { location: string } }) 
       mountedRef.current = false;
     };
   }, []);
-
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem(logoKey(location));
-      if (v) setLogoUrl(v);
-    } catch {}
-  }, [location]);
 
   async function fetchBalanceNumber(nextIdentityId?: string): Promise<number> {
     const id = (nextIdentityId ?? identityId ?? "").trim();
@@ -221,13 +210,6 @@ export default function QueuePage({ params }: { params: { location: string } }) 
           playNow: Array.isArray(queueJson?.playNow) ? queueJson.playNow : [],
           upNext: Array.isArray(queueJson?.upNext) ? queueJson.upNext : [],
         });
-
-        if (sessionJson?.rules?.logoUrl) {
-          setLogoUrl(sessionJson.rules.logoUrl);
-          try {
-            localStorage.setItem(logoKey(location), sessionJson.rules.logoUrl);
-          } catch {}
-        }
       } catch {
         if (!mountedRef.current) return;
         setRulesData(null);
@@ -261,35 +243,38 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   const upvoteCost = Number(rulesData?.rules?.costUpvote ?? 1);
   const downvoteCost = Number(rulesData?.rules?.costDownvote ?? 1);
   const displayedBalance = identityId ? Number(bal.balance ?? 0) : 0;
+  const logoUrl = rulesData?.rules?.logoUrl || null;
 
   const goToRequests = () => {
     window.location.href = `/request/${encodeURIComponent(location)}`;
   };
 
   return (
-    <PublicTheme shellClassName="rrQueueShellV2">
+    <PublicTheme>
       <div style={{ display: "grid", gap: 12 }}>
-        <div className="rrPublicTopbar rrTopbarCompact">
-          <div className="rrBrandLockup rrBrandLockupCompact">
-            <BrandLogo logoUrl={logoUrl || rulesData?.rules?.logoUrl || null} />
+        <div className="rrPublicTopbar">
+          <div className="rrBrandLockup">
+            <BrandLogo logoUrl={logoUrl} />
 
             <div className="rrHero">
               <div className="rrEyebrow">Live Queue & Voting</div>
               <h1 className="rrTitle">Queue & Voting</h1>
-              <div className="rrTitleSub">{venueName} • Tap to vote • {sessionCountdown}</div>
+              <div className="rrTitleSub">
+                {venueName} • Tap to vote • {sessionCountdown}
+              </div>
             </div>
           </div>
 
-          <div className="rrHudCard rrHudCardCompact">
+          <div className="rrHudCard">
             <div className="rrHudLabel">Points</div>
-            <div className="rrHudValue rrHudValueCompact">{displayedBalance}</div>
-            <button className="rrBtn rrBtnFull" onClick={goToRequests}>
+            <div className="rrHudValue">{displayedBalance}</div>
+            <button className="rrBtn" style={{ width: "100%" }} onClick={goToRequests}>
               Back to Requests
             </button>
           </div>
         </div>
 
-        <div className="rrPanel rrSectionCompact rrSectionTight">
+        <div className="rrPanel">
           <div className="rrPanelHead">
             <div>
               <div className="rrPanelTitle">Current Session</div>
@@ -298,7 +283,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
             <span className="rrStatusPill rrStatusPill--live">{sessionCountdown}</span>
           </div>
           <div className="rrPanelBody">
-            <div className="rrChipRow" style={{ marginBottom: 0, gap: 6 }}>
+            <div className="rrChipRow" style={{ marginBottom: 0 }}>
               <span className="rrMetaPill">Upvote {upvoteCost}pt</span>
               <span className="rrMetaPill">Downvote {downvoteCost}pt</span>
               <span className={`rrMetaPill ${votingOn ? "" : "rrStatusPill--warn"}`}>
@@ -308,7 +293,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
           </div>
         </div>
 
-        <div className="rrPanel rrSectionCompact rrSectionTight">
+        <div className="rrPanel">
           <div className="rrPanelHead">
             <div>
               <div className="rrPanelTitle">Play Now Lane</div>
@@ -329,7 +314,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
           </div>
         </div>
 
-        <div className="rrPanel rrSectionCompact rrSectionTight">
+        <div className="rrPanel">
           <div className="rrPanelHead">
             <div>
               <div className="rrPanelTitle">Coming Up</div>
