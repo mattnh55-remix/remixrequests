@@ -48,6 +48,10 @@ type BalanceRes = {
   error?: string;
 };
 
+function logoKey(location: string) {
+  return `rr_admin_logoUrl:${location}`;
+}
+
 function getTitle(item: QueueItem) {
   return String(item.title || item.song?.title || "Untitled");
 }
@@ -198,6 +202,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   const [sessionCountdown, setSessionCountdown] = useState("Session live");
   const [identityId, setIdentityId] = useState("");
   const mountedRef = useRef(true);
+  const [logoUrl, setLogoUrl] = useState<string>("");
 
   useEffect(() => {
     mountedRef.current = true;
@@ -208,6 +213,13 @@ export default function QueuePage({ params }: { params: { location: string } }) 
       mountedRef.current = false;
     };
   }, []);
+
+useEffect(() => {
+  try {
+    const v = localStorage.getItem(logoKey(location));
+    if (v) setLogoUrl(v);
+  } catch {}
+}, [location]);
 
   async function fetchBalanceNumber(nextIdentityId?: string): Promise<number> {
     const id = (nextIdentityId ?? identityId ?? "").trim();
@@ -293,7 +305,6 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   const upvoteCost = Number(rulesData?.rules?.costUpvote ?? 1);
   const downvoteCost = Number(rulesData?.rules?.costDownvote ?? 1);
   const displayedBalance = identityId ? Number(bal.balance ?? 0) : 0;
-  const logoUrl = rulesData?.rules?.logoUrl || null;
 
   const goToRequests = () => {
     window.location.href = `/request/${encodeURIComponent(location)}`;
@@ -318,7 +329,15 @@ export default function QueuePage({ params }: { params: { location: string } }) 
       <div style={{ display: "grid", gap: 12 }}>
         <div className="rrPublicTopbar" style={{ gap: 10, alignItems: "start" }}>
           <div className="rrBrandLockup" style={{ alignItems: "start", gap: 10 }}>
-            <BrandLogo logoUrl={logoUrl} />
+            {logoUrl ? (
+  <img
+    src={logoUrl}
+    alt="Logo"
+    className="rrBrandLogo"
+  />
+) : (
+  <div className="rrBrandBadge">REMIX</div>
+)}
 
             <div className="rrHero" style={{ paddingTop: 0 }}>
               <div className="rrEyebrow">Live Queue & Voting</div>

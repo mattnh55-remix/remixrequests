@@ -31,10 +31,10 @@ export default function PublicGunmetalTheme() {
         --rr-gold: #b28a35;
         --rr-green: #5a8254;
         --rr-shadow: 0 18px 40px rgba(0, 0, 0, 0.42);
-        --rr-radius-xl: 18px;
-        --rr-radius-lg: 16px;
-        --rr-radius: 13px;
-        --rr-radius-sm: 10px;
+        --rr-radius-xl: 15px;
+        --rr-radius-lg: 13px;
+        --rr-radius: 11px;
+        --rr-radius-sm: 8px;
         --rr-max: 560px;
       }
 
@@ -45,9 +45,8 @@ export default function PublicGunmetalTheme() {
       html,
       body {
         background:
-          radial-gradient(circle at 10% 28%, rgba(28, 91, 104, 0.18), transparent 27%),
-          radial-gradient(circle at 88% 20%, rgba(98, 48, 84, 0.16), transparent 24%),
-          linear-gradient(180deg, #03060b 0%, #07101a 38%, #03060b 100%);
+  radial-gradient(circle at 20% 0%, rgba(80,90,140,0.15), transparent 40%),
+  linear-gradient(180deg, #05070f 0%, #070a14 100%);
         color: var(--rr-text);
       }
 
@@ -61,10 +60,17 @@ export default function PublicGunmetalTheme() {
         overflow-x: hidden;
       }
 
+.rrBrandLogo {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
       .rrPublicShell {
         width: min(var(--rr-max), calc(100vw - 20px));
         margin: 0 auto;
-        padding: 14px 0 88px;
+        padding: 10px 0 88px;
       }
 
       .rrPublicTopbar {
@@ -72,7 +78,7 @@ export default function PublicGunmetalTheme() {
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 12px;
         align-items: start;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
       }
 
       .rrBrandLockup {
@@ -545,7 +551,7 @@ export default function PublicGunmetalTheme() {
   gap: 8px;
   align-items: center;
   border-radius: 13px;
-  padding: 7px;
+  padding: 6px;
   background: linear-gradient(90deg, rgba(24, 34, 49, 0.84), rgba(11, 17, 27, 0.96));
   border: 1px solid rgba(125, 156, 206, 0.11);
 }
@@ -742,7 +748,7 @@ export default function PublicGunmetalTheme() {
         border-radius: 16px;
         border: 1px dashed rgba(125, 156, 206, 0.2);
         background: rgba(255, 255, 255, 0.03);
-        padding: 16px;
+        padding: 12px;
         color: var(--rr-text-soft);
         text-align: center;
         font-size: 13px;
@@ -893,7 +899,7 @@ export default function PublicGunmetalTheme() {
 
         .rrTitleSub {
           font-size: 10px;
-          margin-top: 6px;
+          margin-top: 5px;
         }
 
         .rrHudCard {
@@ -948,7 +954,7 @@ export default function PublicGunmetalTheme() {
           grid-template-columns: 36px minmax(0, 1fr) auto;
           gap: 8px;
           border-radius: 13px;
-          padding: 7px;
+          padding: 6px;
         }
 
         .rrChip {
