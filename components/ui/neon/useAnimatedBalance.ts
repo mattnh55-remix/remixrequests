@@ -1,134 +1,119 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-type FetchBalanceFn = () => Promise<number>;
-
-type AnimatedBalanceOptions = {
-  enabled?: boolean; // start polling only when true
-  softPollMs?: number; // default 2600
-  intervalMs?: number; // default 650
-  storageKey?: string; // where we remember last seen balance for +X detection
+type Options = {
+  enabled?: boolean;
+  softPollMs?: number;
+  intervalMs?: number;
+  storageKey?: string;
 };
 
-export function useAnimatedBalance(fetchBalance: FetchBalanceFn, opts?: AnimatedBalanceOptions) {
-  const enabled = opts?.enabled ?? true;
-  const softPollMs = opts?.softPollMs ?? 2600;
-  const intervalMs = opts?.intervalMs ?? 650;
+type HookResult = {
+  balance: number | null;
+  pulseKey: number;
+  refreshOnce: () => Promise<void>;
+  applyBalance: (next: number) => void;
+};
 
-  const storageKey = useMemo(() => opts?.storageKey ?? "rr_lastBalance", [opts?.storageKey]);
+export function useAnimatedBalance(
+  fetcher: () => Promise<number>,
+  options: Options = {}
+): HookResult {
+  const {
+    enabled = true,
+    softPollMs = 2500,
+    intervalMs = 650,
+    storageKey,
+  } = options;
 
   const [balance, setBalance] = useState<number | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const [delta, setDelta] = useState<number | null>(null);
-  const [showDeltaBanner, setShowDeltaBanner] = useState(false);
   const [pulseKey, setPulseKey] = useState(0);
 
-  const lastKnownRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
+  const pollingRef = useRef<number | null>(null);
+  const busyRef = useRef(false);
 
-  // bootstrap last known balance for this device/session
   useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!storageKey) return;
     try {
       const raw = localStorage.getItem(storageKey);
-      if (raw != null) {
-        const n = Number(raw);
-        if (!Number.isNaN(n)) lastKnownRef.current = n;
+      if (!raw) return;
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) {
+        setBalance(parsed);
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, [storageKey]);
 
-  function commit(next: number) {
-    setBalance(next);
+  const persist = useCallback(
+    (value: number) => {
+      if (!storageKey) return;
+      try {
+        localStorage.setItem(storageKey, String(value));
+      } catch {}
+    },
+    [storageKey]
+  );
 
-    const prev = lastKnownRef.current;
-    if (typeof prev === "number" && next > prev) {
-      const d = next - prev;
-      setDelta(d);
-      setShowDeltaBanner(true);
-      setPulseKey((k) => k + 1);
-      window.setTimeout(() => setShowDeltaBanner(false), 2200);
-    } else if (prev == null) {
-      // first time: still pulse once
-      setPulseKey((k) => k + 1);
-    } else if (next !== prev) {
-      // changed down or sideways: pulse lightly
-      setPulseKey((k) => k + 1);
-    }
+  const applyBalance = useCallback(
+    (next: number) => {
+      setBalance((prev) => {
+        if (prev !== next) {
+          setPulseKey((k) => k + 1);
+        }
+        return next;
+      });
+      persist(next);
+    },
+    [persist]
+  );
 
-    lastKnownRef.current = next;
+  const refreshOnce = useCallback(async () => {
+    if (!enabled || busyRef.current) return;
+
+    busyRef.current = true;
     try {
-      localStorage.setItem(storageKey, String(next));
+      const next = await fetcher();
+      if (!mountedRef.current) return;
+      applyBalance(Number(next ?? 0));
     } catch {
-      // ignore
-    }
-  }
-
-  async function refreshOnce() {
-    if (!enabled) return;
-    setIsRefreshing(true);
-    try {
-      const next = await fetchBalance();
-      if (typeof next === "number" && !Number.isNaN(next)) commit(next);
+      // keep current balance on fetch error
     } finally {
-      setIsRefreshing(false);
+      busyRef.current = false;
     }
-  }
+  }, [enabled, fetcher, applyBalance]);
 
-  // Soft-poll on enable (TouchTunes “credits just landed” feel after checkout)
   useEffect(() => {
     if (!enabled) return;
 
-    let alive = true;
-    const startedAt = Date.now();
+    refreshOnce();
 
-    (async () => {
-      try {
-        const first = await fetchBalance();
-        if (!alive) return;
-        if (typeof first === "number" && !Number.isNaN(first)) commit(first);
-      } catch {
-        // ignore
-      }
+    const id = window.setInterval(() => {
+      refreshOnce();
+    }, softPollMs);
 
-      const t = window.setInterval(async () => {
-        if (!alive) return;
-        if (Date.now() - startedAt > softPollMs) {
-          window.clearInterval(t);
-          return;
-        }
-        try {
-          const next = await fetchBalance();
-          if (!alive) return;
-          if (typeof next === "number" && !Number.isNaN(next)) commit(next);
-        } catch {
-          // ignore
-        }
-      }, intervalMs);
-
-      return () => window.clearInterval(t);
-    })();
+    pollingRef.current = id;
 
     return () => {
-      alive = false;
+      window.clearInterval(id);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, storageKey]);
-
-  // Lets the request endpoint “push” a new balance into the UI (no backend changes)
-  function applyBalance(next: number) {
-    if (typeof next === "number" && !Number.isNaN(next)) commit(next);
-  }
+  }, [enabled, refreshOnce, softPollMs, intervalMs]);
 
   return {
     balance,
-    isRefreshing,
+    pulseKey,
     refreshOnce,
     applyBalance,
-    delta,
-    showDeltaBanner,
-    pulseKey,
   };
 }
