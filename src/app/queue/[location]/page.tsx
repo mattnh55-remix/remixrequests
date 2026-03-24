@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
-import PublicGunmetalTheme from "../../../components/ui/public/PublicGunmetalTheme";
+import PublicTheme from "../../../components/ui/public/PublicTheme";
 
 type QueueItem = {
   id?: string;
@@ -13,6 +13,7 @@ type QueueItem = {
   artworkUrl?: string;
   score?: number;
   requestedByMe?: boolean;
+  sourceType?: string;
   song?: {
     id?: string;
     title?: string;
@@ -22,7 +23,13 @@ type QueueItem = {
   [key: string]: any;
 };
 
+type QueueRes = {
+  playNow?: QueueItem[];
+  upNext?: QueueItem[];
+};
+
 type SessionRes = {
+  ok?: boolean;
   location?: { slug?: string; name?: string };
   session?: { id?: string; endsAt?: string };
   rules?: {
@@ -33,28 +40,34 @@ type SessionRes = {
   };
 };
 
-function getRequestId(x: QueueItem) {
-  return String(x.requestId || x.id || "");
-}
-function getTitle(x: QueueItem) {
-  return String(x.title || x.song?.title || "Untitled");
-}
-function getArtist(x: QueueItem) {
-  return String(x.artist || x.song?.artist || "Unknown artist");
-}
-function getArtwork(x: QueueItem) {
-  return String(x.artworkUrl || x.song?.artworkUrl || "");
+type BalanceRes = {
+  ok?: boolean;
+  balance?: number;
+  error?: string;
+};
+
+function getTitle(item: QueueItem) {
+  return String(item.title || item.song?.title || "Untitled");
 }
 
-function formatCountdown(endsAtIso?: string | null) {
-  if (!endsAtIso) return "";
-  const endsAt = new Date(endsAtIso);
-  const diffMs = endsAt.getTime() - Date.now();
-  if (!Number.isFinite(diffMs)) return "";
-  if (diffMs <= 0) return "Ending soon";
-  const total = Math.floor(diffMs / 1000);
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
+function getArtist(item: QueueItem) {
+  return String(item.artist || item.song?.artist || "Unknown artist");
+}
+
+function getArtwork(item: QueueItem) {
+  return String(item.artworkUrl || item.song?.artworkUrl || "");
+}
+
+function getCountdownLabel(endsAtIso?: string | null) {
+  if (!endsAtIso) return "Session live";
+  const endsAt = new Date(endsAtIso).getTime();
+  const diff = endsAt - Date.now();
+  if (!Number.isFinite(diff)) return "Session live";
+  if (diff <= 0) return "Ending soon";
+
+  const totalMin = Math.floor(diff / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
   return h > 0 ? `Ends in ${h}h ${m}m` : `Ends in ${m}m`;
 }
 
@@ -65,7 +78,7 @@ function TinyArt({ src, alt }: { src?: string; alt?: string }) {
   if (!real || bad) {
     return (
       <div className="rrArt">
-        <div className="rrArtFallback">Remix</div>
+        <div className="rrArtFallback">REMIX</div>
       </div>
     );
   }
@@ -83,392 +96,219 @@ function TinyArt({ src, alt }: { src?: string; alt?: string }) {
   );
 }
 
-function usePublicSfx() {
-  const [muted, setMuted] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("rr_public_muted") === "1";
-  });
-  const ctxRef = useRef<AudioContext | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const unlock = async () => {
-      try {
-        const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
-        if (!Ctx) return;
-        if (!ctxRef.current) ctxRef.current = new Ctx();
-        if (ctxRef.current?.state === "suspended") await ctxRef.current.resume();
-      } catch {}
-    };
-    const onFirst = () => void unlock();
-    window.addEventListener("pointerdown", onFirst, { once: true });
-    return () => window.removeEventListener("pointerdown", onFirst);
-  }, []);
-
-  function beep(freq: number, dur = 0.06, gain = 0.05) {
-    if (muted) return;
-    const ctx = ctxRef.current;
-    if (!ctx) return;
-    try {
-      const t0 = ctx.currentTime;
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = "sine";
-      o.frequency.setValueAtTime(freq, t0);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      o.connect(g);
-      g.connect(ctx.destination);
-      o.start(t0);
-      o.stop(t0 + dur + 0.02);
-    } catch {}
-  }
-
-  return {
-    playTap: () => beep(510, 0.05, 0.04),
-    playSuccess: () => {
-      beep(720, 0.05, 0.05);
-      window.setTimeout(() => beep(980, 0.06, 0.05), 60);
-    },
-    playError: () => {
-      beep(220, 0.08, 0.06);
-      window.setTimeout(() => beep(180, 0.08, 0.06), 70);
-    },
-    muted,
-    setMuted: (next: boolean) => {
-      setMuted(next);
-      try {
-        window.localStorage.setItem("rr_public_muted", next ? "1" : "0");
-      } catch {}
-    },
-  };
-}
-
-function VerifyPrompt({
-  open,
-  location,
-  email,
-  setEmail,
-  onClose,
-}: {
-  open: boolean;
-  location: string;
-  email: string;
-  setEmail: (value: string) => void;
-  onClose: () => void;
-}) {
-  const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState<"collect" | "code">("collect");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  useEffect(() => {
-    if (!open) {
-      setPhone("");
-      setCode("");
-      setStep("collect");
-      setMsg("");
-    }
-  }, [open]);
-
-  if (!open) return null;
-
-  async function sendCode() {
-    setBusy(true);
-    setMsg("");
-    try {
-      const res = await fetch(`/api/public/auth/start`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          location,
-          email,
-          phone,
-          emailOptIn: true,
-          smsOptIn: true,
-        }),
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        setMsg(data.error || "Could not send code.");
-        return;
-      }
-      setStep("code");
-    } catch {
-      setMsg("Could not send code.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function verify() {
-    setBusy(true);
-    setMsg("");
-    try {
-      const res = await fetch(`/api/public/auth/verify`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          location,
-          email,
-          phone,
-          code,
-        }),
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        setMsg(data.error || "Verification failed.");
-        return;
-      }
-
-      const nextIdentityId = String(data.identityId || data.identity?.id || "").trim();
-      const nextEmail = String(data.email || email || "").trim();
-
-      try {
-        if (nextIdentityId) localStorage.setItem("rr_identityId", nextIdentityId);
-        if (location) localStorage.setItem("rr_location", String(location));
-        if (nextEmail) localStorage.setItem("rr_email", nextEmail);
-      } catch {}
-
-      window.location.reload();
-    } catch {
-      setMsg("Verification failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
+function QueueRow({ item, rank, emphasis }: { item: QueueItem; rank: number; emphasis?: boolean }) {
+  const sourceType = String(item.sourceType || "").toUpperCase();
+  const isInterstitial = sourceType.includes("INTERSTITIAL");
+  const isBoosted = Boolean(item.boosted || item.priority === "BOOSTED");
+  const score = Number(item.score || 0);
 
   return (
-    <div className="rrOverlay">
-      <div className="rrDrawer">
-        <div className="rrDrawerHead">
-          <div>
-            <div className="rrDrawerTitle">Verify to vote</div>
-            <div className="rrDrawerSub">
-              Claim points once, then use them to upvote or downvote the live queue.
-            </div>
-          </div>
-          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
-            Close
-          </button>
-        </div>
+    <div
+      className="rrQueueRow"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "34px 56px minmax(0,1fr) auto",
+        gap: 12,
+        alignItems: "center",
+        padding: "12px 14px",
+        borderRadius: 18,
+        border: "1px solid rgba(125, 156, 206, 0.14)",
+        background: emphasis
+          ? "linear-gradient(90deg, rgba(33,47,70,0.92), rgba(22,30,45,0.96), rgba(67,28,59,0.92))"
+          : "linear-gradient(180deg, rgba(21,29,43,0.88), rgba(10,16,27,0.94))",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+      }}
+    >
+      <div
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 10,
+          border: "1px solid rgba(125,156,206,0.18)",
+          display: "grid",
+          placeItems: "center",
+          color: "var(--rr-text-soft)",
+          fontWeight: 1000,
+          fontSize: 13,
+          background: "rgba(255,255,255,0.03)",
+        }}
+      >
+        {rank}
+      </div>
 
-        <div className="rrDrawerBody">
-          <div className="rrStack">
-            {step === "collect" ? (
-              <>
-                <input
-                  className="rrInput"
-                  placeholder="Email address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-                <input
-                  className="rrInput"
-                  placeholder="Mobile number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-                <button className="rrBtn" disabled={busy} onClick={sendCode}>
-                  {busy ? "Sending..." : "Send code"}
-                </button>
-              </>
-            ) : (
-              <>
-                <input
-                  className="rrInput"
-                  placeholder="Enter verification code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                />
-                <button className="rrBtn" disabled={busy} onClick={verify}>
-                  {busy ? "Verifying..." : "Verify & continue"}
-                </button>
-                <button className="rrBtnGhost" disabled={busy} onClick={() => setStep("collect")}>
-                  Back
-                </button>
-              </>
-            )}
+      <TinyArt src={getArtwork(item)} alt={getTitle(item)} />
 
-            {msg ? <div className="rrHelper">{msg}</div> : null}
-          </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 4 }}>
+          {isInterstitial ? <span className="rrTag rrTagRed">INTERSTITIAL</span> : null}
+          {isBoosted ? <span className="rrTag rrTagRed">BOOSTED</span> : null}
+          {item.requestId ? <span className="rrTag">REQUEST</span> : null}
+          {item.requestedByMe ? <span className="rrTag rrTagBlue">YOURS</span> : null}
         </div>
+        <div
+          style={{
+            fontWeight: 1000,
+            fontSize: 20,
+            lineHeight: 1.02,
+            letterSpacing: "-0.03em",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {getTitle(item)}
+        </div>
+        <div
+          style={{
+            marginTop: 4,
+            color: "var(--rr-text-soft)",
+            fontSize: 13,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {getArtist(item)}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", justifyItems: "end", gap: 8 }}>
+        <span className="rrMetaPill">Score {score}</span>
       </div>
     </div>
   );
 }
 
 export default function QueuePage({ params }: { params: { location: string } }) {
-  const location = params.location;
-
-  const [email, setEmail] = useState("");
-  const [identityId, setIdentityId] = useState<string | null>(null);
-  const [verified, setVerified] = useState(false);
-  const [msg, setMsg] = useState("");
+  const location = decodeURIComponent(params.location);
+  const [rulesData, setRulesData] = useState<SessionRes | null>(null);
+  const [queueData, setQueueData] = useState<QueueRes>({ playNow: [], upNext: [] });
   const [loading, setLoading] = useState(true);
-  const [playNow, setPlayNow] = useState<QueueItem[]>([]);
-  const [upNext, setUpNext] = useState<QueueItem[]>([]);
-  const [sessionInfo, setSessionInfo] = useState<SessionRes | null>(null);
-  const [sessionCountdown, setSessionCountdown] = useState("");
-  const [showVerify, setShowVerify] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [sessionCountdown, setSessionCountdown] = useState("Session live");
+  const [identityId, setIdentityId] = useState("");
+  const mountedRef = useRef(true);
 
-  const sfx = usePublicSfx();
+  useEffect(() => {
+    mountedRef.current = true;
+    try {
+      setIdentityId((localStorage.getItem("rr_identityId") || "").trim());
+    } catch {}
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-  const bal = useAnimatedBalance(async () => {
-    const id = (identityId || "").trim();
-    if (!id) throw new Error("Missing identityId");
+  async function fetchBalanceNumber(nextIdentityId?: string): Promise<number> {
+    const id = (nextIdentityId ?? identityId ?? "").trim();
+    if (!id) return 0;
+
     const res = await fetch(
       `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
       { cache: "no-store" }
     );
-    const data = await res.json();
-    if (!data?.ok) throw new Error(data?.error || "Balance error");
-    return Number(data.balance || 0);
+    const data = (await res.json()) as BalanceRes;
+    if (!data.ok) throw new Error(data.error || "Balance fetch failed");
+    return Number(data.balance ?? 0);
+  }
+
+  const bal = useAnimatedBalance(() => fetchBalanceNumber(), {
+    enabled: Boolean(identityId),
+    softPollMs: 2600,
+    intervalMs: 650,
+    storageKey: `rr_lastBalance:${location}:${identityId || "anon"}`,
   });
 
   useEffect(() => {
-    try {
-      const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
-      const lsLocation = (localStorage.getItem("rr_location") || "").trim();
-      const lsEmail = (localStorage.getItem("rr_email") || "").trim();
-
-      if (lsLocation && lsLocation !== location) {
-        setIdentityId(null);
-        setVerified(false);
-      } else if (lsIdentity) {
-        setIdentityId(lsIdentity);
-        setVerified(true);
-      }
-
-      if (lsEmail) setEmail(lsEmail);
-    } catch {}
-  }, [location]);
-
-  useEffect(() => {
-    try {
-      const e = email.trim();
-      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) localStorage.setItem("rr_email", e);
-    } catch {}
-  }, [email]);
-
-  async function refreshSession() {
-    try {
-      const res = await fetch(`/api/public/session/${encodeURIComponent(location)}`, {
-        cache: "no-store",
-      });
-      const data = (await res.json()) as SessionRes;
-      setSessionInfo(data);
-      setSessionCountdown(formatCountdown(data?.session?.endsAt || null));
-    } catch {}
-  }
-
-  async function tickQueue() {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/public/queue/${encodeURIComponent(location)}`, {
-        cache: "no-store",
-      });
-      const data = await res.json();
-      setPlayNow(Array.isArray(data?.playNow) ? data.playNow : []);
-      setUpNext(Array.isArray(data?.upNext) ? data.upNext : []);
-      setLoading(false);
-    } catch {
-      setLoading(false);
-      setMsg("Could not load queue.");
-    }
-  }
-
-  useEffect(() => {
-    void refreshSession();
-    void tickQueue();
-    const t = window.setInterval(() => void tickQueue(), 2500);
-    const t2 = window.setInterval(() => {
-      setSessionCountdown(formatCountdown(sessionInfo?.session?.endsAt || null));
-    }, 15000);
-    return () => {
-      window.clearInterval(t);
-      window.clearInterval(t2);
+    const readIdentity = () => {
+      try {
+        const next = (localStorage.getItem("rr_identityId") || "").trim();
+        setIdentityId(next);
+      } catch {}
     };
-  }, [location, sessionInfo?.session?.endsAt]);
+    readIdentity();
+    window.addEventListener("storage", readIdentity);
+    return () => window.removeEventListener("storage", readIdentity);
+  }, []);
 
   useEffect(() => {
-    if (identityId) void bal.refreshOnce();
-  }, [identityId]);
+    async function load() {
+      setLoading(true);
+      try {
+        const [sessionRes, queueRes] = await Promise.all([
+          fetch(`/api/public/session/${location}`, { cache: "no-store" }),
+          fetch(`/api/public/queue/${location}`, { cache: "no-store" }),
+        ]);
 
-  async function vote(requestId: string, direction: "up" | "down") {
-    if (!verified || !identityId) {
-      sfx.playError();
-      setShowVerify(true);
-      return;
-    }
+        const sessionJson = (await sessionRes.json()) as SessionRes;
+        const queueJson = (await queueRes.json()) as QueueRes;
 
-    const endpoint = direction === "up" ? "/api/public/vote/upvote" : "/api/public/vote/downvote";
+        if (!mountedRef.current) return;
 
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          location,
-          email,
-          requestId,
-        }),
-      });
-
-      const data = await res.json();
-      if (!data?.ok) {
-        sfx.playError();
-        setMsg(data?.error || "Vote failed.");
-        return;
+        setRulesData(sessionJson);
+        setQueueData({
+          playNow: Array.isArray(queueJson?.playNow) ? queueJson.playNow : [],
+          upNext: Array.isArray(queueJson?.upNext) ? queueJson.upNext : [],
+        });
+      } catch {
+        if (!mountedRef.current) return;
+        setRulesData(null);
+        setQueueData({ playNow: [], upNext: [] });
+      } finally {
+        if (mountedRef.current) setLoading(false);
       }
-
-      sfx.playSuccess();
-
-      if (typeof data?.balance === "number") bal.applyBalance(data.balance);
-      else if (typeof data?.credits?.balance === "number") bal.applyBalance(data.credits.balance);
-      else bal.refreshOnce();
-
-      setMsg(direction === "up" ? "Upvote added." : "Downvote added.");
-      await tickQueue();
-    } catch {
-      sfx.playError();
-      setMsg("Vote failed.");
     }
-  }
 
-  const locationName = sessionInfo?.location?.name || "Remix Skate & Event Center";
-  const rules = sessionInfo?.rules;
-  const enableVoting = rules?.enableVoting !== false;
-  const costUpvote = Number(rules?.costUpvote ?? 1);
-  const costDownvote = Number(rules?.costDownvote ?? 1);
-  const hudBalance = !verified && !identityId ? 5 : typeof bal.balance === "number" ? bal.balance : 0;
+    void load();
+  }, [location, refreshTick]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setRefreshTick((n) => n + 1), 8000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const tick = () => {
+      setSessionCountdown(getCountdownLabel(rulesData?.session?.endsAt));
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [rulesData?.session?.endsAt]);
+
+  const playNow = useMemo(() => queueData.playNow || [], [queueData.playNow]);
+  const upNext = useMemo(() => queueData.upNext || [], [queueData.upNext]);
+  const venueName = String(rulesData?.location?.name || "Remix Skate & Event Center");
+  const votingOn = Boolean(rulesData?.rules?.enableVoting);
+  const upvoteCost = Number(rulesData?.rules?.costUpvote ?? 1);
+  const downvoteCost = Number(rulesData?.rules?.costDownvote ?? 1);
+  const displayedBalance = identityId ? Number(bal.balance ?? 0) : 0;
 
   return (
-    <div className="rrPublicPage">
-      <PublicGunmetalTheme />
-
-      <div className="rrPublicShell">
+    <PublicTheme>
+      <div style={{ display: "grid", gap: 16 }}>
         <div className="rrPublicTopbar">
-          <div className="rrBrandBadge">REMIX</div>
-
-          <div className="rrHero">
-            <div className="rrEyebrow">Live Queue & Voting</div>
-            <h1 className="rrTitle">Queue & Voting</h1>
-            <div className="rrTitleSub">
-              {locationName} • Tap to vote • {sessionCountdown || "Session live"}
+          <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
+            <div className="rrBrandBadge">REMIX</div>
+            <div className="rrHero" style={{ textAlign: "left", paddingTop: 0 }}>
+              <div className="rrEyebrow">Live Queue & Voting</div>
+              <h1 className="rrTitle" style={{ fontSize: "clamp(34px, 6vw, 64px)" }}>
+                Queue & Voting
+              </h1>
+              <div className="rrTitleSub">
+                {venueName} • Tap to vote • {sessionCountdown}
+              </div>
             </div>
           </div>
 
           <div className="rrHudCard">
             <div className="rrHudLabel">Points</div>
-            <div className="rrHudValue">{hudBalance}</div>
+            <div className="rrHudValue">{displayedBalance}</div>
             <button
               className="rrBtn"
+              style={{ width: "100%" }}
               onClick={() => {
-                sfx.playTap();
-                window.location.href = `/request/${location}`;
+                window.location.href = `/request/${encodeURIComponent(location)}`;
               }}
             >
               Back to Requests
@@ -476,76 +316,42 @@ export default function QueuePage({ params }: { params: { location: string } }) 
           </div>
         </div>
 
-        <div className="rrPanel" style={{ marginBottom: 14 }}>
+        <div className="rrPanel">
           <div className="rrPanelHead">
             <div>
-              <div className="rrPanelTitle">Current session</div>
-              <div className="rrPanelSub">
-                Voting uses your live points balance.
-              </div>
+              <div className="rrPanelTitle">Current Session</div>
+              <div className="rrPanelSub">Voting uses your live points balance.</div>
             </div>
-            <div className="rrStatusPill rrStatusPill--live">{sessionCountdown || "Live"}</div>
+            <span className="rrStatusPill">{sessionCountdown}</span>
           </div>
           <div className="rrPanelBody">
-            <div className="rrChipRow" style={{ marginBottom: 0 }}>
-              <span className="rrMetaPill">Upvote {costUpvote}pt</span>
-              <span className="rrMetaPill">Downvote {costDownvote}pt</span>
-              {enableVoting ? (
-                <span className="rrStatusPill rrStatusPill--live">Voting On</span>
-              ) : (
-                <span className="rrStatusPill rrStatusPill--warn">Voting Off</span>
-              )}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <span className="rrMetaPill">Upvote {upvoteCost}pt</span>
+              <span className="rrMetaPill">Downvote {downvoteCost}pt</span>
+              <span className="rrMetaPill">{votingOn ? "Voting On" : "Voting Off"}</span>
+              {!identityId ? <span className="rrTag rrTagBlue">Verify on Requests to unlock points</span> : null}
             </div>
           </div>
         </div>
 
-        <div className="rrPanel" style={{ marginBottom: 14 }}>
+        <div className="rrPanel">
           <div className="rrPanelHead">
             <div>
               <div className="rrPanelTitle">Play Now Lane</div>
               <div className="rrPanelSub">Highest priority requests.</div>
             </div>
+            <span className="rrStatusPill">{playNow.length} item{playNow.length === 1 ? "" : "s"}</span>
           </div>
-          <div className="rrPanelBody">
-            <div className="rrQueueSection">
-              {playNow.length === 0 ? (
-                <div className="rrEmpty">No boosted requests right now.</div>
-              ) : (
-                playNow.map((item) => (
-                  <div key={getRequestId(item)} className="rrQueueRow">
-                    <TinyArt src={getArtwork(item)} alt={getTitle(item)} />
-                    <div style={{ minWidth: 0 }}>
-                      <div className="rrQueueTitle">{getTitle(item)}</div>
-                      <div className="rrQueueMeta">
-                        {getArtist(item)} • Score {Number(item.score || 0)}
-                      </div>
-                      <div className="rrChipRow" style={{ marginTop: 8, marginBottom: 0 }}>
-                        <span className="rrTag rrTag--boost">Boosted</span>
-                        <span className="rrTag rrTag--request">Request</span>
-                      </div>
-                    </div>
-                    {enableVoting ? (
-                      <div className="rrQueueActions">
-                        <button
-                          className="rrIconBtn"
-                          onClick={() => vote(getRequestId(item), "down")}
-                          aria-label="Downvote"
-                        >
-                          👎
-                        </button>
-                        <button
-                          className="rrIconBtn"
-                          onClick={() => vote(getRequestId(item), "up")}
-                          aria-label="Upvote"
-                        >
-                          👍
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ))
-              )}
-            </div>
+          <div className="rrPanelBody" style={{ display: "grid", gap: 10 }}>
+            {loading ? (
+              <div className="rrEmptyState">Loading queue…</div>
+            ) : playNow.length ? (
+              playNow.map((item, idx) => (
+                <QueueRow key={String(item.id || item.requestId || idx)} item={item} rank={idx + 1} emphasis />
+              ))
+            ) : (
+              <div className="rrEmptyState">No boosted requests right now.</div>
+            )}
           </div>
         </div>
 
@@ -555,92 +361,49 @@ export default function QueuePage({ params }: { params: { location: string } }) 
               <div className="rrPanelTitle">Coming Up</div>
               <div className="rrPanelSub">The next songs in live order.</div>
             </div>
-            <div className="rrMetaPill">{loading ? "Refreshing..." : `${upNext.length} items`}</div>
+            <span className="rrStatusPill">{upNext.length} item{upNext.length === 1 ? "" : "s"}</span>
           </div>
-          <div className="rrPanelBody">
-            <div className="rrQueueSection">
-              {upNext.length === 0 ? (
-                <div className="rrEmpty">Nothing queued yet.</div>
-              ) : (
-                upNext.map((item) => (
-                  <div key={getRequestId(item)} className="rrQueueRow">
-                    <TinyArt src={getArtwork(item)} alt={getTitle(item)} />
-                    <div style={{ minWidth: 0 }}>
-                      <div className="rrQueueTitle">{getTitle(item)}</div>
-                      <div className="rrQueueMeta">
-                        {getArtist(item)} • Score {Number(item.score || 0)}
-                      </div>
-                      <div className="rrChipRow" style={{ marginTop: 8, marginBottom: 0 }}>
-                        <span className="rrTag rrTag--queued">Queued</span>
-                        {item.requestedByMe ? (
-                          <span className="rrTag rrTag--interstitial">Mine</span>
-                        ) : null}
-                      </div>
-                    </div>
-                    {enableVoting ? (
-                      <div className="rrQueueActions">
-                        <button
-                          className="rrIconBtn"
-                          onClick={() => vote(getRequestId(item), "down")}
-                          aria-label="Downvote"
-                        >
-                          👎
-                        </button>
-                        <button
-                          className="rrIconBtn"
-                          onClick={() => vote(getRequestId(item), "up")}
-                          aria-label="Upvote"
-                        >
-                          👍
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ))
-              )}
-            </div>
+          <div className="rrPanelBody" style={{ display: "grid", gap: 10 }}>
+            {loading ? (
+              <div className="rrEmptyState">Loading queue…</div>
+            ) : upNext.length ? (
+              upNext.map((item, idx) => (
+                <QueueRow key={String(item.id || item.requestId || idx)} item={item} rank={idx + 1} />
+              ))
+            ) : (
+              <div className="rrEmptyState">Nothing queued yet.</div>
+            )}
           </div>
         </div>
-      </div>
 
-      <div className="rrFooterBar">
-        <div className="rrFooterInner">
-          <button className="rrBtn rrFooterCta" onClick={() => (window.location.href = `/request/${location}`)}>
+        <div
+          style={{
+            position: "sticky",
+            bottom: 12,
+            zIndex: 15,
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
+            gap: 10,
+          }}
+        >
+          <button
+            className="rrBtn"
+            onClick={() => {
+              window.location.href = `/request/${encodeURIComponent(location)}`;
+            }}
+          >
             Back to Requests
           </button>
           <button
             className="rrBtnGhost"
             onClick={() => {
-              if (!verified || !identityId) {
-                setShowVerify(true);
-                return;
-              }
-              window.location.href = `/request/${location}?buy=1&reason=boost`;
+              window.location.href = `/request/${encodeURIComponent(location)}`;
             }}
           >
             Get Points
           </button>
         </div>
       </div>
-
-      {msg ? (
-        <div className="rrToast">
-          <div className="rrToastRow">
-            <div className="rrToastText">{msg}</div>
-            <button className="rrBtnGhost" onClick={() => setMsg("")}>
-              Close
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      <VerifyPrompt
-        open={showVerify}
-        location={location}
-        email={email}
-        setEmail={setEmail}
-        onClose={() => setShowVerify(false)}
-      />
-    </div>
+    </PublicTheme>
   );
 }
