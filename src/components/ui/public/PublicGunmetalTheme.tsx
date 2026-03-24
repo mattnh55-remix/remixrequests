@@ -31,10 +31,10 @@ export default function PublicGunmetalTheme() {
         --rr-gold: #b28a35;
         --rr-green: #5a8254;
         --rr-shadow: 0 18px 40px rgba(0, 0, 0, 0.42);
-        --rr-radius-xl: 15px;
-        --rr-radius-lg: 13px;
-        --rr-radius: 11px;
-        --rr-radius-sm: 8px;
+        --rr-radius-xl: 16px;
+        --rr-radius-lg: 14px;
+        --rr-radius: 12px;
+        --rr-radius-sm: 9px;
         --rr-max: 560px;
       }
 
@@ -45,8 +45,8 @@ export default function PublicGunmetalTheme() {
       html,
       body {
         background:
-  radial-gradient(circle at 20% 0%, rgba(80,90,140,0.15), transparent 40%),
-  linear-gradient(180deg, #05070f 0%, #070a14 100%);
+          radial-gradient(circle at 20% 0%, rgba(80, 90, 140, 0.15), transparent 40%),
+          linear-gradient(180deg, #05070f 0%, #070a14 100%);
         color: var(--rr-text);
       }
 
@@ -60,13 +60,6 @@ export default function PublicGunmetalTheme() {
         overflow-x: hidden;
       }
 
-.rrBrandLogo {
-  width: 42px;
-  height: 42px;
-  object-fit: contain;
-  border-radius: 10px;
-}
-
       .rrPublicShell {
         width: min(var(--rr-max), calc(100vw - 20px));
         margin: 0 auto;
@@ -76,7 +69,7 @@ export default function PublicGunmetalTheme() {
       .rrPublicTopbar {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
-        gap: 12px;
+        gap: 10px;
         align-items: start;
         margin-bottom: 8px;
       }
@@ -84,14 +77,15 @@ export default function PublicGunmetalTheme() {
       .rrBrandLockup {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr);
-        gap: 12px;
-        align-items: center;
+        gap: 10px;
+        align-items: start;
       }
 
-      .rrBrandLogo {
-        width: 58px;
-        height: 58px;
-        border-radius: 16px;
+      .rrBrandLogo,
+      .rrBrandBadge {
+        width: 54px;
+        height: 54px;
+        border-radius: var(--rr-radius-lg);
         overflow: hidden;
         border: 1px solid rgba(130, 161, 210, 0.18);
         background: linear-gradient(180deg, rgba(26, 35, 51, 0.94), rgba(10, 16, 27, 0.98));
@@ -100,6 +94,7 @@ export default function PublicGunmetalTheme() {
         box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, 0.06),
           0 10px 24px rgba(0, 0, 0, 0.24);
+        flex-shrink: 0;
       }
 
       .rrBrandLogo img {
@@ -110,28 +105,16 @@ export default function PublicGunmetalTheme() {
       }
 
       .rrBrandBadge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 72px;
-        min-height: 40px;
-        padding: 0 16px;
-        border-radius: 16px;
-        border: 1px solid rgba(102, 151, 232, 0.28);
-        background: linear-gradient(180deg, rgba(25, 38, 58, 0.95), rgba(12, 20, 32, 0.98));
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.07),
-          0 0 0 1px rgba(47, 80, 130, 0.16),
-          0 0 14px rgba(58, 102, 170, 0.12);
         font-weight: 1000;
-        font-size: 12px;
+        font-size: 11px;
         letter-spacing: 0.16em;
         text-transform: uppercase;
+        color: #f3f6fb;
       }
 
       .rrHero {
         min-width: 0;
-        padding-top: 2px;
+        padding-top: 0;
       }
 
       .rrEyebrow {
@@ -140,32 +123,32 @@ export default function PublicGunmetalTheme() {
         font-weight: 1000;
         letter-spacing: 0.26em;
         text-transform: uppercase;
-        margin-bottom: 4px;
+        margin-bottom: 3px;
       }
 
-.rrTitle {
-  margin: 0;
-  font-size: clamp(20px, 6vw, 30px);
-  line-height: 0.92;
-  font-weight: 1000;
-  letter-spacing: -0.04em;
-  text-transform: uppercase;
-}
+      .rrTitle {
+        margin: 0;
+        font-size: clamp(20px, 6vw, 30px);
+        line-height: 0.92;
+        font-weight: 1000;
+        letter-spacing: -0.04em;
+        text-transform: uppercase;
+      }
 
       .rrTitleSub {
-        margin-top: 8px;
+        margin-top: 5px;
         color: var(--rr-text-soft);
         font-size: 12px;
         line-height: 1.35;
       }
 
       .rrHudCard {
-        min-width: 160px;
+        min-width: 112px;
         border-radius: var(--rr-radius-xl);
         border: 1px solid rgba(113, 142, 189, 0.2);
         background: var(--rr-surface);
         box-shadow: var(--rr-shadow);
-        padding: 12px;
+        padding: 10px;
         text-align: center;
       }
 
@@ -179,7 +162,7 @@ export default function PublicGunmetalTheme() {
       }
 
       .rrHudValue {
-        font-size: 32px;
+        font-size: 22px;
         line-height: 1;
         font-weight: 1000;
         margin-bottom: 8px;
@@ -191,12 +174,12 @@ export default function PublicGunmetalTheme() {
       .rrBtnDanger {
         appearance: none;
         border: 1px solid rgba(117, 145, 197, 0.24);
-        border-radius: 12px;
+        border-radius: var(--rr-radius);
         color: #fff;
         font-weight: 900;
         letter-spacing: 0.01em;
-        min-height: 40px;
-        padding: 0 15px;
+        min-height: 36px;
+        padding: 0 14px;
         cursor: pointer;
         transition:
           transform 0.14s ease,
@@ -221,7 +204,7 @@ export default function PublicGunmetalTheme() {
       }
 
       .rrBtn {
-        background: linear-gradient(90deg, rgba(20, 119, 135, 0.92), rgba(120, 48, 100, 0.9));
+        background: linear-gradient(90deg, #2a6f7c, #6a3a6e);
         box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, 0.12),
           0 8px 20px rgba(0, 0, 0, 0.22),
@@ -250,14 +233,14 @@ export default function PublicGunmetalTheme() {
         overflow: hidden;
       }
 
-.rrPanelHead {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 11px 12px 8px;
-  border-bottom: 1px solid var(--rr-line-soft);
-}
+      .rrPanelHead {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 11px 12px 8px;
+        border-bottom: 1px solid var(--rr-line-soft);
+      }
 
       .rrPanelTitle {
         font-size: 13px;
@@ -353,13 +336,13 @@ export default function PublicGunmetalTheme() {
 
       .rrSearchInput {
         width: 100%;
-        min-height: 44px;
+        min-height: 40px;
         border: 1px solid rgba(125, 156, 206, 0.16);
         background: linear-gradient(180deg, rgba(8, 14, 24, 0.96), rgba(12, 18, 29, 0.98));
         color: var(--rr-text);
-        border-radius: 14px;
+        border-radius: var(--rr-radius);
         padding: 0 14px;
-        font-size: 16px;
+        font-size: 15px;
         outline: none;
       }
 
@@ -375,7 +358,7 @@ export default function PublicGunmetalTheme() {
         border: 1px solid rgba(125, 156, 206, 0.18);
         background: linear-gradient(180deg, rgba(8, 14, 24, 0.96), rgba(12, 18, 29, 0.98));
         color: var(--rr-text);
-        border-radius: 12px;
+        border-radius: var(--rr-radius);
         padding: 11px 13px;
         font-size: 14px;
         outline: none;
@@ -398,10 +381,10 @@ export default function PublicGunmetalTheme() {
         border: 1px solid rgba(125, 156, 206, 0.16);
         background: linear-gradient(180deg, rgba(19, 28, 42, 0.88), rgba(12, 18, 29, 0.94));
         color: #f1f6ff;
-        min-height: 31px;
-        padding: 0 12px;
+        min-height: 28px;
+        padding: 0 10px;
         border-radius: 999px;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 900;
         cursor: pointer;
       }
@@ -437,7 +420,7 @@ export default function PublicGunmetalTheme() {
         align-items: center;
         min-height: 70px;
         padding: 9px;
-        border-radius: 14px;
+        border-radius: var(--rr-radius-lg);
         background: linear-gradient(90deg, rgba(27, 38, 55, 0.78), rgba(17, 24, 37, 0.94));
         border: 1px solid rgba(125, 156, 206, 0.12);
       }
@@ -445,7 +428,7 @@ export default function PublicGunmetalTheme() {
       .rrArt,
       .rrArtLarge {
         overflow: hidden;
-        border-radius: 11px;
+        border-radius: var(--rr-radius-sm);
         border: 1px solid rgba(255, 255, 255, 0.08);
         background: linear-gradient(135deg, rgba(46, 56, 74, 0.9), rgba(21, 28, 42, 0.96));
         display: grid;
@@ -453,8 +436,8 @@ export default function PublicGunmetalTheme() {
       }
 
       .rrArt {
-        width: 38px;
-        height: 38px;
+        width: 34px;
+        height: 34px;
       }
 
       .rrArtLarge {
@@ -491,18 +474,18 @@ export default function PublicGunmetalTheme() {
       }
 
       .rrSongTitle {
-        font-size: 16px;
+        font-size: 13px;
       }
 
       .rrQueueTitle {
-        font-size: 15px;
+        font-size: 14px;
       }
 
       .rrMiniMeta,
       .rrSongMeta,
       .rrQueueMeta {
         color: var(--rr-text-soft);
-        font-size: 11px;
+        font-size: 10px;
         margin-top: 4px;
         line-height: 1.3;
       }
@@ -545,16 +528,50 @@ export default function PublicGunmetalTheme() {
         gap: 8px;
       }
 
-.rrQueueRow {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-  border-radius: 13px;
-  padding: 6px;
-  background: linear-gradient(90deg, rgba(24, 34, 49, 0.84), rgba(11, 17, 27, 0.96));
-  border: 1px solid rgba(125, 156, 206, 0.11);
-}
+      .rrQueueRow {
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        border-radius: var(--rr-radius-lg);
+        padding: 6px;
+        background: linear-gradient(90deg, rgba(24, 34, 49, 0.84), rgba(11, 17, 27, 0.96));
+        border: 1px solid rgba(125, 156, 206, 0.11);
+      }
+
+      .rrQueueRow--emphasis {
+        background: linear-gradient(90deg, rgba(28, 41, 62, 0.96), rgba(15, 23, 37, 0.98), rgba(62, 28, 56, 0.94));
+      }
+
+      .rrQueueRank {
+        width: 36px;
+        height: 36px;
+        border-radius: var(--rr-radius);
+        border: 1px solid rgba(125, 156, 206, 0.14);
+        display: grid;
+        place-items: center;
+        color: #dbe5fb;
+        font-weight: 1000;
+        font-size: 14px;
+        background: rgba(255, 255, 255, 0.03);
+        flex-shrink: 0;
+      }
+
+      .rrQueueCopy {
+        min-width: 0;
+      }
+
+      .rrQueueTagRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+
+      .rrQueueScore {
+        align-self: center;
+      }
 
       .rrQueueActions {
         display: inline-flex;
@@ -564,8 +581,8 @@ export default function PublicGunmetalTheme() {
 
       .rrIconBtn {
         min-width: 40px;
-        min-height: 40px;
-        border-radius: 12px;
+        min-height: 36px;
+        border-radius: var(--rr-radius);
         border: 1px solid rgba(125, 156, 206, 0.16);
         background: linear-gradient(180deg, rgba(43, 53, 72, 0.88), rgba(19, 28, 42, 0.96));
         color: #fff;
@@ -604,7 +621,7 @@ export default function PublicGunmetalTheme() {
         transform: translateX(-50%);
         z-index: 60;
         width: min(680px, calc(100vw - 20px));
-        border-radius: 16px;
+        border-radius: var(--rr-radius-xl);
         border: 1px solid rgba(114, 157, 230, 0.22);
         background: linear-gradient(180deg, rgba(24, 33, 48, 0.98), rgba(11, 17, 28, 0.99));
         box-shadow: var(--rr-shadow);
@@ -638,7 +655,7 @@ export default function PublicGunmetalTheme() {
       .rrModal {
         width: min(var(--rr-max), calc(100vw - 20px));
         margin: 0 auto 10px;
-        border-radius: 20px;
+        border-radius: var(--rr-radius-xl);
         border: 1px solid rgba(125, 156, 206, 0.16);
         background: linear-gradient(180deg, rgba(18, 26, 40, 0.98), rgba(8, 12, 21, 0.99));
         box-shadow: 0 26px 56px rgba(0, 0, 0, 0.5);
@@ -649,12 +666,12 @@ export default function PublicGunmetalTheme() {
         display: flex;
         justify-content: space-between;
         gap: 12px;
-        padding: 16px 16px 11px;
+        padding: 14px 12px 10px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.06);
       }
 
       .rrDrawerBody {
-        padding: 14px 16px 16px;
+        padding: 12px;
       }
 
       .rrDrawerTitle {
@@ -681,7 +698,7 @@ export default function PublicGunmetalTheme() {
         gap: 12px;
         align-items: center;
         padding: 11px;
-        border-radius: 14px;
+        border-radius: var(--rr-radius-lg);
         background: linear-gradient(90deg, rgba(26, 36, 53, 0.78), rgba(12, 18, 29, 0.94));
         border: 1px solid rgba(125, 156, 206, 0.11);
       }
@@ -704,7 +721,7 @@ export default function PublicGunmetalTheme() {
       }
 
       .rrProductCard {
-        border-radius: 16px;
+        border-radius: var(--rr-radius-xl);
         padding: 13px;
         border: 1px solid rgba(125, 156, 206, 0.14);
         background: var(--rr-surface-2);
@@ -745,7 +762,7 @@ export default function PublicGunmetalTheme() {
       }
 
       .rrEmpty {
-        border-radius: 16px;
+        border-radius: var(--rr-radius-lg);
         border: 1px dashed rgba(125, 156, 206, 0.2);
         background: rgba(255, 255, 255, 0.03);
         padding: 12px;
@@ -770,6 +787,48 @@ export default function PublicGunmetalTheme() {
         cursor: pointer;
       }
 
+      .rrQueueShellV2 {
+        width: min(560px, calc(100vw - 10px)) !important;
+        padding-top: 10px !important;
+        padding-bottom: 88px !important;
+      }
+
+      .rrTopbarCompact {
+        gap: 10px !important;
+        align-items: start !important;
+      }
+
+      .rrBrandLockupCompact {
+        align-items: start !important;
+        gap: 10px !important;
+      }
+
+      .rrHudCardCompact {
+        min-width: 112px;
+        padding: 10px;
+      }
+
+      .rrHudValueCompact {
+        font-size: 22px;
+        margin-bottom: 8px;
+      }
+
+      .rrBtnFull {
+        width: 100%;
+      }
+
+      .rrSectionCompact {
+        border-radius: var(--rr-radius-xl);
+      }
+
+      .rrSectionTight .rrPanelHead {
+        padding: 12px 14px 9px;
+      }
+
+      .rrSectionTight .rrPanelBody {
+        padding: 10px 14px 12px;
+      }
+
       @media (max-width: 980px) {
         .rrSongGrid {
           grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -792,17 +851,11 @@ export default function PublicGunmetalTheme() {
           gap: 10px;
         }
 
-        .rrBrandLogo {
+        .rrBrandLogo,
+        .rrBrandBadge {
           width: 50px;
           height: 50px;
-          border-radius: 14px;
-        }
-
-        .rrBrandBadge {
-          min-height: 38px;
-          padding: 0 14px;
-          border-radius: 15px;
-          font-size: 11px;
+          border-radius: 12px;
         }
 
         .rrTitle {
@@ -812,28 +865,22 @@ export default function PublicGunmetalTheme() {
         .rrTitleSub {
           font-size: 11px;
           line-height: 1.3;
-          margin-top: 7px;
+          margin-top: 6px;
         }
 
         .rrHudCard {
-          min-width: 118px;
-          padding: 10px;
-          border-radius: 16px;
+          min-width: 108px;
+          padding: 9px;
+          border-radius: var(--rr-radius-xl);
         }
 
         .rrHudValue {
-          font-size: 24px;
+          font-size: 22px;
         }
 
         .rrSongGrid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 10px;
-        }
-
-        .rrQueueRow {
-          grid-template-columns: 42px minmax(0, 1fr) auto;
-          gap: 9px;
-          padding: 8px;
         }
 
         .rrQueueActions {
@@ -853,12 +900,6 @@ export default function PublicGunmetalTheme() {
         .rrMiniCard {
           grid-template-columns: 34px minmax(0, 1fr);
         }
-
-        .rrArt {
-          width: 34px;
-          height: 34px;
-          border-radius: 10px;
-        }
       }
 
       @media (max-width: 520px) {
@@ -867,24 +908,21 @@ export default function PublicGunmetalTheme() {
           padding-bottom: 84px;
         }
 
+        .rrQueueShellV2 {
+          width: calc(100vw - 8px) !important;
+          padding-top: 8px !important;
+        }
+
         .rrPublicTopbar {
           grid-template-columns: minmax(0, 1fr) auto;
           gap: 8px;
         }
 
-        .rrBrandLogo {
+        .rrBrandLogo,
+        .rrBrandBadge {
           width: 44px;
           height: 44px;
-          border-radius: 12px;
-        }
-
-        .rrBrandBadge {
-          min-width: 0;
-          min-height: 36px;
-          padding: 0 12px;
-          border-radius: 14px;
-          font-size: 10px;
-          letter-spacing: 0.14em;
+          border-radius: 11px;
         }
 
         .rrEyebrow {
@@ -911,24 +949,6 @@ export default function PublicGunmetalTheme() {
           font-size: 20px;
         }
 
-        .rrPanelHead,
-        .rrPanelBody,
-        .rrDrawerHead,
-        .rrDrawerBody {
-          padding-left: 12px;
-          padding-right: 12px;
-        }
-
-        .rrPanelHead {
-          padding-top: 12px;
-          padding-bottom: 9px;
-        }
-
-        .rrPanelBody {
-          padding-top: 12px;
-          padding-bottom: 12px;
-        }
-
         .rrPanelTitle {
           font-size: 12px;
         }
@@ -951,10 +971,10 @@ export default function PublicGunmetalTheme() {
         }
 
         .rrQueueRow {
-          grid-template-columns: 36px minmax(0, 1fr) auto;
+          grid-template-columns: 36px 34px minmax(0, 1fr) auto;
           gap: 8px;
-          border-radius: 13px;
           padding: 6px;
+          border-radius: var(--rr-radius-lg);
         }
 
         .rrChip {
@@ -977,14 +997,14 @@ export default function PublicGunmetalTheme() {
         .rrBtnDanger,
         .rrIconBtn {
           min-height: 36px;
-          border-radius: 11px;
+          border-radius: var(--rr-radius);
           font-size: 12px;
         }
 
         .rrSearchInput {
           min-height: 40px;
           font-size: 15px;
-          border-radius: 12px;
+          border-radius: var(--rr-radius);
         }
 
         .rrFooterBar {
