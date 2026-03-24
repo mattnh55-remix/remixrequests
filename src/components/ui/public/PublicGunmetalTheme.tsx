@@ -35,7 +35,7 @@ export default function PublicGunmetalTheme() {
         --rr-radius-lg: 16px;
         --rr-radius: 13px;
         --rr-radius-sm: 10px;
-        --rr-max: 1080px;
+        --rr-max: 560px;
       }
 
       * {
@@ -137,14 +137,14 @@ export default function PublicGunmetalTheme() {
         margin-bottom: 4px;
       }
 
-      .rrTitle {
-        margin: 0;
-        font-size: clamp(25px, 4.5vw, 42px);
-        line-height: 0.9;
-        font-weight: 1000;
-        letter-spacing: -0.04em;
-        text-transform: uppercase;
-      }
+.rrTitle {
+  margin: 0;
+  font-size: clamp(20px, 6vw, 30px);
+  line-height: 0.92;
+  font-weight: 1000;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+}
 
       .rrTitleSub {
         margin-top: 8px;
@@ -244,14 +244,14 @@ export default function PublicGunmetalTheme() {
         overflow: hidden;
       }
 
-      .rrPanelHead {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 14px 16px 10px;
-        border-bottom: 1px solid var(--rr-line-soft);
-      }
+.rrPanelHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 12px 8px;
+  border-bottom: 1px solid var(--rr-line-soft);
+}
 
       .rrPanelTitle {
         font-size: 13px;
@@ -268,7 +268,7 @@ export default function PublicGunmetalTheme() {
       }
 
       .rrPanelBody {
-        padding: 14px 16px 16px;
+        padding: 10px 12px 12px;
       }
 
       .rrStatusPill,
@@ -539,16 +539,16 @@ export default function PublicGunmetalTheme() {
         gap: 8px;
       }
 
-      .rrQueueRow {
-        display: grid;
-        grid-template-columns: 52px minmax(0, 1fr) auto;
-        gap: 10px;
-        align-items: center;
-        border-radius: 14px;
-        padding: 9px;
-        background: linear-gradient(90deg, rgba(24, 34, 49, 0.84), rgba(11, 17, 27, 0.96));
-        border: 1px solid rgba(125, 156, 206, 0.11);
-      }
+.rrQueueRow {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border-radius: 13px;
+  padding: 7px;
+  background: linear-gradient(90deg, rgba(24, 34, 49, 0.84), rgba(11, 17, 27, 0.96));
+  border: 1px solid rgba(125, 156, 206, 0.11);
+}
 
       .rrQueueActions {
         display: inline-flex;

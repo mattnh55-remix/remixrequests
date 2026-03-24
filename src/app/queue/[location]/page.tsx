@@ -14,6 +14,8 @@ type QueueItem = {
   score?: number;
   requestedByMe?: boolean;
   sourceType?: string;
+  boosted?: boolean;
+  priority?: string;
   song?: {
     id?: string;
     title?: string;
@@ -96,6 +98,18 @@ function TinyArt({ src, alt }: { src?: string; alt?: string }) {
   );
 }
 
+function BrandLogo({ logoUrl }: { logoUrl?: string | null }) {
+  return (
+    <div className="rrBrandLogo" style={{ width: 54, height: 54 }}>
+      {logoUrl ? (
+        <img src={logoUrl} alt="Venue logo" />
+      ) : (
+        <div className="rrArtFallback" style={{ fontSize: 11 }}>REMIX</div>
+      )}
+    </div>
+  );
+}
+
 function QueueRow({ item, rank, emphasis }: { item: QueueItem; rank: number; emphasis?: boolean }) {
   const sourceType = String(item.sourceType || "").toUpperCase();
   const isInterstitial = sourceType.includes("INTERSTITIAL");
@@ -106,31 +120,28 @@ function QueueRow({ item, rank, emphasis }: { item: QueueItem; rank: number; emp
     <div
       className="rrQueueRow"
       style={{
-        display: "grid",
-        gridTemplateColumns: "34px 56px minmax(0,1fr) auto",
-        gap: 12,
-        alignItems: "center",
-        padding: "12px 14px",
-        borderRadius: 18,
-        border: "1px solid rgba(125, 156, 206, 0.14)",
+        gridTemplateColumns: "36px 34px minmax(0,1fr) auto",
+        gap: 8,
+        padding: "8px",
+        borderRadius: 14,
         background: emphasis
-          ? "linear-gradient(90deg, rgba(33,47,70,0.92), rgba(22,30,45,0.96), rgba(67,28,59,0.92))"
-          : "linear-gradient(180deg, rgba(21,29,43,0.88), rgba(10,16,27,0.94))",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+          ? "linear-gradient(90deg, rgba(28,41,62,0.96), rgba(15,23,37,0.98), rgba(62,28,56,0.94))"
+          : "linear-gradient(180deg, rgba(17,26,40,0.92), rgba(8,14,24,0.98))",
       }}
     >
       <div
         style={{
-          width: 34,
-          height: 34,
-          borderRadius: 10,
-          border: "1px solid rgba(125,156,206,0.18)",
+          width: 36,
+          height: 36,
+          borderRadius: 11,
+          border: "1px solid rgba(125,156,206,0.14)",
           display: "grid",
           placeItems: "center",
-          color: "var(--rr-text-soft)",
+          color: "#dbe5fb",
           fontWeight: 1000,
-          fontSize: 13,
+          fontSize: 14,
           background: "rgba(255,255,255,0.03)",
+          flexShrink: 0,
         }}
       >
         {rank}
@@ -139,42 +150,41 @@ function QueueRow({ item, rank, emphasis }: { item: QueueItem; rank: number; emp
       <TinyArt src={getArtwork(item)} alt={getTitle(item)} />
 
       <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 4 }}>
-          {isInterstitial ? <span className="rrTag rrTagRed">INTERSTITIAL</span> : null}
-          {isBoosted ? <span className="rrTag rrTagRed">BOOSTED</span> : null}
-          {item.requestId ? <span className="rrTag">REQUEST</span> : null}
-          {item.requestedByMe ? <span className="rrTag rrTagBlue">YOURS</span> : null}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center", marginBottom: 4 }}>
+          {isInterstitial ? <span className="rrTag rrTag--interstitial">Insert</span> : null}
+          {isBoosted ? <span className="rrTag rrTag--boost">Boosted</span> : null}
+          {item.requestId ? <span className="rrTag rrTag--request">Request</span> : null}
+          {item.requestedByMe ? <span className="rrTag rrStatusPill--live rrTag">Yours</span> : null}
         </div>
+
         <div
+          className="rrQueueTitle"
           style={{
-            fontWeight: 1000,
-            fontSize: 20,
-            lineHeight: 1.02,
-            letterSpacing: "-0.03em",
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
+            fontSize: 14,
+            lineHeight: 1.02,
           }}
         >
           {getTitle(item)}
         </div>
         <div
+          className="rrQueueMeta"
           style={{
-            marginTop: 4,
-            color: "var(--rr-text-soft)",
-            fontSize: 13,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
+            fontSize: 11,
           }}
         >
           {getArtist(item)}
         </div>
       </div>
 
-      <div style={{ display: "grid", justifyItems: "end", gap: 8 }}>
-        <span className="rrMetaPill">Score {score}</span>
-      </div>
+      <span className="rrMetaPill" style={{ alignSelf: "center" }}>
+        Score {score}
+      </span>
     </div>
   );
 }
@@ -283,123 +293,121 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   const upvoteCost = Number(rulesData?.rules?.costUpvote ?? 1);
   const downvoteCost = Number(rulesData?.rules?.costDownvote ?? 1);
   const displayedBalance = identityId ? Number(bal.balance ?? 0) : 0;
+  const logoUrl = rulesData?.rules?.logoUrl || null;
+
+  const goToRequests = () => {
+    window.location.href = `/request/${encodeURIComponent(location)}`;
+  };
 
   return (
-    <PublicTheme>
-      <div style={{ display: "grid", gap: 16 }}>
-        <div className="rrPublicTopbar">
-          <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
-            <div className="rrBrandBadge">REMIX</div>
-            <div className="rrHero" style={{ textAlign: "left", paddingTop: 0 }}>
+    <PublicTheme shellClassName="rrQueueShellV2">
+      <style jsx global>{`
+        .rrQueueShellV2 {
+          width: min(560px, calc(100vw - 10px)) !important;
+          padding-top: 10px !important;
+          padding-bottom: 88px !important;
+        }
+        @media (max-width: 520px) {
+          .rrQueueShellV2 {
+            width: calc(100vw - 8px) !important;
+            padding-top: 8px !important;
+          }
+        }
+      `}</style>
+
+      <div style={{ display: "grid", gap: 12 }}>
+        <div className="rrPublicTopbar" style={{ gap: 10, alignItems: "start" }}>
+          <div className="rrBrandLockup" style={{ alignItems: "start", gap: 10 }}>
+            <BrandLogo logoUrl={logoUrl} />
+
+            <div className="rrHero" style={{ paddingTop: 0 }}>
               <div className="rrEyebrow">Live Queue & Voting</div>
-              <h1 className="rrTitle" style={{ fontSize: "clamp(34px, 6vw, 64px)" }}>
+              <h1 className="rrTitle" style={{ fontSize: "clamp(18px, 8.2vw, 30px)", lineHeight: 0.92 }}>
                 Queue & Voting
               </h1>
-              <div className="rrTitleSub">
+              <div className="rrTitleSub" style={{ marginTop: 6 }}>
                 {venueName} • Tap to vote • {sessionCountdown}
               </div>
             </div>
           </div>
 
-          <div className="rrHudCard">
+          <div className="rrHudCard" style={{ minWidth: 112, padding: 10, borderRadius: 16 }}>
             <div className="rrHudLabel">Points</div>
-            <div className="rrHudValue">{displayedBalance}</div>
-            <button
-              className="rrBtn"
-              style={{ width: "100%" }}
-              onClick={() => {
-                window.location.href = `/request/${encodeURIComponent(location)}`;
-              }}
-            >
+            <div className="rrHudValue" style={{ fontSize: 22, marginBottom: 8 }}>
+              {displayedBalance}
+            </div>
+            <button className="rrBtn" style={{ width: "100%", minHeight: 36, fontSize: 12 }} onClick={goToRequests}>
               Back to Requests
             </button>
           </div>
         </div>
 
-        <div className="rrPanel">
-          <div className="rrPanelHead">
+        <div className="rrPanel" style={{ borderRadius: 18 }}>
+          <div className="rrPanelHead" style={{ padding: "12px 14px 9px" }}>
             <div>
               <div className="rrPanelTitle">Current Session</div>
               <div className="rrPanelSub">Voting uses your live points balance.</div>
             </div>
-            <span className="rrStatusPill">{sessionCountdown}</span>
+            <span className="rrStatusPill rrStatusPill--live">{sessionCountdown}</span>
           </div>
-          <div className="rrPanelBody">
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div className="rrPanelBody" style={{ padding: "10px 14px 12px" }}>
+            <div className="rrChipRow" style={{ marginBottom: 0, gap: 6 }}>
               <span className="rrMetaPill">Upvote {upvoteCost}pt</span>
               <span className="rrMetaPill">Downvote {downvoteCost}pt</span>
-              <span className="rrMetaPill">{votingOn ? "Voting On" : "Voting Off"}</span>
-              {!identityId ? <span className="rrTag rrTagBlue">Verify on Requests to unlock points</span> : null}
+              <span className={`rrMetaPill ${votingOn ? "" : "rrStatusPill--warn"}`}>{votingOn ? "Voting On" : "Voting Off"}</span>
             </div>
           </div>
         </div>
 
-        <div className="rrPanel">
-          <div className="rrPanelHead">
+        <div className="rrPanel" style={{ borderRadius: 18 }}>
+          <div className="rrPanelHead" style={{ padding: "12px 14px 9px" }}>
             <div>
               <div className="rrPanelTitle">Play Now Lane</div>
               <div className="rrPanelSub">Highest priority requests.</div>
             </div>
-            <span className="rrStatusPill">{playNow.length} item{playNow.length === 1 ? "" : "s"}</span>
+            <span className="rrStatusPill">{playNow.length} items</span>
           </div>
-          <div className="rrPanelBody" style={{ display: "grid", gap: 10 }}>
+          <div className="rrPanelBody" style={{ padding: "10px 14px 12px", display: "grid", gap: 8 }}>
             {loading ? (
-              <div className="rrEmptyState">Loading queue…</div>
+              <div className="rrEmpty" style={{ padding: 12 }}>Loading queue…</div>
             ) : playNow.length ? (
               playNow.map((item, idx) => (
                 <QueueRow key={String(item.id || item.requestId || idx)} item={item} rank={idx + 1} emphasis />
               ))
             ) : (
-              <div className="rrEmptyState">No boosted requests right now.</div>
+              <div className="rrEmpty" style={{ padding: 12 }}>No boosted requests right now.</div>
             )}
           </div>
         </div>
 
-        <div className="rrPanel">
-          <div className="rrPanelHead">
+        <div className="rrPanel" style={{ borderRadius: 18 }}>
+          <div className="rrPanelHead" style={{ padding: "12px 14px 9px" }}>
             <div>
               <div className="rrPanelTitle">Coming Up</div>
               <div className="rrPanelSub">The next songs in live order.</div>
             </div>
-            <span className="rrStatusPill">{upNext.length} item{upNext.length === 1 ? "" : "s"}</span>
+            <span className="rrStatusPill">{upNext.length} items</span>
           </div>
-          <div className="rrPanelBody" style={{ display: "grid", gap: 10 }}>
+          <div className="rrPanelBody" style={{ padding: "10px 14px 12px", display: "grid", gap: 8 }}>
             {loading ? (
-              <div className="rrEmptyState">Loading queue…</div>
+              <div className="rrEmpty" style={{ padding: 12 }}>Loading queue…</div>
             ) : upNext.length ? (
               upNext.map((item, idx) => (
                 <QueueRow key={String(item.id || item.requestId || idx)} item={item} rank={idx + 1} />
               ))
             ) : (
-              <div className="rrEmptyState">Nothing queued yet.</div>
+              <div className="rrEmpty" style={{ padding: 12 }}>Nothing queued yet.</div>
             )}
           </div>
         </div>
+      </div>
 
-        <div
-          style={{
-            position: "sticky",
-            bottom: 12,
-            zIndex: 15,
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            gap: 10,
-          }}
-        >
-          <button
-            className="rrBtn"
-            onClick={() => {
-              window.location.href = `/request/${encodeURIComponent(location)}`;
-            }}
-          >
+      <div className="rrFooterBar">
+        <div className="rrFooterInner" style={{ width: "min(560px, calc(100vw - 10px))" }}>
+          <button className="rrBtn rrFooterCta" onClick={goToRequests}>
             Back to Requests
           </button>
-          <button
-            className="rrBtnGhost"
-            onClick={() => {
-              window.location.href = `/request/${encodeURIComponent(location)}`;
-            }}
-          >
+          <button className="rrBtnGhost" onClick={goToRequests}>
             Get Points
           </button>
         </div>
