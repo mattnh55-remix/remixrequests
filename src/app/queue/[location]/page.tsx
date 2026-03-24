@@ -266,12 +266,6 @@ export default function QueuePage({ params }: { params: { location: string } }) 
 
   return (
     <PublicTheme>
-      <div className="rrTopRail">
-        <div className="rrMiniStat">
-          <div className="rrMiniStatLabel">Queue</div>
-          <div className="rrMiniStatValue">{totalVisible}</div>
-          <div className="rrMiniStatSub">visible songs</div>
-        </div>
         <div className="rrMiniStat">
           <div className="rrMiniStatLabel">Voting</div>
           <div className="rrMiniStatValue">{votingOn ? "ON" : "OFF"}</div>
