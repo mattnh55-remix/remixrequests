@@ -1,14 +1,66 @@
-// src/app/request/[location]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
-
+import PublicGunmetalTheme from "../../../components/ui/public/PublicGunmetalTheme";
 const RAILS = [
-  "All Ages", "Adult Night", "TikTok", "DISCO", "80s", "90s", "2000s", "Boy Bands", "Pop Hits", "Mom’s Hits", "Dad Rock"
-];
+  "All Ages",
+  "Adult Night",
+  "TikTok",
+  "DISCO",
+  "80s",
+  "90s",
+  "2000s",
+  "Boy Bands",
+  "Pop Hits",
+  "Mom’s Hits",
+  "Dad Rock",
+] as const;
 
-type Song = { id: string; title: string; artist: string; artworkUrl?: string; explicit: boolean; tags: string[] };
+type Song = {
+  id: string;
+  title: string;
+  artist: string;
+  artworkUrl?: string;
+  explicit?: boolean;
+  tags?: string[];
+};
+
+type QueuePreviewItem = {
+  id?: string;
+  title?: string;
+  artist?: string;
+  artworkUrl?: string;
+  score?: number;
+  requestedByMe?: boolean;
+  song?: {
+    title?: string;
+    artist?: string;
+    artworkUrl?: string;
+  };
+  request?: {
+    title?: string;
+    artist?: string;
+    artworkUrl?: string;
+  };
+};
+
+type SessionRes = {
+  location?: { slug?: string; name?: string };
+  session?: { id?: string; endsAt?: string };
+  rules?: {
+    logoUrl?: string | null;
+    buyUrl?: string | null;
+    costRequest?: number;
+    costPlayNow?: number;
+    packTier1PriceCents?: number | null;
+    packTier2PriceCents?: number | null;
+    packTier3PriceCents?: number | null;
+    packTier4PriceCents?: number | null;
+  };
+};
+
+type PackageKey = "5_10" | "10_25" | "15_35" | "20_50";
 
 type UiPack = {
   id: string;
@@ -16,11 +68,15 @@ type UiPack = {
   subtitle: string;
   creditsLabel: string;
   priceCents?: number;
-  packageKey?: "5_10" | "10_25" | "15_35" | "20_50";
+  packageKey?: PackageKey;
   highlight?: boolean;
   badge?: string;
-  cta?: string;
-  href?: string;
+};
+
+type BalanceRes = {
+  ok: boolean;
+  balance?: number;
+  error?: string;
 };
 
 type FlyAnim = {
@@ -32,33 +88,617 @@ type FlyAnim = {
   deltaY: number;
 };
 
-const BUY_URL_BY_LOCATION: Record<string, string> = {
-  // remixrequests: "https://your-checkout-link",
-};
+const BUY_URL_BY_LOCATION: Record<string, string> = {};
 
-type BalanceRes = { ok: boolean; balance?: number; error?: string };
+function formatCountdown(endsAt?: string | null) {
+  if (!endsAt) return "";
+  const endMs = new Date(endsAt).getTime();
+  if (!Number.isFinite(endMs)) return "";
+  const diff = Math.max(0, endMs - Date.now());
+  if (diff <= 0) return "Session ended";
+  const totalMin = Math.floor(diff / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h <= 0 && m <= 2) return "Ending soon";
+  return h > 0 ? `Ends in ${h}h ${m}m` : `Ends in ${m}m`;
+}
+
+function getQueueTitle(item: QueuePreviewItem) {
+  return String(item.title || item.song?.title || item.request?.title || "Untitled");
+}
+
+function getQueueArtist(item: QueuePreviewItem) {
+  return String(item.artist || item.song?.artist || item.request?.artist || "Unknown artist");
+}
+
+function getQueueArtwork(item: QueuePreviewItem) {
+  return String(item.artworkUrl || item.song?.artworkUrl || item.request?.artworkUrl || "");
+}
+
+function AlbumArt({ src, alt }: { src?: string; alt?: string }) {
+  const [bad, setBad] = useState(false);
+  const real = (src || "").trim();
+
+  if (!real || bad) {
+    return (
+      <div className="rrArtLarge">
+        <div className="rrArtFallback">Remix</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rrArtLarge">
+      <img
+        src={real}
+        alt={alt || ""}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setBad(true)}
+      />
+    </div>
+  );
+}
+
+function TinyArt({ src, alt }: { src?: string; alt?: string }) {
+  const [bad, setBad] = useState(false);
+  const real = (src || "").trim();
+
+  if (!real || bad) {
+    return (
+      <div className="rrArt">
+        <div className="rrArtFallback">Remix</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rrArt">
+      <img
+        src={real}
+        alt={alt || ""}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setBad(true)}
+      />
+    </div>
+  );
+}
+
+function usePublicSfx() {
+  const [muted, setMuted] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("rr_public_muted") === "1";
+  });
+  const ctxRef = useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const unlock = async () => {
+      try {
+        const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (!Ctx) return;
+        if (!ctxRef.current) ctxRef.current = new Ctx();
+        if (ctxRef.current?.state === "suspended") await ctxRef.current.resume();
+      } catch {}
+    };
+    const onFirst = () => void unlock();
+    window.addEventListener("pointerdown", onFirst, { once: true });
+    return () => window.removeEventListener("pointerdown", onFirst);
+  }, []);
+
+  function beep(freq: number, dur = 0.06, gain = 0.05) {
+    if (muted) return;
+    const ctx = ctxRef.current;
+    if (!ctx) return;
+    try {
+      const t0 = ctx.currentTime;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(freq, t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start(t0);
+      o.stop(t0 + dur + 0.02);
+    } catch {}
+  }
+
+  return {
+    muted,
+    setMuted: (next: boolean) => {
+      setMuted(next);
+      try {
+        window.localStorage.setItem("rr_public_muted", next ? "1" : "0");
+      } catch {}
+    },
+    playTap: () => beep(510, 0.05, 0.04),
+    playSuccess: () => {
+      beep(720, 0.05, 0.05);
+      window.setTimeout(() => beep(980, 0.06, 0.05), 60);
+    },
+    playError: () => {
+      beep(220, 0.08, 0.06);
+      window.setTimeout(() => beep(180, 0.08, 0.06), 70);
+    },
+  };
+}
+
+function HoldButton({
+  idleLabel,
+  busyLabel,
+  successLabel,
+  onConfirm,
+  disabled,
+  className,
+}: {
+  idleLabel: string;
+  busyLabel: string;
+  successLabel: string;
+  onConfirm: (el?: HTMLButtonElement | null) => Promise<boolean> | boolean;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const fillRef = useRef<HTMLDivElement | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const startRef = useRef<number | null>(null);
+  const lockedRef = useRef(false);
+
+  const [holding, setHolding] = useState(false);
+  const [label, setLabel] = useState(idleLabel);
+
+  function setFill(p: number) {
+    if (fillRef.current) fillRef.current.style.width = `${Math.max(0, Math.min(100, p * 100))}%`;
+  }
+
+  function hardReset() {
+    lockedRef.current = false;
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    startRef.current = null;
+    setHolding(false);
+    setFill(0);
+    setLabel(idleLabel);
+  }
+
+  async function completeHold() {
+    lockedRef.current = true;
+    setHolding(false);
+    setLabel(busyLabel);
+
+    let ok = false;
+    try {
+      ok = Boolean(await Promise.resolve(onConfirm(buttonRef.current)));
+    } catch {
+      ok = false;
+    }
+
+    if (!ok) {
+      hardReset();
+      return;
+    }
+
+    setLabel(successLabel);
+    window.setTimeout(() => hardReset(), 700);
+  }
+
+  function tick(ts: number) {
+    if (startRef.current == null) startRef.current = ts;
+    const elapsed = ts - startRef.current;
+    const p = Math.min(elapsed / 650, 1);
+    setFill(p);
+
+    if (p < 0.32) setLabel("HOLD TO CONFIRM");
+    else if (p < 0.8) setLabel("KEEP HOLDING...");
+    else setLabel("ALMOST THERE...");
+
+    if (p >= 1) {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      void completeHold();
+      return;
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+  }
+
+  function startHold(e: React.PointerEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled || lockedRef.current) return;
+    setHolding(true);
+    startRef.current = null;
+    setFill(0);
+    setLabel("HOLD TO CONFIRM");
+    rafRef.current = requestAnimationFrame(tick);
+  }
+
+  function cancelHold(e?: React.PointerEvent<HTMLButtonElement>) {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (lockedRef.current) return;
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    startRef.current = null;
+    setHolding(false);
+    setFill(0);
+    setLabel(idleLabel);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      disabled={disabled}
+      className={className || "rrBtnGhost"}
+      onPointerDown={startHold}
+      onPointerUp={cancelHold}
+      onPointerLeave={cancelHold}
+      onPointerCancel={cancelHold}
+      onContextMenu={(e) => e.preventDefault()}
+      style={{
+        width: "100%",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        ref={fillRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: 0,
+          background:
+            "linear-gradient(90deg, rgba(21,146,162,0.35), rgba(157,47,125,0.35))",
+          transition: holding ? "none" : "width 0.14s ease",
+        }}
+      />
+      <span style={{ position: "relative", zIndex: 1 }}>{label}</span>
+    </button>
+  );
+}
+
+function VerifyDrawer({
+  open,
+  location,
+  email,
+  setEmail,
+  redeemBusy,
+  onRedeem,
+  onVerified,
+  onClose,
+}: {
+  open: boolean;
+  location: string;
+  email: string;
+  setEmail: (value: string) => void;
+  redeemBusy: boolean;
+  onRedeem: (code: string) => void;
+  onVerified: (payload: { identityId?: string; email?: string }) => void;
+  onClose: () => void;
+}) {
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"collect" | "code">("collect");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [emailOptIn, setEmailOptIn] = useState(true);
+  const [smsOptIn, setSmsOptIn] = useState(true);
+  const [redeemCode, setRedeemCode] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      setPhone("");
+      setCode("");
+      setStep("collect");
+      setMsg("");
+      setRedeemCode("");
+    }
+  }, [open]);
+
+  if (!open) return null;
+
+  async function sendCode() {
+    setBusy(true);
+    setMsg("");
+
+    try {
+      const res = await fetch(`/api/public/auth/start`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          location,
+          email,
+          phone,
+          emailOptIn,
+          smsOptIn,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        setMsg(data.error || "Could not send code.");
+        return;
+      }
+
+      setStep("code");
+      setMsg("Code sent.");
+    } catch {
+      setMsg("Could not send code.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmCode() {
+    setBusy(true);
+    setMsg("");
+
+    try {
+      const res = await fetch(`/api/public/auth/verify`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          location,
+          email,
+          phone,
+          code,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        setMsg(data.error || "Code verification failed.");
+        return;
+      }
+
+      const nextIdentityId = String(data.identityId || data.identity?.id || "").trim();
+      const nextEmail = String(data.email || email || "").trim();
+
+      try {
+        if (nextIdentityId) localStorage.setItem("rr_identityId", nextIdentityId);
+        if (location) localStorage.setItem("rr_location", String(location));
+        if (nextEmail) localStorage.setItem("rr_email", nextEmail);
+      } catch {}
+
+      onVerified({ identityId: nextIdentityId, email: nextEmail });
+      onClose();
+    } catch {
+      setMsg("Code verification failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rrOverlay">
+      <div className="rrDrawer">
+        <div className="rrDrawerHead">
+          <div>
+            <div className="rrDrawerTitle">Claim your points</div>
+            <div className="rrDrawerSub">
+              Verify once to unlock your intro points and start requesting.
+            </div>
+          </div>
+          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        <div className="rrDrawerBody">
+          <div className="rrStack">
+            {step === "collect" ? (
+              <>
+                <input
+                  className="rrInput"
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <input
+                  className="rrInput"
+                  placeholder="Mobile number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+                <label className="rrHelper">
+                  <input
+                    type="checkbox"
+                    checked={emailOptIn}
+                    onChange={(e) => setEmailOptIn(e.target.checked)}
+                    style={{ marginRight: 8 }}
+                  />
+                  Email me updates and bonus offers
+                </label>
+                <label className="rrHelper">
+                  <input
+                    type="checkbox"
+                    checked={smsOptIn}
+                    onChange={(e) => setSmsOptIn(e.target.checked)}
+                    style={{ marginRight: 8 }}
+                  />
+                  Text me verification and promo updates
+                </label>
+                <button className="rrBtn" disabled={busy} onClick={sendCode}>
+                  {busy ? "Sending..." : "Send verification code"}
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  className="rrInput"
+                  placeholder="Enter verification code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+                <button className="rrBtn" disabled={busy} onClick={confirmCode}>
+                  {busy ? "Verifying..." : "Verify & continue"}
+                </button>
+                <button className="rrBtnGhost" disabled={busy} onClick={() => setStep("collect")}>
+                  Back
+                </button>
+              </>
+            )}
+
+            <div className="rrDivider" />
+
+            <div className="rrStack">
+              <div className="rrDrawerTitle" style={{ fontSize: 16 }}>
+                Redeem code
+              </div>
+              <input
+                className="rrInput"
+                placeholder="Enter redemption code"
+                value={redeemCode}
+                onChange={(e) => setRedeemCode(e.target.value)}
+              />
+              <button
+                className="rrBtnGhost"
+                disabled={redeemBusy}
+                onClick={() => onRedeem(redeemCode)}
+              >
+                {redeemBusy ? "Redeeming..." : "Redeem code"}
+              </button>
+            </div>
+
+            {msg ? <div className="rrHelper">{msg}</div> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BuyDrawer({
+  open,
+  onClose,
+  packs,
+  redeemCode,
+  setRedeemCode,
+  redeemBusy,
+  onRedeem,
+  onBuy,
+  buyReason,
+}: {
+  open: boolean;
+  onClose: () => void;
+  packs: UiPack[];
+  redeemCode: string;
+  setRedeemCode: (value: string) => void;
+  redeemBusy: boolean;
+  onRedeem: (code: string) => void;
+  onBuy: (key: PackageKey) => void;
+  buyReason: "none" | "out" | "notEnough" | "boost";
+}) {
+  if (!open) return null;
+
+  const title =
+    buyReason === "boost"
+      ? "Get more points"
+      : buyReason === "notEnough"
+        ? "Not enough points"
+        : buyReason === "out"
+          ? "You’re out of points"
+          : "Get points";
+
+  return (
+    <div className="rrOverlay">
+      <div className="rrDrawer">
+        <div className="rrDrawerHead">
+          <div>
+            <div className="rrDrawerTitle">{title}</div>
+            <div className="rrDrawerSub">
+              Buy a pack or redeem a code to keep the party moving.
+            </div>
+          </div>
+          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        <div className="rrDrawerBody">
+          <div className="rrPackList">
+            {packs.map((pack) => (
+              <div key={pack.id} className="rrPackRow">
+                <div>
+                  <div className="rrPackTitle">
+                    {pack.title}{" "}
+                    {pack.badge ? <span className="rrTag rrTag--boost">{pack.badge}</span> : null}
+                  </div>
+                  <div className="rrPackMeta">
+                    {pack.creditsLabel} • {pack.subtitle}
+                  </div>
+                </div>
+                <button
+                  className={pack.highlight ? "rrBtn" : "rrBtnGhost"}
+                  onClick={() => pack.packageKey && onBuy(pack.packageKey)}
+                >
+                  Buy • ${(Number(pack.priceCents || 0) / 100).toFixed(2)}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="rrDivider" />
+
+          <div className="rrStack">
+            <div className="rrPackTitle">Redeem code</div>
+            <div className="rrTwoCol">
+              <input
+                className="rrInput"
+                placeholder="Promo or redemption code"
+                value={redeemCode}
+                onChange={(e) => setRedeemCode(e.target.value)}
+              />
+              <button
+                className="rrBtnGhost"
+                disabled={redeemBusy}
+                onClick={() => onRedeem(redeemCode)}
+              >
+                {redeemBusy ? "Redeeming..." : "Redeem"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function RequestPage({ params }: { params: { location: string } }) {
   const location = params.location;
 
   const [email, setEmail] = useState("");
   const [search, setSearch] = useState("");
-  const [tag, setTag] = useState<string>("");
+  const [tag, setTag] = useState("");
   const [songs, setSongs] = useState<Song[]>([]);
-  const [rules, setRules] = useState<any>(null);
-  const [msg, setMsg] = useState<string>("");
+  const [rules, setRules] = useState<SessionRes | null>(null);
+  const [msg, setMsg] = useState("");
   const [toastOpen, setToastOpen] = useState(false);
-  const [queuePreview, setQueuePreview] = useState<{ playNow: any[]; upNext: any[] }>({ playNow: [], upNext: [] });
+
+  const [queuePreview, setQueuePreview] = useState<{
+    playNow: QueuePreviewItem[];
+    upNext: QueuePreviewItem[];
+  }>({ playNow: [], upNext: [] });
 
   const [verified, setVerified] = useState(false);
-  const [identityId, setIdentityId] = useState<string>("");
+  const [identityId, setIdentityId] = useState("");
   const [showVerify, setShowVerify] = useState(false);
   const [showBuy, setShowBuy] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
   const [redeemBusy, setRedeemBusy] = useState(false);
   const [buyReason, setBuyReason] = useState<"none" | "out" | "notEnough" | "boost">("none");
-  const [sessionCountdown, setSessionCountdown] = useState<string>("");
-
+  const [sessionCountdown, setSessionCountdown] = useState("");
   const [successTileId, setSuccessTileId] = useState<string | null>(null);
   const [queuePulseOn, setQueuePulseOn] = useState(false);
   const [flyAnim, setFlyAnim] = useState<FlyAnim | null>(null);
@@ -70,8 +710,29 @@ export default function RequestPage({ params }: { params: { location: string } }
   const queuePulseTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const flyKeyRef = useRef(0);
+  const prevUserRequestIdsRef = useRef<Set<string>>(new Set());
 
-  const sfx = useNeonSfx();
+  const sfx = usePublicSfx();
+
+  async function fetchBalanceNumber(nextIdentityId?: string): Promise<number> {
+    const id = (nextIdentityId ?? identityId ?? "").trim();
+    if (!id) throw new Error("Missing identityId");
+
+    const res = await fetch(
+      `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
+      { cache: "no-store" }
+    );
+    const data = (await res.json()) as BalanceRes;
+    if (!data.ok) throw new Error(data.error || "Balance fetch failed");
+    return Number(data.balance ?? 0);
+  }
+
+  const bal = useAnimatedBalance(() => fetchBalanceNumber(), {
+    enabled: Boolean(identityId),
+    softPollMs: 2600,
+    intervalMs: 650,
+    storageKey: `rr_lastBalance:${location}:${identityId || "anon"}`,
+  });
 
   useEffect(() => {
     return () => {
@@ -125,68 +786,85 @@ export default function RequestPage({ params }: { params: { location: string } }
   async function refreshSession() {
     try {
       const res = await fetch(`/api/public/session/${location}`, { cache: "no-store" });
-      const data = await res.json();
+      const data = (await res.json()) as SessionRes;
       setRules(data);
+      setSessionCountdown(formatCountdown(data?.session?.endsAt || null));
     } catch {}
   }
 
   async function refreshQueuePreview() {
     try {
-      const prevUserRequestsRef = useRef<Set<string>>(new Set());
       const res = await fetch(`/api/public/queue/${location}`, { cache: "no-store" });
       const data = await res.json();
+
+      const playNow = Array.isArray(data?.playNow) ? data.playNow : [];
+      const upNext = Array.isArray(data?.upNext) ? data.upNext : [];
       const currentIds = new Set<string>();
 
-for (const q of [...data.playNow, ...data.upNext]) {
-  if (q.requestedByMe) currentIds.add(q.id);
-}
+      for (const q of [...playNow, ...upNext]) {
+        if (q?.requestedByMe && q?.id) currentIds.add(String(q.id));
+      }
 
-if (prevUserRequestsRef.current.size) {
-  for (const id of prevUserRequestsRef.current) {
-    if (!currentIds.has(id)) {
-      setMsg("Your request couldn't be played. Points have been returned.");
-      break;
-    }
-  }
-}
+      if (prevUserRequestIdsRef.current.size > 0) {
+        for (const id of prevUserRequestIdsRef.current) {
+          if (!currentIds.has(id)) {
+            setMsg("Your request couldn't be played. Points have been returned.");
+            break;
+          }
+        }
+      }
 
-prevUserRequestsRef.current = currentIds;
-
-      setQueuePreview({
-        playNow: Array.isArray(data?.playNow) ? data.playNow : [],
-        upNext: Array.isArray(data?.upNext) ? data.upNext : [],
-      });
+      prevUserRequestIdsRef.current = currentIds;
+      setQueuePreview({ playNow, upNext });
     } catch {}
   }
 
   async function loadSongs() {
-    const qs = new URLSearchParams();
-    if (search) qs.set("search", search);
-    if (tag) qs.set("tag", tag);
-    const res = await fetch(`/api/public/songs/${location}?${qs.toString()}`);
-    const data = await res.json();
-    setSongs(data.items || []);
+    try {
+      const qs = new URLSearchParams();
+      if (search) qs.set("search", search);
+      if (tag) qs.set("tag", tag);
+
+      const res = await fetch(`/api/public/songs/${location}?${qs.toString()}`, {
+        cache: "no-store",
+      });
+      const data = await res.json();
+      setSongs(Array.isArray(data?.items) ? data.items : []);
+    } catch {
+      setSongs([]);
+    }
   }
 
-  async function fetchBalanceNumber(nextIdentityId?: string): Promise<number> {
-    const id = (nextIdentityId ?? identityId ?? "").trim();
-    if (!id) throw new Error("Missing identityId");
+  useEffect(() => {
+    void refreshSession();
+  }, [location]);
 
-    const res = await fetch(
-      `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
-      { cache: "no-store" }
-    );
-    const data = (await res.json()) as BalanceRes;
-    if (!data.ok) throw new Error(data.error || "Balance fetch failed");
-    return Number(data.balance ?? 0);
-  }
+  useEffect(() => {
+    void loadSongs();
+  }, [location, search, tag]);
 
-  const bal = useAnimatedBalance(() => fetchBalanceNumber(), {
-    enabled: Boolean(identityId),
-    softPollMs: 2600,
-    intervalMs: 650,
-    storageKey: `rr_lastBalance:${location}:${identityId || "anon"}`,
-  });
+  useEffect(() => {
+    const id = window.setInterval(() => void refreshSession(), 12000);
+    return () => window.clearInterval(id);
+  }, [location]);
+
+  useEffect(() => {
+    try {
+      const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+      const lsLocation = (localStorage.getItem("rr_location") || "").trim();
+      const lsEmail = (localStorage.getItem("rr_email") || "").trim();
+
+      if (lsIdentity) {
+        setIdentityId(lsIdentity);
+        setVerified(true);
+        if (lsEmail) setEmail(lsEmail);
+      }
+
+      if (location && lsLocation !== location) {
+        localStorage.setItem("rr_location", String(location));
+      }
+    } catch {}
+  }, [location]);
 
   useEffect(() => {
     if (!identityId) return;
@@ -196,60 +874,17 @@ prevUserRequestsRef.current = currentIds;
     return () => window.clearTimeout(t);
   }, [identityId, location]);
 
-  useEffect(() => { refreshSession(); }, [location]);
-  useEffect(() => { loadSongs(); }, [search, tag]);
-
   useEffect(() => {
-    const id = setInterval(() => refreshSession(), 12000);
-    return () => clearInterval(id);
-  }, [location]);
-
-  useEffect(() => {
-    try {
-      const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
-      const lsLocation = (localStorage.getItem("rr_location") || "").trim();
-      const lsEmail = (localStorage.getItem("rr_email") || "").trim();
-      if (lsIdentity) {
-        setIdentityId(lsIdentity);
-        setVerified(true);
-        if (lsEmail) setEmail(lsEmail);
-        bal.refreshOnce();
-      }
-      if (location && lsLocation !== location) {
-        localStorage.setItem("rr_location", String(location));
-      }
-    } catch {}
-  }, [location]);
-
-  useEffect(() => {
-    const tick = () => {
-      const endsAt = rules?.session?.endsAt;
-      if (!endsAt) {
-        setSessionCountdown("");
-        return;
-      }
-      const endMs = new Date(endsAt).getTime();
-      const now = Date.now();
-      const diff = Math.max(0, endMs - now);
-      if (diff <= 0) {
-        setSessionCountdown("Session ended");
-        return;
-      }
-      const totalMin = Math.floor(diff / 60000);
-      const h = Math.floor(totalMin / 60);
-      const m = totalMin % 60;
-      if (h <= 0 && m <= 2) setSessionCountdown("Ending soon");
-      else if (h <= 0) setSessionCountdown(`Ends in ${m}m`);
-      else setSessionCountdown(`Ends in ${h}h ${m}m`);
-    };
-    tick();
-    const id = window.setInterval(tick, 1000);
+    setSessionCountdown(formatCountdown(rules?.session?.endsAt || null));
+    const id = window.setInterval(() => {
+      setSessionCountdown(formatCountdown(rules?.session?.endsAt || null));
+    }, 15000);
     return () => window.clearInterval(id);
   }, [rules?.session?.endsAt]);
 
   useEffect(() => {
-    refreshQueuePreview();
-    const id = window.setInterval(refreshQueuePreview, 12000);
+    void refreshQueuePreview();
+    const id = window.setInterval(() => void refreshQueuePreview(), 12000);
     return () => window.clearInterval(id);
   }, [location]);
 
@@ -270,16 +905,19 @@ prevUserRequestsRef.current = currentIds;
 
   async function redeem(codeInput?: string) {
     const code = String(codeInput ?? redeemCode ?? "").trim();
+
     if (!code) {
       sfx.playError();
       setMsg("Enter a redemption code.");
       return;
     }
+
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       sfx.playError();
       setMsg("Enter a valid email first.");
       return;
     }
+
     if (!verified && !identityId) {
       sfx.playError();
       setMsg("Please verify to redeem a code.");
@@ -294,6 +932,7 @@ prevUserRequestsRef.current = currentIds;
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, code }),
       });
+
       const data = await res.json();
       if (!data.ok) {
         sfx.playError();
@@ -315,7 +954,7 @@ prevUserRequestsRef.current = currentIds;
     }
   }
 
-  async function startCheckout(packageKey: "5_10" | "10_25" | "15_35" | "20_50") {
+  async function startCheckout(packageKey: PackageKey) {
     if (!identityId) {
       sfx.playError();
       setMsg("Please verify before buying points.");
@@ -331,7 +970,6 @@ prevUserRequestsRef.current = currentIds;
       });
 
       const data = await res.json();
-
       if (!data?.ok || !data?.checkoutUrl) {
         sfx.playError();
         setMsg(data?.error || "Could not start checkout.");
@@ -347,6 +985,7 @@ prevUserRequestsRef.current = currentIds;
 
   function triggerSuccessVisuals(song: Song, sourceEl?: HTMLElement | null) {
     setSuccessTileId(song.id);
+
     if (tileSuccessTimerRef.current != null) window.clearTimeout(tileSuccessTimerRef.current);
     tileSuccessTimerRef.current = window.setTimeout(() => setSuccessTileId(null), 650);
 
@@ -379,7 +1018,11 @@ prevUserRequestsRef.current = currentIds;
     flyTimerRef.current = window.setTimeout(() => setFlyAnim(null), 900);
   }
 
-  async function submit(song: Song, action: "play_next" | "play_now", sourceEl?: HTMLElement | null) {
+  async function submit(
+    song: Song,
+    action: "play_next" | "play_now",
+    sourceEl?: HTMLElement | null
+  ) {
     if (!verified && !identityId) {
       sfx.playError();
       setMsg("Please verify to unlock points.");
@@ -387,762 +1030,404 @@ prevUserRequestsRef.current = currentIds;
       return false;
     }
 
-    const costRequest = rules?.rules?.costRequest ?? 1;
-    const costPlayNow = rules?.rules?.costPlayNow ?? 5;
+    const costRequest = Number(rules?.rules?.costRequest ?? 1);
+    const costPlayNow = Number(rules?.rules?.costPlayNow ?? 5);
     const required = action === "play_now" ? costPlayNow : costRequest;
 
     if (typeof bal.balance === "number" && bal.balance < required) {
       sfx.playError();
-      setMsg(required === costPlayNow ? "Not enough points for request" : "Not enough points to request.");
+      setMsg(required === costPlayNow ? "Not enough points for boost." : "Not enough points.");
       openBuy(required === costPlayNow ? "boost" : "notEnough");
       return false;
     }
 
-    setMsg("");
-    const res = await fetch(`/api/public/request`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ location, email, songId: song.id, action }),
-    });
+    try {
+      const res = await fetch(`/api/public/request`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ location, email, songId: song.id, action }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
+      if (!data.ok) {
+        sfx.playError();
+        setMsg(data.error || "Something went wrong.");
+        return false;
+      }
 
-    if (!data.ok) {
+      sfx.playSuccess();
+      triggerSuccessVisuals(song, sourceEl);
+
+      if (typeof data?.balance === "number") bal.applyBalance(data.balance);
+      else if (typeof data?.credits?.balance === "number") bal.applyBalance(data.credits.balance);
+      else bal.refreshOnce();
+
+      await refreshQueuePreview();
+      setMsg(action === "play_now" ? "Boost sent to the booth." : "Request added to the queue.");
+      return true;
+    } catch {
       sfx.playError();
-      setMsg(data.error || "Something went wrong.");
+      setMsg("Something went wrong.");
       return false;
     }
-
-    sfx.playSuccess();
-    setMsg(action === "play_now" ? "✅ Play Now request added!" : "✅ Request added!");
-
-    const nextBalance = data?.balance ?? data?.credits?.balance ?? data?.session?.balance ?? null;
-    if (typeof nextBalance === "number") bal.applyBalance(nextBalance);
-    else bal.refreshOnce();
-
-    triggerSuccessVisuals(song, sourceEl);
-    window.setTimeout(() => refreshQueuePreview(), 120);
-
-    return true;
   }
 
-  const trending = useMemo(() => {
-    const hot = songs.filter((s) => (s.tags || []).some((t) => ["TikTok", "DISCO", "Pop Hits"].includes(t)));
-    return (hot.length ? hot : songs).slice(0, 10);
-  }, [songs]);
+  const locationName = rules?.location?.name || "Remix Skate & Event Center";
+  const logoUrl = rules?.rules?.logoUrl || "";
+  const balanceValue = !verified && !identityId ? 5 : Number(bal.balance || 0);
+  const requestCost = Number(rules?.rules?.costRequest ?? 1);
+  const playNowCost = Number(rules?.rules?.costPlayNow ?? 5);
 
-  const trendingIds = useMemo(() => new Set(trending.map((t) => t.id)), [trending]);
-  const locationName = rules?.location?.name || location;
-  const costRequest = rules?.rules?.costRequest ?? 1;
+  const trending = useMemo(() => songs.slice(0, 8), [songs]);
 
   const buyUrl = useMemo(() => {
-    const qp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-    const fromQuery = qp?.get("buy");
-    if (fromQuery) return fromQuery;
     const fromMap = BUY_URL_BY_LOCATION[location];
     if (fromMap) return fromMap;
-    const fromEnv = process.env.NEXT_PUBLIC_REMIXREQUESTS_BUY_URL;
-    if (fromEnv) return fromEnv;
-    return rules?.location?.buyUrl ?? rules?.rules?.buyUrl ?? rules?.checkoutUrl ?? rules?.purchaseUrl ?? null;
+    return rules?.rules?.buyUrl ?? process.env.NEXT_PUBLIC_REMIXREQUESTS_BUY_URL ?? null;
   }, [location, rules]);
 
-  const uiPacks: UiPack[] = useMemo(() => {
-    const priceTier1 = Number(rules?.rules?.packTier1PriceCents ?? 500);
-    const priceTier2 = Number(rules?.rules?.packTier2PriceCents ?? 1000);
-    const priceTier3 = Number(rules?.rules?.packTier3PriceCents ?? 1500);
-    const priceTier4 = Number(rules?.rules?.packTier4PriceCents ?? 2000);
+  const packs: UiPack[] = useMemo(() => {
+    const p1 = Number(rules?.rules?.packTier1PriceCents ?? 500);
+    const p2 = Number(rules?.rules?.packTier2PriceCents ?? 1000);
+    const p3 = Number(rules?.rules?.packTier3PriceCents ?? 1500);
+    const p4 = Number(rules?.rules?.packTier4PriceCents ?? 2000);
 
     return [
-      { id: "tier1", title: "Quick Boost", subtitle: "Perfect for 1–2 songs", creditsLabel: "10 credits", badge: "Fast", cta: "Get Points", href: buyUrl ?? undefined, priceCents: priceTier1, packageKey: "5_10" },
-      { id: "tier2", title: "Party Pack", subtitle: "Best for groups", creditsLabel: "25 credits", highlight: true, badge: "Most Popular", cta: "Get Points", href: buyUrl ?? undefined, priceCents: priceTier2, packageKey: "10_25" },
-      { id: "tier3", title: "Bonus Pack", subtitle: "More songs, more fun", creditsLabel: "35 credits", badge: "Hot Deal", cta: "Get Points", href: buyUrl ?? undefined, priceCents: priceTier3, packageKey: "15_35" },
-      { id: "tier4", title: "All Night", subtitle: "Skate like a legend", creditsLabel: "50 credits", badge: "Best Value", cta: "Get Points", href: buyUrl ?? undefined, priceCents: priceTier4, packageKey: "20_50" },
+      {
+        id: "p1",
+        title: "Quick Boost",
+        subtitle: "Best for one request run",
+        creditsLabel: "10 points",
+        priceCents: p1,
+        packageKey: "5_10",
+      },
+      {
+        id: "p2",
+        title: "Party Pack",
+        subtitle: "Great for a family visit",
+        creditsLabel: "25 points",
+        priceCents: p2,
+        packageKey: "10_25",
+      },
+      {
+        id: "p3",
+        title: "Bonus Pack",
+        subtitle: "More requests, more voting",
+        creditsLabel: "35 points",
+        priceCents: p3,
+        packageKey: "15_35",
+        highlight: true,
+        badge: "Popular",
+      },
+      {
+        id: "p4",
+        title: "All Night",
+        subtitle: "Heavy queue control",
+        creditsLabel: "50 points",
+        priceCents: p4,
+        packageKey: "20_50",
+        badge: "Best Value",
+      },
     ];
-  }, [rules, buyUrl]);
-
-  let creditsLabel = "Use Points!";
-  if (verified || identityId) creditsLabel = bal.balance === null ? "Points: …" : `Points: ${bal.balance}`;
-
-  const hasActiveQueue = (queuePreview?.upNext?.length || 0) > 0 || (queuePreview?.playNow?.length || 0) > 0;
-  const nextQueueItem = (queuePreview.upNext?.[0] || queuePreview.playNow?.[0] || null) as any;
-  const hudBalance = !verified && !identityId ? 5 : typeof bal.balance === "number" ? bal.balance : 0;
+  }, [rules]);
 
   return (
-    <div className="neonRoot">
-      <div className="rrWall" />
-      <OverlayToast open={toastOpen} message={msg} onDismiss={dismissToast} />
-      <div className="neonWrap" style={{ paddingBottom: 96 }}>
-        <div className="neonHeader neonHeader3">
-          <div className="neonHeaderLeft">
-            {rules?.rules?.logoUrl ? (
-              <img className="neonLogo" src={rules.rules.logoUrl} alt={`${locationName} logo`} />
+    <div className="rrPublicPage">
+      <PublicGunmetalTheme />
+
+      <div className="rrPublicShell">
+        <div className="rrPublicTopbar">
+          <div className="rrBrandBadge">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="Logo"
+                style={{ maxWidth: "100%", maxHeight: 24, objectFit: "contain" }}
+              />
             ) : (
-              <div className="neonLogoFallback">REMIX</div>
+              "REMIX"
             )}
           </div>
 
-          <div className="neonHeaderCenter">
-            <div className="neonTitle">REQUEST A SONG</div>
-            <div className="neonSub">
-              {locationName} • Tap a song to request
-              {sessionCountdown ? ` • ${sessionCountdown}` : ""}
+          <div className="rrHero">
+            <div className="rrEyebrow">Public Request Surface</div>
+            <h1 className="rrTitle">Request a Song</h1>
+            <div className="rrTitleSub">
+              {locationName} • Tap a song to request • {sessionCountdown || "Session live"}
             </div>
           </div>
 
-          <div className="neonHeaderRight">
-            <div className={`rrCornerHud ${(verified || identityId) && typeof bal.balance === "number" && bal.balance <= 2 ? "rrCornerHudLow" : ""}`}>
-              <div className="rrCornerHudLabel">
-                <span className="rrPointsDesktop">POINTS</span>
-                <span className="rrPointsMobile">PTS</span>
-              </div>
-              <div className="rrCornerHudValue">
-                <CountUpNumber value={hudBalance} pulseKey={bal.pulseKey} />
-              </div>
-              <button className={`neonBtn neonBtnPrimary rrCornerHudBtn ${!verified && !identityId ? "neonPulse" : ""}`} onClick={handleCornerHudAction}>
-                {!verified && !identityId ? "USE" : "ADD POINTS"}
-              </button>
-            </div>
-          </div>
-        </div>
-
-
-        <div ref={queueTargetRef} style={{ display: "grid", gap: 12, marginBottom: 12 }}>
-          {hasActiveQueue ? (
-            <button
-              ref={queueButtonRef}
-              className={`neonBtn neonBtnPrimary ${queuePulseOn ? "rrQueuePulse" : ""}`}
-              style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6, textAlign: "center", alignItems: "center", padding: "14px 16px", borderRadius: 16 }}
-              onClick={() => { sfx.playTap(); window.location.href = `/queue/${location}`; }}
-            >
-              <div style={{ fontWeight: 900, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                <span>View the Queue</span>
-                <span style={{ fontSize: 16 }}>➡️</span>
-              </div>
-              <div style={{ fontSize: 13, opacity: 0.9 }}>
-                Coming up: <b>{nextQueueItem?.title || nextQueueItem?.song?.title || "—"}</b> by <b>{nextQueueItem?.artist || nextQueueItem?.song?.artist || "—"}</b>
-              </div>
-              <div style={{ fontSize: 12, opacity: 0.72 }}>Upvote or Downvote songs in the queue!</div>
+          <div className="rrHudCard">
+            <div className="rrHudLabel">Points</div>
+            <div className="rrHudValue">{balanceValue}</div>
+            <button ref={queueButtonRef} className="rrBtn" onClick={handleCornerHudAction}>
+              {verified || identityId ? "Add Points" : "Claim Points"}
             </button>
-          ) : null}
+          </div>
         </div>
 
-        {(verified || identityId) && !email ? (
-          <div className="neonPanel" style={{ padding: 12, border: "1px solid rgba(255,255,255,0.12)" }}>
-            <div style={{ fontWeight: 900, letterSpacing: 0.3, marginBottom: 6 }}>Finish setup</div>
-            <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 10 }}>Enter your email to unlock requests.</div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@domain.com" className="neonInput" style={{ flex: 1 }} />
-              <button className="neonBtn neonBtnPrimary" onClick={() => { sfx.playTap(); if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { localStorage.setItem("rr_email", email.trim()); setMsg("✅ Email saved."); } else { sfx.playError(); setMsg("Invalid email."); } }}>Save</button>
+        <div className="rrPanel" ref={queueTargetRef}>
+          <div className="rrPanelHead">
+            <div>
+              <div className="rrPanelTitle">Search & Browse</div>
+              <div className="rrPanelSub">
+                Compact Gunmetal request surface with booth-style chips and tighter cards.
+              </div>
+            </div>
+            <div className="rrStatusPill rrStatusPill--live">{sessionCountdown || "Live"}</div>
+          </div>
+
+          <div className="rrPanelBody">
+            <div className="rrSearchWrap">
+              <input
+                className="rrSearchInput"
+                placeholder="Search songs or artists..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            <div className="rrChipRow">
+              <button
+                className={`rrChip ${tag === "" ? "is-active" : ""}`}
+                onClick={() => setTag("")}
+              >
+                All
+              </button>
+              {RAILS.map((rail) => (
+                <button
+                  key={rail}
+                  className={`rrChip ${tag === rail ? "is-active" : ""}`}
+                  onClick={() => setTag(rail)}
+                >
+                  {rail}
+                </button>
+              ))}
+            </div>
+
+            <div className="rrPanel" style={{ marginBottom: 14 }}>
+              <div className="rrPanelHead">
+                <div>
+                  <div className="rrPanelTitle">Trending at Remix</div>
+                  <div className="rrPanelSub">
+                    Fast picks for tonight’s crowd.
+                  </div>
+                </div>
+              </div>
+              <div className="rrPanelBody">
+                <div className="rrRail">
+                  {trending.map((song) => (
+                    <div key={song.id} className="rrMiniCard">
+                      <TinyArt src={song.artworkUrl} alt={song.title} />
+                      <div style={{ minWidth: 0 }}>
+                        <div className="rrMiniTitle" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {song.title}
+                        </div>
+                        <div className="rrMiniMeta">
+                          {song.artist} • {requestCost}pt
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rrSongGrid">
+              {songs.map((song) => {
+                const isSuccess = successTileId === song.id;
+                const isHot = trending.some((x) => x.id === song.id);
+
+                return (
+                  <div
+                    key={song.id}
+                    className="rrSongCard"
+                    style={{
+                      boxShadow: isSuccess
+                        ? "0 0 0 1px rgba(84,219,170,0.28), 0 18px 34px rgba(0,0,0,0.44), 0 0 22px rgba(43,196,162,0.2)"
+                        : undefined,
+                    }}
+                  >
+                    <AlbumArt src={song.artworkUrl} alt={song.title} />
+
+                    <div className="rrSongBody">
+                      <div className="rrSongTitle">{song.title}</div>
+                      <div className="rrSongMeta">{song.artist}</div>
+
+                      <div className="rrSongMetaRow">
+                        {isHot ? <span className="rrTag rrTag--hot">Hot</span> : null}
+                        <span className="rrMetaPill">{requestCost}pt</span>
+                        <span className="rrMetaPill">{playNowCost}pt boost</span>
+                        {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
+                      </div>
+                    </div>
+
+                    <div className="rrSongActions">
+                      <HoldButton
+                        idleLabel="REQUEST"
+                        busyLabel="REQUESTING..."
+                        successLabel="ADDED!"
+                        onConfirm={(el) => submit(song, "play_next", el)}
+                      />
+                      <HoldButton
+                        idleLabel="BOOST"
+                        busyLabel="BOOSTING..."
+                        successLabel="SENT!"
+                        onConfirm={(el) => submit(song, "play_now", el)}
+                        className="rrBtn"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        ) : null}
-
-        <div style={{ marginBottom: 5 }}>
-          <input
-            id="songSearch"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search songs or artists…"
-            className="neonInput neonSearchInput"
-            style={{ fontWeight: 800, fontSize: 16, letterSpacing: 0.2 }}
-          />
         </div>
+      </div>
 
-        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingLeft: 6, paddingRight: 6, paddingBottom: 6 }}>
-          <button onClick={() => { sfx.playTap(); setTag(""); }} className="neonBtn" style={chip2(tag === "")}>All</button>
-          {RAILS.map((r) => (
-            <button key={r} onClick={() => { sfx.playTap(); setTag(r); }} className="neonBtn" style={chip2(tag === r)}>{r}</button>
-          ))}
+      <div className="rrFooterBar">
+        <div className="rrFooterInner">
+          <button className="rrBtn rrFooterCta" onClick={() => (window.location.href = `/queue/${location}`)}>
+            View Queue & Voting
+          </button>
+          <button className="rrBtnGhost" onClick={() => openBuy("boost")}>
+            Buy / Redeem
+          </button>
         </div>
+      </div>
 
-        {trending.length ? (
-          <div className="neonPanel" style={{ padding: 10, marginBottom: 12 }}>
-            <div style={{ padding: "10px 12px 0", fontWeight: 1000, letterSpacing: 0.4 }}>Trending at Remix</div>
-            <div className="neonRail" style={{ maskImage: "linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent)", WebkitMaskImage: "linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent)" }}>
-              {trending.map((s) => (
-                <DelayedTapButton key={s.id} holdMs={450} sfx={sfx} onConfirm={(buttonEl?: HTMLElement | null) => submit(s, "play_next", buttonEl)} style={{ textAlign: "left" }}>
-                  <div className="neonArt"><Artwork src={s.artworkUrl} alt={s.title} /></div>
+      {toastOpen && msg ? (
+        <div className="rrToast">
+          <div className="rrToastRow">
+            <div className="rrToastText">{msg}</div>
+            <button className="rrBtnGhost" onClick={dismissToast}>
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <VerifyDrawer
+        open={showVerify}
+        location={location}
+        email={email}
+        setEmail={setEmail}
+        redeemBusy={redeemBusy}
+        onRedeem={redeem}
+        onClose={() => setShowVerify(false)}
+        onVerified={({ identityId: nextIdentityId, email: nextEmail }) => {
+          const cleanId = String(nextIdentityId || "").trim();
+          const cleanEmail = String(nextEmail || email || "").trim();
+          if (cleanId) {
+            setIdentityId(cleanId);
+            setVerified(true);
+            void bal.refreshOnce();
+          }
+          if (cleanEmail) setEmail(cleanEmail);
+          setMsg("✅ Verification complete. Your points are ready.");
+        }}
+      />
+
+      <BuyDrawer
+        open={showBuy}
+        onClose={() => setShowBuy(false)}
+        packs={packs}
+        redeemCode={redeemCode}
+        setRedeemCode={setRedeemCode}
+        redeemBusy={redeemBusy}
+        onRedeem={redeem}
+        onBuy={startCheckout}
+        buyReason={buyReason}
+      />
+
+      {queuePreview.playNow.length || queuePreview.upNext.length ? (
+        <div
+          style={{
+            position: "fixed",
+            right: 12,
+            top: 106,
+            zIndex: 35,
+            width: "min(360px, calc(100vw - 24px))",
+            transition: "transform 0.2s ease",
+            transform: queuePulseOn ? "scale(1.01)" : "scale(1)",
+          }}
+        >
+          <div className="rrPanel" style={{ backdropFilter: "blur(10px)" }}>
+            <div className="rrPanelHead">
+              <div>
+                <div className="rrPanelTitle">Coming Up</div>
+                <div className="rrPanelSub">Quick preview from the queue.</div>
+              </div>
+              <div className="rrMetaPill">Live</div>
+            </div>
+            <div className="rrPanelBody" style={{ display: "grid", gap: 10 }}>
+              {[...queuePreview.playNow, ...queuePreview.upNext].slice(0, 3).map((item, index) => (
+                <div key={`${item.id || index}`} className="rrQueueRow">
+                  <TinyArt src={getQueueArtwork(item)} alt={getQueueTitle(item)} />
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 900, fontSize: 14, color: "#ffffff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
-                    <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{s.artist} • 1pt</div>
+                    <div className="rrQueueTitle">{getQueueTitle(item)}</div>
+                    <div className="rrQueueMeta">{getQueueArtist(item)}</div>
                   </div>
-                </DelayedTapButton>
+                  <div className="rrQueueActions">
+                    {index === 0 ? (
+                      <span className="rrTag rrTag--boost">Play Now</span>
+                    ) : (
+                      <span className="rrTag rrTag--queued">Up Next</span>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
-        ) : null}
-
-        <div className="neonPanel" style={{ padding: 12 }}>
-          <div className="neonGrid">
-            {songs.map((s) => {
-              const hot = trendingIds.has(s.id);
-              return (
-                <div key={s.id} className={`neonTile ${successTileId === s.id ? "rrRequestTilePulse" : ""}`}>
-                  <div className="neonTileTop rrArtworkStatic"><Artwork src={s.artworkUrl} alt={s.title} /></div>
-                  <div className="neonTileBody">
-                    <div className="neonTileTitle">{s.title}</div>
-                    <div className="neonTileMeta">{s.artist}</div>
-                    <div className="neonBadgeRow">
-                      {hot && <span className="neonBadge neonBadgeHot">HOT</span>}
-                      {s.explicit && <span className="neonBadge">E</span>}
-                      <span className="neonBadge">{costRequest}pt</span>
-                    </div>
-                    <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
-                      <HoldToConfirmButton idleLabel="REQUEST!" successLabel="✓ REQUEST ADDED" holdMs={1800} onConfirm={(buttonEl?: HTMLElement | null) => submit(s, "play_next", buttonEl)} sfx={sfx} />
-                      <HoldToConfirmButton className="neonBtnPrimary" idleLabel="BOOST" successLabel="✓ BOOST ADDED" holdMs={1800} onConfirm={(buttonEl?: HTMLElement | null) => submit(s, "play_now", buttonEl)} sfx={sfx} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         </div>
-
-<VerifyModal
-  open={showVerify}
-  location={location}
-  email={email}
-  setEmail={setEmail}
-  onRedeem={(code: string) => redeem(code)}
-  redeemBusy={redeemBusy}
-  onVerified={(payload?: { balance?: number; note?: string; welcomeGranted?: boolean }) => {
-    setVerified(true);
-    setShowVerify(false);
-
-    try {
-      const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
-      const lsEmail = (localStorage.getItem("rr_email") || "").trim();
-
-      if (lsIdentity) setIdentityId(lsIdentity);
-      if (lsEmail) setEmail(lsEmail);
-    } catch {}
-
-    sfx.playSuccess();
-
-    if (typeof payload?.balance === "number") {
-      bal.applyBalance(payload.balance);
-    } else {
-      window.setTimeout(() => {
-        bal.refreshOnce();
-      }, 150);
-    }
-
-    setMsg(payload?.note || "✅ Verified!");
-  }}
-  onClose={() => setShowVerify(false)}
-  sfx={sfx}
-/>
-        <CreditHud verified={verified || !!identityId} creditsLabel={creditsLabel} sessionCountdown={sessionCountdown} onVerify={() => setShowVerify(true)} onBuy={() => openBuy(bal.balance === 0 ? "out" : "none")} />
-
-        <BuyCreditsDrawer
-          open={showBuy}
-          onClose={() => { setShowBuy(false); setBuyReason("none"); }}
-          packs={uiPacks}
-          buyUrl={buyUrl}
-          redeemBusy={redeemBusy}
-          onRedeem={(code: string) => redeem(code)}
-          onBuy={(packageKey: "5_10" | "10_25" | "15_35" | "20_50") => startCheckout(packageKey)}
-        />
-      </div>
+      ) : null}
 
       {flyAnim ? (
-        <div key={flyAnim.key} className="rrFlyCard" style={{ left: flyAnim.startX, top: flyAnim.startY, ["--rr-fly-x" as any]: `${Math.round(flyAnim.deltaX)}px`, ["--rr-fly-y" as any]: `${Math.round(flyAnim.deltaY)}px` }}>
-          <div className="rrFlyCardInner">
-            <Artwork src={flyAnim.src} alt="Requested song artwork" />
-          </div>
+        <div
+          style={{
+            position: "fixed",
+            left: flyAnim.startX,
+            top: flyAnim.startY,
+            width: 34,
+            height: 34,
+            marginLeft: -17,
+            marginTop: -17,
+            borderRadius: 12,
+            overflow: "hidden",
+            zIndex: 80,
+            pointerEvents: "none",
+            border: "1px solid rgba(255,255,255,0.12)",
+            background:
+              "linear-gradient(135deg, rgba(46, 56, 74, 0.9), rgba(21, 28, 42, 0.96))",
+            animation: `rrFlyAnim-${flyAnim.key} 900ms ease forwards`,
+          }}
+        >
+          {flyAnim.src ? (
+            <img
+              src={flyAnim.src}
+              alt=""
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          ) : (
+            <div className="rrArtFallback" style={{ display: "grid", placeItems: "center", width: "100%", height: "100%" }}>
+              Remix
+            </div>
+          )}
+
+          <style jsx>{`
+            @keyframes rrFlyAnim-${flyAnim.key} {
+              0% {
+                transform: translate(0px, 0px) scale(1);
+                opacity: 1;
+              }
+              100% {
+                transform: translate(${flyAnim.deltaX}px, ${flyAnim.deltaY}px) scale(0.52);
+                opacity: 0.15;
+              }
+            }
+          `}</style>
         </div>
       ) : null}
     </div>
   );
-}
-
-function HoldToConfirmButton({ className = "", idleLabel, successLabel, holdMs = 1800, onConfirm, disabled, sfx }: any) {
-  const fillRef = useRef<HTMLDivElement | null>(null);
-  const labelRef = useRef<HTMLSpanElement | null>(null);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const startRef = useRef<number | null>(null);
-  const lockedRef = useRef(false);
-
-  const [holding, setHolding] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  function setLabel(text: string) { if (labelRef.current) labelRef.current.textContent = text; }
-  function setFill(p: number) { if (fillRef.current) fillRef.current.style.height = `${Math.max(0, Math.min(100, p * 100))}%`; }
-
-  function hardReset() {
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    startRef.current = null;
-    lockedRef.current = false;
-    setHolding(false);
-    setSuccess(false);
-    setFill(0);
-    setLabel(idleLabel);
-  }
-
-  async function completeHold() {
-    lockedRef.current = true;
-    setHolding(false);
-    setLabel("REQUESTING...");
-
-    let ok = false;
-    try { ok = Boolean(await Promise.resolve(onConfirm?.(buttonRef.current))); } catch { ok = false; }
-    if (!ok) return hardReset();
-
-    setSuccess(true);
-    setLabel(successLabel);
-    window.setTimeout(() => hardReset(), 700);
-  }
-
-  function tick(ts: number) {
-    if (startRef.current == null) startRef.current = ts;
-    const elapsed = ts - startRef.current;
-    const p = Math.min(elapsed / holdMs, 1);
-    setFill(p);
-    if (p < 0.35) setLabel("HOLD TO CONFIRM");
-    else if (p < 0.8) setLabel("KEEP HOLDING...");
-    else setLabel("ALMOST THERE...");
-    if (p >= 1) {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-      void completeHold();
-      return;
-    }
-    rafRef.current = requestAnimationFrame(tick);
-  }
-
-  function startHold(e: any) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (disabled || lockedRef.current) return;
-    sfx?.playTap?.();
-    setHolding(true);
-    startRef.current = null;
-    setFill(0);
-    setLabel("HOLD TO CONFIRM");
-    rafRef.current = requestAnimationFrame(tick);
-  }
-
-  function cancelHold(e?: any) {
-    e?.preventDefault?.();
-    e?.stopPropagation?.();
-    if (lockedRef.current) return;
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    startRef.current = null;
-    setHolding(false);
-    setFill(0);
-    setLabel(idleLabel);
-  }
-
-  useEffect(() => () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current); }, []);
-
-  return (
-    <button ref={buttonRef} type="button" className={`neonBtn rrHoldLiquidBtn ${className} ${holding ? "rrHolding" : ""} ${success ? "rrSuccess" : ""}`} disabled={disabled} onPointerDown={startHold} onPointerUp={cancelHold} onPointerLeave={cancelHold} onPointerCancel={cancelHold} onContextMenu={(e) => e.preventDefault()} style={{ width: "100%" }}>
-      <div ref={fillRef} className="rrHoldLiquidFill"><div className="rrHoldLiquidSurface" /></div>
-      <span ref={labelRef}>{idleLabel}</span>
-    </button>
-  );
-}
-
-function DelayedTapButton({ children, className = "", holdMs = 450, onConfirm, sfx, style }: any) {
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const fillRef = useRef<HTMLDivElement | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const startRef = useRef<number | null>(null);
-  const doneRef = useRef(false);
-  const [holding, setHolding] = useState(false);
-
-  function setFill(p: number) { if (fillRef.current) fillRef.current.style.width = `${Math.max(0, Math.min(100, p * 100))}%`; }
-  function reset() {
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    startRef.current = null;
-    doneRef.current = false;
-    setHolding(false);
-    setFill(0);
-  }
-
-  async function complete() {
-    doneRef.current = true;
-    setHolding(false);
-    try { await Promise.resolve(onConfirm?.(buttonRef.current)); }
-    finally { window.setTimeout(() => reset(), 120); }
-  }
-
-  function tick(ts: number) {
-    if (startRef.current == null) startRef.current = ts;
-    const elapsed = ts - startRef.current;
-    const p = Math.min(elapsed / holdMs, 1);
-    setFill(p);
-    if (p >= 1) {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-      void complete();
-      return;
-    }
-    rafRef.current = requestAnimationFrame(tick);
-  }
-
-  function startHold(e: any) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (doneRef.current) return;
-    sfx?.playTap?.();
-    setHolding(true);
-    startRef.current = null;
-    setFill(0);
-    rafRef.current = requestAnimationFrame(tick);
-  }
-
-  function cancelHold(e?: any) {
-    e?.preventDefault?.();
-    e?.stopPropagation?.();
-    if (doneRef.current) return;
-    reset();
-  }
-
-  useEffect(() => () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current); }, []);
-
-  return (
-    <button ref={buttonRef} type="button" className={`neonChip rrDelayedTapBtn ${className} ${holding ? "rrDelayedTapHolding" : ""}`} onPointerDown={startHold} onPointerUp={cancelHold} onPointerLeave={cancelHold} onPointerCancel={cancelHold} onContextMenu={(e) => e.preventDefault()} style={style}>
-      <div ref={fillRef} className="rrDelayedTapFill" />
-      {children}
-    </button>
-  );
-}
-
-function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, onVerified, onClose, sfx }: any) {
-  const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState<"collect" | "code">("collect");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [emailOptIn, setEmailOptIn] = useState(true);
-  const [smsOptIn, setSmsOptIn] = useState(true);
-  const [redeemCode, setRedeemCode] = useState("");
-  const [showRedeem, setShowRedeem] = useState(false);
-  if (!open) return null;
-
-  async function sendCode() {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/public/auth/start`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ location, email, phone, emailOptIn, smsOptIn }) });
-      const data = await res.json();
-      if (data.ok) setStep("code"); else setMsg(data.error || "Error");
-    } catch { setMsg("Error"); }
-    finally { setBusy(false); }
-  }
-
-  async function confirmCode() {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/public/auth/verify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn }) });
-      const data = await res.json();
-      if (data.ok) {
-  localStorage.setItem("rr_identityId", data.identityId);
-  onVerified({
-    balance: data.balance,
-    note: data.note,
-    welcomeGranted: data.welcomeGranted,
-  });
-}else setMsg(data.error || "Invalid code");
-    } catch { setMsg("Error"); }
-    finally { setBusy(false); }
-  }
-
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.8)" }}>
-      <div className="neonPanel" style={{ padding: 20, width: 320 }}>
-        <h3 style={{ marginTop: 0, marginBottom: 15 }}>Verify</h3>
-        <div style={{ display: "grid", gap: 10 }}>
-          <input className="neonInput" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-          <input className="neonInput" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
-          <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
-            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}><input type="checkbox" checked={emailOptIn} onChange={(e) => setEmailOptIn(e.target.checked)} style={{ marginTop: 3 }} /><span>Yes — email deals & updates <span style={{ color: "var(--muted)" }}>(required for credits)</span></span></label>
-            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}><input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} style={{ marginTop: 3 }} /><span>Yes — text deals & updates <span style={{ color: "var(--muted)" }}>(recommended)</span></span></label>
-          </div>
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
-            <div style={{ fontWeight: 900, marginBottom: 8, fontSize: 14 }}>Have a redemption code?</div>
-            <div style={{ perspective: 1000 }}>
-              <div style={{ position: "relative", height: 48, transformStyle: "preserve-3d", transition: "transform 0.6s cubic-bezier(.2,.8,.2,1)", transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)", willChange: "transform" }}>
-                <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "translateZ(0.1px)", display: "flex", alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased" }}>
-                  <button className="neonBtn" style={{ width: "100%", height: "100%", opacity: 0.8 }} onClick={() => { sfx?.playTap?.(); setShowRedeem(true); }}>Redeem Code</button>
-                </div>
-                <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg) translateZ(0.1px)", display: "flex", gap: 8, alignItems: "center", WebkitFontSmoothing: "subpixel-antialiased" }}>
-                  <input className="neonInput" placeholder="Code" value={redeemCode} onChange={(e) => setRedeemCode(e.target.value)} style={{ flex: 1, height: "100%" }} />
-                  <button className="neonBtn neonBtnPrimary" disabled={!!redeemBusy} onClick={() => { sfx?.playTap?.(); onRedeem?.(redeemCode); }} style={{ height: "100%" }}>{redeemBusy ? "..." : "Apply"}</button>
-                </div>
-              </div>
-            </div>
-            {showRedeem && <div style={{ textAlign: "center", marginTop: 8 }}><button onClick={() => setShowRedeem(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>cancel code</button></div>}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic", marginTop: 5 }}>We’ll text a one-time code. Standard rates may apply.</div>
-          {step === "code" && <input className="neonInput" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter 6-digit Code" style={{ border: "1px solid cyan", marginTop: 5 }} />}
-          <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-            <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode} style={{ width: "100%", height: 48 }}>{busy ? "..." : "Submit"}</button>
-            <button className="neonBtn" onClick={onClose} style={{ width: "100%", opacity: 0.6 }}>Close</button>
-          </div>
-          {msg && <p style={{ color: "#ff4444", fontSize: 12, textAlign: "center", margin: 0 }}>{msg}</p>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CreditHud({ verified, creditsLabel, sessionCountdown, onVerify, onBuy }: any) {
-  return (
-    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, width: "100%", boxSizing: "border-box", padding: "10px 12px", background: "rgba(0,0,0,0.9)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 900 }}>{creditsLabel}</div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>{sessionCountdown}</div>
-        </div>
-        <button className="neonBtn neonBtnPrimary" onClick={!verified ? onVerify : onBuy} style={{ whiteSpace: "nowrap" }}>
-          {!verified ? "CLAIM" : "ADD POINTS"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, onBuy }: any) {
-  const [redeemCode, setRedeemCode] = useState("");
-  const [showRedeem, setShowRedeem] = useState(false);
-  if (!open) return null;
-
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "flex-end" }}>
-      <div className="neonPanel" style={{ width: "100%", padding: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
-        <h3 style={{ marginTop: 0 }}>Get Points</h3>
-        {packs.map((p: any) => (
-          <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "12px 0", gap: 12 }}>
-            <div style={{ display: "grid" }}><span style={{ fontWeight: 800 }}>{p.title}</span><span style={{ fontSize: 12, color: "var(--muted)" }}>{p.creditsLabel}</span></div>
-            <button className="neonBtn neonBtnPrimary" onClick={() => { if (p.packageKey) return onBuy?.(p.packageKey); if (p.href || buyUrl) window.location.href = p.href || buyUrl; }}>{`BUY • $${((p.priceCents ?? 0) / 100).toFixed(2)}`}</button>
-          </div>
-        ))}
-        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
-          <div style={{ perspective: 1000 }}>
-            <div style={{ position: "relative", height: 48, transformStyle: "preserve-3d", transition: "transform 0.4s cubic-bezier(.2,.8,.2,1)", transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)" }}>
-              <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "translateZ(1px)", display: "flex", alignItems: "center" }}>
-                <button className="neonBtn neonBtnPrimary" style={{ width: "100%", height: "100%" }} onClick={() => setShowRedeem(true)}>Redeem Code</button>
-              </div>
-              <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "rotateY(180deg) translateZ(1px)", display: "flex", gap: 8, alignItems: "center" }}>
-                <input className="neonInput" placeholder="Code" value={redeemCode} onChange={(e) => setRedeemCode(e.target.value)} style={{ flex: 1, height: "100%" }} />
-                <button className="neonBtn neonBtnPrimary" disabled={!!redeemBusy} onClick={() => { onRedeem?.(redeemCode); setRedeemCode(""); }} style={{ whiteSpace: "nowrap", height: "100%" }}>{redeemBusy ? "..." : "Apply"}</button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <button className="neonBtn" onClick={onClose} style={{ width: "100%", marginTop: 16, opacity: 0.5 }}>Close</button>
-      </div>
-    </div>
-  );
-}
-
-
-function OverlayToast({ open, message, onDismiss }: { open: boolean; message: string; onDismiss: () => void }) {
-  const startYRef = useRef<number | null>(null);
-  const deltaYRef = useRef(0);
-  const [dragY, setDragY] = useState(0);
-
-  useEffect(() => {
-    if (!open) setDragY(0);
-  }, [open]);
-
-  if (!message) return null;
-
-  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    startYRef.current = e.clientY;
-    deltaYRef.current = 0;
-  }
-
-  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (startYRef.current == null) return;
-    const delta = e.clientY - startYRef.current;
-    deltaYRef.current = delta;
-    if (delta < 0) setDragY(delta);
-  }
-
-  function onPointerUp() {
-    if (deltaYRef.current < -38) {
-      onDismiss();
-    } else {
-      setDragY(0);
-    }
-    startYRef.current = null;
-    deltaYRef.current = 0;
-  }
-
-  return (
-    <div
-      className={`rrOverlayToastWrap ${open ? "rrOverlayToastWrapOpen" : "rrOverlayToastWrapClosed"}`}
-      style={{ transform: `translate(-50%, calc(0px + ${dragY}px))` }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-    >
-      <div className="rrOverlayToast">
-        <div className="rrOverlayToastHandle" />
-        <div className="rrOverlayToastText">{message}</div>
-        <button type="button" className="rrOverlayToastClose" onClick={onDismiss} aria-label="Dismiss message">✕</button>
-      </div>
-      <style jsx global>{`
-        .rrOverlayToastWrap {
-          position: fixed;
-          left: 50%;
-          top: max(14px, env(safe-area-inset-top));
-          z-index: 1200;
-          width: min(92vw, 520px);
-          transition: opacity 220ms ease, transform 220ms ease;
-          touch-action: none;
-        }
-        .rrOverlayToastWrapOpen {
-          opacity: 1;
-        }
-        .rrOverlayToastWrapClosed {
-          opacity: 0;
-          pointer-events: none;
-        }
-        .rrOverlayToast {
-          position: relative;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          min-height: 62px;
-          padding: 16px 18px 14px;
-          border-radius: 22px;
-          border: 1px solid rgba(255,255,255,0.18);
-          background: linear-gradient(90deg, rgba(0,247,255,0.18), rgba(255,57,212,0.16)), rgba(8,10,26,0.94);
-          box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 10px 35px rgba(0,0,0,0.42), 0 0 22px rgba(0,247,255,0.18), 0 0 18px rgba(255,57,212,0.14);
-          backdrop-filter: blur(18px);
-          animation: rrOverlayToastIn 220ms ease-out;
-        }
-        .rrOverlayToastHandle {
-          position: absolute;
-          top: 7px;
-          left: 50%;
-          width: 42px;
-          height: 4px;
-          margin-left: -21px;
-          border-radius: 999px;
-          background: rgba(255,255,255,0.28);
-        }
-        .rrOverlayToastText {
-          flex: 1;
-          font-size: 15px;
-          font-weight: 900;
-          line-height: 1.25;
-          color: rgba(255,255,255,0.96);
-          text-align: center;
-          text-shadow: 0 0 10px rgba(0,247,255,0.12);
-        }
-        .rrOverlayToastClose {
-          flex: 0 0 auto;
-          width: 34px;
-          height: 34px;
-          border: 1px solid rgba(255,255,255,0.14);
-          border-radius: 999px;
-          background: rgba(255,255,255,0.06);
-          color: rgba(255,255,255,0.92);
-          font-weight: 900;
-          cursor: pointer;
-        }
-        @keyframes rrOverlayToastIn {
-          0% { opacity: 0; transform: translateY(-12px) scale(0.98); }
-          100% { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-function CountUpNumber({ value, pulseKey }: { value: number; pulseKey?: number }) {
-  const [display, setDisplay] = useState<number>(Number.isFinite(value) ? value : 0);
-  const prevRef = useRef<number>(Number.isFinite(value) ? value : 0);
-
-  useEffect(() => {
-    const next = Number.isFinite(value) ? value : 0;
-    const start = prevRef.current;
-    if (start === next) {
-      setDisplay(next);
-      return;
-    }
-
-    const duration = 420;
-    const startedAt = performance.now();
-    let raf = 0;
-
-    const step = (now: number) => {
-      const t = Math.min((now - startedAt) / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const current = start + (next - start) * eased;
-      setDisplay(next >= start ? Math.floor(current) : Math.ceil(current));
-      if (t < 1) raf = window.requestAnimationFrame(step);
-      else {
-        setDisplay(next);
-        prevRef.current = next;
-      }
-    };
-
-    raf = window.requestAnimationFrame(step);
-    return () => window.cancelAnimationFrame(raf);
-  }, [value, pulseKey]);
-
-  return (
-    <div key={pulseKey} className="rrCornerHudNumber" style={{ animation: "rrPop 420ms ease-out" }}>
-      {display}
-    </div>
-  );
-}
-
-function Artwork({ src, alt }: { src?: string; alt: string }) {
-  const [bad, setBad] = useState(false);
-  if (!src || bad) return <div style={{ width: "100%", height: "100%", background: "#333", display: "grid", placeItems: "center" }}>REMIX</div>;
-  return <img src={src} alt={alt} onError={() => setBad(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />;
-}
-
-const chip2 = (active: boolean) => ({
-  padding: "10px 12px",
-  borderRadius: 999,
-  border: active ? "1px solid cyan" : "1px solid #333",
-  background: active ? "rgba(0,255,255,0.1)" : "transparent",
-  whiteSpace: "nowrap" as const,
-});
-
-function useNeonSfx() {
-  const [muted, setMuted] = useState(false);
-  const ctxRef = useRef<AudioContext | null>(null);
-
-  useEffect(() => {
-    const unlock = () => {
-      const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (Ctx) ctxRef.current = new Ctx();
-    };
-    window.addEventListener("pointerdown", unlock, { once: true });
-    return () => window.removeEventListener("pointerdown", unlock);
-  }, []);
-
-  const play = (freq: number) => {
-    if (muted || !ctxRef.current) return;
-    const osc = ctxRef.current.createOscillator();
-    const g = ctxRef.current.createGain();
-    osc.frequency.value = freq;
-    g.gain.setValueAtTime(0.0001, ctxRef.current.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.05, ctxRef.current.currentTime + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, ctxRef.current.currentTime + 0.10);
-    osc.connect(g);
-    g.connect(ctxRef.current.destination);
-    osc.start();
-    osc.stop(ctxRef.current.currentTime + 0.11);
-  };
-
-  return {
-    muted, setMuted,
-    playTap: () => play(800),
-    playSuccess: () => play(1000),
-    playError: () => play(200),
-  };
 }

@@ -7,6 +7,7 @@ import OnDeckCard from "./OnDeckCard";
 import QueueList from "./QueueList";
 import ShoutoutPanel from "./ShoutoutPanel";
 import SearchAddPanel from "./SearchAddPanel";
+import InterstitialPad from "./InterstitialPad";
 import {
   enrichQueueWithRequests,
   isInterstitial,
@@ -434,15 +435,24 @@ async function queueAction(
 
         <div className="boothStack">
           <SearchAddPanel location={location} onAdded={load} />
-<EnginePanel
-  preview={state.runtimePreview}
-  mode={mode}
-  onMaterialize={async () => {
-    const result = await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
-    await load();
-    return result.data;
-  }}
-/>
+          <EnginePanel
+            preview={state.runtimePreview}
+            mode={mode}
+            onMaterialize={async () => {
+              const result = await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
+              await load();
+              return result.data;
+            }}
+          />
+          <InterstitialPad
+            location={location}
+            onPlayAsset={async (filename) => {
+              return triggerLocalBridgePlay(filename);
+            }}
+            onStopPlayback={async () => {
+              return triggerLocalBridgeStop();
+            }}
+          />
         </div>
 
         <ShoutoutPanel
