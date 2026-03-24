@@ -110,7 +110,17 @@ function BrandLogo({ logoUrl }: { logoUrl?: string | null }) {
   return <div className="rrBrandBadge">REMIX</div>;
 }
 
-function QueueRow({ item, rank, emphasis }: { item: QueueItem; rank: number; emphasis?: boolean }) {
+function QueueRow({
+  item,
+  rank,
+  emphasis,
+  laneLabel,
+}: {
+  item: QueueItem;
+  rank: number;
+  emphasis?: boolean;
+  laneLabel?: string;
+}) {
   const sourceType = String(item.sourceType || "").toUpperCase();
   const isInterstitial = sourceType.includes("INTERSTITIAL");
   const isBoosted = Boolean(item.boosted || item.priority === "BOOSTED");
@@ -124,17 +134,21 @@ function QueueRow({ item, rank, emphasis }: { item: QueueItem; rank: number; emp
 
       <div className="rrQueueCopy">
         <div className="rrQueueTagRow">
-          {isInterstitial ? <span className="rrTag rrTag--interstitial">Insert</span> : null}
+          {laneLabel ? <span className="rrStatusPill rrStatusPill--live">{laneLabel}</span> : null}
+          {isInterstitial ? <span className="rrTag rrTag--interstitial">Auto Insert</span> : null}
           {isBoosted ? <span className="rrTag rrTag--boost">Boosted</span> : null}
           {item.requestId ? <span className="rrTag rrTag--request">Request</span> : null}
-          {item.requestedByMe ? <span className="rrTag rrStatusPill--live">Yours</span> : null}
+          {item.requestedByMe ? <span className="rrStatusPill rrStatusPill--live">Yours</span> : null}
         </div>
 
         <div className="rrQueueTitle">{getTitle(item)}</div>
         <div className="rrQueueMeta">{getArtist(item)}</div>
       </div>
 
-      <span className="rrMetaPill rrQueueScore">Score {score}</span>
+      <div className="rrQueueRight">
+        <span className="rrMetaPill rrQueueScore">Score {score}</span>
+        {isBoosted ? <div className="rrQueueNote">priority</div> : null}
+      </div>
     </div>
   );
 }
@@ -244,6 +258,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   const downvoteCost = Number(rulesData?.rules?.costDownvote ?? 1);
   const displayedBalance = identityId ? Number(bal.balance ?? 0) : 0;
   const logoUrl = rulesData?.rules?.logoUrl || null;
+  const totalVisible = playNow.length + upNext.length;
 
   const goToRequests = () => {
     window.location.href = `/request/${encodeURIComponent(location)}`;
@@ -251,62 +266,101 @@ export default function QueuePage({ params }: { params: { location: string } }) 
 
   return (
     <PublicTheme>
-      <div style={{ display: "grid", gap: 12 }}>
-        <div className="rrPublicTopbar">
-          <div className="rrBrandLockup">
-            <BrandLogo logoUrl={logoUrl} />
+      <div className="rrTopRail">
+        <div className="rrMiniStat">
+          <div className="rrMiniStatLabel">Queue</div>
+          <div className="rrMiniStatValue">{totalVisible}</div>
+          <div className="rrMiniStatSub">visible songs</div>
+        </div>
+        <div className="rrMiniStat">
+          <div className="rrMiniStatLabel">Voting</div>
+          <div className="rrMiniStatValue">{votingOn ? "ON" : "OFF"}</div>
+          <div className="rrMiniStatSub">{upvoteCost}pt up • {downvoteCost}pt down</div>
+        </div>
+        <div className="rrMiniStat">
+          <div className="rrMiniStatLabel">Session</div>
+          <div className="rrMiniStatValue">LIVE</div>
+          <div className="rrMiniStatSub">{sessionCountdown}</div>
+        </div>
+      </div>
 
-            <div className="rrHero">
-              <div className="rrEyebrow">Live Queue & Voting</div>
-              <h1 className="rrTitle">Queue & Voting</h1>
-              <div className="rrTitleSub">
-                {venueName} • Tap to vote • {sessionCountdown}
-              </div>
+      <div className="rrPublicTopbar">
+        <div className="rrBrandLockup">
+          <BrandLogo logoUrl={logoUrl} />
+
+          <div className="rrHero">
+            <div className="rrEyebrow">RemixRequests • Live Queue</div>
+            <h1 className="rrTitle">Queue & Voting</h1>
+            <div className="rrTitleSub">
+              {venueName} • Live order updates every few seconds so guests can track what is moving up.
             </div>
-          </div>
-
-          <div className="rrHudCard">
-            <div className="rrHudLabel">Points</div>
-            <div className="rrHudValue">{displayedBalance}</div>
-            <button className="rrBtn" style={{ width: "100%" }} onClick={goToRequests}>
-              Back to Requests
-            </button>
+            <div className="rrHeroInlineRow">
+              <span className="rrStatusPill rrStatusPill--live">{sessionCountdown}</span>
+              <span className="rrMetaPill">{playNow.length} play now</span>
+              <span className="rrMetaPill">{upNext.length} coming up</span>
+            </div>
           </div>
         </div>
 
+        <div className="rrHudCard">
+          <div className="rrHudLabel">Your Points</div>
+          <div className="rrHudValue">{displayedBalance}</div>
+          <button className="rrBtn" style={{ width: "100%" }} onClick={goToRequests}>
+            Back to Requests
+          </button>
+        </div>
+      </div>
+
+      <div className="rrSectionIntro">
         <div className="rrPanel">
           <div className="rrPanelHead">
             <div>
               <div className="rrPanelTitle">Current Session</div>
-              <div className="rrPanelSub">Voting uses your live points balance.</div>
+              <div className="rrPanelSub">Built to feel like the booth UI, but tuned for customers on mobile.</div>
             </div>
-            <span className="rrStatusPill rrStatusPill--live">{sessionCountdown}</span>
+            <span className={`rrStatusPill ${votingOn ? "rrStatusPill--live" : "rrStatusPill--warn"}`}>
+              {votingOn ? "Voting Live" : "Voting Paused"}
+            </span>
           </div>
           <div className="rrPanelBody">
             <div className="rrChipRow" style={{ marginBottom: 0 }}>
               <span className="rrMetaPill">Upvote {upvoteCost}pt</span>
               <span className="rrMetaPill">Downvote {downvoteCost}pt</span>
-              <span className={`rrMetaPill ${votingOn ? "" : "rrStatusPill--warn"}`}>
-                {votingOn ? "Voting On" : "Voting Off"}
-              </span>
+              <span className="rrMetaPill">Auto refresh 8s</span>
+              <span className="rrMetaPill">Live order</span>
             </div>
           </div>
         </div>
 
+        <div className="rrNoticeCard">
+          <div className="rrNoticeTitle">How to use this board</div>
+          <div className="rrNoticeText">
+            Watch the play now lane for boosted songs near the front, then jump back to Requests when you want to spend points on votes or submit another track.
+          </div>
+        </div>
+      </div>
+
+      <div className="rrSectionStack">
         <div className="rrPanel">
           <div className="rrPanelHead">
             <div>
               <div className="rrPanelTitle">Play Now Lane</div>
-              <div className="rrPanelSub">Highest priority requests.</div>
+              <div className="rrPanelSub">Highest-priority requests and anything pushed toward the front.</div>
             </div>
-            <span className="rrStatusPill">{playNow.length} items</span>
+            <span className="rrStatusPill rrStatusPill--live">{playNow.length} items</span>
           </div>
           <div className="rrPanelBody" style={{ display: "grid", gap: 8 }}>
             {loading ? (
               <div className="rrEmpty">Loading queue…</div>
             ) : playNow.length ? (
               playNow.map((item, idx) => (
-                <QueueRow key={String(item.id || item.requestId || idx)} item={item} rank={idx + 1} emphasis />
+                <QueueRow
+                  key={String(item.id || item.requestId || idx)}
+                  item={item}
+                  rank={idx + 1}
+                  emphasis
+                  laneLabel={idx === 0 ? "live lane" : undefined}
+                />
               ))
             ) : (
               <div className="rrEmpty">No boosted requests right now.</div>
@@ -318,7 +372,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
           <div className="rrPanelHead">
             <div>
               <div className="rrPanelTitle">Coming Up</div>
-              <div className="rrPanelSub">The next songs in live order.</div>
+              <div className="rrPanelSub">Next in live order after the play now lane.</div>
             </div>
             <span className="rrStatusPill">{upNext.length} items</span>
           </div>
