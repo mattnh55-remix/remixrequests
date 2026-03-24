@@ -48,6 +48,10 @@ type BalanceRes = {
   error?: string;
 };
 
+function getRequestId(item: QueueItem) {
+  return String(item.requestId || item.id || "");
+}
+
 function getTitle(item: QueueItem) {
   return String(item.title || item.song?.title || "Untitled");
 }
@@ -110,21 +114,107 @@ function BrandLogo({ logoUrl }: { logoUrl?: string | null }) {
   return <div className="rrBrandBadge">REMIX</div>;
 }
 
+function useGunmetalSfx() {
+  const [muted, setMuted] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("rr_gunmetal_muted") === "1";
+  });
+  const ctxRef = useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const unlock = async () => {
+      try {
+        if (!ctxRef.current) {
+          // @ts-ignore
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          ctxRef.current = new Ctx();
+        }
+        if (ctxRef.current?.state === "suspended") {
+          await ctxRef.current.resume();
+        }
+      } catch {}
+    };
+
+    const onFirst = () => {
+      void unlock();
+    };
+
+    window.addEventListener("pointerdown", onFirst, { once: true });
+    return () => window.removeEventListener("pointerdown", onFirst);
+  }, []);
+
+  function beep(freq: number, dur = 0.06, gain = 0.04) {
+    if (muted) return;
+    const ctx = ctxRef.current;
+    if (!ctx) return;
+
+    try {
+      const t0 = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.02);
+    } catch {}
+  }
+
+  return {
+    muted,
+    setMuted: (next: boolean) => {
+      setMuted(next);
+      try {
+        window.localStorage.setItem("rr_gunmetal_muted", next ? "1" : "0");
+      } catch {}
+    },
+    playTap: () => beep(520, 0.04, 0.03),
+    playSuccess: () => {
+      beep(720, 0.05, 0.035);
+      window.setTimeout(() => beep(940, 0.05, 0.035), 50);
+    },
+    playError: () => {
+      beep(240, 0.08, 0.04);
+      window.setTimeout(() => beep(180, 0.08, 0.04), 70);
+    },
+  };
+}
+
 function QueueRow({
   item,
   rank,
   emphasis,
   laneLabel,
+  enableVoting,
+  canVote,
+  costUpvote,
+  costDownvote,
+  busyVoteId,
+  onVote,
 }: {
   item: QueueItem;
   rank: number;
   emphasis?: boolean;
   laneLabel?: string;
+  enableVoting: boolean;
+  canVote: boolean;
+  costUpvote: number;
+  costDownvote: number;
+  busyVoteId: string;
+  onVote: (requestId: string, dir: "up" | "down") => void;
 }) {
   const sourceType = String(item.sourceType || "").toUpperCase();
   const isInterstitial = sourceType.includes("INTERSTITIAL");
   const isBoosted = Boolean(item.boosted || item.priority === "BOOSTED");
   const score = Number(item.score || 0);
+  const requestId = getRequestId(item);
+  const disableVote = !requestId || !enableVoting || busyVoteId === requestId || isInterstitial;
 
   return (
     <div className={`rrQueueRow ${emphasis ? "rrQueueRow--emphasis" : ""}`}>
@@ -147,6 +237,29 @@ function QueueRow({
 
       <div className="rrQueueRight">
         <span className="rrMetaPill rrQueueScore">Score {score}</span>
+        {!isInterstitial ? (
+          <div className="rrVoteRail">
+            <button
+              className="rrVoteBtn rrVoteBtnGhost"
+              disabled={disableVote}
+              onClick={() => onVote(requestId, "down")}
+              title={enableVoting ? `Downvote (-${costDownvote} pt)` : "Voting disabled"}
+              aria-label={`Downvote ${getTitle(item)}`}
+            >
+              👎
+            </button>
+            <button
+              className="rrVoteBtn rrVoteBtnPrimary"
+              disabled={disableVote}
+              onClick={() => onVote(requestId, "up")}
+              title={enableVoting ? `Upvote (-${costUpvote} pt)` : "Voting disabled"}
+              aria-label={`Upvote ${getTitle(item)}`}
+            >
+              👍
+            </button>
+          </div>
+        ) : null}
+        {!canVote && !isInterstitial ? <div className="rrQueueNote">verify to vote</div> : null}
         {isBoosted ? <div className="rrQueueNote">priority</div> : null}
       </div>
     </div>
@@ -158,20 +271,62 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   const [rulesData, setRulesData] = useState<SessionRes | null>(null);
   const [queueData, setQueueData] = useState<QueueRes>({ playNow: [], upNext: [] });
   const [loading, setLoading] = useState(true);
-  const [refreshTick, setRefreshTick] = useState(0);
   const [sessionCountdown, setSessionCountdown] = useState("Session live");
   const [identityId, setIdentityId] = useState("");
+  const [email, setEmail] = useState("");
+  const [verified, setVerified] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [busyVoteId, setBusyVoteId] = useState("");
   const mountedRef = useRef(true);
+  const sfx = useGunmetalSfx();
 
   useEffect(() => {
     mountedRef.current = true;
     try {
-      setIdentityId((localStorage.getItem("rr_identityId") || "").trim());
+      const nextIdentityId = (localStorage.getItem("rr_identityId") || "").trim();
+      const nextLocation = (localStorage.getItem("rr_location") || "").trim();
+      const nextEmail = (localStorage.getItem("rr_email") || "").trim();
+
+      if (nextLocation && nextLocation !== location) {
+        setIdentityId("");
+        setVerified(false);
+      } else if (nextIdentityId) {
+        setIdentityId(nextIdentityId);
+        setVerified(true);
+      }
+
+      if (nextEmail) setEmail(nextEmail);
     } catch {}
+
     return () => {
       mountedRef.current = false;
     };
+  }, [location]);
+
+  useEffect(() => {
+    const readIdentity = () => {
+      try {
+        const nextIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+        const nextEmail = (localStorage.getItem("rr_email") || "").trim();
+        setIdentityId(nextIdentity);
+        setVerified(Boolean(nextIdentity));
+        if (nextEmail) setEmail(nextEmail);
+      } catch {}
+    };
+
+    readIdentity();
+    window.addEventListener("storage", readIdentity);
+    return () => window.removeEventListener("storage", readIdentity);
   }, []);
+
+  useEffect(() => {
+    try {
+      const trimmed = email.trim();
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        localStorage.setItem("rr_email", trimmed);
+      }
+    } catch {}
+  }, [email]);
 
   async function fetchBalanceNumber(nextIdentityId?: string): Promise<number> {
     const id = (nextIdentityId ?? identityId ?? "").trim();
@@ -188,58 +343,49 @@ export default function QueuePage({ params }: { params: { location: string } }) 
 
   const bal = useAnimatedBalance(() => fetchBalanceNumber(), {
     enabled: Boolean(identityId),
-    softPollMs: 2600,
+    softPollMs: 2200,
     intervalMs: 650,
     storageKey: `rr_lastBalance:${location}:${identityId || "anon"}`,
   });
 
-  useEffect(() => {
-    const readIdentity = () => {
-      try {
-        const next = (localStorage.getItem("rr_identityId") || "").trim();
-        setIdentityId(next);
-      } catch {}
-    };
-    readIdentity();
-    window.addEventListener("storage", readIdentity);
-    return () => window.removeEventListener("storage", readIdentity);
-  }, []);
+  async function loadQueueAndSession() {
+    setLoading(true);
+    try {
+      const [sessionRes, queueRes] = await Promise.all([
+        fetch(`/api/public/session/${location}`, { cache: "no-store" }),
+        fetch(`/api/public/queue/${location}`, { cache: "no-store" }),
+      ]);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const [sessionRes, queueRes] = await Promise.all([
-          fetch(`/api/public/session/${location}`, { cache: "no-store" }),
-          fetch(`/api/public/queue/${location}`, { cache: "no-store" }),
-        ]);
+      const sessionJson = (await sessionRes.json()) as SessionRes;
+      const queueJson = (await queueRes.json()) as QueueRes;
 
-        const sessionJson = (await sessionRes.json()) as SessionRes;
-        const queueJson = (await queueRes.json()) as QueueRes;
+      if (!mountedRef.current) return;
 
-        if (!mountedRef.current) return;
-
-        setRulesData(sessionJson);
-        setQueueData({
-          playNow: Array.isArray(queueJson?.playNow) ? queueJson.playNow : [],
-          upNext: Array.isArray(queueJson?.upNext) ? queueJson.upNext : [],
-        });
-      } catch {
-        if (!mountedRef.current) return;
-        setRulesData(null);
-        setQueueData({ playNow: [], upNext: [] });
-      } finally {
-        if (mountedRef.current) setLoading(false);
-      }
+      setRulesData(sessionJson);
+      setQueueData({
+        playNow: Array.isArray(queueJson?.playNow) ? queueJson.playNow : [],
+        upNext: Array.isArray(queueJson?.upNext) ? queueJson.upNext : [],
+      });
+    } catch {
+      if (!mountedRef.current) return;
+      setRulesData(null);
+      setQueueData({ playNow: [], upNext: [] });
+      setMsg("Could not load queue.");
+    } finally {
+      if (mountedRef.current) setLoading(false);
     }
-
-    void load();
-  }, [location, refreshTick]);
+  }
 
   useEffect(() => {
-    const id = window.setInterval(() => setRefreshTick((n) => n + 1), 8000);
-    return () => window.clearInterval(id);
-  }, []);
+    void loadQueueAndSession();
+  }, [location]);
+
+  useEffect(() => {
+    const queueId = window.setInterval(() => {
+      void loadQueueAndSession();
+    }, 4500);
+    return () => window.clearInterval(queueId);
+  }, [location]);
 
   useEffect(() => {
     const tick = () => {
@@ -250,19 +396,107 @@ export default function QueuePage({ params }: { params: { location: string } }) 
     return () => window.clearInterval(id);
   }, [rulesData?.session?.endsAt]);
 
+  useEffect(() => {
+    if (identityId) {
+      void bal.refreshOnce();
+    }
+  }, [identityId]);
+
   const playNow = useMemo(() => queueData.playNow || [], [queueData.playNow]);
   const upNext = useMemo(() => queueData.upNext || [], [queueData.upNext]);
   const venueName = String(rulesData?.location?.name || "Remix Skate & Event Center");
   const votingOn = Boolean(rulesData?.rules?.enableVoting);
   const upvoteCost = Number(rulesData?.rules?.costUpvote ?? 1);
   const downvoteCost = Number(rulesData?.rules?.costDownvote ?? 1);
-  const displayedBalance = identityId ? Number(bal.balance ?? 0) : 0;
+  const displayedBalance = identityId ? Number(bal.balance ?? 0) : 5;
   const logoUrl = rulesData?.rules?.logoUrl || null;
-  const totalVisible = playNow.length + upNext.length;
+  const canVote = Boolean(email.trim()) && (verified || Boolean(identityId));
 
   const goToRequests = () => {
+    sfx.playTap();
     window.location.href = `/request/${encodeURIComponent(location)}`;
   };
+
+  const goToVerify = () => {
+    sfx.playTap();
+    window.location.href = `/request/${encodeURIComponent(location)}?verify=1`;
+  };
+
+  const goToBuy = (reason: string) => {
+    sfx.playTap();
+    window.location.href = `/request/${encodeURIComponent(location)}?buy=1&reason=${encodeURIComponent(reason)}`;
+  };
+
+  const saveEmail = () => {
+    const trimmed = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      sfx.playError();
+      setMsg("Please enter a valid email.");
+      return;
+    }
+
+    try {
+      localStorage.setItem("rr_email", trimmed);
+    } catch {}
+    sfx.playSuccess();
+    setMsg("Email saved. Voting is ready on this device once verified.");
+  };
+
+  async function doVote(requestId: string, dir: "up" | "down") {
+    const needed = dir === "up" ? upvoteCost : downvoteCost;
+    setMsg("");
+
+    if (!email.trim()) {
+      sfx.playError();
+      setMsg("Enter your email to unlock voting.");
+      return;
+    }
+
+    if (!verified && !identityId) {
+      sfx.playError();
+      goToVerify();
+      return;
+    }
+
+    if (!votingOn) {
+      sfx.playError();
+      setMsg("Voting is disabled right now.");
+      return;
+    }
+
+    if ((bal.balance ?? 0) < needed) {
+      sfx.playError();
+      goToBuy("notEnough");
+      return;
+    }
+
+    sfx.playTap();
+    setBusyVoteId(requestId);
+
+    try {
+      const res = await fetch(`/api/public/vote`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ location, requestId, vote: dir, email: email.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data?.ok) {
+        sfx.playError();
+        setMsg(data?.error || "Vote failed.");
+        await bal.refreshOnce();
+        return;
+      }
+
+      sfx.playSuccess();
+      await Promise.all([loadQueueAndSession(), bal.refreshOnce()]);
+    } catch {
+      sfx.playError();
+      setMsg("Vote failed.");
+    } finally {
+      if (mountedRef.current) setBusyVoteId("");
+    }
+  }
 
   return (
     <PublicTheme>
@@ -274,7 +508,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
             <div className="rrEyebrow">RemixRequests • Live Queue</div>
             <h1 className="rrTitle">Queue & Voting</h1>
             <div className="rrTitleSub">
-              {venueName} • Live order updates every few seconds so guests can track what is moving up.
+              {venueName} • Live order updates every few seconds so guests can track what is moving up and spend points right here.
             </div>
             <div className="rrHeroInlineRow">
               <span className="rrStatusPill rrStatusPill--live">{sessionCountdown}</span>
@@ -284,21 +518,55 @@ export default function QueuePage({ params }: { params: { location: string } }) 
           </div>
         </div>
 
-        <div className="rrHudCard">
+        <div className={`rrHudCard ${identityId && displayedBalance <= 2 ? "rrHudCard--low" : ""}`}>
           <div className="rrHudLabel">Your Points</div>
           <div className="rrHudValue">{displayedBalance}</div>
-          <button className="rrBtn" style={{ width: "100%" }} onClick={goToRequests}>
-            Back to Requests
-          </button>
+          <div className="rrHudActions">
+            <button className="rrBtn" style={{ width: "100%" }} onClick={() => goToBuy("boost")}>
+              {identityId ? "Add Points" : "Use Points"}
+            </button>
+            <button className="rrBtnGhost rrMuteBtn" style={{ width: "100%" }} onClick={() => sfx.setMuted(!sfx.muted)}>
+              {sfx.muted ? "Sound Off" : "Sound On"}
+            </button>
+          </div>
         </div>
       </div>
 
+      {(verified || identityId) && !email.trim() ? (
+        <div className="rrPanel rrPanelTight">
+          <div className="rrPanelHead">
+            <div>
+              <div className="rrPanelTitle">Finish Setup</div>
+              <div className="rrPanelSub">Enter your email to unlock voting on this device.</div>
+            </div>
+            <span className="rrStatusPill rrStatusPill--warn">Email Needed</span>
+          </div>
+          <div className="rrPanelBody">
+            <div className="rrInlineForm">
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@domain.com"
+                className="rrInput"
+                autoComplete="email"
+                onFocus={() => sfx.playTap()}
+              />
+              <button className="rrBtn" onClick={saveEmail}>
+                Save Email
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {msg ? <div className="rrMessage">{msg}</div> : null}
+
       <div className="rrSectionIntro">
-        <div className="rrPanel">
+        <div className="rrPanel rrPanelTight">
           <div className="rrPanelHead">
             <div>
               <div className="rrPanelTitle">Current Session</div>
-              <div className="rrPanelSub">Built to feel like the booth UI, but tuned for customers on mobile.</div>
+              <div className="rrPanelSub">Vote from this page, or jump back to Requests to add another song.</div>
             </div>
             <span className={`rrStatusPill ${votingOn ? "rrStatusPill--live" : "rrStatusPill--warn"}`}>
               {votingOn ? "Voting Live" : "Voting Paused"}
@@ -308,16 +576,29 @@ export default function QueuePage({ params }: { params: { location: string } }) 
             <div className="rrChipRow" style={{ marginBottom: 0 }}>
               <span className="rrMetaPill">Upvote {upvoteCost}pt</span>
               <span className="rrMetaPill">Downvote {downvoteCost}pt</span>
-              <span className="rrMetaPill">Auto refresh 8s</span>
+              <span className="rrMetaPill">Auto refresh 4.5s</span>
               <span className="rrMetaPill">Live order</span>
             </div>
           </div>
         </div>
 
+        {!canVote ? (
+          <div className="rrNoticeCard">
+            <div className="rrNoticeTitle">Voting Access</div>
+            <div className="rrNoticeText">
+              Save your email, then verify or buy points from Requests to unlock voting on this device.
+            </div>
+            <div className="rrNoticeActions">
+              <button className="rrBtnGhost" onClick={goToVerify}>Verify Device</button>
+              <button className="rrBtn" onClick={() => goToBuy("vote")}>Get Points</button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="rrNoticeCard">
           <div className="rrNoticeTitle">How to use this board</div>
           <div className="rrNoticeText">
-            Watch the play now lane for boosted songs near the front, then jump back to Requests when you want to spend points on votes or submit another track.
+            Tap thumbs up or thumbs down beside songs in the live queue. Boosted songs and the play now lane stay closest to the front.
           </div>
         </div>
       </div>
@@ -331,7 +612,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
             </div>
             <span className="rrStatusPill rrStatusPill--live">{playNow.length} items</span>
           </div>
-          <div className="rrPanelBody" style={{ display: "grid", gap: 8 }}>
+          <div className="rrPanelBody rrPanelBodyGrid">
             {loading ? (
               <div className="rrEmpty">Loading queue…</div>
             ) : playNow.length ? (
@@ -342,6 +623,12 @@ export default function QueuePage({ params }: { params: { location: string } }) 
                   rank={idx + 1}
                   emphasis
                   laneLabel={idx === 0 ? "live lane" : undefined}
+                  enableVoting={votingOn}
+                  canVote={canVote}
+                  costUpvote={upvoteCost}
+                  costDownvote={downvoteCost}
+                  busyVoteId={busyVoteId}
+                  onVote={doVote}
                 />
               ))
             ) : (
@@ -358,12 +645,22 @@ export default function QueuePage({ params }: { params: { location: string } }) 
             </div>
             <span className="rrStatusPill">{upNext.length} items</span>
           </div>
-          <div className="rrPanelBody" style={{ display: "grid", gap: 8 }}>
+          <div className="rrPanelBody rrPanelBodyGrid">
             {loading ? (
               <div className="rrEmpty">Loading queue…</div>
             ) : upNext.length ? (
               upNext.map((item, idx) => (
-                <QueueRow key={String(item.id || item.requestId || idx)} item={item} rank={idx + 1} />
+                <QueueRow
+                  key={String(item.id || item.requestId || idx)}
+                  item={item}
+                  rank={idx + 1}
+                  enableVoting={votingOn}
+                  canVote={canVote}
+                  costUpvote={upvoteCost}
+                  costDownvote={downvoteCost}
+                  busyVoteId={busyVoteId}
+                  onVote={doVote}
+                />
               ))
             ) : (
               <div className="rrEmpty">Nothing queued yet.</div>
@@ -377,7 +674,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
           <button className="rrBtn rrFooterCta" onClick={goToRequests}>
             Back to Requests
           </button>
-          <button className="rrBtnGhost" onClick={goToRequests}>
+          <button className="rrBtnGhost" onClick={() => goToBuy("vote")}>
             Get Points
           </button>
         </div>
