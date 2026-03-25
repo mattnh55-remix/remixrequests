@@ -128,6 +128,8 @@ export default function PublicGunmetalTheme() {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;        /* 👈 centers horizontally */
+  text-align: center;         /* 👈 centers text */
 }
 
 .rrHeroKicker,
@@ -166,15 +168,16 @@ export default function PublicGunmetalTheme() {
 .rrHeroInlineRow { display: none; }
 
 .rrPointsCard {
-  padding: 7px 6px;
-  display: grid;
-  grid-template-rows: auto auto 1fr;
-  align-content: center;
-  gap: 5px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 3px;
 }
 
       .rrHudLabel {
-        font-size: 7px;
+        font-size: 6px;
         font-weight: 1000;
         letter-spacing: 0.18em;
         text-transform: uppercase;
@@ -182,12 +185,14 @@ export default function PublicGunmetalTheme() {
         text-align: center;
       }
 
-      .rrHudValue {
-        font-size: 16px;
-        line-height: 1;
-        font-weight: 1000;
-        text-align: center;
-      }
+.rrHudValue {
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 1000;
+  margin: 0;
+  text-align: center;
+}
+
 
       .rrBtn,
       .rrBtnGhost,
@@ -233,15 +238,34 @@ export default function PublicGunmetalTheme() {
         background: linear-gradient(180deg, rgba(43, 53, 72, 0.84), rgba(18, 26, 39, 0.94));
       }
 
-.rrPointsCard .rrBtn,
+.rrPointsCard .rrBtn {
+  width: 100%;
+  min-height: 20px;
+  height: 20px;
+  font-size: 8px;
+  padding: 0 6px;
+  line-height: 1;
+  margin-top: 1px;
+}
+
 .rrPointsCard .rrBtnGhost,
 .rrPointsCard .rrMuteBtn {
   width: 100%;
-  min-height: 24px;
+  min-height: 22px;
+  height: 22px;
   font-size: 9px;
   padding: 0 6px;
+  line-height: 1;
 }
-      }
+
+.rrPointsStack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 100%;
+}
 
       .rrPanel,
       .rrNoticeCard,

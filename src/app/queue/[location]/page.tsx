@@ -524,13 +524,15 @@ export default function QueuePage({ params }: { params: { location: string } }) 
           </div>
 
         <div className="rrPointsCard">
-          <div className="rrHudLabel">Points</div>
-          <div className="rrHudValue">{displayedBalance}</div>
-          <div className="rrPointsActions">
-            <button className="rrBtn" style={{ width: "100%" }} onClick={() => goToBuy("boost")}>
-              {identityId ? "Add Points" : "Use Points"}
-            </button>
-           </div>
+<div className="rrPointsStack">
+  <div className="rrHudLabel">Points</div>
+  <div className="rrHudValue">{displayedBalance}</div>
+  <div className="rrPointsActions">
+    <button className="rrBtn" style={{ width: "100%" }} onClick={() => goToBuy("boost")}>
+      {identityId ? "Add Points" : "Use Points"}
+    </button>
+  </div>
+</div>
         </div>
       </div>
 
