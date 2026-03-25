@@ -517,18 +517,11 @@ export default function QueuePage({ params }: { params: { location: string } }) 
         </div>
 
         <div className="rrHeroCard">
-          <div className="rrHeroKicker">RemixRequests • Live Queue</div>
-          <div className="rrHeroLabel">Remix Playlist</div>
-          <h1 className="rrTitle">Queue & Voting</h1>
+         <h1 className="rrTitle">Remix Playlist</h1>
           <div className="rrTitleSub">
-            {venueName} • Live order updates every few seconds so guests can track what is moving and spend points right here.
+            Vote for your favorites to rise to the top!
           </div>
-          <div className="rrHeroInlineRow">
-            <span className="rrStatusPill rrStatusPill--live">{sessionCountdown}</span>
-            <span className="rrMetaPill">{playNow.length} play now</span>
-            <span className="rrMetaPill">{upNext.length} coming up</span>
           </div>
-        </div>
 
         <div className="rrPointsCard">
           <div className="rrHudLabel">Points</div>
@@ -537,14 +530,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
             <button className="rrBtn" style={{ width: "100%" }} onClick={() => goToBuy("boost")}>
               {identityId ? "Add Points" : "Use Points"}
             </button>
-            <button
-              className="rrBtnGhost rrMuteBtn"
-              style={{ width: "100%" }}
-              onClick={() => sfx.setMuted(!sfx.muted)}
-            >
-              {sfx.muted ? "Sound Off" : "Sound On"}
-            </button>
-          </div>
+           </div>
         </div>
       </div>
 

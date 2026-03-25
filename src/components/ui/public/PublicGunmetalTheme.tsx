@@ -55,13 +55,13 @@ export default function PublicGunmetalTheme() {
         z-index: 1;
       }
 
-      .rrHeroGrid {
-        display: grid;
-        grid-template-columns: 58px minmax(0, 1fr) 88px;
-        gap: 8px;
-        align-items: stretch;
-        margin-bottom: 8px;
-      }
+.rrHeroGrid {
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr) 82px;
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 8px;
+}
 
       .rrLogoCard,
       .rrHeroCard,
@@ -82,18 +82,18 @@ export default function PublicGunmetalTheme() {
         height: var(--rr-hero-height);
       }
 
-      .rrLogoCard {
-        display: grid;
-        place-items: center;
-        padding: 6px;
-      }
+.rrLogoCard {
+  display: grid;
+  place-items: center;
+  padding: 5px;
+}
 
       .rrBrandLogo {
-        width: 42px;
-        height: 42px;
+        width: 46px;
+        height: 46px;
         border-radius: var(--rr-radius);
         overflow: hidden;
-        border: 1px solid rgba(120, 151, 201, 0.16);
+        border: 0px solid rgba(120, 151, 201, 0.16);
         background: linear-gradient(180deg, rgba(25, 34, 49, 0.94), rgba(11, 17, 28, 0.98));
         display: grid;
         place-items: center;
@@ -121,52 +121,38 @@ export default function PublicGunmetalTheme() {
         text-transform: uppercase;
       }
 
-      .rrHeroCard {
-        padding: 8px 10px;
-        min-width: 0;
-        background: var(--rr-surface-3);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-      }
+.rrHeroCard {
+  padding: 8px 9px 7px;
+  min-width: 0;
+  background: var(--rr-surface-3);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
 
-      .rrHeroKicker {
-        color: #95a4ba;
-        font-size: 8px;
-        font-weight: 1000;
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        margin-bottom: 1px;
-      }
+.rrHeroKicker,
+.rrHeroLabel {
+  display: none;
+}
+.rrTitle {
+  margin: 0;
+  font-size: clamp(16px, 5.5vw, 22px);
+  line-height: 0.92;
+  font-weight: 1000;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+}
 
-      .rrHeroLabel {
-        font-size: 9px;
-        font-weight: 1000;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: var(--rr-text-soft);
-        margin-bottom: 2px;
-      }
-
-      .rrTitle {
-        margin: 0;
-        font-size: clamp(13px, 5.3vw, 20px);
-        line-height: 0.92;
-        font-weight: 1000;
-        letter-spacing: -0.04em;
-        text-transform: uppercase;
-      }
-
-      .rrTitleSub {
-        margin-top: 4px;
-        color: var(--rr-text-soft);
-        font-size: 10px;
-        line-height: 1.18;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-      }
+.rrTitleSub {
+  margin-top: 4px;
+  color: var(--rr-text-soft);
+  font-size: 10px;
+  line-height: 1.15;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
       .rrHeroInlineRow,
       .rrChipRow,
@@ -177,18 +163,18 @@ export default function PublicGunmetalTheme() {
         gap: 5px;
       }
 
-      .rrHeroInlineRow { margin-top: 5px; }
+.rrHeroInlineRow { display: none; }
 
-      .rrPointsCard {
-        padding: 6px;
-        display: grid;
-        grid-template-rows: auto auto 1fr 1fr;
-        align-content: stretch;
-        gap: 5px;
-      }
+.rrPointsCard {
+  padding: 7px 6px;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  align-content: center;
+  gap: 5px;
+}
 
       .rrHudLabel {
-        font-size: 8px;
+        font-size: 7px;
         font-weight: 1000;
         letter-spacing: 0.18em;
         text-transform: uppercase;
@@ -197,7 +183,7 @@ export default function PublicGunmetalTheme() {
       }
 
       .rrHudValue {
-        font-size: 18px;
+        font-size: 16px;
         line-height: 1;
         font-weight: 1000;
         text-align: center;
@@ -247,13 +233,14 @@ export default function PublicGunmetalTheme() {
         background: linear-gradient(180deg, rgba(43, 53, 72, 0.84), rgba(18, 26, 39, 0.94));
       }
 
-      .rrPointsCard .rrBtn,
-      .rrPointsCard .rrBtnGhost,
-      .rrPointsCard .rrMuteBtn {
-        width: 100%;
-        min-height: 26px;
-        font-size: 10px;
-        padding: 0 7px;
+.rrPointsCard .rrBtn,
+.rrPointsCard .rrBtnGhost,
+.rrPointsCard .rrMuteBtn {
+  width: 100%;
+  min-height: 24px;
+  font-size: 9px;
+  padding: 0 6px;
+}
       }
 
       .rrPanel,
@@ -552,10 +539,10 @@ export default function PublicGunmetalTheme() {
           width: calc(100vw - 10px);
         }
 
-        .rrHeroGrid {
-          grid-template-columns: 54px minmax(0, 1fr) 82px;
-          gap: 6px;
-        }
+.rrHeroGrid {
+  grid-template-columns: 60px minmax(0, 1fr) 78px;
+  gap: 6px;
+}
 
         .rrLogoCard,
         .rrHeroCard,
@@ -572,9 +559,9 @@ export default function PublicGunmetalTheme() {
           min-height: 40px;
         }
 
-        .rrTitle {
-          font-size: clamp(12px, 5vw, 18px);
-        }
+.rrTitle {
+  font-size: clamp(15px, 5.2vw, 19px);
+}
 
         .rrTitleSub {
           font-size: 9px;
@@ -586,17 +573,17 @@ export default function PublicGunmetalTheme() {
           letter-spacing: 0.16em;
         }
 
-        .rrHudValue {
-          font-size: 16px;
-        }
+.rrHudValue {
+  font-size: 15px;
+}
 
-        .rrPointsCard .rrBtn,
-        .rrPointsCard .rrBtnGhost,
-        .rrPointsCard .rrMuteBtn {
-          min-height: 24px;
-          font-size: 9px;
-          padding: 0 5px;
-        }
+.rrPointsCard .rrBtn,
+.rrPointsCard .rrBtnGhost,
+.rrPointsCard .rrMuteBtn {
+  min-height: 22px;
+  font-size: 8px;
+  padding: 0 5px;
+}
 
         .rrHeroInlineRow {
           gap: 4px;
