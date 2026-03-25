@@ -23,8 +23,8 @@ export default function PublicTheme({
     const prevBodyColor = body.style.color;
     const prevBodyMargin = body.style.margin;
 
-    html.style.background = "#04070d";
-    body.style.background = "#04070d";
+    html.style.background = "#05070f";
+    body.style.background = "#05070f";
     body.style.color = "var(--rr-text, #f3f6fb)";
     body.style.margin = "0";
 

@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 import PublicTheme from "../../../components/ui/public/PublicTheme";
 
+const REMIX_LOGO_URL =
+  "https://skateremix.com/wp-content/uploads/2026/03/Remix_Globe_Logo_350px.png";
+
 type QueueItem = {
   id?: string;
   requestId?: string;
@@ -12,6 +15,8 @@ type QueueItem = {
   artist?: string;
   artworkUrl?: string;
   score?: number;
+  upvotes?: number;
+  downvotes?: number;
   requestedByMe?: boolean;
   sourceType?: string;
   boosted?: boolean;
@@ -84,7 +89,7 @@ function TinyArt({ src, alt }: { src?: string; alt?: string }) {
   if (!real || bad) {
     return (
       <div className="rrArt">
-        <div className="rrArtFallback">REMIX</div>
+        <div className="rrArtFallback">RMX</div>
       </div>
     );
   }
@@ -103,10 +108,12 @@ function TinyArt({ src, alt }: { src?: string; alt?: string }) {
 }
 
 function BrandLogo({ logoUrl }: { logoUrl?: string | null }) {
-  if (logoUrl) {
+  const src = (logoUrl || REMIX_LOGO_URL || "").trim();
+
+  if (src) {
     return (
       <div className="rrBrandLogo">
-        <img src={logoUrl} alt="Venue logo" />
+        <img src={src} alt="Remix logo" />
       </div>
     );
   }
@@ -212,8 +219,10 @@ function QueueRow({
   const sourceType = String(item.sourceType || "").toUpperCase();
   const isInterstitial = sourceType.includes("INTERSTITIAL");
   const isBoosted = Boolean(item.boosted || item.priority === "BOOSTED");
-  const score = Number(item.score || 0);
   const requestId = getRequestId(item);
+  const score = Number(item.score || 0);
+  const upvotes = Number(item.upvotes || 0);
+  const downvotes = Number(item.downvotes || 0);
   const disableVote = !requestId || !enableVoting || busyVoteId === requestId || isInterstitial;
 
   return (
@@ -223,20 +232,22 @@ function QueueRow({
       <TinyArt src={getArtwork(item)} alt={getTitle(item)} />
 
       <div className="rrQueueCopy">
+        <div className="rrQueueTopline">
+          <div className="rrQueueTitle">{getTitle(item)}</div>
+          <div className="rrQueueMetaInline">• {getArtist(item)}</div>
+        </div>
+
         <div className="rrQueueTagRow">
           {laneLabel ? <span className="rrStatusPill rrStatusPill--live">{laneLabel}</span> : null}
           {isInterstitial ? <span className="rrTag rrTag--interstitial">Auto Insert</span> : null}
           {isBoosted ? <span className="rrTag rrTag--boost">Boosted</span> : null}
           {item.requestId ? <span className="rrTag rrTag--request">Request</span> : null}
-          {item.requestedByMe ? <span className="rrStatusPill rrStatusPill--live">Yours</span> : null}
+          {!canVote && !isInterstitial ? <span className="rrMetaPill">verify to vote</span> : null}
         </div>
-
-        <div className="rrQueueTitle">{getTitle(item)}</div>
-        <div className="rrQueueMeta">{getArtist(item)}</div>
       </div>
 
       <div className="rrQueueRight">
-        <span className="rrMetaPill rrQueueScore">Score {score}</span>
+        <span className="rrMetaPill rrScorePill">S {score}</span>
         {!isInterstitial ? (
           <div className="rrVoteRail">
             <button
@@ -246,7 +257,8 @@ function QueueRow({
               title={enableVoting ? `Downvote (-${costDownvote} pt)` : "Voting disabled"}
               aria-label={`Downvote ${getTitle(item)}`}
             >
-              👎
+              <span>👎</span>
+              <span className="rrVoteCount">{downvotes}</span>
             </button>
             <button
               className="rrVoteBtn rrVoteBtnPrimary"
@@ -255,12 +267,11 @@ function QueueRow({
               title={enableVoting ? `Upvote (-${costUpvote} pt)` : "Voting disabled"}
               aria-label={`Upvote ${getTitle(item)}`}
             >
-              👍
+              <span>👍</span>
+              <span className="rrVoteCount">{upvotes}</span>
             </button>
           </div>
         ) : null}
-        {!canVote && !isInterstitial ? <div className="rrQueueNote">verify to vote</div> : null}
-        {isBoosted ? <div className="rrQueueNote">priority</div> : null}
       </div>
     </div>
   );
@@ -409,7 +420,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   const upvoteCost = Number(rulesData?.rules?.costUpvote ?? 1);
   const downvoteCost = Number(rulesData?.rules?.costDownvote ?? 1);
   const displayedBalance = identityId ? Number(bal.balance ?? 0) : 5;
-  const logoUrl = rulesData?.rules?.logoUrl || null;
+  const logoUrl = rulesData?.rules?.logoUrl || REMIX_LOGO_URL;
   const canVote = Boolean(email.trim()) && (verified || Boolean(identityId));
 
   const goToRequests = () => {
@@ -500,32 +511,37 @@ export default function QueuePage({ params }: { params: { location: string } }) 
 
   return (
     <PublicTheme>
-      <div className="rrPublicTopbar">
-        <div className="rrBrandLockup">
+      <div className="rrHeroGrid">
+        <div className="rrLogoCard">
           <BrandLogo logoUrl={logoUrl} />
+        </div>
 
-          <div className="rrHero">
-            <div className="rrEyebrow">RemixRequests • Live Queue</div>
-            <h1 className="rrTitle">Queue & Voting</h1>
-            <div className="rrTitleSub">
-              {venueName} • Live order updates every few seconds so guests can track what is moving up and spend points right here.
-            </div>
-            <div className="rrHeroInlineRow">
-              <span className="rrStatusPill rrStatusPill--live">{sessionCountdown}</span>
-              <span className="rrMetaPill">{playNow.length} play now</span>
-              <span className="rrMetaPill">{upNext.length} coming up</span>
-            </div>
+        <div className="rrHeroCard">
+          <div className="rrHeroKicker">RemixRequests • Live Queue</div>
+          <div className="rrHeroLabel">Remix Playlist</div>
+          <h1 className="rrTitle">Queue & Voting</h1>
+          <div className="rrTitleSub">
+            {venueName} • Live order updates every few seconds so guests can track what is moving and spend points right here.
+          </div>
+          <div className="rrHeroInlineRow">
+            <span className="rrStatusPill rrStatusPill--live">{sessionCountdown}</span>
+            <span className="rrMetaPill">{playNow.length} play now</span>
+            <span className="rrMetaPill">{upNext.length} coming up</span>
           </div>
         </div>
 
-        <div className={`rrHudCard ${identityId && displayedBalance <= 2 ? "rrHudCard--low" : ""}`}>
-          <div className="rrHudLabel">Your Points</div>
+        <div className="rrPointsCard">
+          <div className="rrHudLabel">Points</div>
           <div className="rrHudValue">{displayedBalance}</div>
-          <div className="rrHudActions">
+          <div className="rrPointsActions">
             <button className="rrBtn" style={{ width: "100%" }} onClick={() => goToBuy("boost")}>
               {identityId ? "Add Points" : "Use Points"}
             </button>
-            <button className="rrBtnGhost rrMuteBtn" style={{ width: "100%" }} onClick={() => sfx.setMuted(!sfx.muted)}>
+            <button
+              className="rrBtnGhost rrMuteBtn"
+              style={{ width: "100%" }}
+              onClick={() => sfx.setMuted(!sfx.muted)}
+            >
               {sfx.muted ? "Sound Off" : "Sound On"}
             </button>
           </div>
@@ -533,7 +549,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
       </div>
 
       {(verified || identityId) && !email.trim() ? (
-        <div className="rrPanel rrPanelTight">
+        <div className="rrPanel">
           <div className="rrPanelHead">
             <div>
               <div className="rrPanelTitle">Finish Setup</div>
@@ -561,45 +577,23 @@ export default function QueuePage({ params }: { params: { location: string } }) 
 
       {msg ? <div className="rrMessage">{msg}</div> : null}
 
-      <div className="rrSectionIntro">
-        <div className="rrPanel rrPanelTight">
-          <div className="rrPanelHead">
-            <div>
-              <div className="rrPanelTitle">Current Session</div>
-              <div className="rrPanelSub">Vote from this page, or jump back to Requests to add another song.</div>
-            </div>
-            <span className={`rrStatusPill ${votingOn ? "rrStatusPill--live" : "rrStatusPill--warn"}`}>
-              {votingOn ? "Voting Live" : "Voting Paused"}
-            </span>
+      {!canVote ? (
+        <div className="rrNoticeCard">
+          <div className="rrNoticeTitle">Voting Access</div>
+          <div className="rrNoticeText">
+            Save your email, then verify or buy points from Requests to unlock voting on this device.
           </div>
-          <div className="rrPanelBody">
-            <div className="rrChipRow" style={{ marginBottom: 0 }}>
-              <span className="rrMetaPill">Upvote {upvoteCost}pt</span>
-              <span className="rrMetaPill">Downvote {downvoteCost}pt</span>
-              <span className="rrMetaPill">Auto refresh 4.5s</span>
-              <span className="rrMetaPill">Live order</span>
-            </div>
+          <div className="rrNoticeActions">
+            <button className="rrBtnGhost" onClick={goToVerify}>Verify Device</button>
+            <button className="rrBtn" onClick={() => goToBuy("vote")}>Get Points</button>
           </div>
         </div>
+      ) : null}
 
-        {!canVote ? (
-          <div className="rrNoticeCard">
-            <div className="rrNoticeTitle">Voting Access</div>
-            <div className="rrNoticeText">
-              Save your email, then verify or buy points from Requests to unlock voting on this device.
-            </div>
-            <div className="rrNoticeActions">
-              <button className="rrBtnGhost" onClick={goToVerify}>Verify Device</button>
-              <button className="rrBtn" onClick={() => goToBuy("vote")}>Get Points</button>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="rrNoticeCard">
-          <div className="rrNoticeTitle">How to use this board</div>
-          <div className="rrNoticeText">
-            Tap thumbs up or thumbs down beside songs in the live queue. Boosted songs and the play now lane stay closest to the front.
-          </div>
+      <div className="rrNoticeCard">
+        <div className="rrNoticeTitle">How to use this board</div>
+        <div className="rrNoticeText">
+          Tap thumbs up or thumbs down beside songs in the live queue. Boosted songs and the play now lane stay closest to the front.
         </div>
       </div>
 
