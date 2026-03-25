@@ -1222,8 +1222,7 @@ export default function RequestPage({ params }: { params: { location: string } }
               {sessionCountdown}. Requests cost {requestCost} point. Boosts cost {playNowCost} points.
             </div>
           </div>
-          <span className="rrStatusPill rrStatusPill--live">{sessionCountdown}</span>
-        </div>
+            </div>
 
         <div className="rrNoticeActions" style={{ marginTop: 8 }}>
           <button
@@ -1236,58 +1235,8 @@ export default function RequestPage({ params }: { params: { location: string } }
           >
             View Queue
           </button>
-
-          {!verified && !identityId ? (
-            <button
-              className="rrBtnGhost"
-              onClick={() => {
-                sfx.playTap();
-                setShowVerify(true);
-              }}
-            >
-              Verify Device
-            </button>
-          ) : (
-            <button className="rrBtnGhost" onClick={() => openBuy("boost")}>
-              Buy / Redeem
-            </button>
-          )}
         </div>
       </div>
-
-      {queuePreviewItems.length ? (
-        <div className={`rrPanel ${queuePulseOn ? "rrPanel--pulse" : ""}`}>
-          <div className="rrPanelHead">
-            <div>
-              <div className="rrPanelTitle">Coming Up</div>
-              <div className="rrPanelSub">Quick preview from the live queue.</div>
-            </div>
-            <span className="rrStatusPill">{queuePreviewItems.length} items</span>
-          </div>
-
-          <div className="rrPanelBody rrPanelBodyGrid">
-            {queuePreviewItems.map((item, index) => (
-              <div key={String(item.id || index)} className="rrQueueRow">
-                <div className="rrQueueRank">{index + 1}</div>
-                <TinyArt src={getQueueArtwork(item)} alt={getQueueTitle(item)} />
-                <div className="rrQueueCopy">
-                  <div className="rrQueueTopline">
-                    <div className="rrQueueTitle">{getQueueTitle(item)}</div>
-                    <div className="rrQueueMetaInline">• {getQueueArtist(item)}</div>
-                  </div>
-                  <div className="rrQueueTagRow">
-                    {index === 0 ? (
-                      <span className="rrTag rrTag--boost">Play Now</span>
-                    ) : (
-                      <span className="rrTag rrTag--request">Up Next</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
 
       <div className="rrPanel">
         <div className="rrPanelHead">
