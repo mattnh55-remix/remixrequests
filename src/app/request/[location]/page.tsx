@@ -515,9 +515,9 @@ function VerifyDrawer({
         <div className="rrDrawerHead">
           <div>
             <div className="rrDrawerTitle">Claim your points</div>
-            <div className="rrDrawerSub">
-              Verify once to unlock your intro points and start requesting.
-            </div>
+<div className="rrDrawerSub">
+  Boost your songs to the front, outvote the crowd, and take over the floor.
+</div>
           </div>
           <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
             Close
@@ -619,18 +619,18 @@ function BuyCreditsDrawer({
 }: {
   open: boolean;
   busy: boolean;
- packs: {
-  id?: string;
-  title: string;
-  subtitle?: string;
-  creditsLabel: string;
-  badge?: string;
-  highlight?: boolean;
-  cta?: string;
-  priceCents: number;
-  packageKey?: string;
-  href?: string;
-}[];
+  packs: {
+    id?: string;
+    title: string;
+    subtitle?: string;
+    creditsLabel: string;
+    badge?: string;
+    highlight?: boolean;
+    cta?: string;
+    priceCents: number;
+    packageKey?: string;
+    href?: string;
+  }[];
   redeemCode: string;
   setRedeemCode: (v: string) => void;
   redeemBusy: boolean;
@@ -644,12 +644,12 @@ function BuyCreditsDrawer({
 
   return (
     <div className="rrOverlay" onClick={onClose}>
-      <div className="rrDrawer" onClick={(e) => e.stopPropagation()}>
-        <div className="rrDrawerHead">
+      <div className="rrDrawer rrDrawer--buy" onClick={(e) => e.stopPropagation()}>
+        <div className="rrDrawerHead rrDrawerHead--buy">
           <div>
-            <div className="rrDrawerTitle">Add Points</div>
+            <div className="rrDrawerTitle">Take Over the Playlist</div>
             <div className="rrDrawerSub">
-              Buy more points to request songs, boost favorites, and vote from the live queue.
+              Boost your songs to the front, outvote the crowd, and keep the floor moving your way.
             </div>
           </div>
           <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
@@ -658,26 +658,53 @@ function BuyCreditsDrawer({
         </div>
 
         <div className="rrDrawerBody">
-          <div className="rrPackList">
-            {packs.map((p) => (
-              <div key={`${p.packageKey || p.href || p.title}`} className="rrPackRow">
-                <div className="rrPackCopy">
-                  <div className="rrPackTitle">
-                    <span>{p.title}</span>
-                    <span className="rrMetaPill">{p.creditsLabel}</span>
-                  </div>
-                  <div className="rrPackMeta">${(p.priceCents / 100).toFixed(2)}</div>
-                </div>
+          <div className="rrBuyLead">
+            <div className="rrBuyLeadTitle">Most songs are being boosted right now.</div>
+            <div className="rrBuyLeadText">
+              Regular requests wait in line. Boosts get noticed first.
+            </div>
+          </div>
 
-                <button
-                  className="rrBtn"
-                  disabled={busy}
-                  onClick={() => onBuy(p.packageKey, p.href)}
+          <div className="rrBuyPackGrid">
+            {packs.map((p) => {
+              const pointsNum = Number(String(p.creditsLabel).replace(/\D/g, "")) || 0;
+              const approxRequests = pointsNum;
+
+              return (
+                <div
+                  key={`${p.packageKey || p.href || p.title}`}
+                  className={`rrBuyPackCard ${p.highlight ? "rrBuyPackCard--featured" : ""}`}
                 >
-                  {busy ? "Opening..." : "Buy"}
-                </button>
-              </div>
-            ))}
+                  <div className="rrBuyPackTop">
+                    <div className="rrBuyPackTitleRow">
+                      <div className="rrBuyPackTitle">{p.title}</div>
+                      {p.badge ? (
+                        <span className={`rrMetaPill ${p.highlight ? "rrBuyPackBadge--featured" : ""}`}>
+                          {p.badge}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {p.subtitle ? <div className="rrBuyPackSubtitle">{p.subtitle}</div> : null}
+                  </div>
+
+                  <div className="rrBuyPackValueRow">
+                    <div className="rrBuyPackPoints">{p.creditsLabel}</div>
+                    <div className="rrBuyPackUsage">About {approxRequests} requests</div>
+                  </div>
+
+                  <div className="rrBuyPackPrice">${(p.priceCents / 100).toFixed(2)}</div>
+
+                  <button
+                    className={`rrBtn ${p.highlight ? "rrBtn--featuredPack" : ""}`}
+                    disabled={busy}
+                    onClick={() => onBuy(p.packageKey, p.href)}
+                  >
+                    {busy ? "Opening..." : `Get ${p.creditsLabel}`}
+                  </button>
+                </div>
+              );
+            })}
           </div>
 
           <div className="rrDivider" />
@@ -685,7 +712,7 @@ function BuyCreditsDrawer({
           <div className="rrStack">
             {!showRedeem ? (
               <button className="rrBtnGhost" onClick={() => setShowRedeem(true)}>
-                Buy / Redeem
+                Have a Code?
               </button>
             ) : (
               <>
@@ -709,7 +736,6 @@ function BuyCreditsDrawer({
     </div>
   );
 }
-
 export default function RequestPage({ params }: { params: { location: string } }) {
   const location = decodeURIComponent(params.location);
 

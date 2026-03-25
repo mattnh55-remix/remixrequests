@@ -810,6 +810,153 @@ export default function PublicGunmetalTheme() {
         align-items: center;
       }
 
+.rrDrawer--buy {
+  max-width: 560px;
+}
+
+.rrDrawerHead--buy {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.rrBuyLead {
+  margin-bottom: 10px;
+  padding: 10px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(108, 137, 186, 0.16);
+  background: linear-gradient(180deg, rgba(18, 27, 43, 0.92), rgba(10, 16, 27, 0.96));
+}
+
+.rrBuyLeadTitle {
+  font-size: 12px;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rrBuyLeadText {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--rr-text-soft);
+  line-height: 1.35;
+}
+
+.rrBuyPackGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.rrBuyPackCard {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(125, 156, 206, 0.12);
+  background: linear-gradient(
+    180deg,
+    rgba(18, 27, 43, 0.96) 0%,
+    rgba(10, 17, 28, 0.98) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+}
+
+.rrBuyPackCard--featured {
+  border-color: rgba(77, 143, 228, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(77, 143, 228, 0.16),
+    0 12px 28px rgba(0, 0, 0, 0.34);
+  background: linear-gradient(
+    180deg,
+    rgba(26, 38, 58, 0.98) 0%,
+    rgba(11, 18, 31, 0.99) 100%
+  );
+}
+
+.rrBuyPackTop {
+  display: grid;
+  gap: 4px;
+}
+
+.rrBuyPackTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rrBuyPackTitle {
+  font-size: 18px;
+  font-weight: 1000;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.rrBuyPackSubtitle {
+  font-size: 12px;
+  color: var(--rr-text-soft);
+  line-height: 1.35;
+}
+
+.rrBuyPackValueRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rrBuyPackPoints {
+  font-size: 13px;
+  font-weight: 1000;
+  color: #dfe8fb;
+}
+
+.rrBuyPackUsage {
+  font-size: 11px;
+  color: var(--rr-text-dim);
+}
+
+.rrBuyPackPrice {
+  font-size: 22px;
+  font-weight: 1000;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.rrBuyPackBadge--featured {
+  border-color: rgba(77, 143, 228, 0.38);
+  background: rgba(77, 143, 228, 0.16);
+}
+
+.rrBtn--featuredPack {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    0 10px 22px rgba(32, 83, 155, 0.34);
+}
+
+@media (max-width: 520px) {
+  .rrBuyPackCard {
+    padding: 11px;
+    gap: 7px;
+  }
+
+  .rrBuyPackTitle {
+    font-size: 16px;
+  }
+
+  .rrBuyPackPrice {
+    font-size: 20px;
+  }
+
+  .rrBuyLeadTitle {
+    font-size: 11px;
+  }
+
+  .rrBuyLeadText,
+  .rrBuyPackSubtitle {
+    font-size: 11px;
+  }
+}
+
       .rrToast {
         position: fixed;
         left: 8px;
