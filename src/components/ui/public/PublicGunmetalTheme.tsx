@@ -22,6 +22,7 @@ export default function PublicGunmetalTheme() {
         --rr-radius: 8px;
         --rr-radius-sm: 7px;
         --rr-max: 560px;
+        --rr-hero-height: 96px;
       }
 
       * { box-sizing: border-box; }
@@ -56,7 +57,7 @@ export default function PublicGunmetalTheme() {
 
       .rrHeroGrid {
         display: grid;
-        grid-template-columns: 72px minmax(0, 1fr) 108px;
+        grid-template-columns: 58px minmax(0, 1fr) 88px;
         gap: 8px;
         align-items: stretch;
         margin-bottom: 8px;
@@ -74,16 +75,22 @@ export default function PublicGunmetalTheme() {
         box-shadow: var(--rr-shadow);
       }
 
+      .rrLogoCard,
+      .rrHeroCard,
+      .rrPointsCard {
+        min-height: var(--rr-hero-height);
+        height: var(--rr-hero-height);
+      }
+
       .rrLogoCard {
         display: grid;
         place-items: center;
-        padding: 8px;
-        min-height: 120px;
+        padding: 6px;
       }
 
       .rrBrandLogo {
-        width: 52px;
-        height: 52px;
+        width: 42px;
+        height: 42px;
         border-radius: var(--rr-radius);
         overflow: hidden;
         border: 1px solid rgba(120, 151, 201, 0.16);
@@ -100,8 +107,8 @@ export default function PublicGunmetalTheme() {
       }
 
       .rrBrandBadge {
-        min-width: 52px;
-        min-height: 52px;
+        min-width: 42px;
+        min-height: 42px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -109,49 +116,56 @@ export default function PublicGunmetalTheme() {
         border: 1px solid rgba(102, 151, 232, 0.2);
         background: linear-gradient(180deg, rgba(25, 38, 58, 0.95), rgba(12, 20, 32, 0.98));
         font-weight: 1000;
-        font-size: 11px;
-        letter-spacing: 0.16em;
+        font-size: 9px;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
       }
 
       .rrHeroCard {
-        padding: 10px;
+        padding: 8px 10px;
         min-width: 0;
         background: var(--rr-surface-3);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
       }
 
       .rrHeroKicker {
         color: #95a4ba;
-        font-size: 9px;
+        font-size: 8px;
         font-weight: 1000;
-        letter-spacing: 0.26em;
+        letter-spacing: 0.22em;
         text-transform: uppercase;
-        margin-bottom: 2px;
+        margin-bottom: 1px;
       }
 
       .rrHeroLabel {
-        font-size: 11px;
+        font-size: 9px;
         font-weight: 1000;
-        letter-spacing: 0.16em;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
         color: var(--rr-text-soft);
-        margin-bottom: 4px;
+        margin-bottom: 2px;
       }
 
       .rrTitle {
         margin: 0;
-        font-size: clamp(17px, 7vw, 28px);
-        line-height: 0.94;
+        font-size: clamp(13px, 5.3vw, 20px);
+        line-height: 0.92;
         font-weight: 1000;
         letter-spacing: -0.04em;
         text-transform: uppercase;
       }
 
       .rrTitleSub {
-        margin-top: 5px;
+        margin-top: 4px;
         color: var(--rr-text-soft);
-        font-size: 11px;
-        line-height: 1.28;
+        font-size: 10px;
+        line-height: 1.18;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
       }
 
       .rrHeroInlineRow,
@@ -160,30 +174,30 @@ export default function PublicGunmetalTheme() {
       .rrPointsActions {
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: 5px;
       }
 
-      .rrHeroInlineRow { margin-top: 7px; }
+      .rrHeroInlineRow { margin-top: 5px; }
 
       .rrPointsCard {
-        padding: 8px;
+        padding: 6px;
         display: grid;
-        align-content: start;
-        gap: 7px;
-        min-height: 120px;
+        grid-template-rows: auto auto 1fr 1fr;
+        align-content: stretch;
+        gap: 5px;
       }
 
       .rrHudLabel {
-        font-size: 9px;
+        font-size: 8px;
         font-weight: 1000;
-        letter-spacing: 0.2em;
+        letter-spacing: 0.18em;
         text-transform: uppercase;
         color: var(--rr-text-dim);
         text-align: center;
       }
 
       .rrHudValue {
-        font-size: 24px;
+        font-size: 18px;
         line-height: 1;
         font-weight: 1000;
         text-align: center;
@@ -197,10 +211,10 @@ export default function PublicGunmetalTheme() {
         border-radius: var(--rr-radius);
         color: #fff;
         font-weight: 900;
-        font-size: 12px;
+        font-size: 11px;
         letter-spacing: 0.01em;
-        min-height: 34px;
-        padding: 0 11px;
+        min-height: 28px;
+        padding: 0 9px;
         cursor: pointer;
         transition: transform 0.14s ease, border-color 0.14s ease, opacity 0.14s ease, box-shadow 0.14s ease, filter 0.14s ease;
       }
@@ -231,6 +245,15 @@ export default function PublicGunmetalTheme() {
       .rrMuteBtn,
       .rrVoteBtnGhost {
         background: linear-gradient(180deg, rgba(43, 53, 72, 0.84), rgba(18, 26, 39, 0.94));
+      }
+
+      .rrPointsCard .rrBtn,
+      .rrPointsCard .rrBtnGhost,
+      .rrPointsCard .rrMuteBtn {
+        width: 100%;
+        min-height: 26px;
+        font-size: 10px;
+        padding: 0 7px;
       }
 
       .rrPanel,
@@ -283,10 +306,10 @@ export default function PublicGunmetalTheme() {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 20px;
-        padding: 0 8px;
+        min-height: 18px;
+        padding: 0 7px;
         border-radius: 999px;
-        font-size: 9px;
+        font-size: 8px;
         font-weight: 1000;
         letter-spacing: 0.1em;
         text-transform: uppercase;
@@ -530,13 +553,62 @@ export default function PublicGunmetalTheme() {
         }
 
         .rrHeroGrid {
-          grid-template-columns: 64px minmax(0, 1fr) 104px;
+          grid-template-columns: 54px minmax(0, 1fr) 82px;
+          gap: 6px;
         }
 
         .rrLogoCard,
         .rrHeroCard,
         .rrPointsCard {
-          min-height: 114px;
+          min-height: 92px;
+          height: 92px;
+        }
+
+        .rrBrandLogo,
+        .rrBrandBadge {
+          width: 40px;
+          height: 40px;
+          min-width: 40px;
+          min-height: 40px;
+        }
+
+        .rrTitle {
+          font-size: clamp(12px, 5vw, 18px);
+        }
+
+        .rrTitleSub {
+          font-size: 9px;
+          line-height: 1.15;
+        }
+
+        .rrHudLabel {
+          font-size: 7px;
+          letter-spacing: 0.16em;
+        }
+
+        .rrHudValue {
+          font-size: 16px;
+        }
+
+        .rrPointsCard .rrBtn,
+        .rrPointsCard .rrBtnGhost,
+        .rrPointsCard .rrMuteBtn {
+          min-height: 24px;
+          font-size: 9px;
+          padding: 0 5px;
+        }
+
+        .rrHeroInlineRow {
+          gap: 4px;
+          margin-top: 4px;
+        }
+
+        .rrStatusPill,
+        .rrTag,
+        .rrMetaPill {
+          min-height: 17px;
+          padding: 0 6px;
+          font-size: 7px;
         }
 
         .rrInlineForm {
