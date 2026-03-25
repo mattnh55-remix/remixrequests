@@ -1296,17 +1296,47 @@ export default function RequestPage({ params }: { params: { location: string } }
 
           <div className="rrPanelBody">
             <div className="rrTrendingRail">
-              {trending.map((song) => (
-                <div key={song.id} className="rrTrendingCard">
-                  <TinyArt src={song.artworkUrl} alt={song.title} />
-                  <div className="rrTrendingCopy">
-                    <div className="rrTrendingTitle">{song.title}</div>
-                    <div className="rrTrendingMeta">
-                      {song.artist} • {requestCost}pt
-                    </div>
-                  </div>
-                </div>
-              ))}
+              {trending.map((song) => {
+  const isSuccess = successTileId === song.id;
+  const isHot = true;
+
+  return (
+    <div
+      key={song.id}
+      className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}
+    >
+      <AlbumArt src={song.artworkUrl} alt={song.title} />
+
+      <div className="rrSongTileCopy">
+        <div className="rrSongTileTitle">{song.title}</div>
+        <div className="rrSongTileMeta">{song.artist}</div>
+
+        <div className="rrSongMetaRow">
+          {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
+          <span className="rrMetaPill">{requestCost}pt</span>
+          <span className="rrMetaPill">{playNowCost}pt boost</span>
+          {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
+        </div>
+      </div>
+
+      <div className="rrSongTileActions">
+        <HoldButton
+          idleLabel={`REQUEST! - ${requestCost}pt`}
+          busyLabel="REQUESTING..."
+          successLabel="ADDED!"
+          onConfirm={(el) => submit(song, "play_next", el)}
+        />
+        <HoldButton
+          idleLabel={`BOOST! - ${playNowCost}pts`}
+          busyLabel="BOOSTING..."
+          successLabel="SENT!"
+          onConfirm={(el) => submit(song, "play_now", el)}
+          className="rrBtn"
+        />
+      </div>
+    </div>
+  );
+})}
             </div>
           </div>
         </div>
@@ -1322,47 +1352,47 @@ export default function RequestPage({ params }: { params: { location: string } }
           </div>
         </div>
 
-        <div className="rrPanelBody rrPanelBodyGrid">
+        <div className="rrSongTileGrid">
           {songs.length ? (
             songs.map((song) => {
               const isSuccess = successTileId === song.id;
               const isHot = trending.some((x) => x.id === song.id);
 
               return (
-                <div
-                  key={song.id}
-                  className={`rrSongRow ${isSuccess ? "rrSongRow--success" : ""}`}
-                >
-                  <AlbumArt src={song.artworkUrl} alt={song.title} />
+              <div
+  key={song.id}
+  className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}
+>
+  <AlbumArt src={song.artworkUrl} alt={song.title} />
 
-                  <div className="rrSongCopy">
-                    <div className="rrSongTitle">{song.title}</div>
-                    <div className="rrSongMeta">{song.artist}</div>
+  <div className="rrSongTileCopy">
+    <div className="rrSongTileTitle">{song.title}</div>
+    <div className="rrSongTileMeta">{song.artist}</div>
 
-                    <div className="rrSongMetaRow">
-                      {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
-                      <span className="rrMetaPill">{requestCost}pt</span>
-                      <span className="rrMetaPill">{playNowCost}pt boost</span>
-                      {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
-                    </div>
-                  </div>
+    <div className="rrSongMetaRow">
+      {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
+      <span className="rrMetaPill">{requestCost}pt</span>
+      <span className="rrMetaPill">{playNowCost}pt boost</span>
+      {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
+    </div>
+  </div>
 
-                  <div className="rrSongActions">
-                    <HoldButton
-                      idleLabel="REQUEST"
-                      busyLabel="REQUESTING..."
-                      successLabel="ADDED!"
-                      onConfirm={(el) => submit(song, "play_next", el)}
-                    />
-                    <HoldButton
-                      idleLabel="BOOST"
-                      busyLabel="BOOSTING..."
-                      successLabel="SENT!"
-                      onConfirm={(el) => submit(song, "play_now", el)}
-                      className="rrBtn"
-                    />
-                  </div>
-                </div>
+  <div className="rrSongTileActions">
+    <HoldButton
+      idleLabel={`REQUEST! - ${requestCost}pt`}
+      busyLabel="REQUESTING..."
+      successLabel="ADDED!"
+      onConfirm={(el) => submit(song, "play_next", el)}
+    />
+    <HoldButton
+      idleLabel={`BOOST! - ${playNowCost}pts`}
+      busyLabel="BOOSTING..."
+      successLabel="SENT!"
+      onConfirm={(el) => submit(song, "play_now", el)}
+      className="rrBtn"
+    />
+  </div>
+</div>
               );
             })
           ) : (

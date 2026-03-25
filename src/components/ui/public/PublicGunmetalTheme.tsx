@@ -470,6 +470,79 @@ export default function PublicGunmetalTheme() {
         text-overflow: ellipsis;
       }
 
+.rrTrendingRail,
+.rrSongTileGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.rrSongTile {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  gap: 8px;
+  border-radius: 12px;
+  padding: 10px;
+  background: linear-gradient(
+    180deg,
+    rgba(18, 27, 43, 0.96) 0%,
+    rgba(10, 17, 28, 0.98) 70%,
+    rgba(11, 16, 28, 0.98) 100%
+  );
+  border: 1px solid rgba(125, 156, 206, 0.12);
+  transition: box-shadow 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.rrSongTile--success {
+  border-color: rgba(84, 219, 170, 0.3);
+  box-shadow: 0 0 0 1px rgba(84, 219, 170, 0.18), 0 12px 28px rgba(0, 0, 0, 0.36);
+}
+
+.rrSongTile .rrRequestArt,
+.rrSongTile .rrArt {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  border-radius: 12px;
+}
+
+.rrSongTileCopy {
+  min-width: 0;
+}
+
+.rrSongTileTitle {
+  font-size: 14px;
+  font-weight: 1000;
+  line-height: 1.08;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rrSongTileMeta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--rr-text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rrSongTileActions {
+  display: grid;
+  gap: 6px;
+}
+
+.rrSongTileActions .rrBtn,
+.rrSongTileActions .rrBtnGhost {
+  width: 100%;
+}
+
+.rrSongTileActions button {
+  width: 100%;
+}
+
       .rrArt {
         width: 34px;
         height: 34px;
@@ -898,6 +971,28 @@ export default function PublicGunmetalTheme() {
         .rrFooterInner {
           width: calc(100vw - 10px);
         }
+
+.rrTrendingRail,
+.rrSongTileGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.rrSongTile {
+  padding: 8px;
+}
+
+.rrSongTileTitle {
+  font-size: 13px;
+}
+
+.rrSongTileMeta {
+  font-size: 11px;
+}
+
+.rrSongTileActions {
+  gap: 6px;
+}
 
         .rrHeroGrid {
           grid-template-columns: 60px minmax(0, 1fr) 78px;
