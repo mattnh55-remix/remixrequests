@@ -1197,7 +1197,7 @@ export default function RequestPage({ params }: { params: { location: string } }
         <div className="rrHeroCard">
           <h1 className="rrTitle">Request a Song</h1>
           <div className="rrTitleSub">
-            Search tracks, send requests, and push favorites toward the booth.
+            Requests cost {requestCost} point. Boosts cost {playNowCost} points.<br>Upvote and Downvote your favorites!
           </div>
         </div>
 
@@ -1215,14 +1215,6 @@ export default function RequestPage({ params }: { params: { location: string } }
       </div>
 
       <div className="rrNoticeCard">
-        <div className="rrNoticeHeadRow">
-          <div>
-            <div className="rrNoticeTitle">Tonight at {locationName}</div>
-            <div className="rrNoticeText">
-              {sessionCountdown}. Requests cost {requestCost} point. Boosts cost {playNowCost} points.
-            </div>
-          </div>
-            </div>
 
         <div className="rrNoticeActions" style={{ marginTop: 8 }}>
           <button
@@ -1233,7 +1225,7 @@ export default function RequestPage({ params }: { params: { location: string } }
               window.location.href = `/queue/${encodeURIComponent(location)}`;
             }}
           >
-            View Queue
+            🎶 🎶 🎵 🎵 View Queue 🎶 🎶 🎵 🎵
           </button>
         </div>
       </div>
