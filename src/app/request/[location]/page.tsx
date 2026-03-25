@@ -1197,7 +1197,7 @@ export default function RequestPage({ params }: { params: { location: string } }
         <div className="rrHeroCard">
           <h1 className="rrTitle">Request a Song</h1>
           <div className="rrTitleSub">
-            Search tracks, send requests, and push favorites toward the booth.
+            Requests cost {requestCost} point. Boosts cost {playNowCost} points.<br />Upvote and Downvote your favorites!
           </div>
         </div>
 
@@ -1215,20 +1215,10 @@ export default function RequestPage({ params }: { params: { location: string } }
       </div>
 
       <div className="rrNoticeCard">
-        <div className="rrNoticeHeadRow">
-          <div>
-            <div className="rrNoticeTitle">Tonight at {locationName}</div>
-            <div className="rrNoticeText">
-              {sessionCountdown}. Requests cost {requestCost} point. Boosts cost {playNowCost} points.
-            </div>
-          </div>
-          <span className="rrStatusPill rrStatusPill--live">{sessionCountdown}</span>
-        </div>
-
-        <div className="rrNoticeActions rrNoticeActions--full" style={{ marginTop: 8 }}>
+        <div className="rrNoticeActions rrNoticeActions--full" style={{ marginTop: 0 }}>
           <button
             ref={queueTargetRef}
-            className="rrBtn"
+            className="rrBtn rrBtn--full"
             onClick={() => {
               sfx.playTap();
               window.location.href = `/queue/${encodeURIComponent(location)}`;
@@ -1236,62 +1226,12 @@ export default function RequestPage({ params }: { params: { location: string } }
           >
             View Queue
           </button>
-
-          {!verified && !identityId ? (
-            <button
-              className="rrBtnGhost"
-              onClick={() => {
-                sfx.playTap();
-                setShowVerify(true);
-              }}
-            >
-              Verify Device
-            </button>
-          ) : (
-            <button className="rrBtnGhost" onClick={() => openBuy("boost")}>
-              Buy / Redeem
-            </button>
-          )}
         </div>
       </div>
 
-      {queuePreviewItems.length ? (
-        <div className={`rrPanel ${queuePulseOn ? "rrPanel--pulse" : ""}`}>
-          <div className="rrPanelHead">
-            <div>
-              <div className="rrPanelTitle">Coming Up</div>
-              <div className="rrPanelSub">Quick preview from the live queue.</div>
-            </div>
-            <span className="rrStatusPill">{queuePreviewItems.length} items</span>
-          </div>
-
-          <div className="rrPanelBody rrPanelBodyGrid">
-            {queuePreviewItems.map((item, index) => (
-              <div key={String(item.id || index)} className="rrQueueRow">
-                <div className="rrQueueRank">{index + 1}</div>
-                <TinyArt src={getQueueArtwork(item)} alt={getQueueTitle(item)} />
-                <div className="rrQueueCopy">
-                  <div className="rrQueueTopline">
-                    <div className="rrQueueTitle">{getQueueTitle(item)}</div>
-                    <div className="rrQueueMetaInline">• {getQueueArtist(item)}</div>
-                  </div>
-                  <div className="rrQueueTagRow">
-                    {index === 0 ? (
-                      <span className="rrTag rrTag--boost">Play Now</span>
-                    ) : (
-                      <span className="rrTag rrTag--request">Up Next</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
       <div className="rrPanel">
         <div className="rrPanelHead rrPanelHead--centered">
-          <div className="rrPanelHeadCopy rrPanelHeadCopy--centered">
+          <div>
             <div className="rrPanelTitle">Search & Browse</div>
             <div className="rrPanelSub">
               Use tags to narrow the catalog, then hold to request or boost.
@@ -1309,8 +1249,8 @@ export default function RequestPage({ params }: { params: { location: string } }
             onFocus={() => sfx.playTap()}
           />
 
-          <div className="rrChipScroller">
-            <div className="rrRequestChipRow">
+          <div className="rrRequestChipScrollerWrap">
+            <div className="rrRequestChipScroller">
               <button
                 className={`rrRequestChip ${tag === "" ? "is-active" : ""}`}
                 onClick={() => {
@@ -1334,15 +1274,15 @@ export default function RequestPage({ params }: { params: { location: string } }
                 </button>
               ))}
             </div>
-            <div className="rrChipScrollHint" aria-hidden="true">›</div>
+            <div className="rrRequestChipHint" aria-hidden="true">›</div>
           </div>
         </div>
       </div>
 
       {trending.length ? (
         <div className="rrPanel">
-          <div className="rrPanelHead rrPanelHead--centered">
-            <div className="rrPanelHeadCopy rrPanelHeadCopy--centered">
+          <div className="rrPanelHead">
+            <div>
               <div className="rrPanelTitle">Trending at Remix</div>
               <div className="rrPanelSub">Fast picks for tonight’s crowd.</div>
             </div>
@@ -1350,24 +1290,54 @@ export default function RequestPage({ params }: { params: { location: string } }
 
           <div className="rrPanelBody">
             <div className="rrTrendingRail">
-              {trending.map((song) => (
-                <div key={song.id} className="rrTrendingCard">
-                  <TinyArt src={song.artworkUrl} alt={song.title} />
-                  <div className="rrTrendingCopy">
-                    <div className="rrTrendingTitle">{song.title}</div>
-                    <div className="rrTrendingMeta">
-                      {song.artist} • {requestCost}pt
-                    </div>
-                  </div>
-                </div>
-              ))}
+              {trending.map((song) => {
+  const isSuccess = successTileId === song.id;
+  const isHot = true;
+
+  return (
+    <div
+      key={song.id}
+      className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}
+    >
+      <AlbumArt src={song.artworkUrl} alt={song.title} />
+
+      <div className="rrSongTileCopy">
+        <div className="rrSongTileTitle">{song.title}</div>
+        <div className="rrSongTileMeta">{song.artist}</div>
+
+        <div className="rrSongMetaRow">
+          {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
+          <span className="rrMetaPill">{requestCost}pt</span>
+          <span className="rrMetaPill">{playNowCost}pt boost</span>
+          {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
+        </div>
+      </div>
+
+      <div className="rrSongTileActions">
+        <HoldButton
+          idleLabel={`REQUEST! - ${requestCost}pt`}
+          busyLabel="REQUESTING..."
+          successLabel="ADDED!"
+          onConfirm={(el) => submit(song, "play_next", el)}
+        />
+        <HoldButton
+          idleLabel={`BOOST! - ${playNowCost}pts`}
+          busyLabel="BOOSTING..."
+          successLabel="SENT!"
+          onConfirm={(el) => submit(song, "play_now", el)}
+          className="rrBtn"
+        />
+      </div>
+    </div>
+  );
+})}
             </div>
           </div>
         </div>
       ) : null}
 
       <div className="rrPanel">
-        <div className="rrPanelHead">
+        <div className="rrPanelHead rrPanelHead--centered">
           <div>
             <div className="rrPanelTitle">Song List</div>
             <div className="rrPanelSub">
@@ -1376,47 +1346,47 @@ export default function RequestPage({ params }: { params: { location: string } }
           </div>
         </div>
 
-        <div className="rrPanelBody rrPanelBodyGrid">
+        <div className="rrSongTileGrid">
           {songs.length ? (
             songs.map((song) => {
               const isSuccess = successTileId === song.id;
               const isHot = trending.some((x) => x.id === song.id);
 
               return (
-                <div
-                  key={song.id}
-                  className={`rrSongRow ${isSuccess ? "rrSongRow--success" : ""}`}
-                >
-                  <AlbumArt src={song.artworkUrl} alt={song.title} />
+              <div
+  key={song.id}
+  className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}
+>
+  <AlbumArt src={song.artworkUrl} alt={song.title} />
 
-                  <div className="rrSongCopy">
-                    <div className="rrSongTitle">{song.title}</div>
-                    <div className="rrSongMeta">{song.artist}</div>
+  <div className="rrSongTileCopy">
+    <div className="rrSongTileTitle">{song.title}</div>
+    <div className="rrSongTileMeta">{song.artist}</div>
 
-                    <div className="rrSongMetaRow">
-                      {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
-                      <span className="rrMetaPill">{requestCost}pt</span>
-                      <span className="rrMetaPill">{playNowCost}pt boost</span>
-                      {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
-                    </div>
-                  </div>
+    <div className="rrSongMetaRow">
+      {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
+      <span className="rrMetaPill">{requestCost}pt</span>
+      <span className="rrMetaPill">{playNowCost}pt boost</span>
+      {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
+    </div>
+  </div>
 
-                  <div className="rrSongActions">
-                    <HoldButton
-                      idleLabel="REQUEST"
-                      busyLabel="REQUESTING..."
-                      successLabel="ADDED!"
-                      onConfirm={(el) => submit(song, "play_next", el)}
-                    />
-                    <HoldButton
-                      idleLabel="BOOST"
-                      busyLabel="BOOSTING..."
-                      successLabel="SENT!"
-                      onConfirm={(el) => submit(song, "play_now", el)}
-                      className="rrBtn"
-                    />
-                  </div>
-                </div>
+  <div className="rrSongTileActions">
+    <HoldButton
+      idleLabel={`REQUEST! - ${requestCost}pt`}
+      busyLabel="REQUESTING..."
+      successLabel="ADDED!"
+      onConfirm={(el) => submit(song, "play_next", el)}
+    />
+    <HoldButton
+      idleLabel={`BOOST! - ${playNowCost}pts`}
+      busyLabel="BOOSTING..."
+      successLabel="SENT!"
+      onConfirm={(el) => submit(song, "play_now", el)}
+      className="rrBtn"
+    />
+  </div>
+</div>
               );
             })
           ) : (
@@ -1538,6 +1508,7 @@ export default function RequestPage({ params }: { params: { location: string } }
           `}</style>
         </div>
       ) : null}
+
 
     </PublicTheme>
   );
