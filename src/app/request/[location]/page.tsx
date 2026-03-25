@@ -73,7 +73,7 @@ type UiPack = {
   title: string;
   subtitle: string;
   creditsLabel: string;
-  priceCents?: number;
+  priceCents: number;
   packageKey?: PackageKey;
   highlight?: boolean;
   badge?: string;
@@ -606,46 +606,50 @@ function VerifyDrawer({
   );
 }
 
-function BuyDrawer({
+function BuyCreditsDrawer({
   open,
-  onClose,
+  busy,
   packs,
   redeemCode,
   setRedeemCode,
   redeemBusy,
-  onRedeem,
+  onClose,
   onBuy,
-  buyReason,
+  onRedeem,
 }: {
   open: boolean;
-  onClose: () => void;
-  packs: UiPack[];
+  busy: boolean;
+ packs: {
+  id?: string;
+  title: string;
+  subtitle?: string;
+  creditsLabel: string;
+  badge?: string;
+  highlight?: boolean;
+  cta?: string;
+  priceCents: number;
+  packageKey?: string;
+  href?: string;
+}[];
   redeemCode: string;
-  setRedeemCode: (value: string) => void;
+  setRedeemCode: (v: string) => void;
   redeemBusy: boolean;
-  onRedeem: (code: string) => void;
-  onBuy: (key: PackageKey) => void;
-  buyReason: "none" | "out" | "notEnough" | "boost";
+  onClose: () => void;
+  onBuy: (packageKey?: string, href?: string) => void;
+  onRedeem: () => void;
 }) {
+  const [showRedeem, setShowRedeem] = useState(false);
+
   if (!open) return null;
 
-  const title =
-    buyReason === "boost"
-      ? "Get more points"
-      : buyReason === "notEnough"
-        ? "Not enough points"
-        : buyReason === "out"
-          ? "You’re out of points"
-          : "Get points";
-
   return (
-    <div className="rrOverlay">
-      <div className="rrDrawer">
+    <div className="rrOverlay" onClick={onClose}>
+      <div className="rrDrawer" onClick={(e) => e.stopPropagation()}>
         <div className="rrDrawerHead">
           <div>
-            <div className="rrDrawerTitle">{title}</div>
+            <div className="rrDrawerTitle">Add Points</div>
             <div className="rrDrawerSub">
-              Buy a pack or redeem a code to keep the party moving.
+              Buy more points to request songs, boost favorites, and vote from the live queue.
             </div>
           </div>
           <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
@@ -655,23 +659,22 @@ function BuyDrawer({
 
         <div className="rrDrawerBody">
           <div className="rrPackList">
-            {packs.map((pack) => (
-              <div key={pack.id} className="rrPackRow">
+            {packs.map((p) => (
+              <div key={`${p.packageKey || p.href || p.title}`} className="rrPackRow">
                 <div className="rrPackCopy">
                   <div className="rrPackTitle">
-                    {pack.title}
-                    {pack.badge ? <span className="rrTag rrTag--boost">{pack.badge}</span> : null}
+                    <span>{p.title}</span>
+                    <span className="rrMetaPill">{p.creditsLabel}</span>
                   </div>
-                  <div className="rrPackMeta">
-                    {pack.creditsLabel} • {pack.subtitle}
-                  </div>
+                  <div className="rrPackMeta">${(p.priceCents / 100).toFixed(2)}</div>
                 </div>
 
                 <button
-                  className={pack.highlight ? "rrBtn" : "rrBtnGhost"}
-                  onClick={() => pack.packageKey && onBuy(pack.packageKey)}
+                  className="rrBtn"
+                  disabled={busy}
+                  onClick={() => onBuy(p.packageKey, p.href)}
                 >
-                  Buy • ${(Number(pack.priceCents || 0) / 100).toFixed(2)}
+                  {busy ? "Opening..." : "Buy"}
                 </button>
               </div>
             ))}
@@ -680,22 +683,26 @@ function BuyDrawer({
           <div className="rrDivider" />
 
           <div className="rrStack">
-            <div className="rrPackTitle">Redeem code</div>
-            <div className="rrTwoCol">
-              <input
-                className="rrInput"
-                placeholder="Promo or redemption code"
-                value={redeemCode}
-                onChange={(e) => setRedeemCode(e.target.value)}
-              />
-              <button
-                className="rrBtnGhost"
-                disabled={redeemBusy}
-                onClick={() => onRedeem(redeemCode)}
-              >
-                {redeemBusy ? "Redeeming..." : "Redeem"}
+            {!showRedeem ? (
+              <button className="rrBtnGhost" onClick={() => setShowRedeem(true)}>
+                Buy / Redeem
               </button>
-            </div>
+            ) : (
+              <>
+                <div className="rrDrawerTitle rrDrawerTitle--small">Redeem Code</div>
+                <div className="rrInlineForm">
+                  <input
+                    className="rrInput"
+                    value={redeemCode}
+                    onChange={(e) => setRedeemCode(e.target.value)}
+                    placeholder="Enter redeem code"
+                  />
+                  <button className="rrBtnGhost" disabled={redeemBusy} onClick={onRedeem}>
+                    {redeemBusy ? "Checking..." : "Redeem"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -730,6 +737,8 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [successTileId, setSuccessTileId] = useState<string | null>(null);
   const [queuePulseOn, setQueuePulseOn] = useState(false);
   const [flyAnim, setFlyAnim] = useState<FlyAnim | null>(null);
+  const [buyBusy, setBuyBusy] = useState(false);
+
 
   const queueTargetRef = useRef<HTMLButtonElement | null>(null);
   const flyTimerRef = useRef<number | null>(null);
@@ -944,14 +953,15 @@ export default function RequestPage({ params }: { params: { location: string } }
     sfx.playTap();
   }
 
-  function handlePointsAction() {
-    sfx.playTap();
-    if (!verified && !identityId) {
-      setShowVerify(true);
-      return;
-    }
-    openBuy("boost");
+function handlePointsAction() {
+  sfx.playTap();
+  if (!verified && !identityId) {
+    setBuyReason("boost");
+    setShowVerify(true);
+    return;
   }
+  openBuy("boost");
+}
 
   async function redeem(codeInput?: string) {
     const code = String(codeInput ?? redeemCode ?? "").trim();
@@ -1005,34 +1015,49 @@ export default function RequestPage({ params }: { params: { location: string } }
     }
   }
 
-  async function startCheckout(packageKey: PackageKey) {
-    if (!identityId) {
-      sfx.playError();
-      setMsg("Please verify before buying points.");
-      setShowVerify(true);
+async function startCheckout(packageKey?: string, href?: string) {
+  if (!identityId) {
+    setShowVerify(true);
+    return;
+  }
+
+  if (!packageKey) {
+    if (href) {
+      window.location.href = href;
+      return;
+    }
+    setMsg("Missing package.");
+    return;
+  }
+
+  try {
+    setBuyBusy(true);
+    setMsg("");
+
+    const res = await fetch("/api/square/create-checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        location,
+        identityId,
+        packageKey,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data?.ok || !data?.checkoutUrl) {
+      setMsg(data?.error || "Could not open checkout.");
+      setBuyBusy(false);
       return;
     }
 
-    try {
-      const res = await fetch("/api/square/create-checkout", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, identityId, packageKey }),
-      });
-
-      const data = await res.json();
-      if (!data?.ok || !data?.checkoutUrl) {
-        sfx.playError();
-        setMsg(data?.error || "Could not start checkout.");
-        return;
-      }
-
-      window.location.href = data.checkoutUrl;
-    } catch {
-      sfx.playError();
-      setMsg("Could not start checkout.");
-    }
+    window.location.href = data.checkoutUrl;
+  } catch {
+    setMsg("Could not open checkout.");
+    setBuyBusy(false);
   }
+}
 
   function triggerSuccessVisuals(song: Song, sourceEl?: HTMLElement | null) {
     setSuccessTileId(song.id);
@@ -1444,20 +1469,24 @@ export default function RequestPage({ params }: { params: { location: string } }
 
           if (cleanEmail) setEmail(cleanEmail);
           setMsg("Verification complete. Your points are ready.");
+if (buyReason !== "none") {
+  setShowBuy(true);
+}
+
         }}
       />
 
-      <BuyDrawer
-        open={showBuy}
-        onClose={() => setShowBuy(false)}
-        packs={packs}
-        redeemCode={redeemCode}
-        setRedeemCode={setRedeemCode}
-        redeemBusy={redeemBusy}
-        onRedeem={redeem}
-        onBuy={startCheckout}
-        buyReason={buyReason}
-      />
+<BuyCreditsDrawer
+  open={showBuy}
+  busy={buyBusy}
+  packs={packs}
+  redeemCode={redeemCode}
+  setRedeemCode={setRedeemCode}
+  redeemBusy={redeemBusy}
+  onClose={() => setShowBuy(false)}
+  onBuy={(packageKey, href) => startCheckout(packageKey, href)}
+  onRedeem={() => redeem()}
+/>
 
       {flyAnim ? (
         <div
