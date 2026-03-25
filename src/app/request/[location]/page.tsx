@@ -758,8 +758,20 @@ export default function RequestPage({ params }: { params: { location: string } }
       `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
       { cache: "no-store" }
     );
-    const data = (await res.json()) as BalanceRes;
-    if (!data.ok) throw new Error(data.error || "Balance fetch failed");
+const data = (await res.json()) as BalanceRes;
+
+if (!res.ok) {
+  if (res.status === 404) {
+    try {
+      localStorage.removeItem("rr_identityId");
+    } catch {}
+    setIdentityId("");
+    setVerified(false);
+  }
+  throw new Error(data.error || "Balance fetch failed");
+}
+
+if (!data.ok) throw new Error(data.error || "Balance fetch failed");
     return Number(data.balance ?? 0);
   }
 
@@ -898,23 +910,36 @@ export default function RequestPage({ params }: { params: { location: string } }
     return () => window.clearInterval(id);
   }, [location]);
 
-  useEffect(() => {
-    try {
-      const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
-      const lsLocation = (localStorage.getItem("rr_location") || "").trim();
-      const lsEmail = (localStorage.getItem("rr_email") || "").trim();
+useEffect(() => {
+  try {
+    const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+    const lsLocation = (localStorage.getItem("rr_location") || "").trim();
+    const lsEmail = (localStorage.getItem("rr_email") || "").trim();
 
-      if (lsIdentity) {
-        setIdentityId(lsIdentity);
-        setVerified(true);
-        if (lsEmail) setEmail(lsEmail);
-      }
+    if (lsLocation && lsLocation !== location) {
+      localStorage.setItem("rr_location", String(location));
+      localStorage.removeItem("rr_identityId");
+      setIdentityId("");
+      setVerified(false);
+      if (lsEmail) setEmail(lsEmail);
+      return;
+    }
 
-      if (location && lsLocation !== location) {
-        localStorage.setItem("rr_location", String(location));
-      }
-    } catch {}
-  }, [location]);
+    if (lsIdentity) {
+      setIdentityId(lsIdentity);
+      setVerified(true);
+    } else {
+      setIdentityId("");
+      setVerified(false);
+    }
+
+    if (lsEmail) setEmail(lsEmail);
+
+    if (!lsLocation && location) {
+      localStorage.setItem("rr_location", String(location));
+    }
+  } catch {}
+}, [location]);
 
   useEffect(() => {
     if (!identityId) return;
@@ -1016,6 +1041,25 @@ function handlePointsAction() {
   }
 
 async function startCheckout(packageKey?: string, href?: string) {
+console.log("startCheckout payload", {
+  location,
+  identityId,
+  packageKey,
+  href,
+});
+
+try {
+  const lsLocation = (localStorage.getItem("rr_location") || "").trim();
+  if (lsLocation && lsLocation !== location) {
+    localStorage.removeItem("rr_identityId");
+    setIdentityId("");
+    setVerified(false);
+    setShowVerify(true);
+    setMsg("Please verify again for this location.");
+    return;
+  }
+} catch {}
+
   if (!identityId) {
     setShowVerify(true);
     return;
@@ -1046,11 +1090,16 @@ async function startCheckout(packageKey?: string, href?: string) {
 
     const data = await res.json().catch(() => ({}));
 
-    if (!res.ok || !data?.ok || !data?.checkoutUrl) {
-      setMsg(data?.error || "Could not open checkout.");
-      setBuyBusy(false);
-      return;
-    }
+if (!res.ok || !data?.ok || !data?.checkoutUrl) {
+  console.log("checkout error", { status: res.status, data });
+  setMsg(
+    data?.error
+      ? `Checkout error: ${data.error}`
+      : `Could not open checkout. Status ${res.status}`
+  );
+  setBuyBusy(false);
+  return;
+}
 
     window.location.href = data.checkoutUrl;
   } catch {
