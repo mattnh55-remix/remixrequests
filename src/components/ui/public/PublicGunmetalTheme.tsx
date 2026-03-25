@@ -1156,6 +1156,261 @@ export default function PublicGunmetalTheme() {
           font-size: 10px;
         }
       }
+
+    .rrTextarea {
+        width: 100%;
+        min-height: 110px;
+        border-radius: var(--rr-radius);
+        border: 1px solid rgba(117, 145, 197, 0.22);
+        background: linear-gradient(180deg, rgba(16, 24, 37, 0.96), rgba(9, 15, 24, 0.98));
+        color: var(--rr-text);
+        padding: 11px 12px;
+        outline: none;
+        resize: vertical;
+        font: inherit;
+      }
+
+      .rrTextarea::placeholder {
+        color: var(--rr-text-dim);
+      }
+
+      .rrTextarea:focus {
+        border-color: rgba(105, 182, 255, 0.34);
+        box-shadow: 0 0 0 1px rgba(61, 130, 215, 0.12);
+      }
+
+      .rrField {
+        display: grid;
+        gap: 6px;
+      }
+
+      .rrFieldLabel {
+        font-size: 11px;
+        font-weight: 1000;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #dfe8fb;
+      }
+
+      .rrFieldMetaRow {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .rrFieldMetaText {
+        font-size: 11px;
+        color: var(--rr-text-dim);
+      }
+
+      .rrProductGrid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .rrShoutCard {
+        position: relative;
+        min-height: 148px;
+        padding: 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(125, 156, 206, 0.12);
+        background: linear-gradient(180deg, rgba(18, 27, 43, 0.96) 0%, rgba(10, 17, 28, 0.98) 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 8px;
+        text-align: left;
+      }
+
+      .rrShoutCard--selected {
+        border-color: rgba(77, 143, 228, 0.4);
+        box-shadow: 0 0 0 1px rgba(77, 143, 228, 0.16), 0 12px 28px rgba(0, 0, 0, 0.28);
+        background: linear-gradient(180deg, rgba(24, 36, 55, 0.98) 0%, rgba(11, 18, 31, 0.99) 100%);
+      }
+
+      .rrShoutCard--pressed:not(:disabled) {
+        transform: translateY(1px);
+      }
+
+      .rrShoutCard--disabled {
+        opacity: 0.56;
+      }
+
+      .rrShoutCardTop {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .rrShoutCardBadge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 18px;
+        padding: 0 7px;
+        border-radius: 999px;
+        font-size: 8px;
+        font-weight: 1000;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #dfe8fb;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255,255,255,0.09);
+      }
+
+      .rrShoutCardBadge--featured {
+        color: #cfe4ff;
+        background: rgba(77, 143, 228, 0.16);
+        border-color: rgba(77, 143, 228, 0.3);
+      }
+
+      .rrShoutPhotoChip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 9px;
+        font-weight: 1000;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--rr-text-soft);
+      }
+
+      .rrShoutPhotoIcon {
+        width: 16px;
+        height: 16px;
+        border-radius: 5px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: linear-gradient(180deg, rgba(28, 41, 61, 0.94), rgba(12, 20, 32, 0.98));
+        display: inline-grid;
+        place-items: center;
+        font-size: 10px;
+        line-height: 1;
+      }
+
+      .rrShoutCardCopy {
+        display: grid;
+        gap: 6px;
+        align-content: start;
+      }
+
+      .rrShoutCardTitle {
+        font-size: 14px;
+        line-height: 1.05;
+        font-weight: 1000;
+        letter-spacing: -0.03em;
+      }
+
+      .rrShoutCardDesc {
+        font-size: 11px;
+        line-height: 1.35;
+        color: var(--rr-text-soft);
+      }
+
+      .rrShoutCardMeta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .rrShoutComposerSummary {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(125, 156, 206, 0.12);
+        background: linear-gradient(180deg, rgba(18, 27, 43, 0.92), rgba(10, 16, 27, 0.96));
+      }
+
+      .rrUploadBox {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px dashed rgba(125, 156, 206, 0.26);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .rrUploadPreview {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(0,0,0,0.24);
+      }
+
+      .rrUploadPreview img {
+        display: block;
+        width: 100%;
+        max-height: 180px;
+        object-fit: contain;
+        border-radius: 8px;
+        background: #050814;
+      }
+
+      .rrCheckRow {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        font-size: 12px;
+        line-height: 1.35;
+        color: #dfe8fb;
+      }
+
+      .rrCheckRow input {
+        margin-top: 2px;
+      }
+
+      .rrActionStack {
+        display: grid;
+        gap: 8px;
+      }
+
+      .rrFooterMeta {
+        min-width: 0;
+        display: grid;
+        gap: 2px;
+      }
+
+      .rrFooterMetaStrong {
+        font-size: 12px;
+        font-weight: 1000;
+        color: #dfe8fb;
+      }
+
+      .rrFooterMetaSub {
+        font-size: 11px;
+        color: var(--rr-text-dim);
+      }
+
+      @media (max-width: 420px) {
+        .rrProductGrid {
+          gap: 7px;
+        }
+
+        .rrShoutCard {
+          min-height: 140px;
+          padding: 9px;
+        }
+
+        .rrShoutCardTitle {
+          font-size: 13px;
+        }
+
+        .rrShoutCardDesc {
+          font-size: 10.5px;
+        }
+      }
+
+
+
+
     `}</style>
   );
 }
+
+ 

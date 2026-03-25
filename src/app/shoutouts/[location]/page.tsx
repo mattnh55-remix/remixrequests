@@ -3,6 +3,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import PublicTheme from "../../../components/ui/public/PublicTheme";
 import { SHOUTOUT_PRODUCTS, type ShoutoutProductKey } from "@/lib/shoutoutProducts";
 
 type BalanceRes = { ok: boolean; balance?: number; error?: string };
@@ -70,6 +71,17 @@ type BuyDrawerProps = {
   onBuy: (packageKey: PackageKey) => void;
 };
 
+type VerifyDrawerProps = {
+  open: boolean;
+  location: string;
+  email: string;
+  setEmail: (value: string) => void;
+  onRedeem: (code: string) => void;
+  redeemBusy: boolean;
+  onVerified?: (payload?: { balance?: number; note?: string; welcomeGranted?: boolean }) => void;
+  onClose: () => void;
+};
+
 type SubmitRes = {
   ok: boolean;
   error?: string;
@@ -94,25 +106,34 @@ const BUY_URL_BY_LOCATION: Record<string, string> = {
 const PHOTO_ACCEPT = "image/jpeg,image/png,image/heic,image/heif";
 
 function getProductBadge(product: (typeof SHOUTOUT_PRODUCTS)[number]) {
-  if (product.creditsCost === 18 && !product.hasImage) return "BEST VALUE";
-  if (product.hasImage && product.creditsCost === 18) return "WOW!";
-  if (product.creditsCost === 8 && !product.hasImage) return "POPULAR";
-  if (product.hasImage && product.creditsCost === 6) return "HOT";
+  if (product.creditsCost === 18 && !product.hasImage) return "Best Value";
+  if (product.hasImage && product.creditsCost === 18) return "Big Moment";
+  if (product.creditsCost === 8 && !product.hasImage) return "Popular";
+  if (product.hasImage && product.creditsCost === 6) return "Photo";
   return "";
 }
 
 function getProductMinutes(product: (typeof SHOUTOUT_PRODUCTS)[number]) {
   const title = `${product.title} ${product.description}`.toLowerCase();
-  if (title.includes("60")) return "60 MINS";
-  if (title.includes("20")) return "20 MINS";
-  return "5 MINS";
+  if (title.includes("60")) return "60 mins";
+  if (title.includes("20")) return "20 mins";
+  return "5 mins";
 }
 
-function getProductCardClass(product: (typeof SHOUTOUT_PRODUCTS)[number]) {
-  if (product.hasImage) return "rrProductCard--photo";
-  if (product.creditsCost >= 18) return "rrProductCard--vip";
-  if (product.creditsCost >= 8) return "rrProductCard--roller";
-  return "rrProductCard--basic";
+function formatMoney(cents?: number) {
+  return `$${((Number(cents ?? 0) || 0) / 100).toFixed(2)}`;
+}
+
+function BrandLogo({ logoUrl }: { logoUrl?: string }) {
+  if (logoUrl) {
+    return (
+      <div className="rrBrandLogo">
+        <img src={logoUrl} alt="Location logo" />
+      </div>
+    );
+  }
+
+  return <div className="rrBrandBadge">Remix</div>;
 }
 
 export default function ShoutoutsPage({ params }: { params: { location: string } }) {
@@ -581,8 +602,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     canAfford &&
     !busy &&
     (!selectedProduct.hasImage || (!!photoFile && usageRightsAccepted));
-  const hudBalance = !verified && !identityId ? 5 : balance;
-  const creditsLabel = !verified && !identityId ? "Use Points!" : `Points: ${balance}`;
+  const heroBalance = !verified && !identityId ? 5 : balance;
 
   const buyUrl = useMemo(() => {
     const fromMap = BUY_URL_BY_LOCATION[location];
@@ -604,8 +624,8 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       {
         id: "tier1",
         title: "Quick Boost",
-        subtitle: "Perfect for 1–2 songs",
-        creditsLabel: "10 credits",
+        subtitle: "Perfect for 1–2 shout-outs",
+        creditsLabel: "10 points",
         badge: "Fast",
         cta: "Get Points",
         href: buyUrl ?? undefined,
@@ -615,11 +635,11 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       {
         id: "tier2",
         title: "Party Pack",
-        subtitle: "Best for groups",
-        creditsLabel: "25 credits",
+        subtitle: "The sweet spot for groups",
+        creditsLabel: "25 points",
         highlight: true,
-        badge: "Most Popular",
-        cta: "Get Points",
+        badge: "Featured",
+        cta: "Lock In",
         href: buyUrl ?? undefined,
         priceCents: priceTier2,
         packageKey: "10_25",
@@ -627,10 +647,10 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       {
         id: "tier3",
         title: "Bonus Pack",
-        subtitle: "More songs, more fun",
-        creditsLabel: "35 credits",
+        subtitle: "More messages. More moments.",
+        creditsLabel: "35 points",
         badge: "Hot Deal",
-        cta: "Get Points",
+        cta: "Level Up",
         href: buyUrl ?? undefined,
         priceCents: priceTier3,
         packageKey: "15_35",
@@ -638,10 +658,10 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       {
         id: "tier4",
         title: "All Night",
-        subtitle: "Skate like a legend",
-        creditsLabel: "50 credits",
+        subtitle: "Best value for a busy session",
+        creditsLabel: "50 points",
         badge: "Best Value",
-        cta: "Get Points",
+        cta: "Go Big",
         href: buyUrl ?? undefined,
         priceCents: priceTier4,
         packageKey: "20_50",
@@ -650,64 +670,28 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   }, [rulesData, buyUrl]);
 
   return (
-    <div className="neonRoot">
-      <div className="rrWall" />
-
-      {toastVisible && msg ? (
-        <div
-          style={{
-            position: "fixed",
-            left: "50%",
-            top: showComposer || showVerify || showBuy ? 24 : 16,
-            transform: "translateX(-50%)",
-            zIndex: 9999,
-            width: "min(92vw, 720px)",
-            padding: "14px 16px",
-            borderRadius: 16,
-            border: "1px solid rgba(255,255,255,0.18)",
-            background: msg.includes("✅")
-              ? "linear-gradient(135deg, rgba(0,180,120,0.96), rgba(0,110,90,0.96))"
-              : "linear-gradient(135deg, rgba(180,40,70,0.97), rgba(120,20,40,0.97))",
-            color: "#fff",
-            fontWeight: 900,
-            letterSpacing: 0.2,
-            boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
-            textAlign: "center",
-          }}
-        >
-          {msg}
+    <PublicTheme>
+      <div className="rrHeroGrid">
+        <div className="rrLogoCard">
+          <BrandLogo logoUrl={logoUrl} />
         </div>
-      ) : null}
 
-      <div className="neonWrap" style={{ paddingBottom: 110 }}>
-        <div className="neonHeader neonHeader3">
-          <div className="neonHeaderLeft">
-            {logoUrl ? (
-              <img className="neonLogo" src={logoUrl} alt={`${locationName} logo`} />
-            ) : (
-              <div className="neonLogoFallback">REMIX</div>
-            )}
+        <div className="rrHeroCard">
+          <h1 className="rrTitle">Shout-Outs</h1>
+          <div className="rrTitleSub">
+            Send a message to the screen. Some styles support photos.
+            {sessionCountdown ? <><br />{sessionCountdown}</> : null}
           </div>
+        </div>
 
-          <div className="neonHeaderCenter">
-            <div className="neonTitle">REMIX SHOUT-OUTS</div>
-            <div className="neonSub">
-              {locationName} • Send a message to the screen
-              {sessionCountdown ? ` • ${sessionCountdown}` : ""}
-            </div>
-          </div>
-
-          <div className="neonHeaderRight">
-            <div className={`rrCornerHud ${verified && balance <= 2 ? "rrCornerHudLow" : ""}`}>
-              <div className="rrCornerHudLabel">
-                <span className="rrPointsDesktop">POINTS</span>
-                <span className="rrPointsMobile">PTS</span>
-              </div>
-              <div className="rrCornerHudValue">
-                <div className="rrCornerHudNumber">{hudBalance}</div>
-              </div>
+        <div className="rrPointsCard">
+          <div className="rrPointsStack">
+            <div className="rrHudLabel">Points</div>
+            <div className="rrHudValue">{heroBalance}</div>
+            <div className="rrPointsActions">
               <button
-                className={`neonBtn neonBtnPrimary rrCornerHudBtn ${!verified ? "neonPulse" : ""}`}
+                className="rrBtn"
+                style={{ width: "100%" }}
                 onClick={() => {
                   if (!verified || !identityId) {
                     setShowVerify(true);
@@ -716,20 +700,25 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                   setShowBuy(true);
                 }}
               >
-                {!verified ? "USE" : "GET POINTS"}
+                {verified || identityId ? "Add Points" : "Claim Points"}
               </button>
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="neonPanel rrProductPanel" style={{ padding: 12 }}>
-          <div className="rrProductPanelHeader">
-            <div>
-              <div className="rrProductPanelTitle">Pick Your Shout-Out</div>
-              <div className="rrProductPanelSub">Tap a style to preview and open the details.</div>
+      <div className="rrPanel">
+        <div className="rrPanelHead rrPanelHead--centered">
+          <div>
+            <div className="rrPanelTitle">Pick Your Shout-Out</div>
+            <div className="rrPanelSub">
+              Choose a format, then add your message before it goes to review.
             </div>
           </div>
+          <span className="rrStatusPill rrStatusPill--live">{locationName}</span>
+        </div>
 
+        <div className="rrPanelBody">
           <div className="rrProductGrid">
             {SHOUTOUT_PRODUCTS.map((product) => {
               const selected = product.key === productKey;
@@ -744,142 +733,184 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                   type="button"
                   onClick={() => handleProductClick(product.key)}
                   className={[
-                    "rrProductCard",
-                    getProductCardClass(product),
-                    selected ? "rrProductCard--selected" : "",
-                    pressed ? "rrProductCard--pressed" : "",
-                    !canUseProduct ? "rrProductCard--disabled" : "",
+                    "rrShoutCard",
+                    selected ? "rrShoutCard--selected" : "",
+                    pressed ? "rrShoutCard--pressed" : "",
+                    !canUseProduct ? "rrShoutCard--disabled" : "",
                   ]
                     .filter(Boolean)
                     .join(" ")}
                 >
-                  {badge ? <div className="rrProductCardBadge">{badge}</div> : <div className="rrProductCardBadge rrProductCardBadge--empty" />}
+                  <div className="rrShoutCardTop">
+                    {badge ? (
+                      <span className={`rrShoutCardBadge ${selected ? "rrShoutCardBadge--featured" : ""}`}>
+                        {badge}
+                      </span>
+                    ) : (
+                      <span className="rrShoutCardBadge">Shout-Out</span>
+                    )}
 
-                  {product.hasImage ? (
-                    <div className="rrProductPhotoMark" aria-hidden="true">
-                      <div className="rrProductPhotoMarkDot">+</div>
-                      <div className="rrProductPhotoMarkFrame" />
-                    </div>
-                  ) : null}
-
-                  <div className="rrProductCardBody">
-                    <div className="rrProductCardTitle">{product.title}</div>
-                    <div className="rrProductCardDescription">{product.description}</div>
+                    {product.hasImage ? (
+                      <span className="rrShoutPhotoChip">
+                        <span className="rrShoutPhotoIcon">+</span>
+                        Photo
+                      </span>
+                    ) : null}
                   </div>
 
-                  <div
-                    className={`rrProductCardFooter ${
-                      selected ? "rrProductCardFooter--selected" : ""
-                    }`}
-                  >
-                    <span className="rrProductCardDuration">{minutes}</span>
-                    <span className="rrProductCardPrice">{product.creditsCost}pts</span>
+                  <div className="rrShoutCardCopy">
+                    <div className="rrShoutCardTitle">{product.title}</div>
+                    <div className="rrShoutCardDesc">{product.description}</div>
                   </div>
 
-                  {!canUseProduct ? (
-                    <div className="rrProductUnavailablePill">
-                      {product.comingSoon ? "COMING SOON" : "UNAVAILABLE"}
-                    </div>
-                  ) : null}
+                  <div className="rrShoutCardMeta">
+                    <span className="rrMetaPill">{minutes}</span>
+                    <span className="rrMetaPill">{product.creditsCost}pts</span>
+                    {!canUseProduct ? (
+                      <span className="rrStatusPill rrStatusPill--warn">
+                        {product.comingSoon ? "Coming Soon" : "Unavailable"}
+                      </span>
+                    ) : null}
+                  </div>
                 </button>
               );
             })}
           </div>
         </div>
-
-        <VerifyModal
-          open={showVerify}
-          location={location}
-          email={email}
-          setEmail={setEmail}
-          onRedeem={(code: string) => {
-            void redeem(code);
-          }}
-          redeemBusy={redeemBusy}
-          onVerified={(payload?: { balance?: number; note?: string; welcomeGranted?: boolean }) => {
-            setVerified(true);
-            setShowVerify(false);
-
-            try {
-              const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
-              const lsEmail = (localStorage.getItem("rr_email") || "").trim();
-
-              if (lsIdentity) setIdentityId(lsIdentity);
-              if (lsEmail) setEmail(lsEmail);
-              else if (email.trim()) localStorage.setItem("rr_email", email.trim());
-
-              if (typeof payload?.balance === "number") {
-                setBalance(payload.balance);
-              } else if (lsIdentity) {
-                void refreshBalance(lsIdentity);
-              }
-            } catch {
-              // ignore
-            }
-
-            setMsg(payload?.note || "✅ Verified! Your intro points are ready.");
-          }}
-          onClose={() => setShowVerify(false)}
-        />
-
-        <ShoutoutComposerDrawer
-          open={showComposer}
-          onClose={() => {
-            setShowComposer(false);
-            if (!selectedProduct.hasImage) return;
-            resetComposerMedia();
-          }}
-          fromName={fromName}
-          setFromName={setFromName}
-          messageText={messageText}
-          setMessageText={setMessageText}
-          charsUsed={charsUsed}
-          charsMax={charsMax}
-          selectedProduct={selectedProduct}
-          busy={busy}
-          canSend={canSend}
-          canAfford={canAfford}
-          onSubmit={submit}
-          onGetPoints={() => {
-            setShowComposer(false);
-            openBuyForShoutout();
-          }}
-          photoFile={photoFile}
-          setPhotoFile={setPhotoFile}
-          photoPreviewUrl={photoPreviewUrl}
-          setPhotoPreviewUrl={setPhotoPreviewUrl}
-          photoPreviewUnsupported={photoPreviewUnsupported}
-          setPhotoPreviewUnsupported={setPhotoPreviewUnsupported}
-          usageRightsAccepted={usageRightsAccepted}
-          setUsageRightsAccepted={setUsageRightsAccepted}
-        />
-
-        <BuyCreditsDrawer
-          open={showBuy}
-          onClose={() => {
-            setShowBuy(false);
-            void refreshBalance();
-          }}
-          packs={uiPacks}
-          buyUrl={buyUrl}
-          redeemBusy={redeemBusy}
-          onRedeem={(code: string) => {
-            void redeem(code);
-          }}
-          onBuy={(packageKey: PackageKey) => {
-            void startCheckout(packageKey);
-          }}
-        />
-
-        <CreditHud
-          verified={verified || !!identityId}
-          creditsLabel={creditsLabel}
-          sessionCountdown={sessionCountdown}
-          onVerify={() => setShowVerify(true)}
-          onBuy={() => setShowBuy(true)}
-        />
       </div>
-    </div>
+
+      <div className="rrPanel">
+        <div className="rrPanelHead">
+          <div>
+            <div className="rrPanelTitle">How It Works</div>
+            <div className="rrPanelSub">Fast, simple, and still reviewed before it hits the screen.</div>
+          </div>
+        </div>
+
+        <div className="rrPanelBody">
+          <div className="rrStack">
+            <div className="rrMessage">1. Choose a shout-out style and enter your message.</div>
+            <div className="rrMessage">2. Photo styles require an image and permission confirmation.</div>
+            <div className="rrMessage">3. Points are deducted when the shout-out is submitted for approval.</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rrFooterBar">
+        <div className="rrFooterInner">
+          <button
+            className="rrBtn rrFooterCta"
+            onClick={() => {
+              if (!verified || !identityId) {
+                setShowVerify(true);
+                return;
+              }
+              setShowComposer(true);
+            }}
+          >
+            {!verified || !identityId ? "Claim Points to Send" : `Use ${selectedProduct.creditsCost}pts for ${selectedProduct.title}`}
+          </button>
+
+          <button className="rrBtnGhost" onClick={() => setShowBuy(true)}>
+            Add Points
+          </button>
+        </div>
+      </div>
+
+      {toastVisible && msg ? (
+        <div className="rrToast">
+          <div className="rrToastInner">
+            <div className="rrToastText">{msg}</div>
+            <button className="rrBtnGhost" onClick={() => setMsg("")}>Close</button>
+          </div>
+        </div>
+      ) : null}
+
+      <VerifyDrawer
+        open={showVerify}
+        location={location}
+        email={email}
+        setEmail={setEmail}
+        onRedeem={(code: string) => {
+          void redeem(code);
+        }}
+        redeemBusy={redeemBusy}
+        onVerified={(payload?: { balance?: number; note?: string; welcomeGranted?: boolean }) => {
+          setVerified(true);
+          setShowVerify(false);
+
+          try {
+            const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+            const lsEmail = (localStorage.getItem("rr_email") || "").trim();
+
+            if (lsIdentity) setIdentityId(lsIdentity);
+            if (lsEmail) setEmail(lsEmail);
+            else if (email.trim()) localStorage.setItem("rr_email", email.trim());
+
+            if (typeof payload?.balance === "number") {
+              setBalance(payload.balance);
+            } else if (lsIdentity) {
+              void refreshBalance(lsIdentity);
+            }
+          } catch {
+            // ignore
+          }
+
+          setMsg(payload?.note || "✅ Verified! Your intro points are ready.");
+        }}
+        onClose={() => setShowVerify(false)}
+      />
+
+      <ShoutoutComposerDrawer
+        open={showComposer}
+        onClose={() => {
+          setShowComposer(false);
+          if (!selectedProduct.hasImage) return;
+          resetComposerMedia();
+        }}
+        fromName={fromName}
+        setFromName={setFromName}
+        messageText={messageText}
+        setMessageText={setMessageText}
+        charsUsed={charsUsed}
+        charsMax={charsMax}
+        selectedProduct={selectedProduct}
+        busy={busy}
+        canSend={canSend}
+        canAfford={canAfford}
+        onSubmit={submit}
+        onGetPoints={() => {
+          setShowComposer(false);
+          openBuyForShoutout();
+        }}
+        photoFile={photoFile}
+        setPhotoFile={setPhotoFile}
+        photoPreviewUrl={photoPreviewUrl}
+        setPhotoPreviewUrl={setPhotoPreviewUrl}
+        photoPreviewUnsupported={photoPreviewUnsupported}
+        setPhotoPreviewUnsupported={setPhotoPreviewUnsupported}
+        usageRightsAccepted={usageRightsAccepted}
+        setUsageRightsAccepted={setUsageRightsAccepted}
+      />
+
+      <BuyCreditsDrawer
+        open={showBuy}
+        onClose={() => {
+          setShowBuy(false);
+          void refreshBalance();
+        }}
+        packs={uiPacks}
+        buyUrl={buyUrl}
+        redeemBusy={redeemBusy}
+        onRedeem={(code: string) => {
+          void redeem(code);
+        }}
+        onBuy={(packageKey: PackageKey) => {
+          void startCheckout(packageKey);
+        }}
+      />
+
+    </PublicTheme>
   );
 }
 
@@ -940,213 +971,121 @@ function ShoutoutComposerDrawer({
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 110,
-        background: "rgba(0,0,0,0.8)",
-        display: "flex",
-        alignItems: "flex-end",
-      }}
-    >
-      <div
-        className="neonPanel"
-        style={{
-          width: "100%",
-          padding: 20,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          maxHeight: "90vh",
-          overflowY: "auto",
-        }}
-      >
-        <h3 style={{ marginTop: 0, marginBottom: 14 }}>{selectedProduct.title}</h3>
-
-        <div style={{ display: "grid", gap: 12 }}>
+    <div className="rrOverlay">
+      <div className="rrDrawer">
+        <div className="rrDrawerHead">
           <div>
-            <div style={{ fontWeight: 800, marginBottom: 6 }}>From</div>
-            <input
-              className="neonInput"
-              value={fromName}
-              onChange={(e) => setFromName(e.target.value)}
-              maxLength={24}
-              placeholder="Your name"
-            />
+            <div className="rrDrawerTitle">{selectedProduct.title}</div>
+            <div className="rrDrawerSub">Add your message, then send it in for approval.</div>
           </div>
+          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>Close</button>
+        </div>
 
-          <div>
-            <div style={{ fontWeight: 800, marginBottom: 6 }}>Message</div>
-            <textarea
-              className="neonInput"
-              value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
-              maxLength={charsMax}
-              placeholder="Happy birthday Ava! Have the best skate night ever!"
-              rows={4}
-              style={{ resize: "vertical" }}
-            />
-            <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
-              {charsUsed}/{charsMax} characters
+        <div className="rrDrawerBody" style={{ maxHeight: "78vh", overflowY: "auto" }}>
+          <div className="rrStack">
+            <div className="rrField">
+              <div className="rrFieldLabel">From</div>
+              <input
+                className="rrInput"
+                value={fromName}
+                onChange={(e) => setFromName(e.target.value)}
+                maxLength={24}
+                placeholder="Your name"
+              />
             </div>
-          </div>
 
-          {selectedProduct.hasImage ? (
-            <div>
-              <div style={{ fontWeight: 800, marginBottom: 6 }}>Photo</div>
-              <label
-                style={{
-                  display: "grid",
-                  gap: 10,
-                  padding: 12,
-                  borderRadius: 16,
-                  border: "1px dashed rgba(255,255,255,0.20)",
-                  background: "rgba(255,255,255,0.03)",
-                }}
-              >
-                <input
-                  type="file"
-                  accept={PHOTO_ACCEPT}
-                  onChange={handlePhotoChange}
-                  style={{ width: "100%" }}
-                />
-                <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Upload JPG, PNG, HEIC, or HEIF.
-                </div>
-              </label>
+            <div className="rrField">
+              <div className="rrFieldMetaRow">
+                <div className="rrFieldLabel">Message</div>
+                <div className="rrFieldMetaText">{charsUsed}/{charsMax}</div>
+              </div>
+              <textarea
+                className="rrTextarea"
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                maxLength={charsMax}
+                placeholder="Happy birthday Ava! Have the best skate night ever!"
+                rows={4}
+              />
+            </div>
 
-              {photoPreviewUrl ? (
-                <div
-                  style={{
-                    marginTop: 10,
-                    borderRadius: 16,
-                    overflow: "hidden",
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    background: "rgba(0,0,0,0.45)",
-                    padding: 10,
-                  }}
-                >
-                  <img
-                    src={photoPreviewUrl}
-                    alt="Selected upload preview"
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      maxHeight: 170,
-                      objectFit: "contain",
-                      background: "#050814",
-                      borderRadius: 12,
-                    }}
+            {selectedProduct.hasImage ? (
+              <div className="rrField">
+                <div className="rrFieldLabel">Photo</div>
+
+                <label className="rrUploadBox">
+                  <input type="file" accept={PHOTO_ACCEPT} onChange={handlePhotoChange} />
+                  <div className="rrHelper">Upload JPG, PNG, HEIC, or HEIF.</div>
+                </label>
+
+                {photoPreviewUrl ? (
+                  <div className="rrUploadPreview">
+                    <img src={photoPreviewUrl} alt="Selected upload preview" />
+                    <div className="rrHelper">
+                      Preview only — your full photo will be reviewed before it appears on screen.
+                    </div>
+                  </div>
+                ) : photoPreviewUnsupported && photoFile ? (
+                  <div className="rrMessage">
+                    Selected file: <strong>{photoFile.name}</strong>
+                    <div className="rrHelper" style={{ marginTop: 4 }}>
+                      Preview is not available for this image type on this device, but the upload can still succeed.
+                    </div>
+                  </div>
+                ) : null}
+
+                <label className="rrCheckRow">
+                  <input
+                    type="checkbox"
+                    checked={usageRightsAccepted}
+                    onChange={(e) => setUsageRightsAccepted(e.target.checked)}
                   />
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "var(--muted)",
-                      marginTop: 8,
-                      textAlign: "center",
-                    }}
-                  >
-                    Preview only — your full photo will be reviewed before it appears on screen.
-                  </div>
-                </div>
-              ) : photoPreviewUnsupported && photoFile ? (
-                <div
-                  style={{
-                    marginTop: 10,
-                    padding: "12px 14px",
-                    borderRadius: 16,
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    background: "rgba(255,255,255,0.04)",
-                    fontSize: 13,
-                    color: "rgba(255,255,255,0.92)",
-                  }}
-                >
-                  Selected file: <b>{photoFile.name}</b>
-                  <div style={{ marginTop: 4, color: "var(--muted)" }}>
-                    Preview not available for this image type on this device, but the upload can still succeed.
-                  </div>
-                </div>
-              ) : null}
+                  <span>I have permission to upload and display this photo on the screen.</span>
+                </label>
+              </div>
+            ) : null}
 
-              <label
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  alignItems: "flex-start",
-                  marginTop: 10,
-                  fontSize: 13,
-                  color: "rgba(255,255,255,0.92)",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={usageRightsAccepted}
-                  onChange={(e) => setUsageRightsAccepted(e.target.checked)}
-                  style={{ marginTop: 3 }}
-                />
-                <span>I have permission to upload and display this photo on the screen.</span>
-              </label>
+            <div className="rrShoutComposerSummary">
+              <div className="rrPackTitle">{selectedProduct.title}</div>
+              <div className="rrHelper">{selectedProduct.description}</div>
+              <div className="rrShoutCardMeta">
+                <span className="rrMetaPill">{selectedProduct.creditsCost}pts</span>
+                <span className="rrMetaPill">{getProductMinutes(selectedProduct)}</span>
+              </div>
             </div>
-          ) : null}
 
-          <div
-            style={{
-              marginTop: 2,
-              paddingTop: 14,
-              borderTop: "1px solid rgba(255,255,255,0.10)",
-            }}
-          >
-            <div
-              style={{
-                padding: 12,
-                borderRadius: 16,
-                border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(255,255,255,0.03)",
-              }}
-            >
-              <div style={{ fontWeight: 900 }}>{selectedProduct.title}</div>
-              <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
-                {selectedProduct.description}
-              </div>
-              <div style={{ marginTop: 8, fontSize: 13 }}>
-                Cost: <b>{selectedProduct.creditsCost}</b> points
-              </div>
+            <div className="rrActionStack">
+              {canAfford ? (
+                <button className="rrBtn rrBtn--full" onClick={onSubmit} disabled={!canSend}>
+                  {busy ? "Submitting..." : "Send Shout-Out"}
+                </button>
+              ) : (
+                <button className="rrBtn rrBtn--full" onClick={onGetPoints}>
+                  Get {selectedProduct.creditsCost} Points
+                </button>
+              )}
+
+              <button className="rrBtnGhost rrBtn--full" onClick={onClose}>
+                Close
+              </button>
             </div>
           </div>
-
-          {canAfford ? (
-            <button
-              className="neonBtn neonBtnPrimary"
-              style={{ width: "100%", height: 48 }}
-              onClick={onSubmit}
-              disabled={!canSend}
-            >
-              {busy ? "Submitting..." : "Send to Screen"}
-            </button>
-          ) : (
-            <button
-              className="neonBtn neonBtnPrimary"
-              style={{ width: "100%", height: 48 }}
-              onClick={onGetPoints}
-            >
-              {`GET ${selectedProduct.creditsCost} POINTS`}
-            </button>
-          )}
-
-          <button
-            className="neonBtn"
-            onClick={onClose}
-            style={{ width: "100%", opacity: 0.5 }}
-          >
-            Close
-          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, onVerified, onClose }: any) {
+function VerifyDrawer({
+  open,
+  location,
+  email,
+  setEmail,
+  onRedeem,
+  redeemBusy,
+  onVerified,
+  onClose,
+}: VerifyDrawerProps) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"collect" | "code">("collect");
@@ -1155,7 +1094,6 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
   const [emailOptIn, setEmailOptIn] = useState(true);
   const [smsOptIn, setSmsOptIn] = useState(true);
   const [redeemCode, setRedeemCode] = useState("");
-  const [showRedeem, setShowRedeem] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -1215,113 +1153,73 @@ function VerifyModal({ open, location, email, setEmail, onRedeem, redeemBusy, on
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        display: "grid",
-        placeItems: "center",
-        background: "rgba(0,0,0,0.8)",
-      }}
-    >
-      <div className="neonPanel" style={{ padding: 20, width: 320 }}>
-        <h3 style={{ marginTop: 0, marginBottom: 15 }}>Verify</h3>
-        <div style={{ display: "grid", gap: 10 }}>
-          <input className="neonInput" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-          <input className="neonInput" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
-          <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
-            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
-              <input type="checkbox" checked={emailOptIn} onChange={(e) => setEmailOptIn(e.target.checked)} style={{ marginTop: 3 }} />
-              <span>Yes — email deals & updates <span style={{ color: "var(--muted)" }}>(required for credits)</span></span>
-            </label>
-            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
-              <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} style={{ marginTop: 3 }} />
-              <span>Yes — text deals & updates <span style={{ color: "var(--muted)" }}>(recommended)</span></span>
-            </label>
+    <div className="rrOverlay" style={{ alignItems: "center" }}>
+      <div className="rrDrawer" style={{ borderRadius: 16, width: "min(560px, calc(100vw - 12px))" }}>
+        <div className="rrDrawerHead">
+          <div>
+            <div className="rrDrawerTitle">Claim Intro Points</div>
+            <div className="rrDrawerSub">Verify once to unlock points, redemptions, and faster sending.</div>
           </div>
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
-            <div style={{ fontWeight: 900, marginBottom: 8, fontSize: 14 }}>Have a redemption code?</div>
-            <div style={{ perspective: 1000 }}>
-              <div
-                style={{
-                  position: "relative",
-                  height: 48,
-                  transformStyle: "preserve-3d",
-                  transition: "transform 0.6s cubic-bezier(.2,.8,.2,1)",
-                  transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
-                  willChange: "transform",
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    backfaceVisibility: "hidden",
-                    WebkitBackfaceVisibility: "hidden",
-                    transform: "translateZ(0.1px)",
-                    display: "flex",
-                    alignItems: "center",
-                    WebkitFontSmoothing: "subpixel-antialiased",
-                  }}
+          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>Close</button>
+        </div>
+
+        <div className="rrDrawerBody">
+          <div className="rrStack">
+            <input className="rrInput" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+            <input className="rrInput" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
+
+            <label className="rrCheckRow">
+              <input type="checkbox" checked={emailOptIn} onChange={(e) => setEmailOptIn(e.target.checked)} />
+              <span>Yes — email deals & updates <span className="rrHelper">(required for points)</span></span>
+            </label>
+
+            <label className="rrCheckRow">
+              <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} />
+              <span>Yes — text deals & updates <span className="rrHelper">(recommended)</span></span>
+            </label>
+
+            <div className="rrDivider" />
+
+            <div className="rrStack">
+              <div className="rrFieldLabel">Have a redemption code?</div>
+              <div className="rrInlineForm">
+                <input
+                  className="rrInput"
+                  placeholder="Code"
+                  value={redeemCode}
+                  onChange={(e) => setRedeemCode(e.target.value)}
+                />
+                <button
+                  className="rrBtn"
+                  disabled={redeemBusy}
+                  onClick={() => onRedeem?.(redeemCode)}
                 >
-                  <button className="neonBtn" style={{ width: "100%", height: "100%", opacity: 0.8 }} onClick={() => setShowRedeem(true)}>
-                    Redeem Code
-                  </button>
-                </div>
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    backfaceVisibility: "hidden",
-                    WebkitBackfaceVisibility: "hidden",
-                    transform: "rotateY(180deg) translateZ(0.1px)",
-                    display: "flex",
-                    gap: 8,
-                    alignItems: "center",
-                    WebkitFontSmoothing: "subpixel-antialiased",
-                  }}
-                >
-                  <input className="neonInput" placeholder="Code" value={redeemCode} onChange={(e) => setRedeemCode(e.target.value)} style={{ flex: 1, height: "100%" }} />
-                  <button className="neonBtn neonBtnPrimary" disabled={!!redeemBusy} onClick={() => onRedeem?.(redeemCode)} style={{ height: "100%" }}>
-                    {redeemBusy ? "..." : "Apply"}
-                  </button>
-                </div>
+                  {redeemBusy ? "..." : "Apply"}
+                </button>
               </div>
             </div>
-          </div>
-          <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic", marginTop: 5 }}>
-            We’ll text a one-time code. Standard rates may apply.
-          </div>
-          {step === "code" ? (
-            <input className="neonInput" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter 6-digit Code" style={{ border: "1px solid cyan", marginTop: 5 }} />
-          ) : null}
-          <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-            <button className="neonBtn neonBtnPrimary" onClick={step === "collect" ? sendCode : confirmCode} style={{ width: "100%", height: 48 }}>
-              {busy ? "..." : "Submit"}
-            </button>
-            <button className="neonBtn" onClick={onClose} style={{ width: "100%", opacity: 0.6 }}>
-              Close
-            </button>
-          </div>
-          {msg ? <p style={{ color: "#ff4444", fontSize: 12, textAlign: "center", margin: 0 }}>{msg}</p> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function CreditHud({ verified, creditsLabel, sessionCountdown, onVerify, onBuy }: any) {
-  return (
-    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, width: "100%", boxSizing: "border-box", padding: "10px 12px", background: "rgba(0,0,0,0.9)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 900 }}>{creditsLabel}</div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>{sessionCountdown}</div>
+            <div className="rrHelper">We’ll text a one-time code. Standard messaging rates may apply.</div>
+
+            {step === "code" ? (
+              <input
+                className="rrInput"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Enter 6-digit code"
+              />
+            ) : null}
+
+            <div className="rrActionStack">
+              <button className="rrBtn rrBtn--full" onClick={step === "collect" ? sendCode : confirmCode}>
+                {busy ? "Working..." : step === "collect" ? "Send Code" : "Verify & Claim"}
+              </button>
+              <button className="rrBtnGhost rrBtn--full" onClick={onClose}>Close</button>
+            </div>
+
+            {msg ? <div className="rrMessage">{msg}</div> : null}
+          </div>
         </div>
-        <button className="neonBtn neonBtnPrimary" onClick={!verified ? onVerify : onBuy} style={{ whiteSpace: "nowrap" }}>
-          {!verified ? "CLAIM" : "ADD POINTS"}
-        </button>
       </div>
     </div>
   );
@@ -1329,134 +1227,91 @@ function CreditHud({ verified, creditsLabel, sessionCountdown, onVerify, onBuy }
 
 function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, onBuy }: BuyDrawerProps) {
   const [redeemCode, setRedeemCode] = useState("");
-  const [showRedeem, setShowRedeem] = useState(false);
+
   if (!open) return null;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 120,
-        background: "rgba(0,0,0,0.8)",
-        display: "flex",
-        alignItems: "flex-end",
-      }}
-    >
-      <div
-        className="neonPanel"
-        style={{
-          width: "100%",
-          padding: 20,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>Get Points</h3>
-
-        {packs.map((p) => (
-          <div
-            key={p.id}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              margin: "12px 0",
-              gap: 12,
-            }}
-          >
-            <div style={{ display: "grid" }}>
-              <span style={{ fontWeight: 800 }}>{p.title}</span>
-              <span style={{ fontSize: 12, color: "var(--muted)" }}>{p.creditsLabel}</span>
-            </div>
-            <button
-              className="neonBtn neonBtnPrimary"
-              onClick={() => {
-                if (p.packageKey) {
-                  onBuy(p.packageKey);
-                  return;
-                }
-                if (p.href || buyUrl) {
-                  window.location.href = p.href || buyUrl || "/";
-                }
-              }}
-            >
-              {`BUY • $${((p.priceCents ?? 0) / 100).toFixed(2)}`}
-            </button>
+    <div className="rrOverlay">
+      <div className="rrDrawer rrDrawer--buy">
+        <div className="rrDrawerHead rrDrawerHead--buy">
+          <div>
+            <div className="rrDrawerTitle">Get More Points</div>
+            <div className="rrDrawerSub">More points means more control, more speed, and more attention on screen.</div>
           </div>
-        ))}
+          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>Close</button>
+        </div>
 
-        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
-          <div style={{ perspective: 1000 }}>
-            <div
-              style={{
-                position: "relative",
-                height: 48,
-                transformStyle: "preserve-3d",
-                transition: "transform 0.4s cubic-bezier(.2,.8,.2,1)",
-                transform: showRedeem ? "rotateY(180deg)" : "rotateY(0deg)",
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  backfaceVisibility: "hidden",
-                  transform: "translateZ(1px)",
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                <button
-                  className="neonBtn neonBtnPrimary"
-                  style={{ width: "100%", height: "100%" }}
-                  onClick={() => setShowRedeem(true)}
-                >
-                  Redeem Code
-                </button>
-              </div>
+        <div className="rrDrawerBody">
+          <div className="rrBuyLead">
+            <div className="rrBuyLeadTitle">Make your message stand out</div>
+            <div className="rrBuyLeadText">
+              Load up once, then use points for shout-outs without stopping to check out every time.
+            </div>
+          </div>
 
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  backfaceVisibility: "hidden",
-                  transform: "rotateY(180deg) translateZ(1px)",
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                }}
-              >
-                <input
-                  className="neonInput"
-                  placeholder="Code"
-                  value={redeemCode}
-                  onChange={(e) => setRedeemCode(e.target.value)}
-                  style={{ flex: 1, height: "100%" }}
-                />
+          <div className="rrBuyPackGrid">
+            {packs.map((p) => (
+              <div key={p.id} className={`rrBuyPackCard ${p.highlight ? "rrBuyPackCard--featured" : ""}`}>
+                <div className="rrBuyPackTop">
+                  <div className="rrBuyPackTitleRow">
+                    <div className="rrBuyPackTitle">{p.title}</div>
+                    {p.badge ? (
+                      <span className={`rrStatusPill ${p.highlight ? "rrBuyPackBadge--featured" : ""}`}>{p.badge}</span>
+                    ) : null}
+                  </div>
+                  <div className="rrBuyPackSubtitle">{p.subtitle}</div>
+                </div>
+
+                <div className="rrBuyPackValueRow">
+                  <div>
+                    <div className="rrBuyPackPoints">{p.creditsLabel}</div>
+                    <div className="rrBuyPackUsage">Use them for shout-outs, requests, and boosts.</div>
+                  </div>
+                  <div className="rrBuyPackPrice">{formatMoney(p.priceCents)}</div>
+                </div>
+
                 <button
-                  className="neonBtn neonBtnPrimary"
-                  disabled={redeemBusy}
+                  className={`rrBtn rrBtn--full ${p.highlight ? "rrBtn--featuredPack" : ""}`}
                   onClick={() => {
-                    onRedeem(redeemCode);
-                    setRedeemCode("");
+                    if (p.packageKey) {
+                      onBuy(p.packageKey);
+                      return;
+                    }
+                    if (p.href || buyUrl) {
+                      window.location.href = p.href || buyUrl || "/";
+                    }
                   }}
-                  style={{ whiteSpace: "nowrap", height: "100%" }}
                 >
-                  {redeemBusy ? "..." : "Apply"}
+                  {p.cta || "Get Points"}
                 </button>
               </div>
+            ))}
+          </div>
+
+          <div className="rrDivider" />
+
+          <div className="rrStack">
+            <div className="rrFieldLabel">Redeem a code</div>
+            <div className="rrInlineForm">
+              <input
+                className="rrInput"
+                placeholder="Code"
+                value={redeemCode}
+                onChange={(e) => setRedeemCode(e.target.value)}
+              />
+              <button
+                className="rrBtn"
+                disabled={redeemBusy}
+                onClick={() => {
+                  onRedeem(redeemCode);
+                  setRedeemCode("");
+                }}
+              >
+                {redeemBusy ? "..." : "Apply"}
+              </button>
             </div>
           </div>
         </div>
-
-        <button
-          className="neonBtn"
-          onClick={onClose}
-          style={{ width: "100%", marginTop: 16, opacity: 0.5 }}
-        >
-          Close
-        </button>
       </div>
     </div>
   );
