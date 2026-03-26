@@ -1156,8 +1156,11 @@ export default function PublicGunmetalTheme() {
           font-size: 10px;
         }
       }
+    `}</style>
+  );
+}
 
-    .rrTextarea {
+      .rrTextarea {
         width: 100%;
         min-height: 110px;
         border-radius: var(--rr-radius);
@@ -1207,27 +1210,74 @@ export default function PublicGunmetalTheme() {
       .rrProductGrid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
+        gap: 9px;
       }
 
       .rrShoutCard {
         position: relative;
+        isolation: isolate;
+        overflow: hidden;
         min-height: 148px;
         padding: 10px;
         border-radius: 12px;
-        border: 1px solid rgba(125, 156, 206, 0.12);
-        background: linear-gradient(180deg, rgba(18, 27, 43, 0.96) 0%, rgba(10, 17, 28, 0.98) 100%);
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+        border: 1px solid rgba(123, 157, 213, 0.18);
+        background:
+          radial-gradient(circle at 14% 12%, rgba(92, 142, 220, 0.16), transparent 34%),
+          linear-gradient(180deg, rgba(24, 37, 58, 0.98) 0%, rgba(12, 21, 34, 0.985) 54%, rgba(8, 14, 23, 0.995) 100%);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.06),
+          inset 0 -1px 0 rgba(67, 101, 152, 0.12),
+          0 10px 24px rgba(0, 0, 0, 0.26);
         display: grid;
         grid-template-rows: auto 1fr auto;
         gap: 8px;
         text-align: left;
+        transition:
+          transform 0.16s ease,
+          border-color 0.16s ease,
+          box-shadow 0.16s ease,
+          filter 0.16s ease;
+      }
+
+      .rrShoutCard::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        border-radius: inherit;
+        background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent 26%, transparent 72%, rgba(91, 135, 211, 0.08) 100%);
+        opacity: 0.9;
+        z-index: -1;
+      }
+
+      .rrShoutCard:hover:not(:disabled) {
+        border-color: rgba(111, 159, 232, 0.28);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.07),
+          inset 0 -1px 0 rgba(71, 107, 160, 0.16),
+          0 14px 30px rgba(0, 0, 0, 0.3);
+        filter: brightness(1.03);
       }
 
       .rrShoutCard--selected {
-        border-color: rgba(77, 143, 228, 0.4);
-        box-shadow: 0 0 0 1px rgba(77, 143, 228, 0.16), 0 12px 28px rgba(0, 0, 0, 0.28);
-        background: linear-gradient(180deg, rgba(24, 36, 55, 0.98) 0%, rgba(11, 18, 31, 0.99) 100%);
+        border-color: rgba(97, 154, 236, 0.5);
+        background:
+          radial-gradient(circle at 12% 10%, rgba(118, 169, 246, 0.18), transparent 32%),
+          linear-gradient(135deg, rgba(30, 47, 74, 0.99) 0%, rgba(13, 23, 37, 0.985) 66%, rgba(38, 18, 47, 0.96) 100%);
+        box-shadow:
+          0 0 0 1px rgba(77, 143, 228, 0.16),
+          inset 0 1px 0 rgba(255,255,255,0.08),
+          inset 0 -1px 0 rgba(84, 124, 185, 0.18),
+          0 16px 34px rgba(0, 0, 0, 0.34);
+      }
+
+      .rrShoutCard--selected::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        box-shadow: inset 0 0 0 1px rgba(116, 171, 245, 0.16);
       }
 
       .rrShoutCard--pressed:not(:disabled) {
@@ -1249,45 +1299,54 @@ export default function PublicGunmetalTheme() {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 18px;
-        padding: 0 7px;
+        min-height: 19px;
+        padding: 0 8px;
         border-radius: 999px;
         font-size: 8px;
         font-weight: 1000;
         letter-spacing: 0.1em;
         text-transform: uppercase;
-        color: #dfe8fb;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255,255,255,0.09);
+        color: #e5eeff;
+        background: linear-gradient(180deg, rgba(54, 69, 95, 0.82), rgba(23, 33, 49, 0.94));
+        border: 1px solid rgba(144, 167, 210, 0.18);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.07);
       }
 
       .rrShoutCardBadge--featured {
-        color: #cfe4ff;
-        background: rgba(77, 143, 228, 0.16);
-        border-color: rgba(77, 143, 228, 0.3);
+        color: #d8ebff;
+        background: linear-gradient(180deg, rgba(73, 124, 201, 0.34), rgba(36, 76, 143, 0.2));
+        border-color: rgba(101, 166, 252, 0.38);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.09), 0 0 0 1px rgba(77, 143, 228, 0.08);
       }
 
       .rrShoutPhotoChip {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        font-size: 9px;
+        min-height: 19px;
+        padding: 0 7px;
+        border-radius: 999px;
+        border: 1px solid rgba(101, 166, 252, 0.24);
+        background: linear-gradient(180deg, rgba(37, 59, 90, 0.72), rgba(15, 31, 52, 0.92));
+        font-size: 8px;
         font-weight: 1000;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
-        color: var(--rr-text-soft);
+        color: #d7e9ff;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
       }
 
       .rrShoutPhotoIcon {
         width: 16px;
         height: 16px;
         border-radius: 5px;
-        border: 1px solid rgba(255,255,255,0.12);
-        background: linear-gradient(180deg, rgba(28, 41, 61, 0.94), rgba(12, 20, 32, 0.98));
+        border: 1px solid rgba(131, 181, 245, 0.22);
+        background: linear-gradient(180deg, rgba(69, 112, 176, 0.42), rgba(17, 34, 58, 0.96));
         display: inline-grid;
         place-items: center;
         font-size: 10px;
         line-height: 1;
+        color: #eef6ff;
       }
 
       .rrShoutCardCopy {
@@ -1298,15 +1357,16 @@ export default function PublicGunmetalTheme() {
 
       .rrShoutCardTitle {
         font-size: 14px;
-        line-height: 1.05;
+        line-height: 1.04;
         font-weight: 1000;
-        letter-spacing: -0.03em;
+        letter-spacing: -0.035em;
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.32);
       }
 
       .rrShoutCardDesc {
         font-size: 11px;
         line-height: 1.35;
-        color: var(--rr-text-soft);
+        color: #d4e1f4;
       }
 
       .rrShoutCardMeta {
@@ -1314,6 +1374,20 @@ export default function PublicGunmetalTheme() {
         flex-wrap: wrap;
         gap: 6px;
         align-items: center;
+      }
+
+      .rrShoutCardMeta .rrMetaPill {
+        min-height: 19px;
+        padding: 0 8px;
+        color: #eaf2ff;
+        border-color: rgba(129, 161, 214, 0.16);
+        background: linear-gradient(180deg, rgba(44, 58, 80, 0.84), rgba(18, 29, 46, 0.94));
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+      }
+
+      .rrShoutCardMeta .rrMetaPill:last-child {
+        background: linear-gradient(180deg, rgba(56, 82, 124, 0.88), rgba(24, 49, 90, 0.96));
+        border-color: rgba(92, 150, 230, 0.24);
       }
 
       .rrShoutComposerSummary {
@@ -1389,7 +1463,7 @@ export default function PublicGunmetalTheme() {
 
       @media (max-width: 420px) {
         .rrProductGrid {
-          gap: 7px;
+          gap: 8px;
         }
 
         .rrShoutCard {
@@ -1406,11 +1480,3 @@ export default function PublicGunmetalTheme() {
         }
       }
 
-
-
-
-    `}</style>
-  );
-}
-
- 
