@@ -356,29 +356,37 @@ async function queueAction(
       <span>QUEUE</span>
       <strong>{summary.total}</strong>
     </div>
+
     <div className="statBox">
       <span>SONGS</span>
       <strong>{summary.songs}</strong>
     </div>
+
     <div className="statBox">
       <span>INTERSTITIALS</span>
       <strong>{summary.interstitials}</strong>
     </div>
+
     <div className="statBox">
       <span>UPDATED</span>
       <strong>
-        {state.lastUpdated ? new Date(state.lastUpdated).toLocaleTimeString() : "—"}
+        {state.lastUpdated
+          ? new Date(state.lastUpdated).toLocaleTimeString()
+          : "—"}
       </strong>
     </div>
 
-    <Link href={`/admin/${location}`} className="statBox statBox--link" aria-label="Admin settings">
+    <Link
+      href={`/admin/${location}`}
+      className="statBox statBox--link"
+      aria-label="Admin settings"
+    >
       <span>SETTINGS</span>
       <strong>⚙</strong>
     </Link>
   </div>
-</div>
-        </div>
-      </div>
+</div>        </div>
+      
 
       <div className="rrBooth__grid">
         <section className="boothPanel boothPanel--primary">
