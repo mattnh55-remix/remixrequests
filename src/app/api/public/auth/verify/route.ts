@@ -84,13 +84,17 @@ export async function POST(req: Request) {
       },
     });
 
-    const alreadyActive = isGuestSessionActive(existingIdentity, now);
-    const activeWindow = alreadyActive && existingIdentity?.sessionStartedAt && existingIdentity?.sessionExpiresAt
-      ? {
-          startedAt: existingIdentity.sessionStartedAt,
-          expiresAt: existingIdentity.sessionExpiresAt,
-        }
-      : buildGuestSessionTimes(now);
+const wasActive = isGuestSessionActive(existingIdentity, now);
+
+const isNewSession = !wasActive;
+
+const activeWindow = isNewSession
+  ? buildGuestSessionTimes(now)
+  : {
+      startedAt: existingIdentity!.sessionStartedAt!,
+      expiresAt: existingIdentity!.sessionExpiresAt!,
+    };
+
 
     const identity = await prisma.identity.upsert({
       where: { locationId_emailHash: { locationId: loc.id, emailHash } },
@@ -159,8 +163,7 @@ export async function POST(req: Request) {
     }
 
     const welcomeCredits = Number(process.env.WELCOME_CREDITS || "5");
-    const welcomeGranted = !alreadyActive;
-
+const welcomeGranted = isNewSession;
     if (welcomeGranted) {
       await prisma.creditLedger.create({
         data: {
