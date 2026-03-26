@@ -592,17 +592,19 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     setAdjustReason("Manual correction");
     setTargetBalance("");
     try {
-      const res = await fetch(`/api/admin/user-history/detail`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, emailHash }),
+      const params = new URLSearchParams({
+      locationId: location,
+      emailHash,
       });
+
+    const res = await fetch(`/api/admin/user-history/detail?${params.toString()}`, {
+    cache: "no-store",
+    });
       const data: any = await safeJson(res);
-      if (!data?.ok) {
-        setMsg(data?.error || "Could not load user history.");
-        setUserModalOpen(false);
-        return;
-      }
+if (!data?.ok) {
+  setMsg(data?.error || "Could not load user history.");
+  return;
+}
       const detail = data.user as UserHistoryDetail;
       setSelectedUser(detail);
       setTargetBalance(String(Number(detail?.points || 0)));
@@ -910,8 +912,7 @@ useEffect(() => {
 
   void loadAll();
 
-  const shouldAutoRefresh = tab !== "users";
-  if (!shouldAutoRefresh) return;
+  if (tab === "users") return;
 
   const id = setInterval(() => {
     void loadAll();
