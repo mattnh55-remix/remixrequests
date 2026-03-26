@@ -16,152 +16,156 @@ function jsonFail(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
+function buildArtistQueueMessage(template: string, artist: string) {
+  const safeArtist = String(artist || "This artist").trim() || "This artist";
+  return String(template).includes("$artist")
+    ? String(template).replace(/\$artist/g, safeArtist)
+    : `${safeArtist} is already queued up on the request list!`;
+}
+
 export async function POST(req: Request) {
-  const body = await req.json();
-  const locationSlug = String(body.location || "").trim();
-  const songId = String(body.songId || "").trim();
-  const action = String(body.action || "play_next").trim();
-  const email = String(body.email || "").trim();
-
-  if (!locationSlug || !songId || !email) return jsonFail("Missing fields.", 400);
-  if (action !== "play_next" && action !== "play_now") return jsonFail("Invalid action.", 400);
-
-  const { loc, rules } = await getRulesForLocation(locationSlug);
-  const session = await getOrCreateCurrentSession(loc.id, 4);
-  const emailHash = hashEmail(email);
-
-  const guestState = await getEmailHashSpendableState(loc.id, emailHash);
-  if (!guestState?.identity?.smsVerifiedAt) {
-    return jsonFail("Please verify your phone to continue.", 403);
-  }
-  if (!guestState.sessionActive || !guestState.sessionExpiresAt) {
-    return jsonFail("Your 4-hour session has expired. Verify again to continue.", 403);
-  }
-
-  const sessionExpiresAt = guestState.sessionExpiresAt;
-
-  const secs = await secondsSinceLastAction(loc.id, emailHash);
-  if (secs < rules.minSecondsBetweenActions) {
-    return jsonFail(`Please wait ${Math.ceil(rules.minSecondsBetweenActions - secs)}s.`, 400);
-  }
-
-  const song = await prisma.song.findFirst({
-    where: { id: songId, locationId: loc.id },
-    select: {
-      id: true,
-      title: true,
-      artist: true,
-      artworkUrl: true,
-      locationId: true,
-      explicit: true,
-      artistKey: true,
-    },
-  });
-
-  if (!song) return jsonFail("Song not found.", 404);
-  if (song.explicit) return jsonFail(rules.msgExplicit, 400);
-
-  const isPlayNow = action === "play_now";
-  const cost = isPlayNow ? rules.costPlayNow : rules.costRequest;
-  const alreadyQueuedMsg = rules.msgAlreadyRequested || "That song is already on the list already.";
-  const artistQueueTemplate =
-    rules.msgArtistAlreadyQueued || "Sorry, $artist is already queued up on the request list!";
-  const top10Bucket = getTop10BucketAt(new Date(), rules as any);
-
   try {
-    const result = await prisma.$transaction(
+    const body = await req.json();
+
+    const locationSlug = String(body.location || "").trim();
+    const songId = String(body.songId || "").trim();
+    const action = String(body.action || "play_next").trim();
+    const email = String(body.email || "").trim();
+
+    if (!locationSlug || !songId || !email) return jsonFail("Missing fields.", 400);
+    if (action !== "play_next" && action !== "play_now") return jsonFail("Invalid action.", 400);
+
+    const { loc, rules } = await getRulesForLocation(locationSlug);
+    const session = await getOrCreateCurrentSession(loc.id, 4);
+    const emailHash = hashEmail(email);
+
+    const guestState = await getEmailHashSpendableState(loc.id, emailHash);
+    if (!guestState?.identity?.smsVerifiedAt) {
+      return jsonFail("Please verify your phone to continue.", 403);
+    }
+    if (!guestState.sessionActive || !guestState.sessionExpiresAt) {
+      return jsonFail("Your 4-hour session has expired. Verify again to continue.", 403);
+    }
+
+    const sessionExpiresAt = guestState.sessionExpiresAt;
+    const now = new Date();
+
+    const secs = await secondsSinceLastAction(loc.id, emailHash);
+    if (secs < rules.minSecondsBetweenActions) {
+      return jsonFail(`Please wait ${Math.ceil(rules.minSecondsBetweenActions - secs)}s.`, 400);
+    }
+
+    const song = await prisma.song.findFirst({
+      where: { id: songId, locationId: loc.id },
+      select: {
+        id: true,
+        title: true,
+        artist: true,
+        artworkUrl: true,
+        locationId: true,
+        explicit: true,
+        artistKey: true,
+      },
+    });
+
+    if (!song) return jsonFail("Song not found.", 404);
+    if (song.explicit) return jsonFail(rules.msgExplicit, 400);
+
+    const isPlayNow = action === "play_now";
+    const cost = isPlayNow ? rules.costPlayNow : rules.costRequest;
+    const alreadyQueuedMsg = rules.msgAlreadyRequested || "That song is already on the list already.";
+    const artistQueueTemplate =
+      rules.msgArtistAlreadyQueued || "Sorry, $artist is already queued up on the request list!";
+    const top10Bucket = getTop10BucketAt(now, rules as any);
+
+    const activeQueueLimit = Math.max(0, Number((rules as any).maxActiveRequestsPerUser ?? 0));
+    if (activeQueueLimit > 0) {
+      const activeCount = await prisma.request.count({
+        where: {
+          locationId: loc.id,
+          sessionId: session.id,
+          emailHash,
+          status: "APPROVED",
+        },
+      });
+
+      if (activeCount >= activeQueueLimit) {
+        return jsonFail(
+          (rules as any).msgTooManyActiveRequests || "You already have songs waiting in the queue.",
+          400
+        );
+      }
+    }
+
+    const alreadyQueued = await prisma.request.findFirst({
+      where: {
+        locationId: loc.id,
+        sessionId: session.id,
+        songId: song.id,
+        status: "APPROVED",
+      },
+      select: { id: true },
+    });
+
+    if (alreadyQueued) {
+      return jsonFail(alreadyQueuedMsg, 400);
+    }
+
+    const maxArtistInQueue = Math.max(0, Number(rules.maxArtistInQueue ?? 0));
+    if (maxArtistInQueue > 0) {
+      const artistCount = await prisma.request.count({
+        where: {
+          locationId: loc.id,
+          sessionId: session.id,
+          status: "APPROVED",
+          song: { artistKey: song.artistKey },
+        },
+      });
+
+      if (artistCount >= maxArtistInQueue) {
+        return jsonFail(buildArtistQueueMessage(artistQueueTemplate, song.artist), 400);
+      }
+    }
+
+    if (rules.enforceArtistCooldown) {
+      const artistSince = new Date(now.getTime() - rules.artistCooldownMinutes * 60 * 1000);
+      const recentArtist = await prisma.playHistory.findFirst({
+        where: {
+          locationId: loc.id,
+          artistKey: song.artistKey,
+          playedAt: { gte: artistSince },
+        },
+        select: { id: true },
+      });
+
+      if (recentArtist) {
+        return jsonFail(rules.msgArtistCooldown, 400);
+      }
+    }
+
+    if (rules.enforceSongCooldown) {
+      const songSince = new Date(now.getTime() - rules.songCooldownMinutes * 60 * 1000);
+      const recentSong = await prisma.playHistory.findFirst({
+        where: {
+          locationId: loc.id,
+          songId: song.id,
+          playedAt: { gte: songSince },
+        },
+        select: { id: true },
+      });
+
+      if (recentSong) {
+        return jsonFail(rules.msgSongCooldown, 400);
+      }
+    }
+
+    const balance = await getCreditBalance(loc.id, emailHash, now);
+    if (balance < cost) {
+      return jsonFail(rules.msgNoCredits, 400);
+    }
+
+    const core = await prisma.$transaction(
       async (tx) => {
-        const now = new Date();
-
-        const activeQueueLimit = (rules as any).maxActiveRequestsPerUser ?? 0;
-        if (activeQueueLimit > 0) {
-          const activeCount = await tx.request.count({
-            where: {
-              locationId: loc.id,
-              sessionId: session.id,
-              emailHash,
-              status: "APPROVED",
-            },
-          });
-
-          if (activeCount >= activeQueueLimit) {
-            throw new Error(
-              `ACTIVEQUEUE:${(rules as any).msgTooManyActiveRequests || "You already have songs waiting in the queue."}`
-            );
-          }
-        }
-
-        const alreadyQueued = await tx.request.findFirst({
-          where: {
-            locationId: loc.id,
-            sessionId: session.id,
-            songId: song.id,
-            status: "APPROVED",
-          },
-          select: { id: true },
-        });
-
-        if (alreadyQueued) {
-          throw new Error(`INQUEUE:${alreadyQueuedMsg}`);
-        }
-
-        const maxArtistInQueue = Math.max(0, Number(rules.maxArtistInQueue ?? 0));
-        if (maxArtistInQueue > 0) {
-          const artistCount = await tx.request.count({
-            where: {
-              locationId: loc.id,
-              sessionId: session.id,
-              status: "APPROVED",
-              song: { artistKey: song.artistKey },
-            },
-          });
-
-          if (artistCount >= maxArtistInQueue) {
-            const artistName = String(song.artist || "This artist").trim() || "This artist";
-            const artistQueueMsg = String(artistQueueTemplate).includes("$artist")
-              ? String(artistQueueTemplate).replace(/\$artist/g, artistName)
-              : `${artistName} is already queued up on the request list!`;
-            throw new Error(`ARTISTQUEUE:${artistQueueMsg}`);
-          }
-        }
-
-        if (rules.enforceArtistCooldown) {
-          const artistSince = new Date(now.getTime() - rules.artistCooldownMinutes * 60 * 1000);
-          const recentArtist = await tx.playHistory.findFirst({
-            where: {
-              locationId: loc.id,
-              artistKey: song.artistKey,
-              playedAt: { gte: artistSince },
-            },
-            select: { id: true },
-          });
-
-          if (recentArtist) {
-            throw new Error(`ARTIST:${rules.msgArtistCooldown}`);
-          }
-        }
-
-        if (rules.enforceSongCooldown) {
-          const songSince = new Date(now.getTime() - rules.songCooldownMinutes * 60 * 1000);
-          const recentSong = await tx.playHistory.findFirst({
-            where: {
-              locationId: loc.id,
-              songId: song.id,
-              playedAt: { gte: songSince },
-            },
-            select: { id: true },
-          });
-
-          if (recentSong) {
-            throw new Error(`SONG:${rules.msgSongCooldown}`);
-          }
-        }
-
-        const balance = await getCreditBalance(loc.id, emailHash, now);
-        if (balance < cost) {
-          throw new Error(`NOCREDITS:${rules.msgNoCredits}`);
-        }
-
         await tx.creditLedger.create({
           data: {
             locationId: loc.id,
@@ -184,109 +188,107 @@ export async function POST(req: Request) {
           },
         });
 
-        const queuedItems = await tx.queueItem.findMany({
-          where: {
-            locationId: loc.id,
-            sessionId: session.id,
-            status: { in: ["PLAYING", "LOADED", "QUEUED"] },
-          },
-          orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-          select: {
-            id: true,
-            status: true,
-            position: true,
-            createdAt: true,
-          },
-        });
-
-        const resolvePublicInsertIndex = () => {
-          if (!isPlayNow) return queuedItems.length;
-
-          const loadedIndex = queuedItems.findIndex((item) => item.status === "LOADED");
-          if (loadedIndex >= 0) return loadedIndex + 1;
-
-          const playingIndex = queuedItems.findIndex((item) => item.status === "PLAYING");
-          if (playingIndex >= 0) return playingIndex + 1;
-
-          return 0;
-        };
-
-        const insertIndex = resolvePublicInsertIndex();
-
-        const queueItem = await tx.queueItem.create({
-          data: {
-            requestId: reqRow.id,
-            locationId: loc.id,
-            sessionId: session.id,
-            status: "QUEUED",
-            position: queuedItems.length + 1,
-            sourceType: "REQUEST",
-            introAssigned: false,
-          },
-        });
-
-        const orderedIds = [
-          ...queuedItems.slice(0, insertIndex).map((item) => item.id),
-          queueItem.id,
-          ...queuedItems.slice(insertIndex).map((item) => item.id),
-        ];
-
-        for (let i = 0; i < orderedIds.length; i++) {
-          await tx.queueItem.update({
-            where: { id: orderedIds[i] },
-            data: { position: i + 1 },
-          });
-        }
-
-        await tx.playbackEvent.create({
-          data: {
-            locationId: loc.id,
-            queueItemId: queueItem.id,
-            type: "QUEUED",
-            metadata: {
-              requestId: reqRow.id,
-              songId: song.id,
-              action,
-              type: isPlayNow ? "PLAY_NOW" : "NEXT",
-            },
-          },
-        });
-
-        await bumpTop10Request(tx, {
-          locationId: loc.id,
-          sessionId: session.id,
-          bucket: top10Bucket,
-          song,
-        });
-
         return {
           reqRow,
-          queueItem,
           balanceAfter: Math.max(balance - cost, 0),
-          top10Bucket,
         };
       },
-      { isolationLevel: "Serializable" }
+      {
+        isolationLevel: "Serializable",
+        timeout: 15000,
+        maxWait: 10000,
+      }
     );
+
+    const queuedItems = await prisma.queueItem.findMany({
+      where: {
+        locationId: loc.id,
+        sessionId: session.id,
+        status: { in: ["PLAYING", "LOADED", "QUEUED"] },
+      },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        status: true,
+        position: true,
+        createdAt: true,
+      },
+    });
+
+    const resolvePublicInsertIndex = () => {
+      if (!isPlayNow) return queuedItems.length;
+
+      const loadedIndex = queuedItems.findIndex((item) => item.status === "LOADED");
+      if (loadedIndex >= 0) return loadedIndex + 1;
+
+      const playingIndex = queuedItems.findIndex((item) => item.status === "PLAYING");
+      if (playingIndex >= 0) return playingIndex + 1;
+
+      return 0;
+    };
+
+    const insertIndex = resolvePublicInsertIndex();
+
+    const queueItem = await prisma.queueItem.create({
+      data: {
+        requestId: core.reqRow.id,
+        locationId: loc.id,
+        sessionId: session.id,
+        status: "QUEUED",
+        position: queuedItems.length + 1,
+        sourceType: "REQUEST",
+        introAssigned: false,
+      },
+    });
+
+    const orderedIds = [
+      ...queuedItems.slice(0, insertIndex).map((item) => item.id),
+      queueItem.id,
+      ...queuedItems.slice(insertIndex).map((item) => item.id),
+    ];
+
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        prisma.queueItem.update({
+          where: { id },
+          data: { position: index + 1 },
+        })
+      )
+    );
+
+    await prisma.playbackEvent.create({
+      data: {
+        locationId: loc.id,
+        queueItemId: queueItem.id,
+        type: "QUEUED",
+        metadata: {
+          requestId: core.reqRow.id,
+          songId: song.id,
+          action,
+          type: isPlayNow ? "PLAY_NOW" : "NEXT",
+        },
+      },
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await bumpTop10Request(tx, {
+        locationId: loc.id,
+        sessionId: session.id,
+        bucket: top10Bucket,
+        song,
+      });
+    });
 
     return NextResponse.json({
       ok: true,
-      requestId: result.reqRow.id,
-      queueItemId: result.queueItem.id,
-      balance: result.balanceAfter,
-      top10Bucket: result.top10Bucket,
-      sessionExpiresAt: sessionExpiresAt,
+      requestId: core.reqRow.id,
+      queueItemId: queueItem.id,
+      balance: core.balanceAfter,
+      top10Bucket,
+      sessionExpiresAt,
     });
   } catch (e: any) {
-    const msg = String(e?.message || "");
-    if (msg.startsWith("ACTIVEQUEUE:")) return jsonFail(msg.slice("ACTIVEQUEUE:".length), 400);
-    if (msg.startsWith("LIMIT:")) return jsonFail(msg.slice("LIMIT:".length), 400);
-    if (msg.startsWith("INQUEUE:")) return jsonFail(msg.slice("INQUEUE:".length), 400);
-    if (msg.startsWith("ARTISTQUEUE:")) return jsonFail(msg.slice("ARTISTQUEUE:".length), 400);
-    if (msg.startsWith("ARTIST:")) return jsonFail(msg.slice("ARTIST:".length), 400);
-    if (msg.startsWith("SONG:")) return jsonFail(msg.slice("SONG:".length), 400);
-    if (msg.startsWith("NOCREDITS:")) return jsonFail(msg.slice("NOCREDITS:".length), 400);
-
+    console.error("PUBLIC_REQUEST_ROUTE_ERROR", e);
     return jsonFail("Could not submit request. Please try again.", 400);
   }
 }
