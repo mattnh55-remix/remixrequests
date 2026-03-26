@@ -1156,9 +1156,6 @@ export default function PublicGunmetalTheme() {
           font-size: 10px;
         }
       }
-    `}</style>
-  );
-}
 
       .rrTextarea {
         width: 100%;
@@ -1479,4 +1476,8 @@ export default function PublicGunmetalTheme() {
           font-size: 10.5px;
         }
       }
+
+    `}</style>
+  );
+}
 
