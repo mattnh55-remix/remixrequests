@@ -1485,6 +1485,368 @@ export default function PublicGunmetalTheme() {
       }
 
 
+
+
+      .rrPanelHead--centered {
+        background:
+          linear-gradient(180deg, rgba(20, 31, 49, 0.74), rgba(12, 20, 32, 0.08)),
+          linear-gradient(90deg, rgba(65, 118, 198, 0.08), rgba(15, 24, 38, 0) 36%, rgba(77, 143, 228, 0.1));
+      }
+
+      .rrPanelHead--centered::after {
+        content: "";
+        position: absolute;
+        left: 14px;
+        right: 14px;
+        bottom: 0;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(77, 143, 228, 0), rgba(77, 143, 228, 0.42), rgba(77, 143, 228, 0));
+        pointer-events: none;
+      }
+
+      .rrPanelHead--centered .rrPanelSub {
+        color: #d8e6fb;
+      }
+
+      .rrProductGrid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .rrShoutCard {
+        position: relative;
+        min-height: 148px;
+        padding: 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(120, 156, 214, 0.18);
+        background:
+          radial-gradient(circle at 18% 14%, rgba(72, 124, 210, 0.16), transparent 34%),
+          linear-gradient(145deg, rgba(23, 37, 60, 0.96) 0%, rgba(12, 22, 39, 0.985) 58%, rgba(8, 15, 27, 0.99) 100%);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.05),
+          inset 0 0 0 1px rgba(83, 134, 210, 0.06),
+          0 14px 30px rgba(0, 0, 0, 0.26);
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 8px;
+        text-align: left;
+        color: var(--rr-text);
+        overflow: hidden;
+      }
+
+      .rrShoutCard::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0) 30%),
+          radial-gradient(circle at 88% 92%, rgba(84, 44, 128, 0.24), transparent 30%);
+        pointer-events: none;
+      }
+
+      .rrShoutCard > * {
+        position: relative;
+        z-index: 1;
+      }
+
+      .rrShoutCard:hover {
+        border-color: rgba(109, 160, 238, 0.28);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.06),
+          inset 0 0 0 1px rgba(83, 134, 210, 0.08),
+          0 16px 34px rgba(0, 0, 0, 0.30);
+      }
+
+      .rrShoutCard--selected {
+        border-color: rgba(94, 155, 241, 0.5);
+        background:
+          radial-gradient(circle at 18% 14%, rgba(76, 133, 226, 0.22), transparent 34%),
+          radial-gradient(circle at 88% 90%, rgba(100, 49, 146, 0.28), transparent 30%),
+          linear-gradient(145deg, rgba(28, 44, 70, 0.985) 0%, rgba(13, 24, 43, 0.992) 58%, rgba(8, 15, 28, 0.995) 100%);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.08),
+          inset 0 0 0 1px rgba(108, 165, 246, 0.10),
+          0 0 0 1px rgba(77, 143, 228, 0.18),
+          0 18px 36px rgba(0, 0, 0, 0.34);
+      }
+
+      .rrShoutCard--pressed:not(:disabled) {
+        transform: translateY(1px);
+      }
+
+      .rrShoutCard--disabled {
+        opacity: 0.56;
+      }
+
+      .rrShoutCardTop {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .rrShoutCardBadge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 18px;
+        padding: 0 7px;
+        border-radius: 999px;
+        font-size: 8px;
+        font-weight: 1000;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #e8f1ff;
+        background: linear-gradient(180deg, rgba(66, 82, 108, 0.66), rgba(31, 43, 61, 0.92));
+        border: 1px solid rgba(152, 179, 224, 0.16);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+      }
+
+      .rrShoutCardBadge--featured {
+        color: #f3f8ff;
+        background: linear-gradient(180deg, rgba(87, 143, 226, 0.32), rgba(34, 67, 121, 0.70));
+        border-color: rgba(118, 181, 255, 0.32);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.10),
+          0 0 0 1px rgba(77, 143, 228, 0.12);
+      }
+
+      .rrShoutCardBadge--popular {
+        background: linear-gradient(180deg, rgba(84, 126, 209, 0.34), rgba(36, 62, 112, 0.74));
+        border-color: rgba(110, 172, 255, 0.28);
+      }
+
+      .rrShoutCardBadge--value {
+        color: #fff3d2;
+        background: linear-gradient(180deg, rgba(123, 103, 56, 0.42), rgba(64, 51, 17, 0.84));
+        border-color: rgba(255, 221, 146, 0.24);
+      }
+
+      .rrShoutCardBadge--photo {
+        background: linear-gradient(180deg, rgba(74, 120, 201, 0.34), rgba(29, 57, 110, 0.80));
+        border-color: rgba(116, 177, 255, 0.28);
+      }
+
+      .rrShoutPhotoChip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 6px;
+        min-height: 22px;
+        border-radius: 999px;
+        font-size: 9px;
+        font-weight: 1000;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: #e7f1ff;
+        background: linear-gradient(180deg, rgba(37, 58, 92, 0.84), rgba(15, 28, 50, 0.96));
+        border: 1px solid rgba(100, 161, 239, 0.18);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+      }
+
+      .rrShoutPhotoIcon {
+        width: 16px;
+        height: 16px;
+        border-radius: 5px;
+        border: 1px solid rgba(126, 185, 255, 0.22);
+        background: linear-gradient(180deg, rgba(82, 137, 216, 0.34), rgba(26, 54, 105, 0.90));
+        display: inline-grid;
+        place-items: center;
+        font-size: 10px;
+        line-height: 1;
+        color: #fff;
+      }
+
+      .rrShoutCardCopy {
+        display: grid;
+        gap: 6px;
+        align-content: start;
+      }
+
+      .rrShoutCardTitle {
+        font-size: 14px;
+        line-height: 1.05;
+        font-weight: 1000;
+        letter-spacing: -0.03em;
+        color: #f3f6fb;
+        text-shadow: 0 1px 0 rgba(0,0,0,0.22);
+      }
+
+      .rrShoutCardDesc {
+        font-size: 11px;
+        line-height: 1.35;
+        color: #dbe6f8;
+      }
+
+      .rrShoutCardMeta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .rrShoutCardMeta .rrMetaPill {
+        min-height: 20px;
+        padding: 0 8px;
+        font-size: 8px;
+        letter-spacing: 0.1em;
+        color: #f1f6ff;
+        border-color: rgba(135, 176, 233, 0.20);
+        background: linear-gradient(180deg, rgba(66, 92, 132, 0.72), rgba(34, 53, 84, 0.96));
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+      }
+
+      .rrShoutCardMeta .rrMetaPill--points {
+        background: linear-gradient(180deg, rgba(94, 142, 223, 0.92), rgba(54, 94, 168, 0.98));
+        border-color: rgba(140, 196, 255, 0.34);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.10),
+          0 3px 10px rgba(20, 56, 110, 0.24);
+      }
+
+      .rrShoutComposerSummary {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(125, 156, 206, 0.12);
+        background:
+          radial-gradient(circle at 18% 14%, rgba(72, 124, 210, 0.14), transparent 34%),
+          linear-gradient(180deg, rgba(18, 27, 43, 0.92), rgba(10, 16, 27, 0.96));
+      }
+
+      .rrTextarea {
+        width: 100%;
+        min-height: 110px;
+        border-radius: var(--rr-radius);
+        border: 1px solid rgba(117, 145, 197, 0.22);
+        background: linear-gradient(180deg, rgba(16, 24, 37, 0.96), rgba(9, 15, 24, 0.98));
+        color: var(--rr-text);
+        padding: 11px 12px;
+        outline: none;
+        resize: vertical;
+        font: inherit;
+      }
+
+      .rrTextarea::placeholder {
+        color: var(--rr-text-dim);
+      }
+
+      .rrTextarea:focus {
+        border-color: rgba(105, 182, 255, 0.34);
+        box-shadow: 0 0 0 1px rgba(61, 130, 215, 0.12);
+      }
+
+      .rrField {
+        display: grid;
+        gap: 6px;
+      }
+
+      .rrFieldLabel {
+        font-size: 11px;
+        font-weight: 1000;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #dfe8fb;
+      }
+
+      .rrFieldMetaRow {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .rrFieldMetaText {
+        font-size: 11px;
+        color: var(--rr-text-dim);
+      }
+
+      .rrUploadBox {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px dashed rgba(125, 156, 206, 0.26);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .rrUploadPreview {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(0,0,0,0.24);
+      }
+
+      .rrUploadPreview img {
+        display: block;
+        width: 100%;
+        max-height: 180px;
+        object-fit: contain;
+        border-radius: 8px;
+        background: #050814;
+      }
+
+      .rrCheckRow {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        font-size: 12px;
+        line-height: 1.35;
+        color: #dfe8fb;
+      }
+
+      .rrCheckRow input {
+        margin-top: 2px;
+      }
+
+      .rrActionStack {
+        display: grid;
+        gap: 8px;
+      }
+
+      .rrFooterBar {
+        background:
+          radial-gradient(circle at 20% 120%, rgba(85, 142, 224, 0.16), transparent 34%),
+          linear-gradient(180deg, rgba(5, 8, 13, 0.02), rgba(5, 8, 13, 0.94));
+      }
+
+      .rrFooterInner::before {
+        content: "";
+        position: absolute;
+        inset: -4px 0 auto 0;
+        height: 8px;
+        background: linear-gradient(90deg, rgba(77, 143, 228, 0), rgba(77, 143, 228, 0.2), rgba(77, 143, 228, 0));
+        filter: blur(8px);
+        pointer-events: none;
+      }
+
+      .rrFooterInner {
+        position: relative;
+      }
+
+      @media (max-width: 420px) {
+        .rrProductGrid {
+          gap: 7px;
+        }
+
+        .rrShoutCard {
+          min-height: 140px;
+          padding: 9px;
+        }
+
+        .rrShoutCardTitle {
+          font-size: 13px;
+        }
+
+        .rrShoutCardDesc {
+          font-size: 10.5px;
+        }
+      }
+
     `}</style>
   );
 }

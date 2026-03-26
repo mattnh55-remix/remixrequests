@@ -726,6 +726,14 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
               const canUseProduct = product.enabled || product.hasImage;
               const badge = getProductBadge(product);
               const minutes = getProductMinutes(product);
+              const badgeClass =
+                badge === "Best Value"
+                  ? "rrShoutCardBadge--value"
+                  : badge === "Popular"
+                    ? "rrShoutCardBadge--popular"
+                    : badge === "Photo" || product.hasImage
+                      ? "rrShoutCardBadge--photo"
+                      : "";
 
               return (
                 <button
@@ -743,7 +751,15 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
                 >
                   <div className="rrShoutCardTop">
                     {badge ? (
-                      <span className={`rrShoutCardBadge ${selected ? "rrShoutCardBadge--featured" : ""}`}>
+                      <span
+                        className={[
+                          "rrShoutCardBadge",
+                          badgeClass,
+                          selected ? "rrShoutCardBadge--featured" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                      >
                         {badge}
                       </span>
                     ) : (
@@ -765,7 +781,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
 
                   <div className="rrShoutCardMeta">
                     <span className="rrMetaPill">{minutes}</span>
-                    <span className="rrMetaPill">{product.creditsCost}pts</span>
+                    <span className="rrMetaPill rrMetaPill--points">{product.creditsCost}pts</span>
                     {!canUseProduct ? (
                       <span className="rrStatusPill rrStatusPill--warn">
                         {product.comingSoon ? "Coming Soon" : "Unavailable"}
