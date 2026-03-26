@@ -2,7 +2,18 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type TextareaHTMLAttributes,
+} from "react";
+import AdminGunmetalTheme from "../../../components/ui/admin/AdminGunmetalTheme";
 import { SHOUTOUT_PRODUCTS } from "@/lib/shoutoutProducts";
 
 type TabKey = "dashboard" | "requestSettings" | "top10" | "users" | "shoutoutSettings";
@@ -285,24 +296,11 @@ function requestMetaLine(q: RequestItem) {
   return parts.join(" • ");
 }
 
-function QueueRow({ q, index, onPlayed, onReject }: { q: RequestItem; index?: number; onPlayed: () => void; onReject: () => void }) {
-  const typeLabel = requestTypeLabel(q);
-  return (
-    <div style={queueRowStyle}>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ fontWeight: 1000, fontSize: 18 }}>{index ? `${index}. ` : ""}{q.title}</div>
-          <div style={requestPillStyle}>{typeLabel}</div>
-        </div>
-        <div style={{ marginTop: 6, opacity: 0.86, lineHeight: 1.35 }}>{q.artist} • {requestMetaLine(q)}</div>
-        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.72 }}>Score {q.score} • 👍 {Number(q.upvotes || 0)} • 👎 {Number(q.downvotes || 0)}</div>
-      </div>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignSelf: "center" }}>
-        <ActionButton onClick={onPlayed}>Played</ActionButton>
-        <ActionButton alt onClick={onReject}>Reject</ActionButton>
-      </div>
-    </div>
-  );
+function queueBuckets(items: RequestItem[]) {
+  return {
+    boosts: items.filter((q) => q.boosted || q.type === "PLAY_NOW"),
+    next: items.filter((q) => !(q.boosted || q.type === "PLAY_NOW")),
+  };
 }
 
 export default function AdminPage({ params }: { params: { location: string } }) {
@@ -356,6 +354,7 @@ export default function AdminPage({ params }: { params: { location: string } }) 
 
   const liveProducts = useMemo(() => Object.values(SHOUTOUT_PRODUCTS), []);
   const logoUrl = rules?.logoUrl || cachedLogoUrl || "/logo.png";
+  const requestBuckets = useMemo(() => queueBuckets(pendingRequests), [pendingRequests]);
 
   function cacheLogo(url?: string | null) {
     if (!url) return;
@@ -387,7 +386,7 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     prevMessageIdsRef.current = messageIds;
   }
 
-  async function login(e?: React.FormEvent) {
+  async function login(e?: FormEvent) {
     if (e) e.preventDefault();
     setMsg("");
     const res = await fetch("/api/admin/login", {
@@ -734,255 +733,461 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     maybePlayChime(nextRequests, nextPendingMessages);
   }
 
-  useEffect(() => { loadCachedLogo(); setAuthed(false); setRules(null); }, [location]);
-  useEffect(() => { setPlaceholders(loadSavedPlaceholders(location)); }, [location]);
+  useEffect(() => {
+    loadCachedLogo();
+    setAuthed(false);
+    setRules(null);
+  }, [location]);
+
+  useEffect(() => {
+    setPlaceholders(loadSavedPlaceholders(location));
+  }, [location]);
 
   useEffect(() => {
     if (!authed) return;
     void loadAll();
-    const id = setInterval(() => { void loadAll(); }, tab === "requestSettings" || tab === "top10" || tab === "shoutoutSettings" ? 6000 : 3000);
+    const id = setInterval(() => {
+      void loadAll();
+    }, tab === "requestSettings" || tab === "top10" || tab === "shoutoutSettings" ? 6000 : 3000);
     return () => clearInterval(id);
   }, [authed, location, top10BucketView, tab, rulesDirty]);
 
   if (!authed) {
     return (
-      <div style={loginWrap}>
-        <div style={loginCard}>
-          {logoUrl ? <img src={logoUrl} alt="Admin Logo" style={{ width: 320, height: 320, objectFit: "contain", borderRadius: 22, marginBottom: 18 }} /> : null}
-          <h1 style={{ margin: 0 }}>Admin • {location}</h1>
-          <p style={{ opacity: 0.8, marginTop: 6 }}>Enter PIN to manage requests, users, and shout-outs.</p>
-          <form onSubmit={login} style={{ display: "grid", gap: 10, marginTop: 12 }}>
-            <input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" style={inputStyle} inputMode="numeric" autoFocus />
-            <button type="submit" style={primaryBtn}>Login</button>
-          </form>
-          {msg ? <div style={noteStyle}>{msg}</div> : null}
+      <div className="admPage">
+        <AdminGunmetalTheme />
+        <div className="admLoginWrap">
+          <div className="admLoginCard">
+            {logoUrl ? <img src={logoUrl} alt="Admin Logo" className="admLoginLogo" /> : null}
+            <div className="admKicker">Booth control</div>
+            <div className="admTitle">Admin • {location}</div>
+            <div className="admSubTitle">Enter PIN to manage requests, users, points, Top 10, and shout-outs.</div>
+            <form onSubmit={login} className="admLoginBody">
+              <input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="admInput" inputMode="numeric" autoFocus />
+              <button type="submit" className="admBtn admBtn--full">Login</button>
+            </form>
+            {msg ? <div className="admNotice">{msg}</div> : null}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 20, maxWidth: 1440, margin: "0 auto", color: "#fff" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 20, alignItems: "center", marginBottom: 20, border: "1px solid #1f2340", borderRadius: 24, padding: 16, background: "rgba(10,10,22,0.88)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <img src={logoUrl} alt="Admin Logo" style={{ height: 56, width: 56, objectFit: "contain", borderRadius: 12 }} />
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 1000, fontStyle: "italic" }}>ADMIN DASHBOARD</div>
-            <div style={{ opacity: 0.75 }}>{location}</div>
+    <div className="admPage">
+      <AdminGunmetalTheme />
+      <div className="admShell">
+        <div className="admHero">
+          <div className="admHeroMain">
+            <div className="admHeroLogoWrap">
+              <img src={logoUrl} alt="Admin Logo" className="admHeroLogo" />
+            </div>
+            <div>
+              <div className="admKicker">RemixRequests control center</div>
+              <div className="admTitle">Admin Dashboard</div>
+              <div className="admSubTitle">{location} • Live request control, points settings, Top 10, and shout-out moderation.</div>
+            </div>
+          </div>
+          <div className="admHeroStats">
+            <span className="admPill admPill--live">Requests {pendingRequests.length}</span>
+            <span className="admPill">Messages {pendingMessages.length}</span>
+            <span className="admPill admPill--warn">Rules {rulesDirty ? "Unsaved" : "Saved"}</span>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+
+        <div className="admTabs">
           <TabButton active={tab === "dashboard"} onClick={() => setTab("dashboard")}>Dashboard</TabButton>
           <TabButton active={tab === "requestSettings"} onClick={() => setTab("requestSettings")}>Request Settings</TabButton>
           <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>Top 10</TabButton>
-          <TabButton active={tab === "users"} onClick={() => setTab("users")}>Users and Points</TabButton>
+          <TabButton active={tab === "users"} onClick={() => setTab("users")}>Users & Points</TabButton>
           <TabButton active={tab === "shoutoutSettings"} onClick={() => setTab("shoutoutSettings")}>Shoutout Settings</TabButton>
         </div>
-      </div>
 
-      {msg ? <div style={noteStyle}>{msg}</div> : null}
+        {msg ? <div className="admNotice">{msg}</div> : null}
 
-      {tab === "dashboard" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-          <Panel title="PENDING REQUESTS">
-            <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>{(() => { const c = rulesCostsFromRules(rules); return <>Request <b>{c.costRequest}</b> • BOOST <b>{c.costPlayNow}</b> • Upvote <b>{c.costUpvote}</b> • Downvote <b>{c.costDownvote}</b></>; })()}</div>
-            <div style={{ fontWeight: 1000, fontStyle: "italic", marginBottom: 8 }}>BOOSTED (<i>PAID</i> TO PLAY NEXT)</div>
-            {pendingRequests.filter((q) => q.boosted || q.type === "PLAY_NOW").length === 0 ? <div style={{ opacity: 0.7, marginBottom: 14 }}>No Play Now requests.</div> : pendingRequests.filter((q) => q.boosted || q.type === "PLAY_NOW").map((q) => <QueueRow key={q.id} q={q} onPlayed={() => markPlayed(q.id)} onReject={() => rejectRequest(q.id)} />)}
-            <div style={{ height: 10 }} />
-            <div style={{ fontWeight: 1000, fontStyle: "italic", marginBottom: 8 }}>UP NEXT</div>
-            {pendingRequests.filter((q) => !(q.boosted || q.type === "PLAY_NOW")).length === 0 ? <div style={{ opacity: 0.7 }}>No queued requests yet.</div> : pendingRequests.filter((q) => !(q.boosted || q.type === "PLAY_NOW")).map((q, i) => <QueueRow key={q.id} q={q} index={i + 1} onPlayed={() => markPlayed(q.id)} onReject={() => rejectRequest(q.id)} />)}
-          </Panel>
-
-          <Panel title="PENDING MESSAGES">
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              <Pill>Pending {pendingMessages.length}</Pill>
-              <Pill>Approved {approvedMessages.length}</Pill>
-              <Pill>Active {activeMessages.length}</Pill>
-              <Pill>Rejected {rejectedMessages.length}</Pill>
-              <Pill>Blocked {blockedCount}</Pill>
+        {tab === "dashboard" && (
+          <>
+            <div className="admMetricGrid" style={{ marginBottom: 10 }}>
+              <MetricCard label="Pending requests" value={pendingRequests.length} sub={`${requestBuckets.boosts.length} boosted / ${requestBuckets.next.length} standard`} />
+              <MetricCard label="Pending shout-outs" value={pendingMessages.length} sub={`${approvedMessages.length} approved • ${activeMessages.length} active`} />
+              <MetricCard label="Blocked" value={blockedCount} sub={`${rejectedMessages.length} rejected`} />
+              <MetricCard label="Users" value={users.length} sub={`${codes.length} redemption codes loaded`} />
             </div>
-            {pendingMessages.length === 0 ? <div style={{ opacity: 0.75 }}>No pending messages right now.</div> : pendingMessages.map((m) => {
-              const product = safeProduct(m.tier);
-              return (
-                <div key={m.id} style={rowCardStyle}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                      <div style={{ fontWeight: 900 }}>{m.fromName}</div>
-                      <Pill>{product?.title || m.tier}</Pill>
-                      {m.creditsCost != null ? <Pill>{m.creditsCost} pts</Pill> : null}
+
+            <div className="admGridMain">
+              <Panel title="Request queue" sub="Live DJ queue with quick action controls.">
+                <div className="admFieldStack">
+                  <div className="admSubPanel">
+                    <div className="admSubTitleRow">
+                      <div className="admSubTitleText">Cost snapshot</div>
+                      <span className="admPill">Live rules</span>
                     </div>
-                    <div style={{ marginTop: 8, opacity: 0.94 }}>{m.messageText}</div>
-                    {m.autoTextModerationReason ? <div style={{ marginTop: 8, fontSize: 12, opacity: 0.72 }}>Auto filter: {m.autoTextModerationReason}</div> : null}
-                    {m.signedImageUrl ? <div style={{ marginTop: 10, width: 140, height: 140, borderRadius: 16, overflow: "hidden", border: "1px solid #2a3157", background: "#0b0d18" }}><img src={m.signedImageUrl} alt="Shout-out preview" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></div> : null}
-                    <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>Submitted {m.createdAt ? new Date(m.createdAt).toLocaleString() : "just now"}{m.displayDurationSec ? <> • Window {Math.round(m.displayDurationSec / 60)} min</> : null}{product?.hasPhoto ? <> • Photo tier</> : null}{m.imageModerationStatus ? <> • Image: {m.imageModerationStatus}</> : null}</div>
+                    <div className="admSubCopy">
+                      {(() => {
+                        const c = rulesCostsFromRules(rules);
+                        return <>Request <b>{c.costRequest}</b> • Boost <b>{c.costPlayNow}</b> • Upvote <b>{c.costUpvote}</b> • Downvote <b>{c.costDownvote}</b></>;
+                      })()}
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignSelf: "flex-start" }}>
-                    <ActionButton onClick={() => approveMessage(m.id)}>Approve</ActionButton>
-                    <ActionButton onClick={() => editMessage(m.id, m.fromName, m.messageText)}>Edit</ActionButton>
-                    <ActionButton alt onClick={() => rejectMessage(m.id)}>Reject</ActionButton>
+
+                  <div className="admBoostBand">Boosted queue • paid to play next</div>
+                  {requestBuckets.boosts.length === 0 ? <EmptyState>No Play Now requests.</EmptyState> : requestBuckets.boosts.map((q) => <QueueRow key={q.id} q={q} onPlayed={() => markPlayed(q.id)} onReject={() => rejectRequest(q.id)} />)}
+
+                  <div className="admSubTitleText" style={{ marginTop: 2 }}>Up next</div>
+                  {requestBuckets.next.length === 0 ? <EmptyState>No queued requests yet.</EmptyState> : requestBuckets.next.map((q, i) => <QueueRow key={q.id} q={q} index={i + 1} onPlayed={() => markPlayed(q.id)} onReject={() => rejectRequest(q.id)} />)}
+                </div>
+              </Panel>
+
+              <Panel title="Pending shout-outs" sub="Moderation queue for screen-ready messages and uploads.">
+                <div className="admActionRow" style={{ marginBottom: 2 }}>
+                  <Pill>Pending {pendingMessages.length}</Pill>
+                  <Pill>Approved {approvedMessages.length}</Pill>
+                  <Pill>Active {activeMessages.length}</Pill>
+                  <Pill>Rejected {rejectedMessages.length}</Pill>
+                  <Pill variant="danger">Blocked {blockedCount}</Pill>
+                </div>
+                <div className="admRows">
+                  {pendingMessages.length === 0 ? <EmptyState>No pending messages right now.</EmptyState> : pendingMessages.map((m) => {
+                    const product = safeProduct(m.tier);
+                    return (
+                      <div key={m.id} className="admRowCard">
+                        <div className="admTextWrap" style={{ flex: 1 }}>
+                          <div className="admActionRow" style={{ gap: 6 }}>
+                            <strong>{m.fromName}</strong>
+                            <Pill>{product?.title || m.tier}</Pill>
+                            {m.creditsCost != null ? <Pill>{m.creditsCost} pts</Pill> : null}
+                          </div>
+                          <div style={{ marginTop: 8 }}>{m.messageText}</div>
+                          {m.autoTextModerationReason ? <div className="admFieldHelp" style={{ marginTop: 8 }}>Auto filter: {m.autoTextModerationReason}</div> : null}
+                          {m.signedImageUrl ? (
+                            <div style={{ marginTop: 10, width: 140, height: 140, borderRadius: 16, overflow: "hidden", border: "1px solid rgba(125,156,206,0.12)", background: "#0b0d18" }}>
+                              <img src={m.signedImageUrl} alt="Shout-out preview" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                            </div>
+                          ) : null}
+                          <div className="admFieldHelp" style={{ marginTop: 8 }}>
+                            Submitted {m.createdAt ? new Date(m.createdAt).toLocaleString() : "just now"}
+                            {m.displayDurationSec ? <> • Window {Math.round(m.displayDurationSec / 60)} min</> : null}
+                            {product?.hasPhoto ? <> • Photo tier</> : null}
+                            {m.imageModerationStatus ? <> • Image: {m.imageModerationStatus}</> : null}
+                          </div>
+                        </div>
+                        <div className="admActionRow" style={{ alignSelf: "flex-start" }}>
+                          <ActionButton onClick={() => approveMessage(m.id)}>Approve</ActionButton>
+                          <ActionButton alt onClick={() => editMessage(m.id, m.fromName, m.messageText)}>Edit</ActionButton>
+                          <ActionButton danger onClick={() => rejectMessage(m.id)}>Reject</ActionButton>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Panel>
+            </div>
+          </>
+        )}
+
+        {tab === "requestSettings" && rules && (
+          <div className="admGridSettings">
+            <Panel title="Request settings" sub="Pricing, queue behavior, limits, and front-end response copy.">
+              <div className="admSectionStack">
+                <SubPanel title="Pricing" sub="Public point costs and buy pack pricing.">
+                  <div className="admGrid2">
+                    <Field label="Request cost" value={rules.costRequest} onChange={(v) => patchRules({ costRequest: v })} />
+                    <Field label="Play Now / Boost cost" value={rules.costPlayNow} onChange={(v) => patchRules({ costPlayNow: v })} />
+                    <Field label="Upvote cost" value={rules.costUpvote} onChange={(v) => patchRules({ costUpvote: v })} />
+                    <Field label="Downvote cost" value={rules.costDownvote} onChange={(v) => patchRules({ costDownvote: v })} />
+                    <MoneyField label="10 credit package ($)" centsValue={rules.packTier1PriceCents || 500} onChangeCents={(c) => patchRules({ packTier1PriceCents: c })} />
+                    <MoneyField label="25 credit package ($)" centsValue={rules.packTier2PriceCents || 1000} onChangeCents={(c) => patchRules({ packTier2PriceCents: c })} />
+                    <MoneyField label="35 credit package ($)" centsValue={rules.packTier3PriceCents || 1500} onChangeCents={(c) => patchRules({ packTier3PriceCents: c })} />
+                    <MoneyField label="50 credit package ($)" centsValue={rules.packTier4PriceCents || 2000} onChangeCents={(c) => patchRules({ packTier4PriceCents: c })} />
                   </div>
-                </div>
-              );
-            })}
-          </Panel>
-        </div>
-      )}
+                </SubPanel>
 
-      {tab === "requestSettings" && rules && (
-        <div style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 24 }}>
-          <Panel title="REQUEST SETTINGS">
-            <div style={{ display: "grid", gap: 12 }}>
-              <Field label="Request cost" value={rules.costRequest} onChange={(v) => patchRules({ costRequest: v })} />
-              <Field label="Upvote cost" value={rules.costUpvote} onChange={(v) => patchRules({ costUpvote: v })} />
-              <Field label="Downvote cost" value={rules.costDownvote} onChange={(v) => patchRules({ costDownvote: v })} />
-              <Field label="Play Now / Boost cost" value={rules.costPlayNow} onChange={(v) => patchRules({ costPlayNow: v })} />
-              <MoneyField label="10 credit package ($)" centsValue={rules.packTier1PriceCents || 500} onChangeCents={(c) => patchRules({ packTier1PriceCents: c })} />
-              <MoneyField label="25 credit package ($)" centsValue={rules.packTier2PriceCents || 1000} onChangeCents={(c) => patchRules({ packTier2PriceCents: c })} />
-              <MoneyField label="35 credit package ($)" centsValue={rules.packTier3PriceCents || 1500} onChangeCents={(c) => patchRules({ packTier3PriceCents: c })} />
-              <MoneyField label="50 credit package ($)" centsValue={rules.packTier4PriceCents || 2000} onChangeCents={(c) => patchRules({ packTier4PriceCents: c })} />
-              <Toggle label="Enable voting" checked={Boolean(rules.enableVoting)} onChange={(v) => patchRules({ enableVoting: v })} />
-              <Toggle label="Enforce artist cooldown" checked={Boolean(rules.enforceArtistCooldown)} onChange={(v) => patchRules({ enforceArtistCooldown: v })} />
-              <Toggle label="Enforce song cooldown" checked={Boolean(rules.enforceSongCooldown)} onChange={(v) => patchRules({ enforceSongCooldown: v })} />
-              <Field label="Artist cooldown minutes" value={rules.artistCooldownMinutes || 0} onChange={(v) => patchRules({ artistCooldownMinutes: v })} />
-              <Field label="Song cooldown minutes" value={rules.songCooldownMinutes || 0} onChange={(v) => patchRules({ songCooldownMinutes: v })} />
-              <Field label="Max requests per session" value={rules.maxRequestsPerSession || 0} onChange={(v) => patchRules({ maxRequestsPerSession: v })} />
-              <Field label="Max votes per session" value={rules.maxVotesPerSession || 0} onChange={(v) => patchRules({ maxVotesPerSession: v })} />
-              <Field label="Min seconds between actions" value={rules.minSecondsBetweenActions || 0} onChange={(v) => patchRules({ minSecondsBetweenActions: v })} />
-              <Field label="Max same artist in queue" value={rules.maxArtistInQueue || 0} onChange={(v) => patchRules({ maxArtistInQueue: v })} />
-              <Field label="Max active requests per user" value={rules.maxActiveRequestsPerUser || 0} onChange={(v) => patchRules({ maxActiveRequestsPerUser: v })} />
-              <TextField label="Logo URL" value={rules.logoUrl || ""} onChange={(v) => patchRules({ logoUrl: v })} />
-              <TextField label="Explicit message" value={rules.msgExplicit || ""} onChange={(v) => patchRules({ msgExplicit: v })} />
-              <TextField label="Too many active requests message" value={rules.msgTooManyActiveRequests || ""} onChange={(v) => patchRules({ msgTooManyActiveRequests: v })} />
-              <TextField label="Already requested message" value={rules.msgAlreadyRequested || ""} onChange={(v) => patchRules({ msgAlreadyRequested: v })} />
-              <TextField label="Artist cooldown message" value={rules.msgArtistCooldown || ""} onChange={(v) => patchRules({ msgArtistCooldown: v })} />
-              <TextField label="Song cooldown message" value={rules.msgSongCooldown || ""} onChange={(v) => patchRules({ msgSongCooldown: v })} />
-              <TextField label="Artist already queued message" value={rules.msgArtistAlreadyQueued || ""} onChange={(v) => patchRules({ msgArtistAlreadyQueued: v })} />
-              <TextField label="Not enough credits message" value={rules.msgNoCredits || ""} onChange={(v) => patchRules({ msgNoCredits: v })} />
-              {requestSettingsMsg ? <div style={{ ...noteStyle, marginBottom: 8 }}>{requestSettingsMsg}</div> : null}
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}><ActionButton onClick={() => void saveRules()}>{savingRules ? "Saving..." : "Save request settings"}</ActionButton></div>
-            </div>
-          </Panel>
-          <Panel title="IMPORT SONGS">
-            <div style={{ opacity: 0.8, marginBottom: 12 }}>Upload CSV or XLSX song list files here.</div>
-            <input type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" onChange={(e) => { const f = e.target.files?.[0]; if (f) importSongs(f); }} style={{ color: "#fff" }} />
-          </Panel>
-        </div>
-      )}
+                <SubPanel title="Voting and enforcement" sub="Switches and cooldown behavior.">
+                  <div className="admGrid2">
+                    <Toggle label="Enable voting" checked={Boolean(rules.enableVoting)} onChange={(v) => patchRules({ enableVoting: v })} />
+                    <Toggle label="Enforce artist cooldown" checked={Boolean(rules.enforceArtistCooldown)} onChange={(v) => patchRules({ enforceArtistCooldown: v })} />
+                    <Toggle label="Enforce song cooldown" checked={Boolean(rules.enforceSongCooldown)} onChange={(v) => patchRules({ enforceSongCooldown: v })} />
+                    <div />
+                    <Field label="Artist cooldown minutes" value={rules.artistCooldownMinutes || 0} onChange={(v) => patchRules({ artistCooldownMinutes: v })} />
+                    <Field label="Song cooldown minutes" value={rules.songCooldownMinutes || 0} onChange={(v) => patchRules({ songCooldownMinutes: v })} />
+                  </div>
+                </SubPanel>
 
-      {tab === "top10" && rules && (
-        <div style={{ display: "grid", gridTemplateColumns: "0.92fr 1.08fr", gap: 24 }}>
-          <Panel title="TOP 10 SETTINGS">
-            <div style={{ display: "grid", gap: 12 }}>
-              <Toggle label="Enable Top 10 board" checked={Boolean(rules.top10Enabled ?? true)} onChange={(v) => patchRules({ top10Enabled: v })} />
-              <TextField label="Top 10 timezone" value={rules.top10Timezone || "America/New_York"} onChange={(v) => patchRules({ top10Timezone: v })} />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Adult cutoff hour (24h)" value={rules.top10AdultCutoffHour ?? 21} onChange={(v) => patchRules({ top10AdultCutoffHour: v })} />
-                <Field label="Adult cutoff minute" value={rules.top10AdultCutoffMinute ?? 0} onChange={(v) => patchRules({ top10AdultCutoffMinute: v })} />
-              </div>
-              <div style={{ padding: 14, borderRadius: 16, border: "1px solid #252b4b", background: "rgba(17,18,34,0.9)", lineHeight: 1.5 }}>
-                <div style={{ fontWeight: 900, marginBottom: 6 }}>ACTIVE BOARD RULES</div>
-                <div style={{ opacity: 0.82 }}>Timezone: <b>{effectiveTop10Timezone}</b></div>
-                <div style={{ opacity: 0.82 }}>Adult cutoff: <b>{String(effectiveTop10CutoffHour).padStart(2, "0")}:{String(effectiveTop10CutoffMinute).padStart(2, "0")}</b></div>
-                <div style={{ opacity: 0.82 }}>Preview mode: <b>{top10BucketView === "AUTO" ? "Auto bucket" : top10BucketView}</b></div>
-                <div style={{ opacity: 0.82 }}>Active board from API: <b>{top10ActiveBucket || "—"}</b></div>
-              </div>
-              {top10SettingsMsg ? <div style={{ ...noteStyle, marginBottom: 8 }}>{top10SettingsMsg}</div> : null}
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <ActionButton onClick={saveTop10Settings}>Save Top 10 settings</ActionButton>
-                <ActionButton alt onClick={() => loadTop10()}>Refresh board preview</ActionButton>
-              </div>
-            </div>
-          </Panel>
-          <Panel title="LIVE TOP 10 BOARD">
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              <ActionButton alt onClick={() => setTop10BucketView("AUTO")}>Auto</ActionButton>
-              <ActionButton alt onClick={() => setTop10BucketView("GENERAL")}>General</ActionButton>
-              <ActionButton alt onClick={() => setTop10BucketView("ADULT")}>Adult</ActionButton>
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              <Pill>{top10BoardTitle}</Pill>
-              {top10ActiveBucket ? <Pill>Bucket {top10ActiveBucket}</Pill> : null}
-              {top10SessionId ? <Pill>Session {top10SessionId.slice(-6)}</Pill> : null}
-              {top10UpdatedAt ? <Pill>Updated {new Date(top10UpdatedAt).toLocaleTimeString()}</Pill> : null}
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-              <ActionButton alt onClick={() => resetTop10("current")}>{top10Busy ? "Working..." : "Reset current bucket"}</ActionButton>
-              <ActionButton alt onClick={() => resetTop10("bucket", "GENERAL")}>Reset General</ActionButton>
-              <ActionButton alt onClick={() => resetTop10("bucket", "ADULT")}>Reset Adult</ActionButton>
-              <ActionButton alt onClick={() => resetTop10("all")}>Reset All</ActionButton>
-            </div>
-            {top10.length === 0 ? <div style={{ opacity: 0.75 }}>No Top 10 data returned yet.</div> : <div style={{ display: "grid", gap: 10 }}>{top10.map((item, i) => <div key={item.id} style={rowStyle}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontWeight: 900 }}>{i + 1}. {item.title}</div><div style={{ opacity: 0.75, marginTop: 2 }}>{item.artist}</div><div style={{ opacity: 0.62, fontSize: 12, marginTop: 6 }}>Requests {Number(item.requestCount || 0)} • 👍 {Number(item.upvotes || 0)} • 👎 {Number(item.downvotes || 0)}{item.lastActivityAt ? ` • Active ${new Date(item.lastActivityAt).toLocaleString()}` : ""}</div></div><div style={{ textAlign: "right", minWidth: 90 }}><div style={{ fontSize: 12, opacity: 0.62 }}>Score</div><div style={{ fontWeight: 1000, fontSize: 22 }}>{item.score}</div></div></div>)}</div>}
-          </Panel>
-        </div>
-      )}
+                <SubPanel title="Limits" sub="Per-session and queue safety rails.">
+                  <div className="admGrid2">
+                    <Field label="Max requests per session" value={rules.maxRequestsPerSession || 0} onChange={(v) => patchRules({ maxRequestsPerSession: v })} />
+                    <Field label="Max votes per session" value={rules.maxVotesPerSession || 0} onChange={(v) => patchRules({ maxVotesPerSession: v })} />
+                    <Field label="Min seconds between actions" value={rules.minSecondsBetweenActions || 0} onChange={(v) => patchRules({ minSecondsBetweenActions: v })} />
+                    <Field label="Max same artist in queue" value={rules.maxArtistInQueue || 0} onChange={(v) => patchRules({ maxArtistInQueue: v })} />
+                    <Field label="Max active requests per user" value={rules.maxActiveRequestsPerUser || 0} onChange={(v) => patchRules({ maxActiveRequestsPerUser: v })} />
+                  </div>
+                </SubPanel>
 
-      {tab === "users" && (
-        <div style={{ display: "grid", gridTemplateColumns: "0.95fr 1.05fr", gap: 24 }}>
-          <Panel title="ACTIVE SESSION USERS">
-            {users.length === 0 ? <div style={{ opacity: 0.75 }}>No active users returned yet.</div> : users.map((u) => <div key={u.emailHash} style={rowStyle}><div><div style={{ fontWeight: 900 }}>{u.label}</div><div style={{ opacity: 0.75 }}>{u.verified ? "Verified" : "Unverified"}{u.redemptionCode ? <> • Code {u.redemptionCode}</> : null}</div></div><div style={{ opacity: 0.8 }}>Points {u.points}</div></div>)}
-          </Panel>
-          <Panel title="REDEMPTION CODES">
-            <div style={{ display: "grid", gap: 18 }}>
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.82, marginBottom: 10, fontWeight: 900 }}>CREATE SINGLE CODE</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 0.6fr 0.6fr", gap: 10 }}>
-                  <Input value={codeNew} onChange={(e) => setCodeNew(e.target.value.toUpperCase())} placeholder="CODE2026" />
-                  <input type="number" value={String(codePoints)} onChange={(e) => setCodePoints(Number(e.target.value))} style={inputStyle} />
-                  <input type="number" value={String(codeMaxUses)} onChange={(e) => setCodeMaxUses(Number(e.target.value))} style={inputStyle} />
-                </div>
-                <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}><ActionButton onClick={createCode}>Create code</ActionButton></div>
-              </div>
-              <div style={{ height: 1, background: "linear-gradient(90deg, rgba(255,255,255,0.04), rgba(120,130,255,0.38), rgba(255,255,255,0.04))" }} />
-              <div>
-                <div style={{ fontSize: 13, opacity: 0.82, marginBottom: 10, fontWeight: 900 }}>IMPORT CODES FROM XLSX OR CSV</div>
-                <div style={{ padding: 14, borderRadius: 16, border: "1px solid #252b4b", background: "rgba(17,18,34,0.9)" }}>
-                  <div style={{ opacity: 0.78, marginBottom: 10, lineHeight: 1.45 }}>Expected columns: <b>code</b>, <b>points</b>, optional <b>maxUses</b>, optional <b>redeemWindowMinutes</b>, optional <b>expiresAt</b>.</div>
-                  <input type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" onChange={(e) => { const f = e.target.files?.[0]; if (f) { void importCodes(f); e.currentTarget.value = ""; } }} style={{ color: "#fff" }} disabled={importingCodes} />
-                  <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>{importingCodes ? "Importing..." : "Upload a spreadsheet to bulk-create redemption codes."}</div>
-                </div>
-              </div>
-            </div>
-            {codesMsg ? <div style={{ marginTop: 12, opacity: 0.85 }}>{codesMsg}</div> : null}
-            <div style={{ marginTop: 16 }}>{codes.length === 0 ? <div style={{ opacity: 0.75 }}>No codes yet.</div> : codes.map((c) => <div key={c.id} style={rowStyle}><div><div style={{ fontWeight: 900 }}>{c.code}</div><div style={{ opacity: 0.75 }}>{c.points} pts • {c.uses}/{c.maxUses} uses</div></div><div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}><ActionButton onClick={() => showCodeUses(c)}>Show uses</ActionButton>{!c.disabledAt ? <ActionButton alt onClick={() => disableCode(c.id)}>Disable</ActionButton> : <Pill>Disabled</Pill>}<ActionButton alt onClick={() => deleteCode(c.id, c.code)}>Delete</ActionButton></div></div>)}</div>
-          </Panel>
-        </div>
-      )}
+                <SubPanel title="Branding and messages" sub="Logo and front-end message copy.">
+                  <div className="admFieldStack">
+                    <TextField label="Logo URL" value={rules.logoUrl || ""} onChange={(v) => patchRules({ logoUrl: v })} />
+                    <TextField label="Explicit message" value={rules.msgExplicit || ""} onChange={(v) => patchRules({ msgExplicit: v })} />
+                    <TextField label="Too many active requests message" value={rules.msgTooManyActiveRequests || ""} onChange={(v) => patchRules({ msgTooManyActiveRequests: v })} />
+                    <TextField label="Already requested message" value={rules.msgAlreadyRequested || ""} onChange={(v) => patchRules({ msgAlreadyRequested: v })} />
+                    <TextField label="Artist cooldown message" value={rules.msgArtistCooldown || ""} onChange={(v) => patchRules({ msgArtistCooldown: v })} />
+                    <TextField label="Song cooldown message" value={rules.msgSongCooldown || ""} onChange={(v) => patchRules({ msgSongCooldown: v })} />
+                    <TextField label="Artist already queued message" value={rules.msgArtistAlreadyQueued || ""} onChange={(v) => patchRules({ msgArtistAlreadyQueued: v })} />
+                    <TextField label="Not enough credits message" value={rules.msgNoCredits || ""} onChange={(v) => patchRules({ msgNoCredits: v })} />
+                  </div>
+                </SubPanel>
 
-      <CodeUsesModal open={codeUsesOpen} code={selectedCode} items={selectedCodeUses} loading={codeUsesLoading} onClose={() => { setCodeUsesOpen(false); setSelectedCode(null); setSelectedCodeUses([]); }} />
-
-      {tab === "shoutoutSettings" && rules && (
-        <div style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 24 }}>
-          <div style={{ display: "grid", gap: 24 }}>
-            <Panel title="TV ROTATION">
-              <div style={{ display: "grid", gap: 12 }}>
-                <Field label="Slide rotation seconds" value={effectiveShoutoutSlideSeconds} onChange={(v) => patchRules({ shoutoutSlideSeconds: Math.max(1, Math.min(120, Number(v) || 10)) })} />
-                <div style={{ padding: 14, borderRadius: 16, border: "1px solid #252b4b", background: "rgba(17,18,34,0.9)", lineHeight: 1.5 }}>
-                  <div style={{ fontWeight: 900, marginBottom: 6 }}>TV BEHAVIOR</div>
-                  <div style={{ opacity: 0.82 }}>Rotation speed: <b>{effectiveShoutoutSlideSeconds} seconds</b></div>
-                  <div style={{ opacity: 0.82 }}>Weighted rotation: <b>Enabled in live shout-out feed</b></div>
-                  <div style={{ opacity: 0.82 }}>Placeholder storage: <b>Browser-local for now</b></div>
+                <div className="admStickySave">
+                  {requestSettingsMsg ? <div className="admNotice">{requestSettingsMsg}</div> : null}
+                  <div className="admActionRow"><ActionButton onClick={() => void saveRules()}>{savingRules ? "Saving..." : "Save request settings"}</ActionButton></div>
                 </div>
-                <div style={{ padding: 14, borderRadius: 16, border: "1px solid #252b4b", background: "rgba(17,18,34,0.9)", lineHeight: 1.5 }}>
-                  <div style={{ fontWeight: 900, marginBottom: 6 }}>ADMIN RECOMMENDATION</div>
-                  <div style={{ opacity: 0.82 }}>10 seconds is a strong default. It gives families enough time to read birthday and congratulations messages without making the TV feel slow.</div>
-                </div>
-                {shoutoutSettingsMsg ? <div style={{ ...noteStyle, marginBottom: 8 }}>{shoutoutSettingsMsg}</div> : null}
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><ActionButton onClick={saveShoutoutSettings}>{savingRules ? "Saving..." : "Save shout-out settings"}</ActionButton></div>
               </div>
             </Panel>
-            <Panel title="SHOUT OUT PRODUCTS">
-              <div style={{ display: "grid", gap: 12 }}>{liveProducts.map((p: any) => <div key={p.id} style={cardStyle}><div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><div><div style={{ fontWeight: 1000 }}>{p.title}</div><div style={{ opacity: 0.78, marginTop: 4 }}>{p.description}</div></div><div style={{ textAlign: "right", minWidth: 110 }}><div style={{ fontWeight: 1000 }}>{p.creditsCost} credits</div><div style={{ opacity: 0.7 }}>{Math.round(p.durationSec / 60)} min</div></div></div><div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}><Pill>{p.hasPhoto ? "Photo tier" : "Text only"}</Pill><Pill>Weight {p.weight}</Pill><Pill>{p.enabled ? "Live" : "Coming soon"}</Pill></div></div>)}</div>
+
+            <Panel title="Import songs" sub="Upload CSV or XLSX song list files.">
+              <div className="admFieldStack">
+                <div className="admSubPanel">
+                  <div className="admSubCopy">Upload CSV or XLSX song list files here.</div>
+                </div>
+                <input type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" onChange={(e) => { const f = e.target.files?.[0]; if (f) importSongs(f); }} className="admFileInput" />
+              </div>
             </Panel>
           </div>
-          <Panel title="TV PLACEHOLDER SHOUT OUTS">
-            <div style={{ marginBottom: 12, padding: 12, borderRadius: 14, border: "1px solid #2b3157", background: "rgba(23,24,48,0.68)", fontSize: 13, lineHeight: 1.45, opacity: 0.9 }}>These fallback placeholders are stored in browser storage for now. They will appear on the TV page only in the same browser profile until shared backend persistence is added.</div>
-            <div style={{ display: "grid", gap: 14 }}>{placeholders.map((p, idx) => <div key={p.id} style={cardStyle}><div style={{ fontWeight: 900, marginBottom: 10 }}>Placeholder {idx + 1}</div><Label>Header</Label><Input value={p.title} onChange={(e) => updatePlaceholder(idx, { title: e.target.value })} /><Label style={{ marginTop: 10 }}>Product Label</Label><Input value={p.productTitle || ""} onChange={(e) => updatePlaceholder(idx, { productTitle: e.target.value })} /><Label style={{ marginTop: 10 }}>Message</Label><Textarea rows={4} value={p.body} onChange={(e) => updatePlaceholder(idx, { body: e.target.value })} /><Label style={{ marginTop: 10 }}>From</Label><Input value={p.fromName} onChange={(e) => updatePlaceholder(idx, { fromName: e.target.value })} /><Label style={{ marginTop: 10 }}>Accent</Label><select value={p.accent || "cyan"} onChange={(e) => updatePlaceholder(idx, { accent: e.target.value as "gold" | "cyan" | "pink" })} style={inputStyle}><option value="cyan">Cyan</option><option value="gold">Gold</option><option value="pink">Pink</option></select></div>)}</div>
-            <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}><ActionButton onClick={savePlaceholderSettings}>Save placeholder settings</ActionButton><ActionButton alt onClick={resetPlaceholderSettings}>Reset defaults</ActionButton></div>
-          </Panel>
-        </div>
-      )}
+        )}
 
-      {editOpen ? <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 9999 }}><div style={{ width: "min(680px, 96vw)", borderRadius: 24, border: "1px solid #2b3157", background: "rgba(9,10,20,0.98)", boxShadow: "0 20px 80px rgba(0,0,0,0.45)", padding: 18 }}><div style={{ fontSize: 22, fontWeight: 1000, fontStyle: "italic", marginBottom: 14 }}>EDIT SHOUT-OUT</div><Label>From</Label><Input value={editFromName} onChange={(e) => setEditFromName(e.target.value)} maxLength={40} /><Label style={{ marginTop: 12 }}>Message</Label><Textarea rows={5} value={editMessageText} onChange={(e) => setEditMessageText(e.target.value)} maxLength={160} /><div style={{ marginTop: 8, fontSize: 12, opacity: 0.72 }}>{editMessageText.length} characters</div><div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}><ActionButton onClick={saveEditedMessage}>{editBusy ? "Saving..." : "Save changes"}</ActionButton><ActionButton alt onClick={() => { if (editBusy) return; setEditOpen(false); setEditMessageId(""); setEditFromName(""); setEditMessageText(""); }}>Cancel</ActionButton></div></div></div> : null}
+        {tab === "top10" && rules && (
+          <div className="admGridSettings" style={{ gridTemplateColumns: "0.92fr 1.08fr" } as CSSProperties}>
+            <Panel title="Top 10 settings" sub="Time rules and board behavior.">
+              <div className="admSectionStack">
+                <SubPanel title="Board controls" sub="Choose schedule and saved behavior.">
+                  <div className="admFieldStack">
+                    <Toggle label="Enable Top 10 board" checked={Boolean(rules.top10Enabled ?? true)} onChange={(v) => patchRules({ top10Enabled: v })} />
+                    <TextField label="Top 10 timezone" value={rules.top10Timezone || "America/New_York"} onChange={(v) => patchRules({ top10Timezone: v })} />
+                    <div className="admGrid2">
+                      <Field label="Adult cutoff hour (24h)" value={rules.top10AdultCutoffHour ?? 21} onChange={(v) => patchRules({ top10AdultCutoffHour: v })} />
+                      <Field label="Adult cutoff minute" value={rules.top10AdultCutoffMinute ?? 0} onChange={(v) => patchRules({ top10AdultCutoffMinute: v })} />
+                    </div>
+                  </div>
+                </SubPanel>
+
+                <SubPanel title="Active board rules" sub="Current effective values and preview mode.">
+                  <div className="admFieldStack">
+                    <div className="admSubCopy">Timezone: <b>{effectiveTop10Timezone}</b></div>
+                    <div className="admSubCopy">Adult cutoff: <b>{String(effectiveTop10CutoffHour).padStart(2, "0")}:{String(effectiveTop10CutoffMinute).padStart(2, "0")}</b></div>
+                    <div className="admSubCopy">Preview mode: <b>{top10BucketView === "AUTO" ? "Auto bucket" : top10BucketView}</b></div>
+                    <div className="admSubCopy">Active board from API: <b>{top10ActiveBucket || "—"}</b></div>
+                  </div>
+                </SubPanel>
+
+                {top10SettingsMsg ? <div className="admNotice">{top10SettingsMsg}</div> : null}
+                <div className="admActionRow">
+                  <ActionButton onClick={saveTop10Settings}>Save Top 10 settings</ActionButton>
+                  <ActionButton alt onClick={() => loadTop10()}>Refresh board preview</ActionButton>
+                </div>
+              </div>
+            </Panel>
+
+            <Panel title="Live Top 10 board" sub="Preview the current or forced board bucket.">
+              <div className="admSectionStack">
+                <div className="admActionRow">
+                  <ActionButton alt onClick={() => setTop10BucketView("AUTO")}>Auto</ActionButton>
+                  <ActionButton alt onClick={() => setTop10BucketView("GENERAL")}>General</ActionButton>
+                  <ActionButton alt onClick={() => setTop10BucketView("ADULT")}>Adult</ActionButton>
+                </div>
+                <div className="admActionRow">
+                  <Pill>{top10BoardTitle}</Pill>
+                  {top10ActiveBucket ? <Pill>Bucket {top10ActiveBucket}</Pill> : null}
+                  {top10SessionId ? <Pill>Session {top10SessionId.slice(-6)}</Pill> : null}
+                  {top10UpdatedAt ? <Pill>Updated {new Date(top10UpdatedAt).toLocaleTimeString()}</Pill> : null}
+                </div>
+                <div className="admActionRow">
+                  <ActionButton alt onClick={() => resetTop10("current")}>{top10Busy ? "Working..." : "Reset current bucket"}</ActionButton>
+                  <ActionButton alt onClick={() => resetTop10("bucket", "GENERAL")}>Reset General</ActionButton>
+                  <ActionButton alt onClick={() => resetTop10("bucket", "ADULT")}>Reset Adult</ActionButton>
+                  <ActionButton danger onClick={() => resetTop10("all")}>Reset All</ActionButton>
+                </div>
+                {top10.length === 0 ? <EmptyState>No Top 10 data returned yet.</EmptyState> : (
+                  <div className="admRows">
+                    {top10.map((item, i) => (
+                      <div key={item.id} className="admRow">
+                        <div className="admTextWrap" style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 900 }}>{i + 1}. {item.title}</div>
+                          <div className="admMuted" style={{ marginTop: 2 }}>{item.artist}</div>
+                          <div className="admFieldHelp" style={{ marginTop: 6 }}>Requests {Number(item.requestCount || 0)} • 👍 {Number(item.upvotes || 0)} • 👎 {Number(item.downvotes || 0)}{item.lastActivityAt ? ` • Active ${new Date(item.lastActivityAt).toLocaleString()}` : ""}</div>
+                        </div>
+                        <div style={{ textAlign: "right", minWidth: 90 }}>
+                          <div className="admFieldHelp">Score</div>
+                          <div style={{ fontWeight: 1000, fontSize: 22 }}>{item.score}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Panel>
+          </div>
+        )}
+
+        {tab === "users" && (
+          <div className="admGridSettings" style={{ gridTemplateColumns: "0.95fr 1.05fr" } as CSSProperties}>
+            <Panel title="Active session users" sub="Current verified status, points, and code attribution.">
+              <div className="admRows">
+                {users.length === 0 ? <EmptyState>No active users returned yet.</EmptyState> : users.map((u) => (
+                  <div key={u.emailHash} className="admRow">
+                    <div>
+                      <div style={{ fontWeight: 900 }}>{u.label}</div>
+                      <div className="admMuted">{u.verified ? "Verified" : "Unverified"}{u.redemptionCode ? <> • Code {u.redemptionCode}</> : null}</div>
+                    </div>
+                    <div className="admMuted">Points {u.points}</div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+
+            <Panel title="Redemption codes" sub="Create, import, disable, inspect, and delete codes.">
+              <div className="admSectionStack">
+                <SubPanel title="Create single code" sub="Manual entry for one-off point grants.">
+                  <div className="admGrid2" style={{ gridTemplateColumns: "1fr 0.6fr 0.6fr" } as CSSProperties}>
+                    <Input value={codeNew} onChange={(e) => setCodeNew(e.target.value.toUpperCase())} placeholder="CODE2026" />
+                    <Input type="number" value={String(codePoints)} onChange={(e) => setCodePoints(Number(e.target.value))} />
+                    <Input type="number" value={String(codeMaxUses)} onChange={(e) => setCodeMaxUses(Number(e.target.value))} />
+                  </div>
+                  <div className="admActionRow"><ActionButton onClick={createCode}>Create code</ActionButton></div>
+                </SubPanel>
+
+                <div className="admHr" />
+
+                <SubPanel title="Import codes from XLSX or CSV" sub="Expected columns: code, points, optional maxUses, redeemWindowMinutes, expiresAt.">
+                  <input type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" onChange={(e) => { const f = e.target.files?.[0]; if (f) { void importCodes(f); e.currentTarget.value = ""; } }} className="admFileInput" disabled={importingCodes} />
+                  <div className="admFieldHelp">{importingCodes ? "Importing..." : "Upload a spreadsheet to bulk-create redemption codes."}</div>
+                </SubPanel>
+
+                {codesMsg ? <div className="admNotice">{codesMsg}</div> : null}
+
+                <div className="admRows">
+                  {codes.length === 0 ? <EmptyState>No codes yet.</EmptyState> : codes.map((c) => (
+                    <div key={c.id} className="admRow">
+                      <div>
+                        <div style={{ fontWeight: 900 }}>{c.code}</div>
+                        <div className="admMuted">{c.points} pts • {c.uses}/{c.maxUses} uses</div>
+                      </div>
+                      <div className="admActionRow">
+                        <ActionButton onClick={() => showCodeUses(c)}>Show uses</ActionButton>
+                        {!c.disabledAt ? <ActionButton alt onClick={() => disableCode(c.id)}>Disable</ActionButton> : <Pill variant="warn">Disabled</Pill>}
+                        <ActionButton danger onClick={() => deleteCode(c.id, c.code)}>Delete</ActionButton>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Panel>
+          </div>
+        )}
+
+        <CodeUsesModal open={codeUsesOpen} code={selectedCode} items={selectedCodeUses} loading={codeUsesLoading} onClose={() => { setCodeUsesOpen(false); setSelectedCode(null); setSelectedCodeUses([]); }} />
+
+        {tab === "shoutoutSettings" && rules && (
+          <div className="admGridSettings">
+            <div className="admSectionStack">
+              <Panel title="TV rotation" sub="Controls for shout-out slide playback and feed behavior.">
+                <div className="admSectionStack">
+                  <SubPanel title="Rotation" sub="This controls how long a shout-out stays on the TV before the next slide.">
+                    <Field label="Slide rotation seconds" value={effectiveShoutoutSlideSeconds} onChange={(v) => patchRules({ shoutoutSlideSeconds: Math.max(1, Math.min(120, Number(v) || 10)) })} />
+                  </SubPanel>
+
+                  <SubPanel title="TV behavior" sub="Current runtime assumptions from the live system.">
+                    <div className="admFieldStack">
+                      <div className="admSubCopy">Rotation speed: <b>{effectiveShoutoutSlideSeconds} seconds</b></div>
+                      <div className="admSubCopy">Weighted rotation: <b>Enabled in live shout-out feed</b></div>
+                      <div className="admSubCopy">Placeholder storage: <b>Browser-local for now</b></div>
+                    </div>
+                  </SubPanel>
+
+                  <SubPanel title="Admin recommendation" sub="Operational note.">
+                    <div className="admSubCopy">10 seconds is a strong default. It gives families enough time to read birthday and congratulations messages without making the TV feel slow.</div>
+                  </SubPanel>
+
+                  {shoutoutSettingsMsg ? <div className="admNotice">{shoutoutSettingsMsg}</div> : null}
+                  <div className="admActionRow"><ActionButton onClick={saveShoutoutSettings}>{savingRules ? "Saving..." : "Save shout-out settings"}</ActionButton></div>
+                </div>
+              </Panel>
+
+              <Panel title="Shout out products" sub="Reference only: current live product catalog and rotation weights.">
+                <div className="admRows">
+                  {liveProducts.map((p: any) => (
+                    <div key={p.id} className="admSubPanel">
+                      <div className="admSplitActions">
+                        <div className="admTextWrap">
+                          <div style={{ fontWeight: 1000 }}>{p.title}</div>
+                          <div className="admMuted" style={{ marginTop: 4 }}>{p.description}</div>
+                        </div>
+                        <div style={{ textAlign: "right", minWidth: 110 }}>
+                          <div style={{ fontWeight: 1000 }}>{p.creditsCost} credits</div>
+                          <div className="admMuted">{Math.round(p.durationSec / 60)} min</div>
+                        </div>
+                      </div>
+                      <div className="admActionRow" style={{ marginTop: 10 }}>
+                        <Pill>{p.hasPhoto ? "Photo tier" : "Text only"}</Pill>
+                        <Pill>Weight {p.weight}</Pill>
+                        <Pill variant={p.enabled ? "live" : "warn"}>{p.enabled ? "Live" : "Coming soon"}</Pill>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            </div>
+
+            <Panel title="TV placeholder shout-outs" sub="Browser-local fallback content for the TV page until shared persistence is added.">
+              <div className="admSectionStack">
+                <div className="admSubPanel">
+                  <div className="admSubCopy">These fallback placeholders are stored in browser storage for now. They will appear on the TV page only in the same browser profile until shared backend persistence is added.</div>
+                </div>
+                <div className="admRows">
+                  {placeholders.map((p, idx) => (
+                    <div key={p.id} className="admSubPanel">
+                      <div className="admSubTitleText" style={{ marginBottom: 10 }}>Placeholder {idx + 1}</div>
+                      <Label>Header</Label>
+                      <Input value={p.title} onChange={(e) => updatePlaceholder(idx, { title: e.target.value })} />
+                      <Label style={{ marginTop: 10 }}>Product Label</Label>
+                      <Input value={p.productTitle || ""} onChange={(e) => updatePlaceholder(idx, { productTitle: e.target.value })} />
+                      <Label style={{ marginTop: 10 }}>Message</Label>
+                      <Textarea rows={4} value={p.body} onChange={(e) => updatePlaceholder(idx, { body: e.target.value })} />
+                      <Label style={{ marginTop: 10 }}>From</Label>
+                      <Input value={p.fromName} onChange={(e) => updatePlaceholder(idx, { fromName: e.target.value })} />
+                      <Label style={{ marginTop: 10 }}>Accent</Label>
+                      <select value={p.accent || "cyan"} onChange={(e) => updatePlaceholder(idx, { accent: e.target.value as "gold" | "cyan" | "pink" })} className="admSelect">
+                        <option value="cyan">Cyan</option>
+                        <option value="gold">Gold</option>
+                        <option value="pink">Pink</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                <div className="admActionRow">
+                  <ActionButton onClick={savePlaceholderSettings}>Save placeholder settings</ActionButton>
+                  <ActionButton alt onClick={resetPlaceholderSettings}>Reset defaults</ActionButton>
+                </div>
+              </div>
+            </Panel>
+          </div>
+        )}
+
+        {editOpen ? (
+          <div className="admOverlay">
+            <div className="admModalCard" style={{ width: "min(680px, 96vw)" }}>
+              <div className="admPanelTitle" style={{ fontSize: 18, marginBottom: 14 }}>Edit shout-out</div>
+              <Label>From</Label>
+              <Input value={editFromName} onChange={(e) => setEditFromName(e.target.value)} maxLength={40} />
+              <Label style={{ marginTop: 12 }}>Message</Label>
+              <Textarea rows={5} value={editMessageText} onChange={(e) => setEditMessageText(e.target.value)} maxLength={160} />
+              <div className="admFieldHelp" style={{ marginTop: 8 }}>{editMessageText.length} characters</div>
+              <div className="admActionRow" style={{ marginTop: 16 }}>
+                <ActionButton onClick={saveEditedMessage}>{editBusy ? "Saving..." : "Save changes"}</ActionButton>
+                <ActionButton alt onClick={() => { if (editBusy) return; setEditOpen(false); setEditMessageId(""); setEditFromName(""); setEditMessageText(""); }}>Cancel</ActionButton>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -990,66 +1195,138 @@ export default function AdminPage({ params }: { params: { location: string } }) 
 function CodeUsesModal({ open, code, items, loading, onClose }: { open: boolean; code: RedemptionCode | null; items: RedemptionCodeUseItem[]; loading: boolean; onClose: () => void; }) {
   if (!open) return null;
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
-      <div style={{ width: "min(920px, 100%)", maxHeight: "84vh", overflow: "auto", border: "1px solid #1f2340", borderRadius: 24, padding: 18, background: "rgba(8,8,20,0.97)", color: "#fff", boxShadow: "0 30px 80px rgba(0,0,0,0.45)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 14 }}><div><div style={{ fontSize: 20, fontWeight: 1000, fontStyle: "italic" }}>CODE USES {code ? `• ${code.code}` : ""}</div><div style={{ opacity: 0.72, marginTop: 4, fontSize: 13 }}>Showing the best available usage history from the credit ledger.</div></div><ActionButton alt onClick={onClose}>Close</ActionButton></div>
-        {loading ? <div style={{ opacity: 0.75 }}>Loading uses…</div> : items.length === 0 ? <div style={{ opacity: 0.75 }}>No recorded uses found for this code.</div> : <div style={{ display: "grid", gap: 10 }}>{items.map((item, idx) => <div key={item.id || `${item.emailHash}-${item.usedAt}-${idx}`} style={rowStyle}><div><div style={{ fontWeight: 900 }}>{item.label}</div><div style={{ opacity: 0.75 }}>{new Date(item.usedAt).toLocaleString()}</div><div style={{ opacity: 0.6, fontSize: 12, marginTop: 4 }}>{item.emailHash}</div></div><div style={{ textAlign: "right", opacity: 0.82 }}><div>{item.reason}</div><div style={{ fontSize: 12, opacity: 0.72 }}>{item.delta > 0 ? `+${item.delta}` : item.delta}</div></div></div>)}</div>}
+    <div className="admOverlay">
+      <div className="admModalCard">
+        <div className="admSplitActions" style={{ marginBottom: 14 }}>
+          <div>
+            <div className="admPanelTitle" style={{ fontSize: 18 }}>Code uses {code ? `• ${code.code}` : ""}</div>
+            <div className="admPanelSub">Showing the best available usage history from the credit ledger.</div>
+          </div>
+          <ActionButton alt onClick={onClose}>Close</ActionButton>
+        </div>
+        {loading ? <EmptyState>Loading uses…</EmptyState> : items.length === 0 ? <EmptyState>No recorded uses found for this code.</EmptyState> : (
+          <div className="admRows">
+            {items.map((item, idx) => (
+              <div key={item.id || `${item.emailHash}-${item.usedAt}-${idx}`} className="admRow">
+                <div>
+                  <div style={{ fontWeight: 900 }}>{item.label}</div>
+                  <div className="admMuted">{new Date(item.usedAt).toLocaleString()}</div>
+                  <div className="admFieldHelp admMono" style={{ marginTop: 4 }}>{item.emailHash}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div>{item.reason}</div>
+                  <div className="admFieldHelp">{item.delta > 0 ? `+${item.delta}` : item.delta}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function TabButton({ active, children, onClick }: { active?: boolean; children: React.ReactNode; onClick: () => void; }) {
-  return <button onClick={onClick} style={{ padding: "10px 14px", borderRadius: 14, border: active ? "1px solid #4f61ff" : "1px solid #232845", background: active ? "rgba(37,41,92,0.92)" : "rgba(10,10,22,0.6)", color: "#fff", fontWeight: 900, cursor: "pointer" }}>{children}</button>;
+function QueueRow({ q, index, onPlayed, onReject }: { q: RequestItem; index?: number; onPlayed: () => void; onReject: () => void }) {
+  const typeLabel = requestTypeLabel(q);
+  return (
+    <div className="admRowCard">
+      <div className="admTextWrap" style={{ flex: 1 }}>
+        <div className="admActionRow" style={{ gap: 6 }}>
+          <div style={{ fontWeight: 1000, fontSize: 18 }}>{index ? `${index}. ` : ""}{q.title}</div>
+          <div className={`admPill ${typeLabel === "BOOST" ? "admRequestType--boost" : "admRequestType--request"}`}>{typeLabel}</div>
+        </div>
+        <div className="admMuted" style={{ marginTop: 6, lineHeight: 1.35 }}>{q.artist} • {requestMetaLine(q)}</div>
+        <div className="admFieldHelp" style={{ marginTop: 6 }}>Score {q.score} • 👍 {Number(q.upvotes || 0)} • 👎 {Number(q.downvotes || 0)}</div>
+      </div>
+      <div className="admActionRow" style={{ alignSelf: "center" }}>
+        <ActionButton onClick={onPlayed}>Played</ActionButton>
+        <ActionButton danger onClick={onReject}>Reject</ActionButton>
+      </div>
+    </div>
+  );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div style={{ border: "1px solid #1f2340", borderRadius: 24, padding: 18, background: "rgba(8,8,20,0.88)" }}><div style={{ fontSize: 18, fontWeight: 1000, fontStyle: "italic", marginBottom: 14 }}>{title}</div>{children}</div>;
+function TabButton({ active, children, onClick }: { active?: boolean; children: ReactNode; onClick: () => void; }) {
+  return <button onClick={onClick} className={`admTab ${active ? "is-active" : ""}`}>{children}</button>;
 }
 
-function ActionButton({ alt, children, onClick }: { alt?: boolean; children: React.ReactNode; onClick: () => void; }) {
-  return <button type="button" onClick={onClick} style={{ padding: "9px 12px", borderRadius: 12, border: alt ? "1px solid #34395e" : "1px solid #4f61ff", background: alt ? "rgba(10,10,22,0.72)" : "rgba(37,41,92,0.92)", color: "#fff", fontWeight: 900, cursor: "pointer" }}>{children}</button>;
+function Panel({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+  return (
+    <div className="admPanel">
+      <div className="admPanelHead">
+        <div className="admPanelTitle">{title}</div>
+        {sub ? <div className="admPanelSub">{sub}</div> : null}
+      </div>
+      <div className="admPanelBody">{children}</div>
+    </div>
+  );
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
-  return <div style={{ padding: "4px 9px", borderRadius: 999, border: "1px solid #2f3561", background: "rgba(18,20,40,0.8)", fontSize: 12, fontWeight: 800 }}>{children}</div>;
+function SubPanel({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+  return (
+    <div className="admSubPanel">
+      <div className="admSubTitleRow">
+        <div>
+          <div className="admSubTitleText">{title}</div>
+          {sub ? <div className="admSubCopy" style={{ marginTop: 4 }}>{sub}</div> : null}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
 }
 
-function Label({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return <div style={{ fontSize: 12, opacity: 0.82, marginBottom: 6, ...style }}>{children}</div>;
+function MetricCard({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
+  return (
+    <div className="admMetricCard">
+      <div className="admMetricLabel">{label}</div>
+      <div className="admMetricValue">{value}</div>
+      {sub ? <div className="admMetricSub">{sub}</div> : null}
+    </div>
+  );
 }
 
-function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} style={inputStyle} />;
+function ActionButton({ alt, danger, children, onClick }: { alt?: boolean; danger?: boolean; children: ReactNode; onClick: () => void; }) {
+  return <button type="button" onClick={onClick} className={danger ? "admBtnDanger" : alt ? "admBtnGhost" : "admBtn"}>{children}</button>;
 }
 
-function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea {...props} style={{ ...inputStyle, resize: "vertical" }} />;
+function Pill({ children, variant }: { children: ReactNode; variant?: "live" | "warn" | "danger" }) {
+  return <div className={`admPill ${variant === "live" ? "admPill--live" : variant === "warn" ? "admPill--warn" : variant === "danger" ? "admPill--danger" : ""}`}>{children}</div>;
+}
+
+function EmptyState({ children }: { children: ReactNode }) {
+  return <div className="admSubPanel"><div className="admSubCopy">{children}</div></div>;
+}
+
+function Label({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  return <div className="admLabel" style={{ marginBottom: 6, ...style }}>{children}</div>;
+}
+
+function Input(props: InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} className="admInput" />;
+}
+
+function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea {...props} className="admTextarea" />;
 }
 
 function Field({ label, value, onChange }: { label: string; value: any; onChange: (next: number) => void; }) {
-  return <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 12, opacity: 0.82 }}>{label}</span><input type="number" value={String(value ?? 0)} onChange={(e) => onChange(Number(e.target.value))} style={inputStyle} /></label>;
+  return <label className="admField"><span className="admLabel">{label}</span><input type="number" value={String(value ?? 0)} onChange={(e) => onChange(Number(e.target.value))} className="admInput" /></label>;
 }
 
 function MoneyField({ label, centsValue, onChangeCents }: { label: string; centsValue: number; onChangeCents: (cents: number) => void; }) {
-  return <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 12, opacity: 0.82 }}>{label}</span><input value={centsToDollars(centsValue)} onChange={(e) => onChangeCents(dollarsToCents(e.target.value))} style={inputStyle} inputMode="decimal" /></label>;
+  return <label className="admField"><span className="admLabel">{label}</span><input value={centsToDollars(centsValue)} onChange={(e) => onChangeCents(dollarsToCents(e.target.value))} className="admInput" inputMode="decimal" /></label>;
 }
 
 function TextField({ label, value, onChange }: { label: string; value: string; onChange: (next: string) => void; }) {
-  return <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 12, opacity: 0.82 }}>{label}</span><input value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle} /></label>;
+  return <label className="admField"><span className="admLabel">{label}</span><input value={value} onChange={(e) => onChange(e.target.value)} className="admInput" /></label>;
 }
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (next: boolean) => void; }) {
-  return <label style={{ ...rowStyle, marginBottom: 0, cursor: "pointer" }}><div style={{ fontWeight: 900 }}>{label}</div><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ width: 18, height: 18 }} /></label>;
+  return (
+    <label className="admRow" style={{ marginBottom: 0, cursor: "pointer" }}>
+      <div style={{ fontWeight: 900 }}>{label}</div>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ width: 18, height: 18 }} />
+    </label>
+  );
 }
-
-const inputStyle: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #323862", background: "#0d1020", color: "#fff", outline: "none" };
-const primaryBtn: React.CSSProperties = { padding: "12px 16px", borderRadius: 14, border: "1px solid #4f61ff", background: "rgba(37,41,92,0.92)", color: "#fff", fontWeight: 900, cursor: "pointer" };
-const rowStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", padding: 12, borderRadius: 16, border: "1px solid #252b4b", background: "rgba(17,18,34,0.9)", marginBottom: 10 };
-const rowCardStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", padding: 12, borderRadius: 16, border: "1px solid #252b4b", background: "rgba(17,18,34,0.9)", marginBottom: 10 };
-const cardStyle: React.CSSProperties = { padding: 14, borderRadius: 18, border: "1px solid #252b4b", background: "rgba(17,18,34,0.9)" };
-const noteStyle: React.CSSProperties = { marginBottom: 16, border: "1px solid #26305c", background: "rgba(24,24,60,0.7)", borderRadius: 16, padding: 14, fontWeight: 700 };
-const loginWrap: React.CSSProperties = { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 18, background: "#04060d", color: "#fff" };
-const loginCard: React.CSSProperties = { maxWidth: 560, width: "100%", borderRadius: 26, border: "1px solid rgba(90,90,255,0.35)", background: "rgba(0,0,0,0.42)", padding: 18, textAlign: "center" };
-const queueRowStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 14, alignItems: "center", padding: 14, borderRadius: 18, border: "1px solid #252b4b", background: "rgba(17,18,34,0.9)", marginBottom: 10 };
-const requestPillStyle: React.CSSProperties = { padding: "4px 10px", borderRadius: 999, border: "1px solid #4f61ff", background: "rgba(37,41,92,0.92)", color: "#fff", fontSize: 12, fontWeight: 900, lineHeight: 1 };
