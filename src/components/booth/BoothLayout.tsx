@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import EnginePanel from "./EnginePanel";
 import NowPlayingCard from "./NowPlayingCard";
 import OnDeckCard from "./OnDeckCard";
@@ -349,27 +350,33 @@ async function queueAction(
           </div>
         </div>
 
-        <div className="rrTopRight">
-          <div className="statBoxes">
-            <div className="statBox">
-              <span>QUEUE</span>
-              <strong>{summary.total}</strong>
-            </div>
-            <div className="statBox">
-              <span>SONGS</span>
-              <strong>{summary.songs}</strong>
-            </div>
-            <div className="statBox">
-              <span>INTERSTITIALS</span>
-              <strong>{summary.interstitials}</strong>
-            </div>
-            <div className="statBox">
-              <span>UPDATED</span>
-              <strong>
-                {state.lastUpdated ? new Date(state.lastUpdated).toLocaleTimeString() : "—"}
-              </strong>
-            </div>
-          </div>
+<div className="rrTopRight">
+  <div className="statBoxes">
+    <div className="statBox">
+      <span>QUEUE</span>
+      <strong>{summary.total}</strong>
+    </div>
+    <div className="statBox">
+      <span>SONGS</span>
+      <strong>{summary.songs}</strong>
+    </div>
+    <div className="statBox">
+      <span>INTERSTITIALS</span>
+      <strong>{summary.interstitials}</strong>
+    </div>
+    <div className="statBox">
+      <span>UPDATED</span>
+      <strong>
+        {state.lastUpdated ? new Date(state.lastUpdated).toLocaleTimeString() : "—"}
+      </strong>
+    </div>
+
+    <Link href={`/admin/${location}`} className="statBox statBox--link" aria-label="Admin settings">
+      <span>SETTINGS</span>
+      <strong>⚙</strong>
+    </Link>
+  </div>
+</div>
         </div>
       </div>
 
@@ -571,6 +578,23 @@ onReject={async (messageId, note) => {
           font-size: 13px;
           font-weight: 1000;
         }
+.statBox--link {
+  text-decoration: none;
+  color: #f2f5fb;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.statBox--link strong {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.statBox--link:hover {
+  filter: brightness(1.08);
+  border-color: rgba(120, 170, 230, 0.42);
+}
         .rrBooth__grid {
           display: grid;
           grid-template-columns: minmax(0, 1.85fr) minmax(340px, 0.98fr) minmax(280px, 0.62fr);

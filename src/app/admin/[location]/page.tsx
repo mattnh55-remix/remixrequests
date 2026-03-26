@@ -986,13 +986,17 @@ useEffect(() => {
           </div>
         </div>
 
-        <div className="admTabs">
-          <TabButton active={tab === "dashboard"} onClick={() => setTab("dashboard")}>Dashboard</TabButton>
-          <TabButton active={tab === "requestSettings"} onClick={() => setTab("requestSettings")}>Request Settings</TabButton>
-          <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>Top 10</TabButton>
-          <TabButton active={tab === "users"} onClick={() => setTab("users")}>Users & Points</TabButton>
-          <TabButton active={tab === "shoutoutSettings"} onClick={() => setTab("shoutoutSettings")}>Shoutout Settings</TabButton>
-        </div>
+<div className="admTabs">
+  <TabButton active={tab === "dashboard"} onClick={() => setTab("dashboard")}>Dashboard</TabButton>
+  <TabButton active={tab === "requestSettings"} onClick={() => setTab("requestSettings")}>Request Settings</TabButton>
+  <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>Top 10</TabButton>
+  <TabButton active={tab === "users"} onClick={() => setTab("users")}>Users & Points</TabButton>
+  <TabButton active={tab === "shoutoutSettings"} onClick={() => setTab("shoutoutSettings")}>Shoutout Settings</TabButton>
+
+  <a href={`/booth/${location}`} className="admTab">
+    DJ BOOTH
+  </a>
+</div>
 
         {msg ? <div className="admNotice">{msg}</div> : null}
 
