@@ -1,7 +1,17 @@
+// src/app/api/admin/user-history/adjust/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+async function resolveLocationId(slug: string) {
+  const location = await prisma.location.findUnique({
+    where: { slug },
+    select: { id: true },
+  });
+  return location?.id || null;
+}
 
 // POST /api/admin/user-history/adjust
 export async function POST(req: NextRequest) {
@@ -9,14 +19,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const {
-      locationId,
+      location,
       emailHash,
       targetBalance,
       reason,
     } = body;
 
     if (
-      !locationId ||
+      !location ||
       !emailHash ||
       typeof targetBalance !== "number" ||
       !reason
@@ -27,7 +37,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get current balance
+    const locationId = await resolveLocationId(location);
+    if (!locationId) {
+      return NextResponse.json(
+        { error: "Location not found." },
+        { status: 404 }
+      );
+    }
+
     const agg = await prisma.creditLedger.aggregate({
       where: {
         locationId,
@@ -39,18 +56,16 @@ export async function POST(req: NextRequest) {
     });
 
     const currentBalance = agg._sum.delta ?? 0;
-
-    // Compute delta
     const delta = targetBalance - currentBalance;
 
     if (delta === 0) {
       return NextResponse.json({
         success: true,
-        message: "No change needed",
+        delta: 0,
+        newBalance: currentBalance,
       });
     }
 
-    // Insert ledger entry (SAFE — no mutation of existing data)
     await prisma.creditLedger.create({
       data: {
         locationId,

@@ -1,3 +1,5 @@
+// src/app/api/admin/user-history/[location]/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 

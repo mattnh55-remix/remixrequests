@@ -592,10 +592,10 @@ async function openUserHistory(emailHash: string) {
   setMsg("");
 
   try {
-    const params = new URLSearchParams({
-      locationId: location,
-      emailHash,
-    });
+const params = new URLSearchParams({
+  location,
+  emailHash,
+});
 
     const res = await fetch(`/api/admin/user-history/detail?${params.toString()}`, {
       cache: "no-store",
@@ -608,22 +608,22 @@ async function openUserHistory(emailHash: string) {
       return;
     }
 
-    const detail: UserHistoryDetail = {
-      emailHash,
-      label: "", // optional fallback
-      verified: true, // optional fallback
-      points: Number(data.balance || 0),
-      lastActivityAt: data.latestActivity || undefined,
-      entries: Array.isArray(data.ledger)
-        ? data.ledger.map((e: any) => ({
-            id: e.id,
-            createdAt: e.createdAt,
-            delta: e.delta,
-            reason: e.reason,
-            expiresAt: e.expiresAt || null,
-          }))
-        : [],
-    };
+const detail: UserHistoryDetail = {
+  emailHash,
+  label: String(data.label || ""),
+  verified: Boolean(data.verified),
+  points: Number(data.balance || 0),
+  lastActivityAt: data.latestActivity || undefined,
+  entries: Array.isArray(data.ledger)
+    ? data.ledger.map((e: any) => ({
+        id: e.id,
+        createdAt: e.createdAt,
+        delta: e.delta,
+        reason: e.reason,
+        expiresAt: e.expiresAt || null,
+      }))
+    : [],
+};
 
     setSelectedUser(detail);
     setTargetBalance(String(detail.points));
@@ -647,11 +647,11 @@ async function openUserHistory(emailHash: string) {
         method: "POST",
         headers: { "content-type": "application/json" },
 body: JSON.stringify({
-  locationId: location,
-          emailHash: selectedUser.emailHash,
-          targetBalance: nextTarget,
-          reason: cleanReason,
-        }),
+  location,
+  emailHash: selectedUser.emailHash,
+  targetBalance: nextTarget,
+  reason: cleanReason,
+}),
       });
 const data: any = await safeJson(res);
 if (!data?.success) return setMsg(data?.error || "Could not update balance.");
