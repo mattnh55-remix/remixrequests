@@ -40,6 +40,31 @@ type MaterializeResult = {
 const DEFAULT_LOCAL_BRIDGE_BASE_URL = "http://127.0.0.1:8787";
 const BRIDGE_BASE_URL_STORAGE_KEY = "rr.bridgeBaseUrl";
 
+const REMIX_LOGO_URL =
+  "https://skateremix.com/wp-content/uploads/2026/03/Remix_Globe_Logo_350px.png";
+
+type SessionRes = {
+  location?: { slug: string; name: string };
+  rules?: {
+    logoUrl?: string | null;
+  };
+};
+
+function BrandLogo({ logoUrl }: { logoUrl?: string | null }) {
+  const src = (logoUrl || REMIX_LOGO_URL || "").trim();
+
+  if (src) {
+    return (
+      <div className="rrBoothBrandLogo">
+        <img src={src} alt="Remix logo" />
+      </div>
+    );
+  }
+
+  return <div className="rrBoothBrandBadge">REMIX</div>;
+}
+
+
 async function postJson(url: string, body: Record<string, unknown>): Promise<PostJsonResult> {
   const res = await fetch(url, {
     method: "POST",
@@ -169,6 +194,7 @@ async function triggerLocalBridgeStop() {
 export default function BoothLayout({ location }: { location: string }) {
   const mode: BoothMode = "performance";
 
+  const [logoUrl, setLogoUrl] = useState("");
   const [state, setState] = useState<BoothDataState>({
     queue: [],
     runtimePreview: null,
@@ -182,15 +208,22 @@ export default function BoothLayout({ location }: { location: string }) {
   });
 
   async function load() {
-    const [queueRes, requestRes, shoutRes] = await Promise.all([
+    const [queueRes, requestRes, shoutRes, sessionRes] = await Promise.all([
       fetch(`/api/booth/queue/${location}`, { cache: "no-store" }),
       fetch(`/api/admin/queue/${location}`, { cache: "no-store" }),
       fetch(`/api/admin/shoutouts/${location}`, { cache: "no-store" }),
+      fetch(`/api/public/session/${location}`, { cache: "no-store" }),
     ]);
 
     const queuePayload = queueRes.ok ? await safeJson(queueRes) : null;
     const requestPayload = requestRes.ok ? await safeJson(requestRes) : null;
     const shoutPayload = shoutRes.ok ? await safeJson(shoutRes) : null;
+
+    const sessionPayload = sessionRes.ok ? ((await safeJson(sessionRes)) as SessionRes) : null;
+
+    if (sessionPayload?.rules?.logoUrl) {
+      setLogoUrl(sessionPayload.rules.logoUrl);
+    }
 
     const playNowRequests: RequestItem[] = Array.isArray(requestPayload?.playNow)
       ? requestPayload.playNow
@@ -340,12 +373,18 @@ async function queueAction(
   return (
     <div className="rrBooth rrBooth--compact">
       <div className="rrBooth__topbar">
-        <div>
-          <div className="rrEyebrow">REMIXREQUESTS • LIVE BOOTH</div>
-          <div className="rrTitle">PERFORMANCE CONSOLE</div>
-          <div className="rrSub">
-            Gunmetal booth surface for now playing, on deck, unified queue flow, runtime insertions,
-            and shoutouts.
+        <div className="rrBoothHeroLeft">
+          <div className="rrBoothLogoCard">
+            <BrandLogo logoUrl={logoUrl} />
+          </div>
+
+          <div className="rrBoothHeroCopy">
+            <div className="rrEyebrow">REMIXREQUESTS • LIVE BOOTH</div>
+            <div className="rrTitle">PERFORMANCE CONSOLE</div>
+            <div className="rrSub">
+              Gunmetal booth surface for now playing, on deck, unified queue flow, runtime insertions,
+              and shoutouts.
+            </div>
           </div>
         </div>
 
@@ -463,6 +502,8 @@ async function queueAction(
       </div>
 
       <style jsx global>{`
+
+
         .rrBooth {
           min-height: 100vh;
           padding: 6px 8px 10px;
@@ -482,10 +523,75 @@ async function queueAction(
         }
         .rrBooth__topbar {
           display: grid;
-          grid-template-columns: 1fr auto;
+          grid-template-columns: minmax(0, 1fr) auto;
           gap: 12px;
           align-items: center;
           padding: 10px 12px;
+          border-radius: 4px;
+          border: 1px solid rgba(84, 122, 162, 0.32);
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02)),
+            linear-gradient(90deg, rgba(24,36,52,0.9), rgba(9,18,31,0.86));
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.08),
+            inset 0 -1px 0 rgba(0,0,0,0.35),
+            0 10px 24px rgba(0,0,0,0.28);
+          margin-bottom: 8px;
+        }
+        .rrBoothHeroLeft {
+          display: grid;
+          grid-template-columns: 68px minmax(0, 1fr);
+          gap: 10px;
+          align-items: center;
+          min-width: 0;
+        }
+        .rrBoothLogoCard {
+          width: 68px;
+          height: 68px;
+          display: grid;
+          place-items: center;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.015)),
+            linear-gradient(180deg, rgba(18,25,38,0.96), rgba(10,16,27,0.96));
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.05),
+            inset 0 -1px 0 rgba(0,0,0,0.28);
+          flex: 0 0 auto;
+        }
+        .rrBoothBrandLogo {
+          width: 46px;
+          height: 46px;
+          border-radius: 8px;
+          overflow: hidden;
+          background: linear-gradient(180deg, rgba(25, 34, 49, 0.94), rgba(11, 17, 28, 0.98));
+          display: grid;
+          place-items: center;
+        }
+        .rrBoothBrandLogo img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          display: block;
+        }
+        .rrBoothBrandBadge {
+          min-width: 42px;
+          min-height: 42px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 8px;
+          border: 1px solid rgba(102, 151, 232, 0.2);
+          background: linear-gradient(180deg, rgba(25, 38, 58, 0.95), rgba(12, 20, 32, 0.98));
+          font-weight: 1000;
+          font-size: 9px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .rrBoothHeroCopy {
+          min-width: 0;
+        }
           border-radius: 4px;
           border: 1px solid rgba(84, 122, 162, 0.32);
           background:
@@ -1339,6 +1445,9 @@ async function queueAction(
           .rrBooth__grid {
             grid-template-columns: 1fr;
           }
+          .rrBoothHeroLeft {
+            grid-template-columns: 68px minmax(0, 1fr);
+          }
           .rrBooth__topbar {
             grid-template-columns: 1fr;
           }
@@ -1364,6 +1473,13 @@ async function queueAction(
           .requestRow,
           .engineRow {
             grid-template-columns: 1fr;
+          }
+          .rrBoothHeroLeft {
+            grid-template-columns: 1fr;
+          }
+          .rrBoothLogoCard {
+            width: 64px;
+            height: 64px;
           }
           .queueRow {
             grid-template-columns: 1fr;
