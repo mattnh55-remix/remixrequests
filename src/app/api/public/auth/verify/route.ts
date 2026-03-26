@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
-import { getCreditBalance } from "@/lib/validators";
+import { buildGuestSessionTimes, getCreditBalance, isGuestSessionActive } from "@/lib/validators";
 import { hashEmail } from "@/lib/security";
 import { getOrCreateDeviceId } from "@/lib/device";
 import { subscribeMailchimp } from "@/lib/mailchimp";
@@ -14,11 +14,6 @@ export const dynamic = "force-dynamic";
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function startOfTodayLocal() {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
 export async function POST(req: Request) {
@@ -77,37 +72,60 @@ export async function POST(req: Request) {
 
     await prisma.otpCode.delete({ where: { id: otp.id } });
 
+    const now = new Date();
+    const existingIdentity = await prisma.identity.findUnique({
+      where: { locationId_emailHash: { locationId: loc.id, emailHash } },
+      select: {
+        id: true,
+        sessionStartedAt: true,
+        sessionExpiresAt: true,
+        smsVerifiedAt: true,
+        emailOptInAt: true,
+      },
+    });
+
+    const alreadyActive = isGuestSessionActive(existingIdentity, now);
+    const activeWindow = alreadyActive && existingIdentity?.sessionStartedAt && existingIdentity?.sessionExpiresAt
+      ? {
+          startedAt: existingIdentity.sessionStartedAt,
+          expiresAt: existingIdentity.sessionExpiresAt,
+        }
+      : buildGuestSessionTimes(now);
+
     const identity = await prisma.identity.upsert({
       where: { locationId_emailHash: { locationId: loc.id, emailHash } },
       update: {
         deviceId,
-        smsVerifiedAt: new Date(),
-        emailOptInAt: emailOptIn ? new Date() : undefined,
-        smsOptInAt: smsOptIn ? new Date() : undefined,
+        smsVerifiedAt: now,
+        emailOptInAt: emailOptIn ? now : undefined,
+        smsOptInAt: smsOptIn ? now : undefined,
+        sessionStartedAt: activeWindow.startedAt,
+        sessionExpiresAt: activeWindow.expiresAt,
       },
       create: {
         locationId: loc.id,
         emailHash,
         deviceId,
-        smsVerifiedAt: new Date(),
-        emailOptInAt: emailOptIn ? new Date() : undefined,
-        smsOptInAt: smsOptIn ? new Date() : undefined,
+        smsVerifiedAt: now,
+        emailOptInAt: emailOptIn ? now : undefined,
+        smsOptInAt: smsOptIn ? now : undefined,
+        sessionStartedAt: activeWindow.startedAt,
+        sessionExpiresAt: activeWindow.expiresAt,
       },
-      select: { id: true },
+      select: { id: true, sessionStartedAt: true, sessionExpiresAt: true },
     });
 
     if (!emailOptIn) {
-      let balance: number | null = null;
-      try {
-        balance = await getCreditBalance(loc.id, emailHash);
-      } catch {}
-
+      const balance = await getCreditBalance(loc.id, emailHash).catch(() => 0);
       const res = NextResponse.json({
         ok: true,
         verified: true,
         identityId: identity.id,
         welcomeGranted: false,
         balance,
+        sessionStartedAt: identity.sessionStartedAt,
+        sessionExpiresAt: identity.sessionExpiresAt,
+        sessionActive: true,
         note: "Opt-in required for welcome credits.",
       });
       if (setCookie) res.headers.set("set-cookie", setCookie);
@@ -141,101 +159,53 @@ export async function POST(req: Request) {
     }
 
     const welcomeCredits = Number(process.env.WELCOME_CREDITS || "5");
-    const todayStart = startOfTodayLocal();
+    const welcomeGranted = !alreadyActive;
 
-    const alreadyGrantedToday = await prisma.creditLedger.findFirst({
-      where: {
-        locationId: loc.id,
-        emailHash,
-        reason: "WELCOME",
-        createdAt: { gte: todayStart },
-      },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, createdAt: true },
-    });
-
-    if (alreadyGrantedToday) {
-      let balance: number | null = null;
-      try {
-        balance = await getCreditBalance(loc.id, emailHash);
-      } catch (e: any) {
-        console.error("AUTH_VERIFY_BALANCE_FAILED_ALREADY_GRANTED", {
-          reqId,
+    if (welcomeGranted) {
+      await prisma.creditLedger.create({
+        data: {
           locationId: loc.id,
-          identityId: identity.id,
-          message: e?.message || String(e),
-        });
-      }
-
-      const res = NextResponse.json({
-        ok: true,
-        verified: true,
-        identityId: identity.id,
-        welcomeGranted: false,
-        balance,
-        note: "You already claimed your free welcome points today. Come back tomorrow for another free claim.",
+          emailHash,
+          delta: welcomeCredits,
+          reason: "WELCOME",
+          expiresAt: identity.sessionExpiresAt,
+        },
       });
-      if (setCookie) res.headers.set("set-cookie", setCookie);
-
-      console.log("AUTH_VERIFY_OK_ALREADY_GRANTED_TODAY", {
-        reqId,
-        locationId: loc.id,
-        identityId: identity.id,
-        welcomeLedgerId: alreadyGrantedToday.id,
-        grantedAt: alreadyGrantedToday.createdAt.toISOString(),
-      });
-
-      return res;
     }
- 
-const activeSession = await prisma.session.findFirst({
-      where: {
-        locationId: loc.id,
-        endsAt: { gt: new Date() }, // <--- Check if session hasn't expired
-      },
-      select: { endsAt: true },
-      orderBy: { createdAt: "desc" },
-    });
 
-
-    await prisma.creditLedger.create({
-      data: {
-        locationId: loc.id,
-        emailHash,
-        delta: welcomeCredits,
-        reason: "WELCOME",
-        expiresAt: activeSession?.endsAt ?? null,
-      },
-    });
-
-    let balance: number | null = null;
-    try {
-      balance = await getCreditBalance(loc.id, emailHash);
-    } catch (e: any) {
+    const balance = await getCreditBalance(loc.id, emailHash).catch((e: any) => {
       console.error("AUTH_VERIFY_BALANCE_FAILED", {
         reqId,
         locationId: loc.id,
         identityId: identity.id,
         message: e?.message || String(e),
       });
-    }
+      return 0;
+    });
 
     const res = NextResponse.json({
       ok: true,
       verified: true,
       identityId: identity.id,
-      welcomeGranted: true,
+      welcomeGranted,
       balance,
-      note: `Welcome points added: +${welcomeCredits}.`,
+      sessionStartedAt: identity.sessionStartedAt,
+      sessionExpiresAt: identity.sessionExpiresAt,
+      sessionActive: true,
+      note: welcomeGranted
+        ? `Welcome points added: +${welcomeCredits}.`
+        : "Your 4-hour session is already active.",
     });
 
     if (setCookie) res.headers.set("set-cookie", setCookie);
 
-    console.log("AUTH_VERIFY_OK_GRANTED", {
+    console.log("AUTH_VERIFY_OK", {
       reqId,
       locationId: loc.id,
       identityId: identity.id,
-      welcomeCredits,
+      welcomeGranted,
+      welcomeCredits: welcomeGranted ? welcomeCredits : 0,
+      sessionExpiresAt: identity.sessionExpiresAt?.toISOString(),
     });
 
     return res;

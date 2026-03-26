@@ -330,6 +330,23 @@ export default function AdminGunmetalTheme() {
         resize: vertical;
         font: inherit;
       }
+.admTabLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+.admTab,
+.admTabLink {
+  min-height: 40px;
+  line-height: 1;
+}
+.admTabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
       .admInput:focus,
       .admTextarea:focus,
       .admSelect:focus {

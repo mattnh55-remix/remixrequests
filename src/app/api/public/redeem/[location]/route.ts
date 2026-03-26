@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
 import {
   getCreditBalance,
-  getOrCreateCurrentSession,
+  getEmailHashSpendableState,
   secondsSinceLastAction,
 } from "@/lib/validators";
 import { hashEmail } from "@/lib/security";
@@ -31,34 +31,25 @@ export async function POST(req: Request, { params }: { params: { location: strin
   const { loc } = await getRulesForLocation(params.location);
   const emailHash = hashEmail(emailRaw);
 
-  // Identity gate: verified + email opt-in required
-  const identity = await prisma.identity.findUnique({
-    where: { locationId_emailHash: { locationId: loc.id, emailHash } },
-    select: {
-      smsVerifiedAt: true,
-      emailOptInAt: true,
-    },
-  });
+  const guestState = await getEmailHashSpendableState(loc.id, emailHash);
 
-  if (!identity?.smsVerifiedAt) {
+  if (!guestState?.identity?.smsVerifiedAt) {
     return jsonFail("Please verify your phone to redeem a code.", 403);
   }
-  if (!identity?.emailOptInAt) {
+  if (!guestState.identity.emailOptInAt) {
     return jsonFail("Please opt into email updates to redeem a code.", 403);
   }
+  if (!guestState.sessionActive || !guestState.sessionExpiresAt) {
+    return jsonFail("Your 4-hour session has expired. Verify again to continue.", 403);
+  }
 
-  // Rate limit (10 seconds between any actions)
+  const sessionExpiresAt = guestState.sessionExpiresAt;
+
   try {
     const secs = await secondsSinceLastAction(loc.id, emailHash);
     if (secs < 10) return jsonFail("Please wait a moment and try again.", 429);
-  } catch {
-    // fail open if helper has an issue
-  }
+  } catch {}
 
-  // Current session is used for default promo expiry when redeemWindowMinutes is 0/blank.
-  const session = await getOrCreateCurrentSession(loc.id, 4);
-
-  // Lookup code
   const now = new Date();
   const rc = await prisma.redemptionCode.findUnique({
     where: { locationId_code: { locationId: loc.id, code } },
@@ -71,13 +62,11 @@ export async function POST(req: Request, { params }: { params: { location: strin
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // Same user cannot ever redeem the same code twice.
       const existing = await tx.redemptionCodeUse.findUnique({
         where: { codeId_emailHash: { codeId: rc.id, emailHash } },
       });
       if (existing) throw new Error("ALREADY_USED");
 
-      // Re-check code inside txn.
       const fresh = await tx.redemptionCode.findUnique({ where: { id: rc.id } });
       if (!fresh) throw new Error("INVALID");
 
@@ -86,11 +75,7 @@ export async function POST(req: Request, { params }: { params: { location: strin
       if (fresh.expiresAt && fresh.expiresAt <= txnNow) throw new Error("EXPIRED");
       if (fresh.uses >= fresh.maxUses) throw new Error("LIMIT");
 
-      const redeemWindowMinutes = Number(fresh.redeemWindowMinutes ?? 0);
-      const promoExpiresAt =
-        Number.isFinite(redeemWindowMinutes) && redeemWindowMinutes > 0
-          ? new Date(Date.now() + redeemWindowMinutes * 60 * 1000)
-          : session.endsAt;
+      const promoExpiresAt = sessionExpiresAt;
 
       await tx.redemptionCodeUse.create({
         data: {
@@ -129,6 +114,7 @@ export async function POST(req: Request, { params }: { params: { location: strin
       pointsAdded: result.pointsAdded,
       expiresAt: result.expiresAt,
       balance,
+      sessionExpiresAt: sessionExpiresAt,
     });
   } catch (e: any) {
     const msg = String(e?.message || "");

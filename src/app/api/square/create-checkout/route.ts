@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { PACKAGES, type PackageKey } from "@/lib/packages";
+import { isGuestSessionActive } from "@/lib/validators";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,22 +17,10 @@ function mustEnv(name: string) {
 
 function sanitizeReturnPath(input: unknown, fallbackLocation?: string) {
   const raw = String(input || "").trim();
-  if (!raw) {
-    return fallbackLocation ? `/request/${fallbackLocation}` : "/checkout/success";
-  }
-
-  if (!raw.startsWith("/")) {
-    return fallbackLocation ? `/request/${fallbackLocation}` : "/checkout/success";
-  }
-
-  if (raw.startsWith("//")) {
-    return fallbackLocation ? `/request/${fallbackLocation}` : "/checkout/success";
-  }
-
-  if (raw.includes("://")) {
-    return fallbackLocation ? `/request/${fallbackLocation}` : "/checkout/success";
-  }
-
+  if (!raw) return fallbackLocation ? `/request/${fallbackLocation}` : "/checkout/success";
+  if (!raw.startsWith("/")) return fallbackLocation ? `/request/${fallbackLocation}` : "/checkout/success";
+  if (raw.startsWith("//")) return fallbackLocation ? `/request/${fallbackLocation}` : "/checkout/success";
+  if (raw.includes("://")) return fallbackLocation ? `/request/${fallbackLocation}` : "/checkout/success";
   return raw;
 }
 
@@ -73,10 +62,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Missing fields." }, { status: 400 });
     }
 
-    const pkg = (PACKAGES as any)[packageKey] as
-      | { credits: number; priceCents: number }
-      | undefined;
-
+    const pkg = (PACKAGES as any)[packageKey] as { credits: number; priceCents: number } | undefined;
     if (!pkg) {
       return NextResponse.json({ ok: false, error: "Invalid package." }, { status: 400 });
     }
@@ -86,9 +72,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Invalid location." }, { status: 400 });
     }
 
-    const identity = await prisma.identity.findUnique({ where: { id: identityId } });
-    if (!identity || identity.locationId !== loc.id) {
+    const identity = await prisma.identity.findFirst({
+      where: { id: identityId, locationId: loc.id },
+      select: {
+        id: true,
+        locationId: true,
+        sessionExpiresAt: true,
+        smsVerifiedAt: true,
+      },
+    });
+
+    if (!identity) {
       return NextResponse.json({ ok: false, error: "Invalid identity." }, { status: 400 });
+    }
+    if (!isGuestSessionActive(identity)) {
+      return NextResponse.json(
+        { ok: false, error: "Your 4-hour session has expired. Verify again before buying points." },
+        { status: 403 }
+      );
     }
 
     const baseUrl = mustEnv("APP_BASE_URL");
@@ -124,15 +125,8 @@ export async function POST(req: Request) {
 
     const checkoutUrl = linkRes?.payment_link?.url || linkRes?.payment_link?.long_url;
     if (!checkoutUrl) {
-      console.error("CHECKOUT_FATAL", {
-        reqId,
-        message: "Square did not return payment_link.url",
-        linkRes,
-      });
-      return NextResponse.json(
-        { ok: false, error: "Square did not return checkout URL." },
-        { status: 502 }
-      );
+      console.error("CHECKOUT_FATAL", { reqId, message: "Square did not return payment_link.url", linkRes });
+      return NextResponse.json({ ok: false, error: "Square did not return checkout URL." }, { status: 502 });
     }
 
     await prisma.pendingCheckout.create({
@@ -144,10 +138,11 @@ export async function POST(req: Request) {
         credits: pkg.credits,
         amountCents: pkg.priceCents,
         currency: "USD",
+        sessionExpiresAt: identity.sessionExpiresAt,
       },
     });
 
-    return NextResponse.json({ ok: true, checkoutUrl, referenceId });
+    return NextResponse.json({ ok: true, checkoutUrl, referenceId, sessionExpiresAt: identity.sessionExpiresAt });
   } catch (e: any) {
     if (e?.squareStatus) {
       console.error("CHECKOUT_SQUARE_ERROR", {

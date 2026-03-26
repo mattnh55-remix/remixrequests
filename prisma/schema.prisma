@@ -307,10 +307,12 @@ model Identity {
   phoneE164 String?
   phoneHash String?
 
-  deviceId      String?
-  smsVerifiedAt DateTime?
-  emailOptInAt  DateTime?
-  smsOptInAt    DateTime?
+  deviceId         String?
+  smsVerifiedAt    DateTime?
+  emailOptInAt     DateTime?
+  smsOptInAt       DateTime?
+  sessionStartedAt DateTime?
+  sessionExpiresAt DateTime?
 
   mailchimpStatus String?
   mailchimpError  String?
@@ -323,6 +325,7 @@ model Identity {
   @@unique([locationId, emailHash])
   @@index([locationId, phoneHash])
   @@index([locationId, deviceId])
+  @@index([locationId, sessionExpiresAt])
 }
 
 model OtpCode {
@@ -362,9 +365,10 @@ model PendingCheckout {
   amountCents Int
   currency    String @default("USD")
 
-  createdAt  DateTime  @default(now())
-  consumedAt DateTime?
-  paymentId  String?   @unique
+  createdAt        DateTime  @default(now())
+  consumedAt       DateTime?
+  paymentId        String?   @unique
+  sessionExpiresAt DateTime?
 
   @@index([identityId])
 }

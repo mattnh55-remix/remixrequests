@@ -829,12 +829,44 @@ Get your message up on the big screen!</div>
           </button>
         </div>
       </div>
-
       {toastVisible && msg ? (
-        <div className="rrToast">
-          <div className="rrToastInner">
-            <div className="rrToastText">{msg}</div>
-            <button className="rrBtnGhost" onClick={() => setMsg("")}>Close</button>
+        <div
+          className="rrToast"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 140,
+            display: "grid",
+            placeItems: "center",
+            padding: "16px",
+            background: "rgba(2, 5, 10, 0.38)",
+            backdropFilter: "blur(6px)",
+          }}
+        >
+          <div
+            className="rrToastInner"
+            style={{
+              width: "min(460px, calc(100vw - 24px))",
+              gridTemplateColumns: "1fr",
+              justifyItems: "center",
+              textAlign: "center",
+              padding: "14px 14px 12px",
+              gap: "10px",
+              borderRadius: "16px",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.48)",
+            }}
+          >
+            <div className="rrToastText" style={{ fontSize: "14px", lineHeight: 1.4 }}>
+              {msg}
+            </div>
+
+            <button
+              className="rrBtnGhost"
+              onClick={() => setMsg("")}
+              style={{ minWidth: "110px" }}
+            >
+              Close
+            </button>
           </div>
         </div>
       ) : null}

@@ -3,7 +3,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
-import { getOrCreateCurrentSession, secondsSinceLastAction } from "@/lib/validators";
+import {
+  getCreditBalance,
+  getEmailHashSpendableState,
+  getOrCreateCurrentSession,
+  secondsSinceLastAction,
+} from "@/lib/validators";
 import { hashEmail } from "@/lib/security";
 import { bumpTop10Request, getTop10BucketAt } from "@/lib/top10";
 
@@ -15,7 +20,7 @@ export async function POST(req: Request) {
   const body = await req.json();
   const locationSlug = String(body.location || "").trim();
   const songId = String(body.songId || "").trim();
-  const action = String(body.action || "play_next").trim(); // play_next | play_now
+  const action = String(body.action || "play_next").trim();
   const email = String(body.email || "").trim();
 
   if (!locationSlug || !songId || !email) return jsonFail("Missing fields.", 400);
@@ -24,6 +29,16 @@ export async function POST(req: Request) {
   const { loc, rules } = await getRulesForLocation(locationSlug);
   const session = await getOrCreateCurrentSession(loc.id, 4);
   const emailHash = hashEmail(email);
+
+  const guestState = await getEmailHashSpendableState(loc.id, emailHash);
+  if (!guestState?.identity?.smsVerifiedAt) {
+    return jsonFail("Please verify your phone to continue.", 403);
+  }
+  if (!guestState.sessionActive || !guestState.sessionExpiresAt) {
+    return jsonFail("Your 4-hour session has expired. Verify again to continue.", 403);
+  }
+
+  const sessionExpiresAt = guestState.sessionExpiresAt;
 
   const secs = await secondsSinceLastAction(loc.id, emailHash);
   if (secs < rules.minSecondsBetweenActions) {
@@ -142,16 +157,7 @@ export async function POST(req: Request) {
           }
         }
 
-        const agg = await tx.creditLedger.aggregate({
-          _sum: { delta: true },
-          where: {
-            locationId: loc.id,
-            emailHash,
-            OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-          },
-        });
-
-        const balance = agg._sum.delta ?? 0;
+        const balance = await getCreditBalance(loc.id, emailHash, now);
         if (balance < cost) {
           throw new Error(`NOCREDITS:${rules.msgNoCredits}`);
         }
@@ -162,6 +168,7 @@ export async function POST(req: Request) {
             emailHash,
             delta: -cost,
             reason: isPlayNow ? "PLAY_NOW" : "REQUEST",
+            expiresAt: sessionExpiresAt,
           },
         });
 
@@ -176,11 +183,6 @@ export async function POST(req: Request) {
             top10Bucket,
           },
         });
-
-         // Phase 1 playback shadow layer:
-        // create a QueueItem for every newly approved request
-        // play_next => bottom
-        // play_now  => insert like PLAY_NEXT in the new booth system
 
         const queuedItems = await tx.queueItem.findMany({
           where: {
@@ -211,7 +213,6 @@ export async function POST(req: Request) {
 
         const insertIndex = resolvePublicInsertIndex();
 
-        // Create temporarily at the end, then normalize all positions below
         const queueItem = await tx.queueItem.create({
           data: {
             requestId: reqRow.id,
@@ -261,7 +262,7 @@ export async function POST(req: Request) {
         return {
           reqRow,
           queueItem,
-          balanceAfter: balance - cost,
+          balanceAfter: Math.max(balance - cost, 0),
           top10Bucket,
         };
       },
@@ -274,6 +275,7 @@ export async function POST(req: Request) {
       queueItemId: result.queueItem.id,
       balance: result.balanceAfter,
       top10Bucket: result.top10Bucket,
+      sessionExpiresAt: sessionExpiresAt,
     });
   } catch (e: any) {
     const msg = String(e?.message || "");

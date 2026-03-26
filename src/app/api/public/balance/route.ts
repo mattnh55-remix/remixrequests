@@ -1,6 +1,7 @@
 // src/app/api/public/balance/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCreditBalance, isGuestSessionActive } from "@/lib/validators";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,9 +31,14 @@ export async function GET(req: Request) {
       );
     }
 
-    const ident = await prisma.identity.findUnique({
-      where: { id: identityId },
-      select: { emailHash: true },
+    const ident = await prisma.identity.findFirst({
+      where: { id: identityId, locationId: loc.id },
+      select: {
+        emailHash: true,
+        sessionStartedAt: true,
+        sessionExpiresAt: true,
+        smsVerifiedAt: true,
+      },
     });
 
     if (!ident?.emailHash) {
@@ -43,24 +49,17 @@ export async function GET(req: Request) {
     }
 
     const now = new Date();
-
-const agg = await prisma.creditLedger.aggregate({
-  where: {
-    locationId: loc.id,
-    emailHash: ident.emailHash,
-    OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-  },
-  _sum: { delta: true },
-});
-
-let balance = Number(agg._sum.delta || 0);
-
-// Never allow negative display balances
-if (balance < 0) balance = 0;
-
+    const sessionActive = isGuestSessionActive(ident, now);
+    const balance = sessionActive ? await getCreditBalance(loc.id, ident.emailHash, now) : 0;
 
     return NextResponse.json(
-      { ok: true, balance },
+      {
+        ok: true,
+        balance,
+        sessionActive,
+        sessionStartedAt: ident.sessionStartedAt,
+        sessionExpiresAt: ident.sessionExpiresAt,
+      },
       {
         status: 200,
         headers: { "cache-control": "no-store, max-age=0" },

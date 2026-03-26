@@ -16,28 +16,20 @@ function mustEnv(name: string) {
 }
 
 function getWebhookUrl() {
-  // BEST PRACTICE: set this to the exact webhook URL you configured in Square dashboard.
-  // Example: https://remixrequests.com/api/square/webhook
   const explicit = process.env.SQUARE_WEBHOOK_URL;
   if (explicit) return explicit;
-
-  // Fallback (works if Square is configured with the same URL)
   return mustEnv("APP_BASE_URL") + "/api/square/webhook";
 }
 
 function verifySquareSignature(rawBody: string, signatureHeader: string | null, webhookUrl: string) {
   if (!signatureHeader) return false;
   const signatureKey = mustEnv("SQUARE_WEBHOOK_SIGNATURE_KEY");
-
-  // Square signature payload = webhookUrl + rawBody
   const payload = webhookUrl + rawBody;
   const hmac = crypto.createHmac("sha256", signatureKey);
   hmac.update(payload, "utf8");
   const expected = hmac.digest("base64");
-
   const a = Buffer.from(expected);
   const b = Buffer.from(signatureHeader);
-
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
@@ -70,14 +62,12 @@ function safeStr(x: any) {
 }
 
 function shortId() {
-  // short readable id for logs
-  return crypto.randomBytes(3).toString("hex"); // 6 chars
+  return crypto.randomBytes(3).toString("hex");
 }
 
 export async function POST(req: Request) {
   const reqId = crypto.randomUUID();
-  const rid = shortId(); // small log-friendly id
-
+  const rid = shortId();
   const logBase = { reqId, rid };
 
   try {
@@ -108,11 +98,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true, ignored: "bad json" });
     }
 
-    const eventId = safeStr(event?.event_id || event?.id || event?.data?.id); // varies by type
+    const eventId = safeStr(event?.event_id || event?.id || event?.data?.id);
     const eventType = safeStr(event?.type);
     const createdAt = safeStr(event?.created_at);
 
-    // Works for payment.* events; Square’s payload varies.
     const paymentId =
       safeStr(event?.data?.id) ||
       safeStr(event?.data?.object?.payment?.id) ||
@@ -125,14 +114,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true, ignored: "no paymentId" });
     }
 
-    // Idempotency: never grant twice for same paymentId
     const already = await prisma.processedPayment.findUnique({ where: { paymentId } });
     if (already) {
       console.log(LOG, "IDEMPOTENT_SKIP_ALREADY_PROCESSED", { ...logBase, paymentId });
       return NextResponse.json({ received: true, ignored: "already processed" });
     }
 
-    // Fetch payment truth from Square
     const payment = (await squareGet(`/v2/payments/${paymentId}`))?.payment;
     if (!payment) {
       console.warn(LOG, "PAYMENT_NOT_FOUND", { ...logBase, paymentId });
@@ -163,7 +150,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true, ignored: "no order_id" });
     }
 
-    // Fetch order to read reference_id
     const order = (await squareGet(`/v2/orders/${orderId}`))?.order;
     const referenceId = safeStr(order?.reference_id);
 
@@ -174,7 +160,6 @@ export async function POST(req: Request) {
       referenceId: referenceId || null,
     });
 
-    // KEY FILTER: only process RemixRequests orders
     if (!referenceId || !referenceId.startsWith("RR:")) {
       console.log(LOG, "IGNORED_NOT_RR", { ...logBase, paymentId, orderId, referenceId: referenceId || null });
       return NextResponse.json({ received: true, ignored: "not RR order" });
@@ -196,27 +181,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true, ignored: "already consumed" });
     }
 
-    // Optional but recommended: validate amount/currency match pending record
     const paidAmount = Number(payment?.amount_money?.amount || 0);
     const paidCurrency = safeStr(payment?.amount_money?.currency || "");
 
     if (pending.amountCents && paidAmount && pending.amountCents !== paidAmount) {
-      console.error(LOG, "AMOUNT_MISMATCH", {
-        ...logBase,
-        referenceId,
-        expected: pending.amountCents,
-        got: paidAmount,
-      });
+      console.error(LOG, "AMOUNT_MISMATCH", { ...logBase, referenceId, expected: pending.amountCents, got: paidAmount });
       return NextResponse.json({ received: true, ignored: "amount mismatch" });
     }
 
     if (pending.currency && paidCurrency && pending.currency !== paidCurrency) {
-      console.error(LOG, "CURRENCY_MISMATCH", {
-        ...logBase,
-        referenceId,
-        expected: pending.currency,
-        got: paidCurrency,
-      });
+      console.error(LOG, "CURRENCY_MISMATCH", { ...logBase, referenceId, expected: pending.currency, got: paidCurrency });
       return NextResponse.json({ received: true, ignored: "currency mismatch" });
     }
 
@@ -224,6 +198,11 @@ export async function POST(req: Request) {
     if (!identity) {
       console.error(LOG, "IDENTITY_MISSING", { ...logBase, referenceId, identityId: pending.identityId });
       return NextResponse.json({ received: true, ignored: "identity missing" });
+    }
+
+    if (!pending.sessionExpiresAt) {
+      console.error(LOG, "PENDING_SESSION_EXPIRES_MISSING", { ...logBase, referenceId, paymentId, identityId: identity.id });
+      return NextResponse.json({ received: true, ignored: "missing session expiry" });
     }
 
     console.log(LOG, "READY_TO_GRANT", {
@@ -235,20 +214,11 @@ export async function POST(req: Request) {
       packageKey: pending.packageKey,
       identityId: identity.id,
       locationId: identity.locationId,
+      sessionExpiresAt: pending.sessionExpiresAt,
     });
 
-    // Transaction: mark processed + consume pending + grant credits
     await prisma.$transaction(async (tx) => {
-      await tx.processedPayment.create({
-        data: {
-          paymentId,
-          // Optional if your model has fields:
-          // eventId,
-          // orderId,
-          // referenceId,
-          // createdAt: new Date(),
-        },
-      });
+      await tx.processedPayment.create({ data: { paymentId } });
 
       await tx.pendingCheckout.update({
         where: { referenceId },
@@ -261,6 +231,7 @@ export async function POST(req: Request) {
           emailHash: identity.emailHash,
           delta: pending.credits,
           reason: `square:${pending.packageKey}`,
+          expiresAt: pending.sessionExpiresAt,
         },
       });
     });
@@ -273,6 +244,7 @@ export async function POST(req: Request) {
       credits: pending.credits,
       identityId: identity.id,
       locationId: identity.locationId,
+      sessionExpiresAt: pending.sessionExpiresAt,
     });
 
     return NextResponse.json({ received: true });
@@ -283,8 +255,6 @@ export async function POST(req: Request) {
         squareStatus: e.squareStatus,
         squareBody: e.squareBody,
       });
-      // Return 200 so Square doesn't spam retries for our internal fetch errors,
-      // but keep logs for investigation.
       return NextResponse.json({ received: true, ignored: "square fetch error" });
     }
 
@@ -293,7 +263,6 @@ export async function POST(req: Request) {
       message: e?.message || String(e),
       stack: e?.stack,
     });
-    // Return 200 to avoid webhook retry storms; we rely on logs + DB to catch issues.
     return NextResponse.json({ received: true, ignored: "fatal" });
   }
 }

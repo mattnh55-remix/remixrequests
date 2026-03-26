@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
-import { getOrCreateCurrentSession } from "@/lib/validators";
+import { getOrCreateCurrentSession, isGuestSessionActive } from "@/lib/validators";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 
 function skaterLabel(emailHash: string) {
@@ -23,52 +23,60 @@ export async function GET(req: Request, { params }: { params: { location: string
   const { loc } = await getRulesForLocation(params.location);
   const session = await getOrCreateCurrentSession(loc.id, 4);
 
-  // Active users = anyone who requested OR voted in this session
   const [reqUsers, voteUsers] = await Promise.all([
     prisma.request.findMany({
       where: { locationId: loc.id, sessionId: session.id },
       select: { emailHash: true },
-      distinct: ["emailHash"]
+      distinct: ["emailHash"],
     }),
     prisma.vote.findMany({
       where: { sessionId: session.id },
       select: { emailHash: true },
-      distinct: ["emailHash"]
-    })
+      distinct: ["emailHash"],
+    }),
   ]);
 
   const hashes = Array.from(
-    new Set<string>([...reqUsers.map(r => r.emailHash), ...voteUsers.map(v => v.emailHash)].filter(Boolean))
+    new Set<string>([...reqUsers.map((r) => r.emailHash), ...voteUsers.map((v) => v.emailHash)].filter(Boolean))
   );
 
   if (hashes.length === 0) {
     return NextResponse.json({ ok: true, sessionId: session.id, users: [] });
   }
 
-  // Identities (verified?)
   const identities = await prisma.identity.findMany({
     where: { locationId: loc.id, emailHash: { in: hashes } },
-    select: { emailHash: true, smsVerifiedAt: true }
+    select: {
+      emailHash: true,
+      smsVerifiedAt: true,
+      sessionStartedAt: true,
+      sessionExpiresAt: true,
+    },
   });
-  const verifiedByHash = new Map<string, boolean>(
-    identities.map(i => [i.emailHash, !!i.smsVerifiedAt])
-  );
+  const identityByHash = new Map(identities.map((i) => [i.emailHash, i]));
 
-  // Points balance from ledger
   const balances = await prisma.creditLedger.groupBy({
     by: ["emailHash"],
-    where: { locationId: loc.id, emailHash: { in: hashes } },
-    _sum: { delta: true }
+    where: {
+      locationId: loc.id,
+      emailHash: { in: hashes },
+      expiresAt: { gt: new Date() },
+    },
+    _sum: { delta: true },
   });
-  const pointsByHash = new Map<string, number>(
-    balances.map(b => [b.emailHash, Number(b._sum.delta ?? 0)])
+  const pointsByHash = new Map(
+    balances.map((b) => [b.emailHash, Math.max(Number(b._sum.delta ?? 0), 0)])
   );
 
-  // Latest redemption code tag from ledger reason: "redeem:CODE"
   const redeems = await prisma.creditLedger.findMany({
-    where: { locationId: loc.id, emailHash: { in: hashes }, reason: { startsWith: "redeem:" } },
+    where: {
+      locationId: loc.id,
+      emailHash: { in: hashes },
+      reason: { startsWith: "redeem:" },
+      expiresAt: { gt: new Date() },
+    },
     select: { emailHash: true, reason: true, createdAt: true },
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: "desc" },
   });
   const redeemByHash = new Map<string, string>();
   for (const r of redeems) {
@@ -79,15 +87,21 @@ export async function GET(req: Request, { params }: { params: { location: string
   }
 
   const users = hashes
-    .map((h) => ({
-      emailHash: h,
-      label: skaterLabel(h),
-      verified: verifiedByHash.get(h) ?? false,
-      points: pointsByHash.get(h) ?? 0,
-      redemptionCode: redeemByHash.get(h) ?? null
-    }))
-    // Show verified first, then higher points
-    .sort((a, b) => Number(b.verified) - Number(a.verified) || b.points - a.points);
+    .map((h) => {
+      const ident = identityByHash.get(h) || null;
+      const sessionActive = isGuestSessionActive(ident);
+      return {
+        emailHash: h,
+        label: skaterLabel(h),
+        verified: sessionActive,
+        sessionActive,
+        sessionStartedAt: ident?.sessionStartedAt ?? null,
+        sessionExpiresAt: ident?.sessionExpiresAt ?? null,
+        points: pointsByHash.get(h) ?? 0,
+        redemptionCode: redeemByHash.get(h) ?? null,
+      };
+    })
+    .sort((a, b) => Number(b.sessionActive) - Number(a.sessionActive) || b.points - a.points);
 
   return NextResponse.json({ ok: true, sessionId: session.id, users });
 }

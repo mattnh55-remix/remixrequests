@@ -993,9 +993,9 @@ useEffect(() => {
   <TabButton active={tab === "users"} onClick={() => setTab("users")}>Users & Points</TabButton>
   <TabButton active={tab === "shoutoutSettings"} onClick={() => setTab("shoutoutSettings")}>Shoutout Settings</TabButton>
 
-  <a href={`/booth/${location}`} className="admTab">
-    DJ BOOTH
-  </a>
+<a href={`/booth/${location}`} className="admTab admTabLink">
+  DJ BOOTH
+</a>
 </div>
 
         {msg ? <div className="admNotice">{msg}</div> : null}
