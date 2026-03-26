@@ -111,6 +111,18 @@ function formatCountdown(endsAt?: string | null) {
   return h > 0 ? `Ends in ${h}h ${m}m` : `Ends in ${m}m`;
 }
 
+function getQueueTitle(item: QueuePreviewItem) {
+  return String(item.title || item.song?.title || item.request?.title || "Untitled");
+}
+
+function getQueueArtist(item: QueuePreviewItem) {
+  return String(item.artist || item.song?.artist || item.request?.artist || "Unknown artist");
+}
+
+function getQueueArtwork(item: QueuePreviewItem) {
+  return String(item.artworkUrl || item.song?.artworkUrl || item.request?.artworkUrl || "");
+}
+
 function AlbumArt({ src, alt }: { src?: string; alt?: string }) {
   const [bad, setBad] = useState(false);
   const real = (src || "").trim();
@@ -125,6 +137,31 @@ function AlbumArt({ src, alt }: { src?: string; alt?: string }) {
 
   return (
     <div className="rrRequestArt rrRequestArt--lg">
+      <img
+        src={real}
+        alt={alt || ""}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setBad(true)}
+      />
+    </div>
+  );
+}
+
+function TinyArt({ src, alt }: { src?: string; alt?: string }) {
+  const [bad, setBad] = useState(false);
+  const real = (src || "").trim();
+
+  if (!real || bad) {
+    return (
+      <div className="rrArt">
+        <div className="rrArtFallback">RMX</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rrArt">
       <img
         src={real}
         alt={alt || ""}
@@ -298,7 +335,7 @@ function HoldButton({
     rafRef.current = requestAnimationFrame(tick);
   }
 
-  function startHold(e: PointerEvent<HTMLButtonElement>) {
+function startHold(e: PointerEvent<HTMLButtonElement>) {
     e.preventDefault();
     e.stopPropagation();
     if (disabled || lockedRef.current) return;
@@ -309,7 +346,7 @@ function HoldButton({
     rafRef.current = requestAnimationFrame(tick);
   }
 
-  function cancelHold(e?: PointerEvent<HTMLButtonElement>) {
+function cancelHold(e?: PointerEvent<HTMLButtonElement>) {
     e?.preventDefault();
     e?.stopPropagation();
     if (lockedRef.current) return;
@@ -478,9 +515,9 @@ function VerifyDrawer({
         <div className="rrDrawerHead">
           <div>
             <div className="rrDrawerTitle">Claim your points</div>
-            <div className="rrDrawerSub">
-              Boost your songs to the front, outvote the crowd, and take over the floor.
-            </div>
+<div className="rrDrawerSub">
+  Boost your songs to the front, outvote the crowd, and take over the floor.
+</div>
           </div>
           <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
             Close
@@ -699,7 +736,6 @@ function BuyCreditsDrawer({
     </div>
   );
 }
-
 export default function RequestPage({ params }: { params: { location: string } }) {
   const location = decodeURIComponent(params.location);
 
@@ -718,7 +754,6 @@ export default function RequestPage({ params }: { params: { location: string } }
 
   const [verified, setVerified] = useState(false);
   const [identityId, setIdentityId] = useState("");
-  const [sessionActive, setSessionActive] = useState(false);
   const [showVerify, setShowVerify] = useState(false);
   const [showBuy, setShowBuy] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
@@ -730,6 +765,7 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [flyAnim, setFlyAnim] = useState<FlyAnim | null>(null);
   const [buyBusy, setBuyBusy] = useState(false);
 
+
   const queueTargetRef = useRef<HTMLButtonElement | null>(null);
   const flyTimerRef = useRef<number | null>(null);
   const tileSuccessTimerRef = useRef<number | null>(null);
@@ -740,19 +776,6 @@ export default function RequestPage({ params }: { params: { location: string } }
 
   const sfx = usePublicSfx();
 
-  function resetToClaimState(clearStorage = false) {
-    setSessionActive(false);
-    setVerified(false);
-    setIdentityId("");
-    setShowBuy(false);
-
-    if (clearStorage) {
-      try {
-        localStorage.removeItem("rr_identityId");
-      } catch {}
-    }
-  }
-
   async function fetchBalanceNumber(nextIdentityId?: string): Promise<number> {
     const id = (nextIdentityId ?? identityId ?? "").trim();
     if (!id) throw new Error("Missing identityId");
@@ -761,42 +784,29 @@ export default function RequestPage({ params }: { params: { location: string } }
       `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
       { cache: "no-store" }
     );
-    const data = (await res.json()) as BalanceRes;
+const data = (await res.json()) as BalanceRes;
 
-    if (!res.ok || !data.ok) {
-      if (res.status === 404 || res.status === 401 || res.status === 403) {
-        resetToClaimState(true);
-      }
-      throw new Error(data.error || "Balance fetch failed");
-    }
+if (!res.ok) {
+  if (res.status === 404) {
+    try {
+      localStorage.removeItem("rr_identityId");
+    } catch {}
+    setIdentityId("");
+    setVerified(false);
+  }
+  throw new Error(data.error || "Balance fetch failed");
+}
 
-    setSessionActive(true);
-    setVerified(true);
+if (!data.ok) throw new Error(data.error || "Balance fetch failed");
     return Number(data.balance ?? 0);
   }
 
   const bal = useAnimatedBalance(() => fetchBalanceNumber(), {
-    enabled: Boolean(identityId && sessionActive),
+    enabled: Boolean(identityId),
     softPollMs: 2600,
     intervalMs: 650,
     storageKey: `rr_lastBalance:${location}:${identityId || "anon"}`,
   });
-
-  async function refreshIdentityState(nextIdentityId?: string) {
-    const id = (nextIdentityId ?? identityId ?? "").trim();
-    if (!id) {
-      resetToClaimState(false);
-      return;
-    }
-
-    try {
-      const nextBalance = await fetchBalanceNumber(id);
-      setIdentityId(id);
-      bal.applyBalance(nextBalance);
-    } catch {
-      // fetchBalanceNumber handles expired-state cleanup
-    }
-  }
 
   useEffect(() => {
     return () => {
@@ -847,7 +857,11 @@ export default function RequestPage({ params }: { params: { location: string } }
 
       if (verify === "1") setShowVerify(true);
       if (buy === "1") {
-        if (reason === "out" || reason === "notEnough" || reason === "boost") {
+        if (
+          reason === "out" ||
+          reason === "notEnough" ||
+          reason === "boost"
+        ) {
           setBuyReason(reason);
         } else {
           setBuyReason("none");
@@ -922,44 +936,44 @@ export default function RequestPage({ params }: { params: { location: string } }
     return () => window.clearInterval(id);
   }, [location]);
 
-  useEffect(() => {
-    try {
-      const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
-      const lsLocation = (localStorage.getItem("rr_location") || "").trim();
-      const lsEmail = (localStorage.getItem("rr_email") || "").trim();
+useEffect(() => {
+  try {
+    const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+    const lsLocation = (localStorage.getItem("rr_location") || "").trim();
+    const lsEmail = (localStorage.getItem("rr_email") || "").trim();
 
-      if (lsLocation && lsLocation !== location) {
-        localStorage.setItem("rr_location", String(location));
-        localStorage.removeItem("rr_identityId");
-        resetToClaimState(false);
-        if (lsEmail) setEmail(lsEmail);
-        return;
-      }
-
+    if (lsLocation && lsLocation !== location) {
+      localStorage.setItem("rr_location", String(location));
+      localStorage.removeItem("rr_identityId");
+      setIdentityId("");
+      setVerified(false);
       if (lsEmail) setEmail(lsEmail);
-
-      if (!lsLocation && location) {
-        localStorage.setItem("rr_location", String(location));
-      }
-
-      if (lsIdentity) {
-        setIdentityId(lsIdentity);
-        void refreshIdentityState(lsIdentity);
-      } else {
-        resetToClaimState(false);
-      }
-    } catch {
-      resetToClaimState(false);
+      return;
     }
-  }, [location]);
+
+    if (lsIdentity) {
+      setIdentityId(lsIdentity);
+      setVerified(true);
+    } else {
+      setIdentityId("");
+      setVerified(false);
+    }
+
+    if (lsEmail) setEmail(lsEmail);
+
+    if (!lsLocation && location) {
+      localStorage.setItem("rr_location", String(location));
+    }
+  } catch {}
+}, [location]);
 
   useEffect(() => {
-    if (!identityId || !sessionActive) return;
+    if (!identityId) return;
     const t = window.setTimeout(() => {
       bal.refreshOnce();
     }, 900);
     return () => window.clearTimeout(t);
-  }, [identityId, location, sessionActive]);
+  }, [identityId, location]);
 
   useEffect(() => {
     setSessionCountdown(formatCountdown(rules?.session?.endsAt || null));
@@ -985,27 +999,20 @@ export default function RequestPage({ params }: { params: { location: string } }
   }
 
   function openBuy(reason: typeof buyReason) {
-    if (!sessionActive || !verified || !identityId) {
-      setBuyReason(reason);
-      setShowVerify(true);
-      sfx.playTap();
-      return;
-    }
-
     setBuyReason(reason);
     setShowBuy(true);
     sfx.playTap();
   }
 
-  function handlePointsAction() {
-    sfx.playTap();
-    if (!sessionActive || !verified || !identityId) {
-      setBuyReason("boost");
-      setShowVerify(true);
-      return;
-    }
-    openBuy("boost");
+function handlePointsAction() {
+  sfx.playTap();
+  if (!verified && !identityId) {
+    setBuyReason("boost");
+    setShowVerify(true);
+    return;
   }
+  openBuy("boost");
+}
 
   async function redeem(codeInput?: string) {
     const code = String(codeInput ?? redeemCode ?? "").trim();
@@ -1022,9 +1029,9 @@ export default function RequestPage({ params }: { params: { location: string } }
       return;
     }
 
-    if (!sessionActive || !verified || !identityId) {
-      sfx.playTap();
-      setMsg("Claim your points to redeem a code.");
+    if (!verified && !identityId) {
+      sfx.playError();
+      setMsg("Please verify to redeem a code.");
       setShowVerify(true);
       return;
     }
@@ -1039,14 +1046,6 @@ export default function RequestPage({ params }: { params: { location: string } }
 
       const data = await res.json();
       if (!data.ok) {
-        const lower = String(data.error || "").toLowerCase();
-        if (lower.includes("expired") || lower.includes("verify")) {
-          resetToClaimState(true);
-          setMsg("Your session expired. Claim your points to continue.");
-          setShowVerify(true);
-          return;
-        }
-
         sfx.playError();
         setMsg(data.error || "Could not redeem code.");
         return;
@@ -1067,73 +1066,73 @@ export default function RequestPage({ params }: { params: { location: string } }
     }
   }
 
-  async function startCheckout(packageKey?: string, href?: string) {
-    try {
-      const lsLocation = (localStorage.getItem("rr_location") || "").trim();
-      if (lsLocation && lsLocation !== location) {
-        localStorage.removeItem("rr_identityId");
-        resetToClaimState(false);
-        setShowVerify(true);
-        setMsg("Please verify again for this location.");
-        return;
-      }
-    } catch {}
+async function startCheckout(packageKey?: string, href?: string) {
+console.log("startCheckout payload", {
+  location,
+  identityId,
+  packageKey,
+  href,
+});
 
-    if (!sessionActive || !identityId) {
-      setShowVerify(true);
-      return;
-    }
-
-    if (!packageKey) {
-      if (href) {
-        window.location.href = href;
-        return;
-      }
-      setMsg("Missing package.");
-      return;
-    }
-
-    try {
-      setBuyBusy(true);
-      setMsg("");
-
-      const res = await fetch("/api/square/create-checkout", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          location,
-          identityId,
-          packageKey,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok || !data?.ok || !data?.checkoutUrl) {
-        const lower = String(data?.error || "").toLowerCase();
-        if (lower.includes("expired") || lower.includes("verify")) {
-          resetToClaimState(true);
-          setMsg("Your session expired. Claim your points to continue.");
-          setShowVerify(true);
-          setBuyBusy(false);
-          return;
-        }
-
-        setMsg(
-          data?.error
-            ? `Checkout error: ${data.error}`
-            : `Could not open checkout. Status ${res.status}`
-        );
-        setBuyBusy(false);
-        return;
-      }
-
-      window.location.href = data.checkoutUrl;
-    } catch {
-      setMsg("Could not open checkout.");
-      setBuyBusy(false);
-    }
+try {
+  const lsLocation = (localStorage.getItem("rr_location") || "").trim();
+  if (lsLocation && lsLocation !== location) {
+    localStorage.removeItem("rr_identityId");
+    setIdentityId("");
+    setVerified(false);
+    setShowVerify(true);
+    setMsg("Please verify again for this location.");
+    return;
   }
+} catch {}
+
+  if (!identityId) {
+    setShowVerify(true);
+    return;
+  }
+
+  if (!packageKey) {
+    if (href) {
+      window.location.href = href;
+      return;
+    }
+    setMsg("Missing package.");
+    return;
+  }
+
+  try {
+    setBuyBusy(true);
+    setMsg("");
+
+    const res = await fetch("/api/square/create-checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        location,
+        identityId,
+        packageKey,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+if (!res.ok || !data?.ok || !data?.checkoutUrl) {
+  console.log("checkout error", { status: res.status, data });
+  setMsg(
+    data?.error
+      ? `Checkout error: ${data.error}`
+      : `Could not open checkout. Status ${res.status}`
+  );
+  setBuyBusy(false);
+  return;
+}
+
+    window.location.href = data.checkoutUrl;
+  } catch {
+    setMsg("Could not open checkout.");
+    setBuyBusy(false);
+  }
+}
 
   function triggerSuccessVisuals(song: Song, sourceEl?: HTMLElement | null) {
     setSuccessTileId(song.id);
@@ -1178,9 +1177,9 @@ export default function RequestPage({ params }: { params: { location: string } }
     action: "play_next" | "play_now",
     sourceEl?: HTMLElement | null
   ) {
-    if (!sessionActive || !verified || !identityId) {
-      sfx.playTap();
-      setMsg("Claim your points to request songs.");
+    if (!verified && !identityId) {
+      sfx.playError();
+      setMsg("Please verify to unlock points.");
       setShowVerify(true);
       return false;
     }
@@ -1205,14 +1204,6 @@ export default function RequestPage({ params }: { params: { location: string } }
 
       const data = await res.json();
       if (!data.ok) {
-        const lower = String(data.error || "").toLowerCase();
-        if (lower.includes("expired") || lower.includes("verify")) {
-          resetToClaimState(true);
-          setMsg("Your session expired. Claim your points to continue.");
-          setShowVerify(true);
-          return false;
-        }
-
         sfx.playError();
         setMsg(data.error || "Something went wrong.");
         return false;
@@ -1235,12 +1226,19 @@ export default function RequestPage({ params }: { params: { location: string } }
     }
   }
 
+  const locationName = rules?.location?.name || "Remix Skate & Event Center";
   const logoUrl = rules?.rules?.logoUrl || REMIX_LOGO_URL;
-  const balanceValue = sessionActive && verified && identityId ? Number(bal.balance || 0) : 5;
+  const balanceValue = !verified && !identityId ? 5 : Number(bal.balance || 0);
   const requestCost = Number(rules?.rules?.costRequest ?? 1);
   const playNowCost = Number(rules?.rules?.costPlayNow ?? 5);
 
   const trending = useMemo(() => songs.slice(0, 8), [songs]);
+
+  const buyUrl = useMemo(() => {
+    const fromMap = BUY_URL_BY_LOCATION[location];
+    if (fromMap) return fromMap;
+    return rules?.rules?.buyUrl ?? process.env.NEXT_PUBLIC_REMIXREQUESTS_BUY_URL ?? null;
+  }, [location, rules]);
 
   const packs: UiPack[] = useMemo(() => {
     const p1 = Number(rules?.rules?.packTier1PriceCents ?? 500);
@@ -1287,6 +1285,8 @@ export default function RequestPage({ params }: { params: { location: string } }
     ];
   }, [rules]);
 
+  const queuePreviewItems = [...queuePreview.playNow, ...queuePreview.upNext].slice(0, 3);
+
   return (
     <PublicTheme>
       <div className="rrHeroGrid">
@@ -1297,9 +1297,7 @@ export default function RequestPage({ params }: { params: { location: string } }
         <div className="rrHeroCard">
           <h1 className="rrTitle">Request a Song</h1>
           <div className="rrTitleSub">
-            Requests cost {requestCost} point. Boosts cost {playNowCost} points.
-            <br />
-            Upvote and Downvote your favorites!
+            Requests cost {requestCost} point. Boosts cost {playNowCost} points.<br />Upvote and Downvote your favorites!
           </div>
         </div>
 
@@ -1309,7 +1307,7 @@ export default function RequestPage({ params }: { params: { location: string } }
             <div className="rrHudValue">{balanceValue}</div>
             <div className="rrPointsActions">
               <button className="rrBtn" style={{ width: "100%" }} onClick={handlePointsAction}>
-                {sessionActive && verified && identityId ? "Add Points" : "Claim Points"}
+                {verified || identityId ? "Add Points" : "Claim Points"}
               </button>
             </div>
           </div>
@@ -1320,7 +1318,7 @@ export default function RequestPage({ params }: { params: { location: string } }
         <div className="rrNoticeActions rrNoticeActions--full" style={{ marginTop: 0 }}>
           <button
             ref={queueTargetRef}
-            className={`rrBtn rrBtn--full ${queuePulseOn ? "rrBtn--pulse" : ""}`}
+            className="rrBtn rrBtn--full"
             onClick={() => {
               sfx.playTap();
               window.location.href = `/queue/${encodeURIComponent(location)}`;
@@ -1376,9 +1374,7 @@ export default function RequestPage({ params }: { params: { location: string } }
                 </button>
               ))}
             </div>
-            <div className="rrRequestChipHint" aria-hidden="true">
-              ›
-            </div>
+            <div className="rrRequestChipHint" aria-hidden="true">›</div>
           </div>
         </div>
       </div>
@@ -1395,43 +1391,46 @@ export default function RequestPage({ params }: { params: { location: string } }
           <div className="rrPanelBody">
             <div className="rrTrendingRail">
               {trending.map((song) => {
-                const isSuccess = successTileId === song.id;
-                const isHot = true;
+  const isSuccess = successTileId === song.id;
+  const isHot = true;
 
-                return (
-                  <div key={song.id} className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}>
-                    <AlbumArt src={song.artworkUrl} alt={song.title} />
+  return (
+    <div
+      key={song.id}
+      className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}
+    >
+      <AlbumArt src={song.artworkUrl} alt={song.title} />
 
-                    <div className="rrSongTileCopy">
-                      <div className="rrSongTileTitle">{song.title}</div>
-                      <div className="rrSongTileMeta">{song.artist}</div>
+      <div className="rrSongTileCopy">
+        <div className="rrSongTileTitle">{song.title}</div>
+        <div className="rrSongTileMeta">{song.artist}</div>
 
-                      <div className="rrSongMetaRow">
-                        {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
-                        <span className="rrMetaPill">{requestCost}pt</span>
-                        <span className="rrMetaPill">{playNowCost}pt boost</span>
-                        {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
-                      </div>
-                    </div>
+        <div className="rrSongMetaRow">
+          {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
+          <span className="rrMetaPill">{requestCost}pt</span>
+          <span className="rrMetaPill">{playNowCost}pt boost</span>
+          {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
+        </div>
+      </div>
 
-                    <div className="rrSongTileActions">
-                      <HoldButton
-                        idleLabel={`REQUEST! - ${requestCost}pt`}
-                        busyLabel="REQUESTING..."
-                        successLabel="ADDED!"
-                        onConfirm={(el) => submit(song, "play_next", el)}
-                      />
-                      <HoldButton
-                        idleLabel={`BOOST! - ${playNowCost}pts`}
-                        busyLabel="BOOSTING..."
-                        successLabel="SENT!"
-                        onConfirm={(el) => submit(song, "play_now", el)}
-                        className="rrBtn"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+      <div className="rrSongTileActions">
+        <HoldButton
+          idleLabel={`REQUEST! - ${requestCost}pt`}
+          busyLabel="REQUESTING..."
+          successLabel="ADDED!"
+          onConfirm={(el) => submit(song, "play_next", el)}
+        />
+        <HoldButton
+          idleLabel={`BOOST! - ${playNowCost}pts`}
+          busyLabel="BOOSTING..."
+          successLabel="SENT!"
+          onConfirm={(el) => submit(song, "play_now", el)}
+          className="rrBtn"
+        />
+      </div>
+    </div>
+  );
+})}
             </div>
           </div>
         </div>
@@ -1454,37 +1453,40 @@ export default function RequestPage({ params }: { params: { location: string } }
               const isHot = trending.some((x) => x.id === song.id);
 
               return (
-                <div key={song.id} className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}>
-                  <AlbumArt src={song.artworkUrl} alt={song.title} />
+              <div
+  key={song.id}
+  className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}
+>
+  <AlbumArt src={song.artworkUrl} alt={song.title} />
 
-                  <div className="rrSongTileCopy">
-                    <div className="rrSongTileTitle">{song.title}</div>
-                    <div className="rrSongTileMeta">{song.artist}</div>
+  <div className="rrSongTileCopy">
+    <div className="rrSongTileTitle">{song.title}</div>
+    <div className="rrSongTileMeta">{song.artist}</div>
 
-                    <div className="rrSongMetaRow">
-                      {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
-                      <span className="rrMetaPill">{requestCost}pt</span>
-                      <span className="rrMetaPill">{playNowCost}pt boost</span>
-                      {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
-                    </div>
-                  </div>
+    <div className="rrSongMetaRow">
+      {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
+      <span className="rrMetaPill">{requestCost}pt</span>
+      <span className="rrMetaPill">{playNowCost}pt boost</span>
+      {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
+    </div>
+  </div>
 
-                  <div className="rrSongTileActions">
-                    <HoldButton
-                      idleLabel={`REQUEST! - ${requestCost}pt`}
-                      busyLabel="REQUESTING..."
-                      successLabel="ADDED!"
-                      onConfirm={(el) => submit(song, "play_next", el)}
-                    />
-                    <HoldButton
-                      idleLabel={`BOOST! - ${playNowCost}pts`}
-                      busyLabel="BOOSTING..."
-                      successLabel="SENT!"
-                      onConfirm={(el) => submit(song, "play_now", el)}
-                      className="rrBtn"
-                    />
-                  </div>
-                </div>
+  <div className="rrSongTileActions">
+    <HoldButton
+      idleLabel={`REQUEST! - ${requestCost}pt`}
+      busyLabel="REQUESTING..."
+      successLabel="ADDED!"
+      onConfirm={(el) => submit(song, "play_next", el)}
+    />
+    <HoldButton
+      idleLabel={`BOOST! - ${playNowCost}pts`}
+      busyLabel="BOOSTING..."
+      successLabel="SENT!"
+      onConfirm={(el) => submit(song, "play_now", el)}
+      className="rrBtn"
+    />
+  </div>
+</div>
               );
             })
           ) : (
@@ -1506,7 +1508,7 @@ export default function RequestPage({ params }: { params: { location: string } }
           </button>
 
           <button className="rrBtnGhost" onClick={() => openBuy("boost")}>
-            {sessionActive && verified && identityId ? "Get Points" : "Claim Points"}
+            Get Points
           </button>
         </div>
       </div>
@@ -1536,31 +1538,30 @@ export default function RequestPage({ params }: { params: { location: string } }
 
           if (cleanId) {
             setIdentityId(cleanId);
-            setSessionActive(true);
             setVerified(true);
-            void refreshIdentityState(cleanId);
+            void bal.refreshOnce();
           }
 
           if (cleanEmail) setEmail(cleanEmail);
-
           setMsg("Verification complete. Your points are ready.");
-          if (buyReason !== "none") {
-            setShowBuy(true);
-          }
+if (buyReason !== "none") {
+  setShowBuy(true);
+}
+
         }}
       />
 
-      <BuyCreditsDrawer
-        open={showBuy}
-        busy={buyBusy}
-        packs={packs}
-        redeemCode={redeemCode}
-        setRedeemCode={setRedeemCode}
-        redeemBusy={redeemBusy}
-        onClose={() => setShowBuy(false)}
-        onBuy={(packageKey, href) => startCheckout(packageKey, href)}
-        onRedeem={() => redeem()}
-      />
+<BuyCreditsDrawer
+  open={showBuy}
+  busy={buyBusy}
+  packs={packs}
+  redeemCode={redeemCode}
+  setRedeemCode={setRedeemCode}
+  redeemBusy={redeemBusy}
+  onClose={() => setShowBuy(false)}
+  onBuy={(packageKey, href) => startCheckout(packageKey, href)}
+  onRedeem={() => redeem()}
+/>
 
       {flyAnim ? (
         <div
@@ -1611,6 +1612,8 @@ export default function RequestPage({ params }: { params: { location: string } }
           `}</style>
         </div>
       ) : null}
+
+
     </PublicTheme>
   );
 }
