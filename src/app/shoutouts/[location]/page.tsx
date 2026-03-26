@@ -145,7 +145,7 @@ function BrandLogo({ logoUrl }: { logoUrl?: string | null }) {
 
 export default function ShoutoutsPage({ params }: { params: { location: string } }) {
   const location = params.location;
-
+const [sessionActive, setSessionActive] = useState(true);
   const [identityId, setIdentityId] = useState("");
   const [email, setEmail] = useState("");
   const [verified, setVerified] = useState(false);
@@ -203,8 +203,19 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
         { cache: "no-store" }
       );
       const data = (await res.json()) as BalanceRes;
-      if (data.ok) setBalance(Number(data.balance ?? 0));
-    } catch {
+if (data.ok) {
+  const nextBalance = Number(data.balance ?? 0);
+  setBalance(nextBalance);
+
+  if (nextBalance <= 0) {
+    // likely expired session
+    setSessionActive(false);
+    setVerified(false);
+    setIdentityId("");
+  } else {
+    setSessionActive(true);
+  }
+}    } catch {
       // ignore
     }
   }
@@ -263,11 +274,10 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       const lsEmail = (localStorage.getItem("rr_email") || "").trim();
       const lsLocation = (localStorage.getItem("rr_location") || "").trim();
 
-      if (lsIdentity) {
-        setIdentityId(lsIdentity);
-        setVerified(true);
-        void refreshBalance(lsIdentity);
-      }
+if (lsIdentity) {
+  setIdentityId(lsIdentity);
+  void refreshBalance(lsIdentity);
+}
 
       if (lsEmail) setEmail(lsEmail);
 
@@ -464,7 +474,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     openTimerRef.current = window.setTimeout(() => {
       setPressedProductKey(null);
 
-      if (!verified || !identityId || !email) {
+if (!sessionActive || !verified || !identityId || !email) {
         setMsg("Claim your intro points to send a shout-out.");
         setShowVerify(true);
         return;
@@ -492,7 +502,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     const cleanFrom = fromName.trim();
     const cleanBody = messageText.trim();
 
-    if (!verified || !identityId || !email) {
+if (!sessionActive || !verified || !identityId || !email) {
       setMsg("Claim your intro points to send a shout-out.");
       setShowVerify(true);
       return;
@@ -609,8 +619,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     canAfford &&
     !busy &&
     (!selectedProduct.hasImage || (!!photoFile && usageRightsAccepted));
-  const heroBalance = !verified && !identityId ? 5 : balance;
-
+const heroBalance = !sessionActive ? 5 : (!verified && !identityId ? 5 : balance);
   const buyUrl = useMemo(() => {
     const fromMap = BUY_URL_BY_LOCATION[location];
     if (fromMap) return fromMap;
@@ -698,15 +707,14 @@ Get your message up on the big screen!</div>
                 className="rrBtn"
                 style={{ width: "100%" }}
                 onClick={() => {
-                  if (!verified || !identityId) {
-                    setShowVerify(true);
-                    return;
-                  }
+if (!sessionActive || !verified || !identityId) {
+  setShowVerify(true);
+  return;
+}
                   setShowBuy(true);
                 }}
               >
-                {verified || identityId ? "Add Points" : "Claim Points"}
-              </button>
+{sessionActive && verified && identityId ? "Add Points" : "Claim Points"}              </button>
             </div>
           </div>
         </div>
@@ -814,10 +822,10 @@ Get your message up on the big screen!</div>
           <button
             className="rrBtn rrFooterCta"
             onClick={() => {
-              if (!verified || !identityId) {
-                setShowVerify(true);
-                return;
-              }
+if (!sessionActive || !verified || !identityId) {
+  setShowVerify(true);
+  return;
+}
               setShowComposer(true);
             }}
           >
