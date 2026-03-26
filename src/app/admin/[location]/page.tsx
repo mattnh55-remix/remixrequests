@@ -103,6 +103,46 @@ type SessionUser = {
   redemptionCode?: string | null;
 };
 
+type RecentUserFilter = "qualifying" | "redeem" | "purchase" | "both";
+
+type RecentUserItem = {
+  emailHash: string;
+  label: string;
+  verified: boolean;
+  points: number;
+  lastActivityAt?: string;
+  redeemedCount: number;
+  purchaseCount: number;
+  redeemedRecently?: boolean;
+  purchasedRecently?: boolean;
+};
+
+type UserLedgerEntry = {
+  id: string;
+  createdAt: string;
+  delta: number;
+  reason: string;
+  expiresAt?: string | null;
+};
+
+type UserHistoryDetail = {
+  emailHash: string;
+  label: string;
+  verified: boolean;
+  points: number;
+  lastActivityAt?: string;
+  entries: UserLedgerEntry[];
+};
+
+type RecentUsersResponse = {
+  ok?: boolean;
+  items?: RecentUserItem[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+};
+
+
 type Top10Bucket = "GENERAL" | "ADULT";
 
 type Top10Item = {
@@ -296,6 +336,28 @@ function requestMetaLine(q: RequestItem) {
   return parts.join(" • ");
 }
 
+function shortHash(hash?: string) {
+  const raw = String(hash || "");
+  if (raw.length <= 12) return raw || "Unknown";
+  return `${raw.slice(0, 8)}…${raw.slice(-4)}`;
+}
+
+function userLabel(label?: string, emailHash?: string) {
+  const clean = String(label || "").trim();
+  if (clean) return clean;
+  return `User ${shortHash(emailHash)}`;
+}
+
+function reasonTone(reason?: string) {
+  const raw = String(reason || "").toUpperCase();
+  if (raw.includes("ADMIN")) return "warn";
+  if (raw.includes("REDEEM")) return "live";
+  if (raw.includes("PURCHASE") || raw.includes("PAYMENT") || raw.includes("CHECKOUT") || raw.includes("PACK")) return "live";
+  if (raw.includes("REQUEST") || raw.includes("UPVOTE") || raw.includes("DOWNVOTE") || raw.includes("PLAY_NOW")) return "danger";
+  return undefined;
+}
+
+
 function queueBuckets(items: RequestItem[]) {
   return {
     boosts: items.filter((q) => q.boosted || q.type === "PLAY_NOW"),
@@ -326,6 +388,18 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   const [rules, setRules] = useState<RulesState | null>(null);
   const [placeholders, setPlaceholders] = useState<PlaceholderMessage[]>(DEFAULT_PLACEHOLDERS);
   const [users, setUsers] = useState<SessionUser[]>([]);
+  const [recentUsers, setRecentUsers] = useState<RecentUserItem[]>([]);
+  const [recentUsersTotal, setRecentUsersTotal] = useState(0);
+  const [recentUsersPage, setRecentUsersPage] = useState(1);
+  const [recentUsersPageSize] = useState(50);
+  const [recentUsersFilter, setRecentUsersFilter] = useState<RecentUserFilter>("qualifying");
+  const [recentUsersBusy, setRecentUsersBusy] = useState(false);
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [userModalBusy, setUserModalBusy] = useState(false);
+  const [userModalSaving, setUserModalSaving] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserHistoryDetail | null>(null);
+  const [targetBalance, setTargetBalance] = useState("");
+  const [adjustReason, setAdjustReason] = useState("Manual correction");
   const [top10, setTop10] = useState<Top10Item[]>([]);
   const [top10BucketView, setTop10BucketView] = useState<Top10Bucket | "AUTO">("AUTO");
   const [top10ActiveBucket, setTop10ActiveBucket] = useState<Top10Bucket | "">("");
@@ -487,6 +561,84 @@ export default function AdminPage({ params }: { params: { location: string } }) 
       setUsers(data.users || []);
     } catch {}
   }
+
+  async function loadRecentUsers(pageOverride?: number, filterOverride?: RecentUserFilter) {
+    const page = pageOverride ?? recentUsersPage;
+    const filter = filterOverride ?? recentUsersFilter;
+    setRecentUsersBusy(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(recentUsersPageSize),
+        filter,
+      });
+      const res = await fetch(`/api/admin/user-history/${location}?${params.toString()}`, { cache: "no-store" });
+      const data = (await safeJson(res)) as RecentUsersResponse;
+      setRecentUsers(Array.isArray(data.items) ? data.items : []);
+      setRecentUsersTotal(Number(data.total || 0));
+      setRecentUsersPage(Number(data.page || page));
+    } catch {
+      setRecentUsers([]);
+      setRecentUsersTotal(0);
+    } finally {
+      setRecentUsersBusy(false);
+    }
+  }
+
+  async function openUserHistory(emailHash: string) {
+    setUserModalOpen(true);
+    setUserModalBusy(true);
+    setSelectedUser(null);
+    setAdjustReason("Manual correction");
+    setTargetBalance("");
+    try {
+      const res = await fetch(`/api/admin/user-history/detail`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ location, emailHash }),
+      });
+      const data: any = await safeJson(res);
+      if (!data?.ok) {
+        setMsg(data?.error || "Could not load user history.");
+        setUserModalOpen(false);
+        return;
+      }
+      const detail = data.user as UserHistoryDetail;
+      setSelectedUser(detail);
+      setTargetBalance(String(Number(detail?.points || 0)));
+    } finally {
+      setUserModalBusy(false);
+    }
+  }
+
+  async function saveUserBalanceOverride() {
+    if (!selectedUser) return;
+    const nextTarget = Number(targetBalance);
+    if (!Number.isFinite(nextTarget)) return setMsg("Enter a valid target balance.");
+    const cleanReason = String(adjustReason || "").trim();
+    if (!cleanReason) return setMsg("Enter a reason for the balance change.");
+    setUserModalSaving(true);
+    try {
+      const res = await fetch(`/api/admin/user-history/adjust`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          location,
+          emailHash: selectedUser.emailHash,
+          targetBalance: nextTarget,
+          reason: cleanReason,
+        }),
+      });
+      const data: any = await safeJson(res);
+      if (!data?.ok) return setMsg(data?.error || "Could not update balance.");
+      setMsg(data?.changed ? "✅ User balance updated." : "✅ Balance already matched target.");
+      await openUserHistory(selectedUser.emailHash);
+      await Promise.all([loadRecentUsers(), loadUsers()]);
+    } finally {
+      setUserModalSaving(false);
+    }
+  }
+
 
   async function loadTop10(bucketOverride?: Top10Bucket | "AUTO") {
     try {
@@ -729,7 +881,7 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     if (!authed) return;
     const nextRequests = await loadRequests();
     const nextPendingMessages = await loadMessages();
-    await Promise.all([loadUsers(), loadTop10(), loadCodes()]);
+    await Promise.all([loadUsers(), loadTop10(), loadCodes(), loadRecentUsers()]);
     maybePlayChime(nextRequests, nextPendingMessages);
   }
 
@@ -742,6 +894,12 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   useEffect(() => {
     setPlaceholders(loadSavedPlaceholders(location));
   }, [location]);
+
+
+  useEffect(() => {
+    if (!authed || tab !== "users") return;
+    void loadRecentUsers();
+  }, [authed, location, recentUsersPage, recentUsersFilter, tab]);
 
   useEffect(() => {
     if (!authed) return;
@@ -1027,21 +1185,76 @@ export default function AdminPage({ params }: { params: { location: string } }) 
           </div>
         )}
 
+
         {tab === "users" && (
-          <div className="admGridSettings" style={{ gridTemplateColumns: "0.95fr 1.05fr" } as CSSProperties}>
-            <Panel title="Active session users" sub="Current verified status, points, and code attribution.">
-              <div className="admRows">
-                {users.length === 0 ? <EmptyState>No active users returned yet.</EmptyState> : users.map((u) => (
-                  <div key={u.emailHash} className="admRow">
-                    <div>
-                      <div style={{ fontWeight: 900 }}>{u.label}</div>
-                      <div className="admMuted">{u.verified ? "Verified" : "Unverified"}{u.redemptionCode ? <> • Code {u.redemptionCode}</> : null}</div>
+          <div className="admGridSettings" style={{ gridTemplateColumns: "1.02fr 0.98fr" } as CSSProperties}>
+            <div className="admSectionStack">
+              <Panel title="Recent users and purchases" sub="Last 50 qualifying identities with code redemption and point purchase activity.">
+                <div className="admSectionStack">
+                  <div className="admSplitActions">
+                    <div className="admActionRow">
+                      <Pill>{recentUsersTotal} total</Pill>
+                      <Pill variant="live">Page {recentUsersPage}</Pill>
                     </div>
-                    <div className="admMuted">Points {u.points}</div>
+                    <div className="admActionRow">
+                      <TabButton active={recentUsersFilter === "qualifying"} onClick={() => { setRecentUsersPage(1); setRecentUsersFilter("qualifying"); }}>All qualifying</TabButton>
+                      <TabButton active={recentUsersFilter === "redeem"} onClick={() => { setRecentUsersPage(1); setRecentUsersFilter("redeem"); }}>Redeemed</TabButton>
+                      <TabButton active={recentUsersFilter === "purchase"} onClick={() => { setRecentUsersPage(1); setRecentUsersFilter("purchase"); }}>Purchased</TabButton>
+                      <TabButton active={recentUsersFilter === "both"} onClick={() => { setRecentUsersPage(1); setRecentUsersFilter("both"); }}>Both</TabButton>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </Panel>
+
+                  <div className="admRows">
+                    {recentUsersBusy ? (
+                      <EmptyState>Loading recent user activity…</EmptyState>
+                    ) : recentUsers.length === 0 ? (
+                      <EmptyState>No qualifying user history returned yet.</EmptyState>
+                    ) : recentUsers.map((u) => (
+                      <button key={u.emailHash} type="button" className="admRow admUserHistoryRow" onClick={() => openUserHistory(u.emailHash)}>
+                        <div className="admTextWrap" style={{ flex: 1 }}>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <div style={{ fontWeight: 900 }}>{userLabel(u.label, u.emailHash)}</div>
+                            {u.verified ? <Pill variant="live">Verified</Pill> : <Pill>Unverified</Pill>}
+                            {u.purchaseCount > 0 ? <Pill variant="live">Purchase {u.purchaseCount}</Pill> : null}
+                            {u.redeemedCount > 0 ? <Pill variant="warn">Redeem {u.redeemedCount}</Pill> : null}
+                          </div>
+                          <div className="admFieldHelp admMono" style={{ marginTop: 6 }}>{shortHash(u.emailHash)}</div>
+                          <div className="admFieldHelp" style={{ marginTop: 6 }}>
+                            Last activity {u.lastActivityAt ? new Date(u.lastActivityAt).toLocaleString() : "—"}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right", minWidth: 96 }}>
+                          <div className="admFieldHelp">Points</div>
+                          <div style={{ fontWeight: 1000, fontSize: 20 }}>{u.points}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="admSplitActions">
+                    <div className="admFieldHelp">Showing {recentUsers.length} of {recentUsersTotal} matching users.</div>
+                    <div className="admActionRow">
+                      <ActionButton alt onClick={() => setRecentUsersPage((p) => Math.max(1, p - 1))} disabled={recentUsersPage <= 1}>Prev</ActionButton>
+                      <ActionButton alt onClick={() => setRecentUsersPage((p) => p + 1)} disabled={recentUsers.length < recentUsersPageSize}>Next</ActionButton>
+                    </div>
+                  </div>
+                </div>
+              </Panel>
+
+              <Panel title="Active session users" sub="Current verified status, points, and code attribution.">
+                <div className="admRows">
+                  {users.length === 0 ? <EmptyState>No active users returned yet.</EmptyState> : users.map((u) => (
+                    <div key={u.emailHash} className="admRow">
+                      <div>
+                        <div style={{ fontWeight: 900 }}>{u.label}</div>
+                        <div className="admMuted">{u.verified ? "Verified" : "Unverified"}{u.redemptionCode ? <> • Code {u.redemptionCode}</> : null}</div>
+                      </div>
+                      <div className="admMuted">Points {u.points}</div>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            </div>
 
             <Panel title="Redemption codes" sub="Create, import, disable, inspect, and delete codes.">
               <div className="admSectionStack">
@@ -1082,6 +1295,25 @@ export default function AdminPage({ params }: { params: { location: string } }) 
             </Panel>
           </div>
         )}
+
+        <UserHistoryModal
+          open={userModalOpen}
+          loading={userModalBusy}
+          saving={userModalSaving}
+          user={selectedUser}
+          targetBalance={targetBalance}
+          adjustReason={adjustReason}
+          onChangeTargetBalance={setTargetBalance}
+          onChangeAdjustReason={setAdjustReason}
+          onSave={saveUserBalanceOverride}
+          onClose={() => {
+            if (userModalSaving) return;
+            setUserModalOpen(false);
+            setSelectedUser(null);
+            setTargetBalance("");
+            setAdjustReason("Manual correction");
+          }}
+        />
 
         <CodeUsesModal open={codeUsesOpen} code={selectedCode} items={selectedCodeUses} loading={codeUsesLoading} onClose={() => { setCodeUsesOpen(false); setSelectedCode(null); setSelectedCodeUses([]); }} />
 
@@ -1192,6 +1424,102 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   );
 }
 
+
+function UserHistoryModal({
+  open,
+  loading,
+  saving,
+  user,
+  targetBalance,
+  adjustReason,
+  onChangeTargetBalance,
+  onChangeAdjustReason,
+  onSave,
+  onClose,
+}: {
+  open: boolean;
+  loading: boolean;
+  saving: boolean;
+  user: UserHistoryDetail | null;
+  targetBalance: string;
+  adjustReason: string;
+  onChangeTargetBalance: (next: string) => void;
+  onChangeAdjustReason: (next: string) => void;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="admOverlay">
+      <div className="admModalCard admUserModal">
+        <div className="admSplitActions" style={{ marginBottom: 14 }}>
+          <div>
+            <div className="admPanelTitle" style={{ fontSize: 18 }}>User point history</div>
+            <div className="admPanelSub">Compact ledger history with admin balance override.</div>
+          </div>
+          <ActionButton alt onClick={onClose}>Close</ActionButton>
+        </div>
+
+        {loading ? (
+          <EmptyState>Loading user history…</EmptyState>
+        ) : !user ? (
+          <EmptyState>No user details returned.</EmptyState>
+        ) : (
+          <div className="admSectionStack">
+            <div className="admSubPanel">
+              <div className="admSplitActions">
+                <div className="admTextWrap">
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <div style={{ fontWeight: 1000, fontSize: 18 }}>{userLabel(user.label, user.emailHash)}</div>
+                    {user.verified ? <Pill variant="live">Verified</Pill> : <Pill>Unverified</Pill>}
+                  </div>
+                  <div className="admFieldHelp admMono" style={{ marginTop: 6 }}>{user.emailHash}</div>
+                  <div className="admFieldHelp" style={{ marginTop: 6 }}>Last activity {user.lastActivityAt ? new Date(user.lastActivityAt).toLocaleString() : "—"}</div>
+                </div>
+                <div style={{ textAlign: "right", minWidth: 120 }}>
+                  <div className="admFieldHelp">Current balance</div>
+                  <div style={{ fontWeight: 1000, fontSize: 28 }}>{user.points}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="admGrid2 admUserModalGrid">
+              <SubPanel title="Override balance" sub="Set an exact balance. The system records only the computed delta as a ledger entry.">
+                <div className="admFieldStack">
+                  <Field label="Set balance to" value={targetBalance} onChange={(v) => onChangeTargetBalance(String(v))} />
+                  <TextField label="Reason" value={adjustReason} onChange={onChangeAdjustReason} />
+                  <div className="admActionRow">
+                    <ActionButton onClick={onSave}>{saving ? "Saving..." : "Apply balance override"}</ActionButton>
+                  </div>
+                </div>
+              </SubPanel>
+
+              <SubPanel title="Recent transaction history" sub={`Showing ${user.entries.length} most recent ledger rows.`}>
+                <div className="admUserLedgerList">
+                  {user.entries.length === 0 ? (
+                    <EmptyState>No ledger history returned yet.</EmptyState>
+                  ) : user.entries.map((entry) => (
+                    <div key={entry.id} className="admUserLedgerRow">
+                      <div className="admTextWrap" style={{ flex: 1 }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <div style={{ fontWeight: 900 }}>{entry.reason}</div>
+                          <Pill variant={reasonTone(entry.reason) as any}>{entry.delta > 0 ? `+${entry.delta}` : entry.delta}</Pill>
+                        </div>
+                        <div className="admFieldHelp" style={{ marginTop: 6 }}>{new Date(entry.createdAt).toLocaleString()}</div>
+                        {entry.expiresAt ? <div className="admFieldHelp">Expires {new Date(entry.expiresAt).toLocaleString()}</div> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </SubPanel>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CodeUsesModal({ open, code, items, loading, onClose }: { open: boolean; code: RedemptionCode | null; items: RedemptionCodeUseItem[]; loading: boolean; onClose: () => void; }) {
   if (!open) return null;
   return (
@@ -1286,8 +1614,8 @@ function MetricCard({ label, value, sub }: { label: string; value: number | stri
   );
 }
 
-function ActionButton({ alt, danger, children, onClick }: { alt?: boolean; danger?: boolean; children: ReactNode; onClick: () => void; }) {
-  return <button type="button" onClick={onClick} className={danger ? "admBtnDanger" : alt ? "admBtnGhost" : "admBtn"}>{children}</button>;
+function ActionButton({ alt, danger, disabled, children, onClick }: { alt?: boolean; danger?: boolean; disabled?: boolean; children: ReactNode; onClick: () => void; }) {
+  return <button type="button" onClick={onClick} disabled={disabled} className={danger ? "admBtnDanger" : alt ? "admBtnGhost" : "admBtn"}>{children}</button>;
 }
 
 function Pill({ children, variant }: { children: ReactNode; variant?: "live" | "warn" | "danger" }) {

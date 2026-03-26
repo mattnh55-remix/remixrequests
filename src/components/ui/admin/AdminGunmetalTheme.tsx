@@ -354,6 +354,9 @@ export default function AdminGunmetalTheme() {
       .admBtn { background: linear-gradient(180deg, var(--adm-blue) 0%, var(--adm-blue-2) 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 8px 18px rgba(32, 83, 155, 0.28); }
       .admBtnGhost { background: linear-gradient(180deg, rgba(43,53,72,0.84), rgba(18,26,39,0.94)); }
       .admBtnDanger { background: linear-gradient(180deg, rgba(101, 51, 67, 0.92), rgba(69, 28, 42, 0.96)); border-color: rgba(220,144,170,0.2); }
+      .admBtn:disabled,
+      .admBtnGhost:disabled,
+      .admBtnDanger:disabled { opacity: 0.48; cursor: not-allowed; }
       .admBtn--full { width: 100%; }
       .admActionRow {
         display: flex;
@@ -371,6 +374,35 @@ export default function AdminGunmetalTheme() {
       .admHr {
         height: 1px;
         background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(120,130,255,0.38), rgba(255,255,255,0.04));
+      }
+
+      .admUserHistoryRow {
+        width: 100%;
+        text-align: left;
+        cursor: pointer;
+      }
+      .admUserHistoryRow:hover {
+        border-color: var(--adm-border-strong);
+        box-shadow: 0 0 0 1px rgba(77, 143, 228, 0.12);
+      }
+      .admUserModal {
+        width: min(1120px, 100%);
+      }
+      .admUserModalGrid {
+        grid-template-columns: 320px minmax(0, 1fr);
+        align-items: start;
+      }
+      .admUserLedgerList {
+        display: grid;
+        gap: 8px;
+        max-height: 50vh;
+        overflow: auto;
+      }
+      .admUserLedgerRow {
+        border-radius: 12px;
+        border: 1px solid rgba(125, 156, 206, 0.12);
+        background: linear-gradient(90deg, rgba(18, 27, 43, 0.96) 0%, rgba(10, 17, 28, 0.98) 70%, rgba(11, 16, 28, 0.98) 100%);
+        padding: 10px;
       }
       .admOverlay {
         position: fixed;
