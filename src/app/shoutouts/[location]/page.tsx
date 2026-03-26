@@ -6,6 +6,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import PublicTheme from "../../../components/ui/public/PublicTheme";
 import { SHOUTOUT_PRODUCTS, type ShoutoutProductKey } from "@/lib/shoutoutProducts";
 
+
+const REMIX_LOGO_URL =
+  "https://skateremix.com/wp-content/uploads/2026/03/Remix_Globe_Logo_350px.png";
+
+
 type BalanceRes = { ok: boolean; balance?: number; error?: string };
 
 type SessionRes = {
@@ -124,16 +129,18 @@ function formatMoney(cents?: number) {
   return `$${((Number(cents ?? 0) || 0) / 100).toFixed(2)}`;
 }
 
-function BrandLogo({ logoUrl }: { logoUrl?: string }) {
-  if (logoUrl) {
+function BrandLogo({ logoUrl }: { logoUrl?: string | null }) {
+  const src = (logoUrl || REMIX_LOGO_URL || "").trim();
+
+  if (src) {
     return (
       <div className="rrBrandLogo">
-        <img src={logoUrl} alt="Location logo" />
+        <img src={src} alt="Remix logo" />
       </div>
     );
   }
 
-  return <div className="rrBrandBadge">Remix</div>;
+  return <div className="rrBrandBadge">REMIX</div>;
 }
 
 export default function ShoutoutsPage({ params }: { params: { location: string } }) {
@@ -679,9 +686,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
         <div className="rrHeroCard">
           <h1 className="rrTitle">Shout-Outs</h1>
           <div className="rrTitleSub">
-            Send a message to the screen. Some styles support photos.
-            {sessionCountdown ? <><br />{sessionCountdown}</> : null}
-          </div>
+Get your message up on the big screen!</div>
         </div>
 
         <div className="rrPointsCard">
@@ -712,10 +717,9 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           <div>
             <div className="rrPanelTitle">Pick Your Shout-Out</div>
             <div className="rrPanelSub">
-              Choose a format, then add your message before it goes to review.
+              Choose a format, then add your message!
             </div>
           </div>
-          <span className="rrStatusPill rrStatusPill--live">{locationName}</span>
         </div>
 
         <div className="rrPanelBody">
@@ -799,17 +803,10 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
         <div className="rrPanelHead rrPanelHead--centered">
           <div>
             <div className="rrPanelTitle">How It Works</div>
-            <div className="rrPanelSub">Fast, simple, and still reviewed before it hits the screen.</div>
+            <div className="rrPanelSub">Choose your shout out, submit details and send to the booth for approval!</div>
           </div>
         </div>
 
-        <div className="rrPanelBody">
-          <div className="rrStack">
-            <div className="rrMessage">1. Choose a shout-out style and enter your message.</div>
-            <div className="rrMessage">2. Photo styles require an image and permission confirmation.</div>
-            <div className="rrMessage">3. Points are deducted when the shout-out is submitted for approval.</div>
-          </div>
-        </div>
       </div>
 
       <div className="rrFooterBar">
