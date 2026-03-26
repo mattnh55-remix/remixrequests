@@ -1374,6 +1374,13 @@ export default function PublicGunmetalTheme() {
       }
 
       .rrShoutCardMeta .rrMetaPill {
+        color: #f0f5ff;
+        background: linear-gradient(180deg, rgba(82, 115, 170, 0.48), rgba(39, 61, 97, 0.72));
+        border-color: rgba(141, 177, 234, 0.22);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+      }
+
+      .rrShoutCardMeta .rrMetaPill {
         min-height: 19px;
         padding: 0 8px;
         color: #eaf2ff;
@@ -1476,6 +1483,7 @@ export default function PublicGunmetalTheme() {
           font-size: 10.5px;
         }
       }
+
 
     `}</style>
   );

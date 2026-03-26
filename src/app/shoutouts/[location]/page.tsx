@@ -780,7 +780,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       </div>
 
       <div className="rrPanel">
-        <div className="rrPanelHead">
+        <div className="rrPanelHead rrPanelHead--centered">
           <div>
             <div className="rrPanelTitle">How It Works</div>
             <div className="rrPanelSub">Fast, simple, and still reviewed before it hits the screen.</div>
