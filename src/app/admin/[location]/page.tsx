@@ -881,8 +881,12 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     if (!authed) return;
     const nextRequests = await loadRequests();
     const nextPendingMessages = await loadMessages();
-    await Promise.all([loadUsers(), loadTop10(), loadCodes(), loadRecentUsers()]);
-    maybePlayChime(nextRequests, nextPendingMessages);
+await Promise.all([
+  loadUsers(),
+  loadTop10(),
+  loadCodes(),
+  ...(tab === "users" ? [loadRecentUsers()] : []),
+]);    maybePlayChime(nextRequests, nextPendingMessages);
   }
 
   useEffect(() => {
@@ -901,14 +905,20 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     void loadRecentUsers();
   }, [authed, location, recentUsersPage, recentUsersFilter, tab]);
 
-  useEffect(() => {
-    if (!authed) return;
+useEffect(() => {
+  if (!authed) return;
+
+  void loadAll();
+
+  const shouldAutoRefresh = tab !== "users";
+  if (!shouldAutoRefresh) return;
+
+  const id = setInterval(() => {
     void loadAll();
-    const id = setInterval(() => {
-      void loadAll();
-    }, tab === "requestSettings" || tab === "top10" || tab === "shoutoutSettings" ? 6000 : 3000);
-    return () => clearInterval(id);
-  }, [authed, location, top10BucketView, tab, rulesDirty]);
+  }, tab === "requestSettings" || tab === "top10" || tab === "shoutoutSettings" ? 6000 : 3000);
+
+  return () => clearInterval(id);
+}, [authed, location, top10BucketView, tab, rulesDirty]);
 
   if (!authed) {
     return (
@@ -1193,9 +1203,12 @@ export default function AdminPage({ params }: { params: { location: string } }) 
                 <div className="admSectionStack">
                   <div className="admSplitActions">
                     <div className="admActionRow">
-                      <Pill>{recentUsersTotal} total</Pill>
-                      <Pill variant="live">Page {recentUsersPage}</Pill>
-                    </div>
+  <Pill>{recentUsersTotal} total</Pill>
+  <Pill variant="live">Page {recentUsersPage}</Pill>
+  <ActionButton alt onClick={() => void Promise.all([loadRecentUsers(), loadUsers()])}>
+    Refresh
+  </ActionButton>
+</div>
                     <div className="admActionRow">
                       <TabButton active={recentUsersFilter === "qualifying"} onClick={() => { setRecentUsersPage(1); setRecentUsersFilter("qualifying"); }}>All qualifying</TabButton>
                       <TabButton active={recentUsersFilter === "redeem"} onClick={() => { setRecentUsersPage(1); setRecentUsersFilter("redeem"); }}>Redeemed</TabButton>
@@ -1210,10 +1223,16 @@ export default function AdminPage({ params }: { params: { location: string } }) 
                     ) : recentUsers.length === 0 ? (
                       <EmptyState>No qualifying user history returned yet.</EmptyState>
                     ) : recentUsers.map((u) => (
-                      <button key={u.emailHash} type="button" className="admRow admUserHistoryRow" onClick={() => openUserHistory(u.emailHash)}>
+                      <button
+  key={u.emailHash}
+  type="button"
+  className="admRow admUserHistoryRow"
+  style={{ color: "#f3f6fb" }}
+  onClick={() => openUserHistory(u.emailHash)}
+>
                         <div className="admTextWrap" style={{ flex: 1 }}>
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            <div style={{ fontWeight: 900 }}>{userLabel(u.label, u.emailHash)}</div>
+                            <div style={{ fontWeight: 900, color: "#f3f6fb" }}>{userLabel(u.label, u.emailHash)}</div>
                             {u.verified ? <Pill variant="live">Verified</Pill> : <Pill>Unverified</Pill>}
                             {u.purchaseCount > 0 ? <Pill variant="live">Purchase {u.purchaseCount}</Pill> : null}
                             {u.redeemedCount > 0 ? <Pill variant="warn">Redeem {u.redeemedCount}</Pill> : null}

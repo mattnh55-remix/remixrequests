@@ -589,20 +589,11 @@ async function queueAction(
           letter-spacing: 0.14em;
           text-transform: uppercase;
         }
-        .rrBoothHeroCopy {
+
+ .rrBoothHeroCopy {
           min-width: 0;
         }
-          border-radius: 4px;
-          border: 1px solid rgba(84, 122, 162, 0.32);
-          background:
-            linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02)),
-            linear-gradient(90deg, rgba(24,36,52,0.9), rgba(9,18,31,0.86));
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.08),
-            inset 0 -1px 0 rgba(0,0,0,0.35),
-            0 10px 24px rgba(0,0,0,0.28);
-          margin-bottom: 8px;
-        }
+      
         .rrEyebrow {
           font-size: 9px;
           font-weight: 900;
