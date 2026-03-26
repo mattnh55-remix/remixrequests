@@ -585,33 +585,55 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     }
   }
 
-  async function openUserHistory(emailHash: string) {
-    setUserModalOpen(true);
-    setUserModalBusy(true);
-    setSelectedUser(null);
-    setAdjustReason("Manual correction");
-    setTargetBalance("");
-    try {
-      const params = new URLSearchParams({
+async function openUserHistory(emailHash: string) {
+  setUserModalOpen(true);
+  setUserModalBusy(true);
+  setSelectedUser(null);
+  setMsg("");
+
+  try {
+    const params = new URLSearchParams({
       locationId: location,
       emailHash,
-      });
+    });
 
     const res = await fetch(`/api/admin/user-history/detail?${params.toString()}`, {
-    cache: "no-store",
+      cache: "no-store",
     });
-      const data: any = await safeJson(res);
-if (!data?.ok) {
-  setMsg(data?.error || "Could not load user history.");
-  return;
-}
-      const detail = data.user as UserHistoryDetail;
-      setSelectedUser(detail);
-      setTargetBalance(String(Number(detail?.points || 0)));
-    } finally {
-      setUserModalBusy(false);
+
+    const data = await safeJson(res);
+
+    if (!data?.success) {
+      setMsg(data?.error || "Could not load user history.");
+      return;
     }
+
+    const detail: UserHistoryDetail = {
+      emailHash,
+      label: "", // optional fallback
+      verified: true, // optional fallback
+      points: Number(data.balance || 0),
+      lastActivityAt: data.latestActivity || undefined,
+      entries: Array.isArray(data.ledger)
+        ? data.ledger.map((e: any) => ({
+            id: e.id,
+            createdAt: e.createdAt,
+            delta: e.delta,
+            reason: e.reason,
+            expiresAt: e.expiresAt || null,
+          }))
+        : [],
+    };
+
+    setSelectedUser(detail);
+    setTargetBalance(String(detail.points));
+  } catch (err) {
+    console.error("openUserHistory error", err);
+    setMsg("Could not load user history.");
+  } finally {
+    setUserModalBusy(false);
   }
+}
 
   async function saveUserBalanceOverride() {
     if (!selectedUser) return;
@@ -624,16 +646,16 @@ if (!data?.ok) {
       const res = await fetch(`/api/admin/user-history/adjust`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          location,
+body: JSON.stringify({
+  locationId: location,
           emailHash: selectedUser.emailHash,
           targetBalance: nextTarget,
           reason: cleanReason,
         }),
       });
-      const data: any = await safeJson(res);
-      if (!data?.ok) return setMsg(data?.error || "Could not update balance.");
-      setMsg(data?.changed ? "✅ User balance updated." : "✅ Balance already matched target.");
+const data: any = await safeJson(res);
+if (!data?.success) return setMsg(data?.error || "Could not update balance.");
+setMsg(data?.delta === 0 ? "✅ Balance already matched target." : "✅ User balance updated.");
       await openUserHistory(selectedUser.emailHash);
       await Promise.all([loadRecentUsers(), loadUsers()]);
     } finally {
