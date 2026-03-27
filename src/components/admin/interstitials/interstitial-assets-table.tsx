@@ -13,12 +13,14 @@ type AssetRow = {
   name: string;
   category: string;
   fileUrl: string;
+  previewGifUrl?: string | null;
+  iconLabel?: string | null;
   durationSec: number | null;
+  notes?: string | null;
   active: boolean;
+  manualOnly?: boolean;
   priority: number;
   randomWeight: number;
-  scheduleMode: string;
-  intervalMinutes: number | null;
   allowedProfiles: string[];
   blockedProfiles: string[];
 };
@@ -33,7 +35,7 @@ export function InterstitialAssetsTable({
   locationId: string;
   assets: AssetRow[];
   categoryOptions: string[];
-  scheduleOptions: string[];
+  scheduleOptions?: string[]; // kept optional for call-site compatibility
   profileOptions: string[];
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -56,6 +58,7 @@ export function InterstitialAssetsTable({
               <div>
                 <div className="rrAssetTitleLine">
                   <div className="rrAssetTitle">{asset.name}</div>
+
                   <span
                     className={`rrChip ${
                       asset.active ? "rrChip--active" : "rrChip--inactive"
@@ -63,27 +66,30 @@ export function InterstitialAssetsTable({
                   >
                     {asset.active ? "ACTIVE" : "INACTIVE"}
                   </span>
+
                   <span className="rrChip rrChip--category">
                     {asset.category}
                   </span>
-                  <span className="rrChip rrChip--schedule">
-                    {asset.scheduleMode}
-                  </span>
+
+                  {asset.manualOnly ? (
+                    <span className="rrChip rrChip--schedule">MANUAL ONLY</span>
+                  ) : null}
                 </div>
 
                 <div className="rrAssetSub">
                   Local file: <strong>{asset.fileUrl}</strong>
+                  {asset.iconLabel ? (
+                    <>
+                      {"  •  "}Tile: <strong>{asset.iconLabel}</strong>
+                    </>
+                  ) : null}
                 </div>
               </div>
 
               <div className="rrAssetActions">
                 <form action={toggleInterstitialAsset}>
                   <input type="hidden" name="id" value={asset.id} />
-                  <input
-                    type="hidden"
-                    name="locationId"
-                    value={locationId}
-                  />
+                  <input type="hidden" name="locationId" value={locationId} />
                   <input
                     type="hidden"
                     name="nextActive"
@@ -114,11 +120,7 @@ export function InterstitialAssetsTable({
                   }}
                 >
                   <input type="hidden" name="id" value={asset.id} />
-                  <input
-                    type="hidden"
-                    name="locationId"
-                    value={locationId}
-                  />
+                  <input type="hidden" name="locationId" value={locationId} />
                   <button
                     type="submit"
                     className="gunmetalBtn gunmetalBtn--danger"
@@ -136,20 +138,21 @@ export function InterstitialAssetsTable({
                   {asset.durationSec != null ? `${asset.durationSec} sec` : "—"}
                 </strong>
               </div>
+
               <div className="rrAssetMetaCell">
                 <span>Priority</span>
                 <strong>{asset.priority}</strong>
               </div>
+
               <div className="rrAssetMetaCell">
                 <span>Weight</span>
                 <strong>{asset.randomWeight}</strong>
               </div>
+
               <div className="rrAssetMetaCell">
-                <span>Interval</span>
+                <span>Preview GIF</span>
                 <strong>
-                  {asset.intervalMinutes != null
-                    ? `Every ${asset.intervalMinutes} min`
-                    : "—"}
+                  {asset.previewGifUrl?.trim() ? "Configured" : "—"}
                 </strong>
               </div>
             </div>
@@ -166,6 +169,12 @@ export function InterstitialAssetsTable({
                 : "None"}
             </div>
 
+            {asset.notes?.trim() ? (
+              <div className="rrAssetProfiles" style={{ marginTop: 6 }}>
+                <strong>Notes:</strong> {asset.notes}
+              </div>
+            ) : null}
+
             {editing ? (
               <div className="rrEditWrap">
                 <InterstitialAssetForm
@@ -174,7 +183,7 @@ export function InterstitialAssetsTable({
                   scheduleOptions={scheduleOptions}
                   profileOptions={profileOptions}
                   initialValues={asset}
-                  submitLabel="Update Interstitial"
+                  submitLabel="Update Asset"
                 />
               </div>
             ) : null}
