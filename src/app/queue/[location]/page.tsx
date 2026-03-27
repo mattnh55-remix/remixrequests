@@ -289,6 +289,15 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   const [email, setEmail] = useState("");
   const [verified, setVerified] = useState(false);
   const [msg, setMsg] = useState("");
+function resetToClaimState() {
+  try {
+    localStorage.removeItem("rr_identityId");
+    localStorage.removeItem("rr_location");
+  } catch {}
+
+  setIdentityId("");
+  setVerified(false);
+}
   const [busyVoteId, setBusyVoteId] = useState("");
   const mountedRef = useRef(true);
   const sfx = useGunmetalSfx();
@@ -358,10 +367,10 @@ export default function QueuePage({ params }: { params: { location: string } }) 
     const data = (await res.json()) as BalanceRes;
     if (!data.ok) throw new Error(data.error || "Balance fetch failed");
 
-    if (!data.sessionActive) {
-      clearExpiredIdentity();
-      return 0;
-    }
+if (!data.sessionActive) {
+  resetToClaimState();
+  return 5; // 👈 THIS is key
+}
 
     setVerified(true);
     return Number(data.balance ?? 0);
@@ -392,11 +401,11 @@ export default function QueuePage({ params }: { params: { location: string } }) 
       if (!mountedRef.current) return;
 
       const sessionActive = Boolean(sessionJson?.session?.active);
-      if (identityId && !sessionActive) {
-        clearExpiredIdentity();
-      } else {
-        setVerified(sessionActive);
-      }
+if (identityId && !sessionActive) {
+  resetToClaimState();
+} else {
+  setVerified(sessionActive);
+}
 
       setRulesData(sessionJson);
       setQueueData({
@@ -444,7 +453,9 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   const votingOn = Boolean(rulesData?.rules?.enableVoting);
   const upvoteCost = Number(rulesData?.rules?.costUpvote ?? 1);
   const downvoteCost = Number(rulesData?.rules?.costDownvote ?? 1);
-  const displayedBalance = verified ? Number(bal.balance ?? 0) : 0;
+const displayedBalance = verified
+  ? Number(bal.balance ?? 0)
+  : 5;
   const logoUrl = rulesData?.rules?.logoUrl || REMIX_LOGO_URL;
   const canVote = Boolean(email.trim()) && verified;
 
@@ -488,11 +499,11 @@ export default function QueuePage({ params }: { params: { location: string } }) 
       return;
     }
 
-    if (!verified) {
-      sfx.playError();
-      goToVerify();
-      return;
-    }
+if (!verified) {
+  sfx.playTap();
+  goToVerify();
+  return;
+}
 
     if (!votingOn) {
       sfx.playError();
@@ -521,8 +532,10 @@ export default function QueuePage({ params }: { params: { location: string } }) 
         sfx.playError();
         const nextMsg = String(data?.error || "Vote failed.");
         setMsg(nextMsg);
-        if (/session has expired/i.test(nextMsg)) clearExpiredIdentity();
-        await bal.refreshOnce();
+if (/session has expired/i.test(nextMsg)) {
+  resetToClaimState();
+  goToVerify();
+}        await bal.refreshOnce();
         return;
       }
 

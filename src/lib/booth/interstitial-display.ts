@@ -23,7 +23,11 @@ function toTitleCase(value: string) {
 }
 
 function formatSeconds(durationSec: unknown) {
-  if (typeof durationSec !== "number" || !Number.isFinite(durationSec) || durationSec <= 0) {
+  if (
+    typeof durationSec !== "number" ||
+    !Number.isFinite(durationSec) ||
+    durationSec <= 0
+  ) {
     return null;
   }
 
@@ -47,7 +51,9 @@ function extractReasonChip(item: QueueLikeItem) {
 }
 
 function extractContextLabel(item: QueueLikeItem) {
-  const metadata = (item as QueueLikeItem & { metadata?: Record<string, unknown> }).metadata;
+  const metadata = (item as QueueLikeItem & { metadata?: Record<string, unknown> })
+    .metadata;
+
   const targetTitle =
     typeof metadata?.targetTitle === "string"
       ? metadata.targetTitle
@@ -63,7 +69,9 @@ function extractContextLabel(item: QueueLikeItem) {
 }
 
 function extractAssetLabel(item: QueueLikeItem) {
-  const metadata = (item as QueueLikeItem & { metadata?: Record<string, unknown> }).metadata;
+  const metadata = (item as QueueLikeItem & { metadata?: Record<string, unknown> })
+    .metadata;
+
   const assetName =
     typeof metadata?.assetName === "string"
       ? metadata.assetName
@@ -75,7 +83,9 @@ function extractAssetLabel(item: QueueLikeItem) {
   return null;
 }
 
-export function getInterstitialDisplay(item: QueueLikeItem): InterstitialDisplay {
+export function getInterstitialDisplay(
+  item: QueueLikeItem,
+): InterstitialDisplay {
   const rawTitle = String(item.title || "").trim();
   const title = rawTitle ? rawTitle : "Play Interstitial";
   const clusterId = String(item.clusterId || "").trim();

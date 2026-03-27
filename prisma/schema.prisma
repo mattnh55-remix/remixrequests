@@ -9,19 +9,23 @@ datasource db {
 }
 
 model Location {
-  id        String   @id @default(cuid())
-  slug      String   @unique
-  name      String
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  slug       String   @unique
+  name       String
+  createdAt  DateTime @default(now())
 
-  songs          Song[]
-  sessions       Session[]
-  requests       Request[]
-  rules          Ruleset?
-  top10Entries   Top10Entry[]
-  queueItems     QueueItem[]
-  playbackEvents PlaybackEvent[]
-  audioAssets    AudioAsset[]
+  songs                  Song[]
+  sessions               Session[]
+  requests               Request[]
+  rules                  Ruleset?
+  top10Entries           Top10Entry[]
+  queueItems             QueueItem[]
+  playbackEvents         PlaybackEvent[]
+  audioAssets            AudioAsset[]
+  interstitialAssets     InterstitialAsset[]
+  interstitialSchedules  InterstitialSchedule[]
+  interstitialEvents     InterstitialEvent[]
+  boothNotes             BoothNote[]
 
   CreditLedger CreditLedger[]
   PlayHistory  PlayHistory[]
@@ -31,20 +35,20 @@ model Location {
 }
 
 model Song {
-  id         String   @id @default(cuid())
-  locationId String
-  location   Location @relation(fields: [locationId], references: [id])
+  id          String   @id @default(cuid())
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id])
 
-  trackId    String?
-  title      String
-  artist     String
-  artistKey  String
-  artworkUrl String?
-  explicit   Boolean  @default(false)
-  tags       String[] @default([])
+  trackId     String?
+  title       String
+  artist      String
+  artistKey   String
+  artworkUrl  String?
+  explicit    Boolean  @default(false)
+  tags        String[] @default([])
   durationSec Int?
 
-  createdAt    DateTime      @default(now())
+  createdAt    DateTime     @default(now())
   Request      Request[]
   PlayHistory  PlayHistory[]
   top10Entries Top10Entry[]
@@ -59,14 +63,16 @@ model Session {
   locationId String
   location   Location @relation(fields: [locationId], references: [id])
 
-  startedAt DateTime @default(now())
+  startedAt DateTime       @default(now())
   endsAt    DateTime
-  createdAt DateTime @default(now())
+  createdAt DateTime       @default(now())
+  profile   SessionProfile @default(GENERAL)
 
-  requests     Request[]
-  votes        Vote[]
-  top10Entries Top10Entry[]
-  queueItems   QueueItem[]
+  requests           Request[]
+  votes              Vote[]
+  top10Entries       Top10Entry[]
+  queueItems         QueueItem[]
+  interstitialEvents InterstitialEvent[]
 
   @@index([locationId, endsAt])
 }
@@ -131,13 +137,13 @@ model Top10Entry {
   title          String
   artist         String
   artworkUrl     String?
-  requestCount   Int         @default(0)
-  upvotes        Int         @default(0)
-  downvotes      Int         @default(0)
-  score          Int         @default(0)
-  lastActivityAt DateTime    @default(now())
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  requestCount   Int      @default(0)
+  upvotes        Int      @default(0)
+  downvotes      Int      @default(0)
+  score          Int      @default(0)
+  lastActivityAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([locationId, sessionId, bucket, songId])
   @@index([locationId, sessionId, bucket, score])
@@ -152,7 +158,7 @@ model CreditLedger {
   emailHash String
   delta     Int
   reason    String
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
   expiresAt DateTime?
 
   @@index([locationId, emailHash])
@@ -184,7 +190,6 @@ model Ruleset {
   costDownvote Int @default(1)
   costPlayNow  Int @default(5)
 
-  // Pack pricing (cents)
   packTier1PriceCents Int @default(500)
   packTier2PriceCents Int @default(1000)
   packTier3PriceCents Int @default(1500)
@@ -201,8 +206,8 @@ model Ruleset {
   artistCooldownMinutes Int     @default(15)
   songCooldownMinutes   Int     @default(120)
 
-  maxActiveRequestsPerUser Int     @default(2)
-  msgTooManyActiveRequests String  @default("You already have songs waiting in the queue.")
+  maxActiveRequestsPerUser Int    @default(2)
+  msgTooManyActiveRequests String @default("You already have songs waiting in the queue.")
   enableVoting             Boolean @default(true)
   msgExplicit              String  @default("Sorry — this song isn’t available here.")
   msgAlreadyRequested      String  @default("You’ve already made a request this session.")
@@ -252,7 +257,7 @@ model QueueItem {
   durationSec   Int?
   expectedEndAt DateTime?
   completedAt   DateTime?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime @default(now())
 
   playbackEvents PlaybackEvent[]
 
@@ -272,7 +277,7 @@ model PlaybackEvent {
 
   type      PlaybackEventType
   metadata  Json?
-  createdAt DateTime          @default(now())
+  createdAt DateTime @default(now())
 
   @@index([locationId, createdAt])
   @@index([queueItemId, createdAt])
@@ -288,14 +293,118 @@ model AudioAsset {
   filePath        String
   category        AudioAssetCategory
   durationSec     Int
-  active          Boolean            @default(true)
+  active          Boolean @default(true)
   cooldownSongs   Int?
   cooldownMinutes Int?
-  randomWeight    Int                @default(1)
-  createdAt       DateTime           @default(now())
+  randomWeight    Int     @default(1)
+  createdAt       DateTime @default(now())
 
   @@index([locationId, category, active])
   @@index([locationId, name])
+}
+
+model InterstitialAsset {
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  name          String
+  category      InterstitialCategory
+  fileUrl       String
+  previewGifUrl String?
+  iconLabel     String?
+  durationSec   Int?
+  notes         String?
+  active        Boolean @default(true)
+  manualOnly    Boolean @default(false)
+
+  priority     Int @default(0)
+  randomWeight Int @default(100)
+
+  // keep old asset-level scheduling during transition
+  scheduleMode    InterstitialScheduleMode @default(NONE)
+  intervalMinutes Int?
+
+  allowedProfiles SessionProfile[]
+  blockedProfiles SessionProfile[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events InterstitialEvent[]
+
+  @@index([locationId, category, active])
+  @@index([locationId, priority])
+  @@index([locationId, manualOnly])
+}
+
+model InterstitialSchedule {
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  category        InterstitialCategory
+  label           String?
+  promptTitle     String?
+  promptBody      String?
+  startMinute     Int
+  endMinute       Int
+  sortOrder       Int      @default(0)
+  cooldownMinutes Int?
+  active          Boolean  @default(true)
+  required        Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events InterstitialEvent[]
+
+  @@index([locationId, active, startMinute])
+  @@index([locationId, category, active])
+  @@unique([locationId, category, startMinute, endMinute])
+}
+
+model InterstitialEvent {
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  sessionId String?
+  session   Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  assetId   String?
+  asset     InterstitialAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  scheduleId String?
+  schedule   InterstitialSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+
+  category     InterstitialCategory?
+  status       InterstitialEventStatus @default(PLANNED)
+  promptMinute Int?
+
+  plannedAt    DateTime @default(now())
+  playedAt     DateTime?
+  skippedAt    DateTime?
+  canceledAt   DateTime?
+  operatorNote String?
+  metadata     Json?
+
+  @@index([locationId, sessionId, plannedAt])
+  @@index([locationId, category, playedAt])
+  @@index([scheduleId, plannedAt])
+  @@index([assetId, playedAt])
+}
+
+model BoothNote {
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  body      String   @default("")
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([locationId])
 }
 
 model Identity {
@@ -318,8 +427,8 @@ model Identity {
   mailchimpError  String?
 
   welcomeGrantedSessionId String?
-  createdAt               DateTime          @default(now())
-  updatedAt               DateTime          @updatedAt
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
   pendingCheckouts        PendingCheckout[]
 
   @@unique([locationId, emailHash])
@@ -382,17 +491,17 @@ model ProcessedPayment {
 }
 
 model RedemptionCode {
-  id                  String    @id @default(cuid())
+  id                  String   @id @default(cuid())
   locationId          String
   code                String
   points              Int
-  maxUses             Int       @default(1)
-  uses                Int       @default(0)
+  maxUses             Int      @default(1)
+  uses                Int      @default(0)
   expiresAt           DateTime?
-  redeemWindowMinutes Int       @default(120)
+  redeemWindowMinutes Int      @default(120)
   disabledAt          DateTime?
   source              String?
-  createdAt           DateTime  @default(now())
+  createdAt           DateTime @default(now())
 
   usesRel RedemptionCodeUse[]
 
@@ -402,11 +511,11 @@ model RedemptionCode {
 }
 
 model RedemptionCodeUse {
-  id         String    @id @default(cuid())
+  id         String   @id @default(cuid())
   locationId String
   codeId     String
   emailHash  String
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime @default(now())
   expiresAt  DateTime?
 
   code RedemptionCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
@@ -418,7 +527,7 @@ model RedemptionCodeUse {
 }
 
 model ScreenMessage {
-  id                 String  @id @default(cuid())
+  id                 String @id @default(cuid())
   locationId         String
   sessionId          String
   identityId         String?
@@ -453,7 +562,7 @@ model ScreenMessage {
   imageModerationReason String?
   imageUploadedAt       DateTime?
 
-  usageRightsAccepted   Boolean   @default(false)
+  usageRightsAccepted   Boolean  @default(false)
   usageRightsAcceptedAt DateTime?
 
   createdAt DateTime @default(now())
@@ -543,10 +652,16 @@ enum AudioAssetCategory {
   MANUAL
 }
 
-// === ENUMS ===
 enum InterstitialCategory {
+  // keep legacy values during transition
   REQUEST_SINGLE
   REQUEST_BLOCK
+
+  WELCOME_RULES
+  REQUEST_DROP
+  BLOCK_OF_SONGS
+  REMIX_RADIO
+  END_ANNOUNCE
   BRANDING
   RULES
   GAME
@@ -577,42 +692,4 @@ enum SessionProfile {
   SCHOOL
   PRIVATE_EVENT
   GENERAL
-}
-
-// === MODELS ===
-model InterstitialAsset {
-  id          String               @id @default(cuid())
-  locationId  String
-  name        String
-  category    InterstitialCategory
-  fileUrl     String
-  durationSec Int?
-  active      Boolean              @default(true)
-
-  priority     Int @default(0)
-  randomWeight Int @default(100)
-
-  scheduleMode    InterstitialScheduleMode @default(NONE)
-  intervalMinutes Int?
-
-  allowedProfiles SessionProfile[]
-  blockedProfiles SessionProfile[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  events InterstitialEvent[]
-}
-
-model InterstitialEvent {
-  id         String                  @id @default(cuid())
-  locationId String
-  sessionId  String?
-  assetId    String
-  status     InterstitialEventStatus @default(PLANNED)
-
-  plannedAt DateTime  @default(now())
-  playedAt  DateTime?
-
-  asset InterstitialAsset @relation(fields: [assetId], references: [id])
 }
