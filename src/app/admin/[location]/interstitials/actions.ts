@@ -2,6 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import {
+  InterstitialCategory,
+  InterstitialScheduleMode,
+  SessionProfile,
+} from "@prisma/client";
 
 function toNullableInt(value: FormDataEntryValue | null): number | null {
   if (value == null) return null;
@@ -23,7 +28,10 @@ function toBool(value: FormDataEntryValue | null): boolean {
   return value === "on" || value === "true";
 }
 
-function toStringValue(value: FormDataEntryValue | null, fallback = ""): string {
+function toStringValue(
+  value: FormDataEntryValue | null,
+  fallback = "",
+): string {
   if (value == null) return fallback;
   return String(value).trim();
 }
@@ -36,47 +44,103 @@ function toStringArray(value: FormDataEntryValue | null): string[] {
     .filter(Boolean);
 }
 
-function revalidate(locationId: string) {
-  revalidatePath(`/admin/${locationId}/interstitials`);
+function isInterstitialCategory(value: string): value is InterstitialCategory {
+  return Object.values(InterstitialCategory).includes(
+    value as InterstitialCategory,
+  );
+}
+
+function isInterstitialScheduleMode(
+  value: string,
+): value is InterstitialScheduleMode {
+  return Object.values(InterstitialScheduleMode).includes(
+    value as InterstitialScheduleMode,
+  );
+}
+
+function toSessionProfiles(value: FormDataEntryValue | null): SessionProfile[] {
+  const raw = toStringArray(value);
+
+  return raw.filter((profile): profile is SessionProfile =>
+    Object.values(SessionProfile).includes(profile as SessionProfile),
+  );
+}
+
+async function resolveLocationId(
+  locationIdOrSlug: string,
+): Promise<{ id: string; slug: string }> {
+  const byId = await prisma.location.findUnique({
+    where: { id: locationIdOrSlug },
+    select: { id: true, slug: true },
+  });
+
+  if (byId) return byId;
+
+  const bySlug = await prisma.location.findUnique({
+    where: { slug: locationIdOrSlug },
+    select: { id: true, slug: true },
+  });
+
+  if (bySlug) return bySlug;
+
+  throw new Error(`Location not found for "${locationIdOrSlug}".`);
 }
 
 export async function saveInterstitialAsset(formData: FormData) {
   const id = toStringValue(formData.get("id")) || undefined;
-  const locationId = toStringValue(formData.get("locationId"));
+  const locationRaw = toStringValue(formData.get("locationId"));
   const name = toStringValue(formData.get("name"));
-  const category = toStringValue(formData.get("category"));
+  const categoryRaw = toStringValue(formData.get("category"));
   const fileUrl = toStringValue(formData.get("fileUrl"));
-  const previewGifUrl = toStringValue(formData.get("previewGifUrl")) || null;
-  const iconLabel = toStringValue(formData.get("iconLabel")) || null;
+  const previewGifUrlRaw = toStringValue(formData.get("previewGifUrl"));
+  const iconLabelRaw = toStringValue(formData.get("iconLabel"));
+  const notesRaw = toStringValue(formData.get("notes"));
   const durationSec = toNullableInt(formData.get("durationSec"));
-  const notes = toStringValue(formData.get("notes")) || null;
   const active = toBool(formData.get("active"));
   const manualOnly = toBool(formData.get("manualOnly"));
   const priority = toInt(formData.get("priority"), 0);
   const randomWeight = toInt(formData.get("randomWeight"), 100);
-  const allowedProfiles = toStringArray(formData.get("allowedProfiles"));
-  const blockedProfiles = toStringArray(formData.get("blockedProfiles"));
 
-  if (!locationId) throw new Error("Missing locationId.");
-  if (!name) throw new Error("Name is required.");
-  if (!category) throw new Error("Category is required.");
+  // Kept for transition-safe schema compatibility
+  const scheduleModeRaw = toStringValue(formData.get("scheduleMode"), "NONE");
+  const intervalMinutes = toNullableInt(formData.get("intervalMinutes"));
+
+  const allowedProfiles = toSessionProfiles(formData.get("allowedProfiles"));
+  const blockedProfiles = toSessionProfiles(formData.get("blockedProfiles"));
+
+  if (!locationRaw) throw new Error("Missing locationId.");
+  if (!name) throw new Error("Asset name is required.");
+  if (!categoryRaw) throw new Error("Category is required.");
   if (!fileUrl) throw new Error("Local file name is required.");
 
+  if (!isInterstitialCategory(categoryRaw)) {
+    throw new Error(`Invalid category: ${categoryRaw}`);
+  }
+
+  if (!isInterstitialScheduleMode(scheduleModeRaw)) {
+    throw new Error(`Invalid schedule mode: ${scheduleModeRaw}`);
+  }
+
+  const location = await resolveLocationId(locationRaw);
+
   const data = {
-    locationId,
+    locationId: location.id,
     name,
-    category: category as any,
+    category: categoryRaw as InterstitialCategory,
     fileUrl,
-    previewGifUrl,
-    iconLabel,
+    previewGifUrl: previewGifUrlRaw || null,
+    iconLabel: iconLabelRaw || null,
+    notes: notesRaw || null,
     durationSec,
-    notes,
     active,
     manualOnly,
     priority,
     randomWeight,
-    allowedProfiles: allowedProfiles as any,
-    blockedProfiles: blockedProfiles as any,
+    scheduleMode: scheduleModeRaw as InterstitialScheduleMode,
+    intervalMinutes:
+      scheduleModeRaw === "INTERVAL_MINUTES" ? intervalMinutes : null,
+    allowedProfiles,
+    blockedProfiles,
   };
 
   if (id) {
@@ -85,61 +149,88 @@ export async function saveInterstitialAsset(formData: FormData) {
       data,
     });
   } else {
-    await prisma.interstitialAsset.create({ data });
+    await prisma.interstitialAsset.create({
+      data,
+    });
   }
 
-  revalidate(locationId);
+  revalidatePath(`/admin/${location.slug}/interstitials`);
 }
 
 export async function toggleInterstitialAsset(formData: FormData) {
   const id = toStringValue(formData.get("id"));
-  const locationId = toStringValue(formData.get("locationId"));
+  const locationRaw = toStringValue(formData.get("locationId"));
   const nextActive = toStringValue(formData.get("nextActive")) === "true";
 
-  if (!id || !locationId) throw new Error("Missing required fields.");
+  if (!id || !locationRaw) {
+    throw new Error("Missing required fields.");
+  }
+
+  const location = await resolveLocationId(locationRaw);
 
   await prisma.interstitialAsset.update({
     where: { id },
     data: { active: nextActive },
   });
 
-  revalidate(locationId);
+  revalidatePath(`/admin/${location.slug}/interstitials`);
 }
 
 export async function deleteInterstitialAsset(formData: FormData) {
   const id = toStringValue(formData.get("id"));
-  const locationId = toStringValue(formData.get("locationId"));
+  const locationRaw = toStringValue(formData.get("locationId"));
 
-  if (!id || !locationId) throw new Error("Missing required fields.");
+  if (!id || !locationRaw) {
+    throw new Error("Missing required fields.");
+  }
 
-  await prisma.interstitialAsset.delete({ where: { id } });
-  revalidate(locationId);
+  const location = await resolveLocationId(locationRaw);
+
+  await prisma.interstitialEvent.deleteMany({
+    where: { assetId: id },
+  });
+
+  await prisma.interstitialAsset.delete({
+    where: { id },
+  });
+
+  revalidatePath(`/admin/${location.slug}/interstitials`);
 }
 
 export async function saveInterstitialSchedule(formData: FormData) {
   const id = toStringValue(formData.get("id")) || undefined;
-  const locationId = toStringValue(formData.get("locationId"));
-  const category = toStringValue(formData.get("category"));
-  const label = toStringValue(formData.get("label")) || null;
-  const promptTitle = toStringValue(formData.get("promptTitle")) || null;
-  const promptBody = toStringValue(formData.get("promptBody")) || null;
-  const startMinute = toInt(formData.get("startMinute"), 0);
-  const endMinute = toInt(formData.get("endMinute"), 0);
+  const locationRaw = toStringValue(formData.get("locationId"));
+  const categoryRaw = toStringValue(formData.get("category"));
+  const labelRaw = toStringValue(formData.get("label"));
+  const promptTitleRaw = toStringValue(formData.get("promptTitle"));
+  const promptBodyRaw = toStringValue(formData.get("promptBody"));
+  const startMinute = toInt(formData.get("startMinute"), -1);
+  const endMinute = toInt(formData.get("endMinute"), -1);
   const sortOrder = toInt(formData.get("sortOrder"), 0);
   const cooldownMinutes = toNullableInt(formData.get("cooldownMinutes"));
   const active = toBool(formData.get("active"));
   const required = toBool(formData.get("required"));
 
-  if (!locationId) throw new Error("Missing locationId.");
-  if (!category) throw new Error("Category is required.");
-  if (endMinute < startMinute) throw new Error("End minute must be greater than or equal to start minute.");
+  if (!locationRaw) throw new Error("Missing locationId.");
+  if (!categoryRaw) throw new Error("Category is required.");
+  if (!isInterstitialCategory(categoryRaw)) {
+    throw new Error(`Invalid category: ${categoryRaw}`);
+  }
+  if (startMinute < 0) {
+    throw new Error("Start minute must be 0 or greater.");
+  }
+  if (endMinute < startMinute) {
+    throw new Error("End minute must be greater than or equal to start minute.");
+  }
+
+  const location = await resolveLocationId(locationRaw);
 
   const data = {
-    locationId,
-    category: category as any,
-    label,
-    promptTitle,
-    promptBody,
+    locationId: location.id,
+    category: categoryRaw as InterstitialCategory,
+    label: labelRaw || null,
+    promptTitle: promptTitleRaw || null,
+    promptBody: promptBodyRaw || null,
     startMinute,
     endMinute,
     sortOrder,
@@ -154,80 +245,72 @@ export async function saveInterstitialSchedule(formData: FormData) {
       data,
     });
   } else {
-    await prisma.interstitialSchedule.create({ data });
+    await prisma.interstitialSchedule.create({
+      data,
+    });
   }
 
-  revalidate(locationId);
+  revalidatePath(`/admin/${location.slug}/interstitials`);
 }
 
 export async function toggleInterstitialSchedule(formData: FormData) {
   const id = toStringValue(formData.get("id"));
-  const locationId = toStringValue(formData.get("locationId"));
+  const locationRaw = toStringValue(formData.get("locationId"));
   const nextActive = toStringValue(formData.get("nextActive")) === "true";
 
-  if (!id || !locationId) throw new Error("Missing required fields.");
+  if (!id || !locationRaw) {
+    throw new Error("Missing required fields.");
+  }
+
+  const location = await resolveLocationId(locationRaw);
 
   await prisma.interstitialSchedule.update({
     where: { id },
     data: { active: nextActive },
   });
 
-  revalidate(locationId);
+  revalidatePath(`/admin/${location.slug}/interstitials`);
 }
 
 export async function deleteInterstitialSchedule(formData: FormData) {
   const id = toStringValue(formData.get("id"));
-  const locationId = toStringValue(formData.get("locationId"));
+  const locationRaw = toStringValue(formData.get("locationId"));
 
-  if (!id || !locationId) throw new Error("Missing required fields.");
+  if (!id || !locationRaw) {
+    throw new Error("Missing required fields.");
+  }
 
-  await prisma.interstitialSchedule.delete({ where: { id } });
-  revalidate(locationId);
+  const location = await resolveLocationId(locationRaw);
+
+  await prisma.interstitialEvent.deleteMany({
+    where: { scheduleId: id },
+  });
+
+  await prisma.interstitialSchedule.delete({
+    where: { id },
+  });
+
+  revalidatePath(`/admin/${location.slug}/interstitials`);
 }
 
 export async function saveBoothNote(formData: FormData) {
-  const locationId = toStringValue(formData.get("locationId"));
+  const locationRaw = toStringValue(formData.get("locationId"));
   const body = toStringValue(formData.get("body"));
 
-  if (!locationId) throw new Error("Missing locationId.");
+  if (!locationRaw) {
+    throw new Error("Missing locationId.");
+  }
+
+  const location = await resolveLocationId(locationRaw);
 
   await prisma.boothNote.upsert({
-    where: { locationId },
-    create: { locationId, body },
+    where: { locationId: location.id },
     update: { body },
-  });
-
-  revalidate(locationId);
-}
-
-export async function logInterstitialPlayback(formData: FormData) {
-  const locationId = toStringValue(formData.get("locationId"));
-  const sessionId = toStringValue(formData.get("sessionId")) || null;
-  const assetId = toStringValue(formData.get("assetId")) || null;
-  const scheduleId = toStringValue(formData.get("scheduleId")) || null;
-  const category = toStringValue(formData.get("category"));
-  const status = toStringValue(formData.get("status"), "PLAYED");
-  const promptMinute = toNullableInt(formData.get("promptMinute"));
-  const operatorNote = toStringValue(formData.get("operatorNote")) || null;
-
-  if (!locationId || !category) throw new Error("Missing required fields.");
-
-  await prisma.interstitialEvent.create({
-    data: {
-      locationId,
-      sessionId,
-      assetId,
-      scheduleId,
-      category: category as any,
-      status: status as any,
-      promptMinute,
-      plannedAt: new Date(),
-      playedAt: status === "PLAYED" ? new Date() : null,
-      skippedAt: status === "SKIPPED" ? new Date() : null,
-      canceledAt: status === "CANCELED" ? new Date() : null,
-      operatorNote,
+    create: {
+      locationId: location.id,
+      body,
     },
   });
 
-  revalidate(locationId);
+  revalidatePath(`/admin/${location.slug}/interstitials`);
 }
