@@ -394,27 +394,16 @@ const [assets, scheduleWindows, boothNote] = await Promise.all([
                         </button>
                       </form>
 
-                      <form
-                        action={deleteInterstitialSchedule}
-                        onSubmit={(e) => {
-  if (
-    !window.confirm(
-      `Delete window "${schedule.label || niceCategory(schedule.category)}"?`,
-    )
-  ) {
-    e.preventDefault();
-  }
-}}
-                      >
-                        <input type="hidden" name="id" value={schedule.id} />
-                        <input type="hidden" name="locationId" value={locationId} />
-                        <button
-                          type="submit"
-                          className="gunmetalBtn gunmetalBtn--danger"
-                        >
-                          Delete
-                        </button>
-                      </form>
+<form action={deleteInterstitialSchedule}>
+  <input type="hidden" name="id" value={schedule.id} />
+  <input type="hidden" name="locationId" value={locationId} />
+  <button
+    type="submit"
+    className="gunmetalBtn gunmetalBtn--danger"
+  >
+    Delete
+  </button>
+</form>
                     </div>
                   </div>
 
