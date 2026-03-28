@@ -1254,6 +1254,447 @@ export default function BoothLayout({ location }: { location: string }) {
           border-color: rgba(255, 127, 145, 0.2);
         }
 
+
+        .heroCard {
+          border-radius: 6px;
+          border: 1px solid rgba(88, 119, 158, 0.28);
+          background:
+            linear-gradient(180deg, rgba(24, 31, 47, 0.92), rgba(11, 16, 27, 0.94));
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.04),
+            inset 0 -1px 0 rgba(0,0,0,0.3);
+          overflow: hidden;
+        }
+
+        .heroCardHeader {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 8px;
+          padding: 10px 12px 8px;
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+          background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+        }
+
+        .heroCardTitle {
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          color: #f5f8fd;
+        }
+
+        .heroCardSub {
+          margin-top: 2px;
+          font-size: 12px;
+          color: rgba(223, 233, 248, 0.72);
+        }
+
+        .heroMain {
+          padding: 10px 12px;
+        }
+
+        .heroMain--console {
+          display: grid;
+          grid-template-columns: 84px minmax(0, 1fr);
+          gap: 12px;
+          align-items: stretch;
+        }
+
+        .heroArtworkWrap {
+          width: 84px;
+        }
+
+        .heroArtwork,
+        .heroArtwork--placeholder {
+          display: block;
+          width: 84px;
+          height: 84px;
+          border-radius: 4px;
+          object-fit: cover;
+          background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+          border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .heroArtwork--placeholder {
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)),
+            linear-gradient(180deg, rgba(20,26,39,0.96), rgba(11,16,27,0.96));
+        }
+
+        .heroInfo {
+          min-width: 0;
+          display: grid;
+          gap: 8px;
+        }
+
+        .heroInfoTop {
+          display: flex;
+          gap: 10px;
+          justify-content: space-between;
+          align-items: flex-start;
+        }
+
+        .heroInfoCopy {
+          min-width: 0;
+          flex: 1;
+        }
+
+        .heroTitleRow {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .heroTitle {
+          font-size: 18px;
+          line-height: 1.05;
+          font-weight: 1000;
+          letter-spacing: -0.3px;
+          color: #fbfdff;
+        }
+
+        .heroArtist {
+          margin-top: 4px;
+          font-size: 13px;
+          color: rgba(225, 236, 250, 0.78);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .heroActions {
+          display: flex;
+          align-items: center;
+        }
+
+        .heroActions--topRight {
+          justify-content: flex-end;
+        }
+
+        .heroTelemetry {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 4px;
+          overflow: hidden;
+          background: rgba(255,255,255,0.02);
+        }
+
+        .heroTelemetryCell {
+          padding: 8px 10px;
+          border-right: 1px solid rgba(255,255,255,0.07);
+        }
+
+        .heroTelemetryCell:last-child {
+          border-right: 0;
+        }
+
+        .heroTelemetryCell span {
+          display: block;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 1.4px;
+          text-transform: uppercase;
+          color: rgba(198, 212, 233, 0.62);
+          margin-bottom: 4px;
+        }
+
+        .heroTelemetryCell strong {
+          font-size: 12px;
+          font-weight: 1000;
+          color: #f4f8ff;
+        }
+
+        .progressWrap {
+          display: grid;
+          gap: 5px;
+        }
+
+        .progressBar {
+          height: 10px;
+          overflow: hidden;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.07);
+          border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .progressFill {
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(90deg, rgba(70,174,255,0.95), rgba(139,232,255,0.95));
+          box-shadow: 0 0 16px rgba(64, 184, 255, 0.3);
+        }
+
+        .progressMeta {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 1.2px;
+          text-transform: uppercase;
+          color: rgba(198, 212, 233, 0.72);
+        }
+
+        .heroEmpty {
+          padding: 14px 12px;
+          font-size: 13px;
+          color: rgba(224, 235, 248, 0.82);
+        }
+
+        .deckLine {
+          display: grid;
+          grid-template-columns: 56px minmax(0, 1fr) auto;
+          gap: 12px;
+          align-items: center;
+          padding: 10px 12px;
+        }
+
+        .deckArt,
+        .deckArt--placeholder {
+          width: 56px;
+          height: 56px;
+          border-radius: 4px;
+          overflow: hidden;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
+        }
+
+        .deckArt img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .deckText,
+        .deckText--single {
+          min-width: 0;
+        }
+
+        .deckSingleLine {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px;
+          min-width: 0;
+        }
+
+        .deckTitle {
+          font-size: 16px;
+          font-weight: 1000;
+          color: #fbfdff;
+        }
+
+        .deckDivider,
+        .deckArtist,
+        .deckRequestor {
+          font-size: 13px;
+          color: rgba(223, 233, 248, 0.76);
+        }
+
+        .deckActions {
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .queueListShell {
+          border-radius: 6px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.015);
+          overflow: hidden;
+        }
+
+        .queueListHeader {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 10px 12px 8px;
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .queueListTitle {
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+        }
+
+        .queueListSub,
+        .queueListHelp {
+          font-size: 12px;
+          color: rgba(223, 233, 248, 0.72);
+        }
+
+        .queueListScroller {
+          display: grid;
+          gap: 0;
+        }
+
+        .emptyBox {
+          padding: 14px 12px;
+          font-size: 13px;
+          color: rgba(224, 235, 248, 0.82);
+        }
+
+        .queueRow {
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 10px;
+          padding: 9px 10px;
+          border-top: 1px solid rgba(255,255,255,0.06);
+          background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+        }
+
+        .queueRow:first-child {
+          border-top: 0;
+        }
+
+        .queueRow--request {
+          box-shadow: inset 3px 0 0 rgba(255, 116, 116, 0.9);
+        }
+
+        .queueRow--boosted {
+          box-shadow: inset 3px 0 0 rgba(255, 171, 52, 0.95);
+        }
+
+        .queueRow--interstitial {
+          box-shadow: inset 3px 0 0 rgba(83, 191, 255, 0.92);
+        }
+
+        .queueIndex {
+          width: 28px;
+          height: 28px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 4px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: rgba(255,255,255,0.04);
+          font-size: 14px;
+          font-weight: 1000;
+          color: #f7fbff;
+        }
+
+        .queueText {
+          min-width: 0;
+        }
+
+        .queueTitleLine,
+        .queueTitleLine--interstitial {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px;
+          min-width: 0;
+        }
+
+        .queueTitle,
+        .queueTitle--interstitial {
+          font-size: 15px;
+          font-weight: 1000;
+          color: #fbfdff;
+          font-style: italic;
+        }
+
+        .queueMeta,
+        .queueMeta--interstitial {
+          margin-top: 4px;
+          font-size: 12px;
+          color: rgba(223, 233, 248, 0.72);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .queueMetaStrong {
+          color: #f5f9ff;
+        }
+
+        .queueMetaMinor,
+        .interstitialContext {
+          color: rgba(183, 203, 229, 0.72);
+        }
+
+        .interstitialEyebrow {
+          display: inline-flex;
+          align-items: center;
+          padding: 3px 8px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 190, 71, 0.24);
+          background: rgba(255, 190, 71, 0.12);
+          font-size: 9px;
+          font-weight: 1000;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          color: #ffd98b;
+        }
+
+        .queueActions {
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .boothActionRail {
+          display: inline-flex;
+          gap: 6px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+
+        .statusPill--boost {
+          border-color: rgba(255, 184, 66, 0.28);
+          background: rgba(255, 184, 66, 0.12);
+          color: #ffd98a;
+        }
+
+        .statusPill--alert,
+        .statusPill--red {
+          border-color: rgba(255, 118, 118, 0.28);
+          background: rgba(255, 118, 118, 0.12);
+          color: #ffb6b6;
+        }
+
+        .statusPill--gold {
+          border-color: rgba(255, 198, 90, 0.24);
+          background: rgba(255, 198, 90, 0.10);
+          color: #ffd88a;
+        }
+
+        .statusPill--pink {
+          border-color: rgba(238, 121, 255, 0.24);
+          background: rgba(238, 121, 255, 0.10);
+          color: #f0b2ff;
+        }
+
+        .statusPill--cyan {
+          border-color: rgba(89, 203, 255, 0.28);
+          background: rgba(89, 203, 255, 0.10);
+          color: #aee9ff;
+        }
+
+        .gunmetalBtn--load,
+        .gunmetalBtn--play,
+        .gunmetalBtn--primary {
+          background: linear-gradient(180deg, #4a93df 0%, #2f6eb5 52%, #275a95 100%);
+        }
+
+        .gunmetalBtn--pause,
+        .gunmetalBtn--hold,
+        .gunmetalBtn--neutral {
+          background: linear-gradient(180deg, #c59a35 0%, #9f7821 52%, #7f5e17 100%);
+        }
+
+        .gunmetalBtn--skip,
+        .gunmetalBtn--done,
+        .gunmetalBtn--remove {
+          background: linear-gradient(180deg, #bb6776 0%, #9b4755 52%, #813944 100%);
+        }
+
         @keyframes rrPromptDissolve {
           0% { opacity: 0; transform: translateY(-8px) scale(0.985); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
