@@ -9,7 +9,7 @@ import QueueList from "./QueueList";
 import ShoutoutPanel from "./ShoutoutPanel";
 import SearchAddPanel from "./SearchAddPanel";
 import InterstitialPad from "./InterstitialPad";
-import InterstitialPromptModal from "./InterstitialPromptModal";
+import BoothInterstitialRuntime from "./BoothInterstitialRuntime";
 import SessionTimerPanel from "./SessionTimerPanel";
 import BoothNotesPanel from "./BoothNotesPanel";
 import {
@@ -24,7 +24,6 @@ import type {
   BoothDataState,
   BoothMode,
   BoothSessionClock,
-  DueInterstitialPrompt,
   DueInterstitialPromptOption,
   InterstitialPadItem,
   RequestItem,
@@ -180,10 +179,6 @@ function getSessionStorageKey(location: string) {
   return `rr.booth.sessionClock:${location}`;
 }
 
-function getSessionResolvedPromptKey(location: string, sessionId: string) {
-  return `rr.booth.resolvedPrompts:${location}:${sessionId}`;
-}
-
 function createNewSessionClock(): BoothSessionClock {
   const startedAtIso = new Date().toISOString();
   return {
@@ -234,33 +229,6 @@ function saveSessionClock(location: string, clock: BoothSessionClock) {
   } catch {}
 }
 
-function loadResolvedPromptIds(location: string, sessionId: string): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(getSessionResolvedPromptKey(location, sessionId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map((x) => String(x)) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveResolvedPromptIds(location: string, sessionId: string, ids: string[]) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(
-      getSessionResolvedPromptKey(location, sessionId),
-      JSON.stringify(ids),
-    );
-  } catch {}
-}
-
-function getPromptUniqueId(prompt: DueInterstitialPrompt | null) {
-  if (!prompt) return null;
-  return prompt.eventId?.trim() || `${prompt.scheduleId}:${prompt.startMinute}:${prompt.endMinute}`;
-}
-
 function getAssetFilename(asset: InterstitialPadItem | DueInterstitialPromptOption) {
   if ("filePath" in asset || "fileUrl" in asset) {
     return String((asset as InterstitialPadItem).filePath ?? (asset as InterstitialPadItem).fileUrl ?? "").trim();
@@ -287,8 +255,6 @@ export default function BoothLayout({ location }: { location: string }) {
     createNewSessionClock(),
   );
   const [tick, setTick] = useState(0);
-  const [duePrompt, setDuePrompt] = useState<DueInterstitialPrompt | null>(null);
-  const [promptApiAvailable, setPromptApiAvailable] = useState(true);
   const [playingInterstitial, setPlayingInterstitial] = useState<ActiveInterstitialPlayback | null>(null);
 
   useEffect(() => {
@@ -380,61 +346,11 @@ export default function BoothLayout({ location }: { location: string }) {
     }));
   }
 
-  async function loadDuePrompt() {
-    const url = `/api/booth/due-interstitial-prompt/${location}?sessionId=${encodeURIComponent(
-      sessionClock.sessionId,
-    )}&sessionStartedAt=${encodeURIComponent(sessionClock.startedAtIso)}&profile=GENERAL`;
-
-    try {
-      const res = await fetch(url, { cache: "no-store" });
-
-      if (res.status === 404) {
-        setPromptApiAvailable(false);
-        setDuePrompt(null);
-        return;
-      }
-
-      const payload = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        setDuePrompt(null);
-        return;
-      }
-
-      setPromptApiAvailable(true);
-
-      const prompt = (payload?.prompt ?? payload ?? null) as DueInterstitialPrompt | null;
-      const promptId = getPromptUniqueId(prompt);
-
-      if (!prompt || !promptId) {
-        setDuePrompt(null);
-        return;
-      }
-
-      const resolvedIds = loadResolvedPromptIds(location, sessionClock.sessionId);
-      if (resolvedIds.includes(promptId)) {
-        setDuePrompt(null);
-        return;
-      }
-
-      setDuePrompt(prompt);
-    } catch {
-      setDuePrompt(null);
-    }
-  }
-
   useEffect(() => {
     void load();
     const id = window.setInterval(load, 3000);
     return () => window.clearInterval(id);
   }, [location]);
-
-  useEffect(() => {
-    if (!sessionClock.sessionId) return;
-    void loadDuePrompt();
-    const id = window.setInterval(loadDuePrompt, 4000);
-    return () => window.clearInterval(id);
-  }, [location, sessionClock.sessionId, sessionClock.startedAtIso]);
 
   const nowPlaying = useMemo(
     () => state.queue.find((item) => item.status === "PLAYING") || null,
@@ -552,34 +468,13 @@ export default function BoothLayout({ location }: { location: string }) {
       endsAtIso: ends.toISOString(),
     });
 
-    if (duePrompt) {
-      const promptId = getPromptUniqueId(duePrompt);
-      if (promptId) {
-        const resolvedIds = loadResolvedPromptIds(location, sessionClock.sessionId);
-        const nextIds = Array.from(new Set([...resolvedIds, promptId]));
-        saveResolvedPromptIds(location, sessionClock.sessionId, nextIds);
-      }
-      setDuePrompt(null);
-    }
   }
 
-  const optionHistoryMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    if (!duePrompt?.options?.length) return map;
-
-    for (const option of duePrompt.options) {
-      map[option.assetId] = option.lastPlayedText;
-    }
-
-    return map;
-  }, [duePrompt]);
 
   function resetSessionClock() {
     const next = createNewSessionClock();
     setSessionClock(next);
     saveSessionClock(location, next);
-    saveResolvedPromptIds(location, next.sessionId, []);
-    setDuePrompt(null);
   }
 
   return (
@@ -708,21 +603,12 @@ export default function BoothLayout({ location }: { location: string }) {
               </div>
             </div>
 
-            <InterstitialPromptModal
-              prompt={duePrompt}
-              activeAssetId={playingInterstitial?.assetId ?? null}
-              onPlayOption={async (option) => {
-                await handlePlayInterstitialAsset(option, duePrompt?.category || "MANUAL_ONLY");
-              }}
+            <BoothInterstitialRuntime
+              location={location}
+              sessionStartedAt={sessionClock.startedAtIso}
             />
           </div>
 
-          {!promptApiAvailable ? (
-            <div className="rrPromptApiHint">
-              Scheduled booth prompt endpoint is not available yet. The booth surface is ready,
-              but the timed modal will appear after that route is wired.
-            </div>
-          ) : null}
         </section>
 
         <div className="boothStack">
@@ -740,9 +626,9 @@ export default function BoothLayout({ location }: { location: string }) {
             location={location}
             activeAssetId={playingInterstitial?.assetId ?? null}
             activePlayback={playingInterstitial}
-            optionHistoryMap={optionHistoryMap}
+            optionHistoryMap={{}}
             onPlayAsset={async (asset) => {
-              await handlePlayInterstitialAsset(asset, "category" in asset ? asset.category : duePrompt?.category || "MANUAL_ONLY");
+              await handlePlayInterstitialAsset(asset, "category" in asset ? asset.category : "MANUAL_ONLY");
             }}
             onStopPlayback={async () => {
               const result = await triggerLocalBridgeStop();

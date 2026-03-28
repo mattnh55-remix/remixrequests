@@ -1,106 +1,228 @@
 "use client";
 
-import type {
-  DueInterstitialPrompt,
-  DueInterstitialPromptOption,
-} from "./types";
+import { useMemo, useState } from "react";
 
-type InterstitialPromptModalProps = {
-  prompt: DueInterstitialPrompt | null;
-  activeAssetId?: string | null;
-  onPlayOption: (option: DueInterstitialPromptOption) => Promise<void> | void;
+export type BoothInterstitialAsset = {
+  id: string;
+  category: string;
+  title: string;
+  body: string | null;
+  previewUrl: string | null;
+  playFilename: string | null;
+  lastPlayedAt: string | null;
+  cooldownMinutes: number;
+  cooldownRemainingMinutes: number;
 };
 
-function formatDuration(durationSec?: number | null) {
-  const value = Number(durationSec ?? 0);
-  if (!Number.isFinite(value) || value <= 0) return null;
-  if (value < 60) return `${Math.round(value)}s`;
-  const minutes = Math.floor(value / 60);
-  const seconds = Math.round(value % 60);
-  return seconds ? `${minutes}:${String(seconds).padStart(2, "0")}` : `${minutes}:00`;
+type Props = {
+  open: boolean;
+  category: string | null;
+  promptTitle: string | null;
+  promptBody: string | null;
+  assets: BoothInterstitialAsset[];
+  busy?: boolean;
+  onPlay: (asset: BoothInterstitialAsset) => Promise<void> | void;
+  onSkip: (reason: string) => Promise<void> | void;
+  onClose?: () => void;
+};
+
+function formatLastPlayed(value: string | null): string {
+  if (!value) return "Last played: never";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Last played: unknown";
+
+  return `Last played: ${date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  })}`;
 }
 
-function niceCategory(value: string) {
-  return String(value || "")
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (m) => m.toUpperCase());
+function categoryLabel(value: string | null): string {
+  switch (value) {
+    case "ANNOUNCEMENTS":
+      return "Announcements";
+    case "SONG_INTROS":
+      return "Song Intros";
+    case "GAMES_DANCES":
+      return "Games & Dances";
+    case "REMIX_PROMOS":
+      return "Remix & Promos";
+    default:
+      return value ?? "Interstitial";
+  }
 }
 
 export default function InterstitialPromptModal({
-  prompt,
-  activeAssetId,
-  onPlayOption,
-}: InterstitialPromptModalProps) {
-  if (!prompt) return null;
+  open,
+  category,
+  promptTitle,
+  promptBody,
+  assets,
+  busy = false,
+  onPlay,
+  onSkip,
+}: Props) {
+  const [skipReason, setSkipReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const canSubmitSkip = useMemo(() => skipReason.trim().length > 0, [skipReason]);
+
+  if (!open) return null;
 
   return (
-    <div className="rrInterstitialPromptModal">
-      <div className="rrInterstitialPromptModal__pulse" />
-      <div className="rrInterstitialPromptModal__card">
-        <div className="rrInterstitialPromptModal__head">
-          <div>
-            <div className="rrInterstitialPromptModal__eyebrow">DJ ACTION NEEDED</div>
-            <div className="rrInterstitialPromptModal__title">{prompt.title}</div>
-            <div className="rrInterstitialPromptModal__sub">
-              {prompt.body?.trim() || "Choose one interstitial to play now."}
-            </div>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.07),transparent_55%)] animate-pulse" />
+
+      <div className="relative z-[121] w-[min(1280px,94vw)] rounded-[28px] border border-white/10 bg-[#12161d]/95 shadow-[0_30px_120px_rgba(0,0,0,0.55)]">
+        <div className="border-b border-white/10 px-6 py-5 sm:px-8">
+          <div className="mb-2 inline-flex rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-200">
+            Interstitial Due
           </div>
 
-          <div className="rrInterstitialPromptModal__meta">
-            <span className="rrPromptChip rrPromptChip--gold">
-              {niceCategory(prompt.category)}
-            </span>
-            <span className="rrPromptChip">
-              {prompt.startMinute}–{prompt.endMinute} min
-            </span>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+                {promptTitle || categoryLabel(category)}
+              </h2>
+              <p className="mt-1 text-sm font-semibold uppercase tracking-[0.18em] text-white/45">
+                {categoryLabel(category)}
+              </p>
+              {promptBody ? (
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-white/72">
+                  {promptBody}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+              Choose an asset or skip with a reason.
+            </div>
           </div>
         </div>
 
-        <div className="rrInterstitialPromptModal__grid">
-          {prompt.options.map((option) => {
-            const durationLabel = formatDuration(option.durationSec);
-            const isActive = option.assetId === activeAssetId;
+        <div className="grid gap-6 p-6 sm:grid-cols-[minmax(0,1fr)_340px] sm:px-8 sm:py-7">
+          <div>
+            <div className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-white/45">
+              Selectable GIF tiles
+            </div>
 
-            return (
-              <button
-                key={option.assetId}
-                type="button"
-                className={`rrPromptTile ${isActive ? "rrPromptTile--active" : ""}`}
-                onClick={() => void onPlayOption(option)}
-              >
-                <div className="rrPromptTile__media">
-                  {option.previewGifUrl ? (
-                    <img
-                      src={option.previewGifUrl}
-                      alt={option.name}
-                      className="rrPromptTile__gif"
-                    />
-                  ) : (
-                    <div className="rrPromptTile__fallback">
-                      {option.iconLabel?.trim() || niceCategory(prompt.category)}
-                    </div>
-                  )}
-
-                  <div className="rrPromptTile__shine" />
-                </div>
-
-                <div className="rrPromptTile__body">
-                  <div className="rrPromptTile__topline">
-                    <span className="rrPromptTile__label">
-                      {option.iconLabel?.trim() || niceCategory(prompt.category)}
-                    </span>
-                    {durationLabel ? (
-                      <span className="rrPromptTile__duration">{durationLabel}</span>
-                    ) : null}
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {assets.map((asset) => (
+                <button
+                  key={asset.id}
+                  type="button"
+                  disabled={busy}
+                  onClick={async () => {
+                    setError(null);
+                    try {
+                      await onPlay(asset);
+                    } catch (err) {
+                      setError(
+                        err instanceof Error ? err.message : "Failed to play asset."
+                      );
+                    }
+                  }}
+                  className="group overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] text-left transition hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <div className="aspect-[16/9] overflow-hidden bg-black/30">
+                    {asset.previewUrl ? (
+                      <img
+                        src={asset.previewUrl}
+                        alt={asset.title}
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-sm font-semibold uppercase tracking-[0.18em] text-white/35">
+                        No Preview
+                      </div>
+                    )}
                   </div>
 
-                  <div className="rrPromptTile__title">{option.name}</div>
-                  <div className="rrPromptTile__last">{option.lastPlayedText}</div>
-                </div>
-              </button>
-            );
-          })}
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="text-base font-bold text-white">
+                        {asset.title}
+                      </h3>
+                      <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-200">
+                        Play
+                      </span>
+                    </div>
+
+                    {asset.body ? (
+                      <p className="mt-2 line-clamp-2 text-sm leading-5 text-white/68">
+                        {asset.body}
+                      </p>
+                    ) : null}
+
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <div className="text-xs font-semibold text-white/45">
+                        {formatLastPlayed(asset.lastPlayedAt)}
+                      </div>
+
+                      <div className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/55">
+                        {asset.playFilename || "No file"}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {error ? (
+              <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+                {error}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+            <div className="text-xs font-bold uppercase tracking-[0.18em] text-white/45">
+              Skip Prompt
+            </div>
+
+            <h3 className="mt-3 text-xl font-black tracking-tight text-white">
+              Skip with reason
+            </h3>
+
+            <p className="mt-2 text-sm leading-6 text-white/68">
+              Skipping requires a reason and will create a SKIPPED event for admin
+              review later.
+            </p>
+
+            <label className="mt-5 block">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-white/45">
+                Reason
+              </span>
+              <textarea
+                value={skipReason}
+                onChange={(e) => setSkipReason(e.target.value)}
+                placeholder="Example: crowd moment, no clean transition, asset doesn't fit current energy..."
+                className="min-h-[140px] w-full rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-cyan-300/35"
+                disabled={busy}
+              />
+            </label>
+
+            <button
+              type="button"
+              disabled={busy || !canSubmitSkip}
+              onClick={async () => {
+                setError(null);
+                try {
+                  await onSkip(skipReason.trim());
+                  setSkipReason("");
+                } catch (err) {
+                  setError(
+                    err instanceof Error ? err.message : "Failed to skip prompt."
+                  );
+                }
+              }}
+              className="mt-4 w-full rounded-2xl border border-amber-300/22 bg-amber-300/12 px-4 py-3 text-sm font-black uppercase tracking-[0.16em] text-amber-100 transition hover:bg-amber-300/16 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy ? "Working..." : "Skip Interstitial"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
