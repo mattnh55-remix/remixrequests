@@ -169,7 +169,7 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="searchAddWrap">
         <input
           ref={inputRef}
           value={query}
@@ -180,35 +180,18 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
           autoComplete="off"
         />
 
-        <div className="rounded-[10px] border border-white/10 bg-black/20 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/65">
-          Enter = Add to Queue • Shift+Enter = Play Next • Alt+Enter = After Current • Esc =
-          Clear
+        <div className="searchAddHint">
+          Enter = Add to Queue • Shift+Enter = Play Next • Alt+Enter = After Current • Esc = Clear
         </div>
 
-        {loading ? (
-          <div className="rounded-[12px] border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-white/70">
-            Searching...
-          </div>
-        ) : null}
-
-        {!loading && error ? (
-          <div className="rounded-[12px] border border-rose-400/20 bg-rose-400/10 px-3 py-3 text-sm text-rose-100">
-            {error}
-          </div>
-        ) : null}
-
+        {loading ? <div className="searchAddState">Searching...</div> : null}
+        {!loading && error ? <div className="searchAddError">{error}</div> : null}
         {!loading && !error && query.trim().length >= 2 && results.length === 0 ? (
-          <div className="rounded-[12px] border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-white/70">
-            No results found.
-          </div>
+          <div className="searchAddState">No results found.</div>
         ) : null}
 
         {results.length > 0 ? (
-          <div
-            role="listbox"
-            aria-label="Song search results"
-            className="space-y-2"
-          >
+          <div className="searchAddResults" role="listbox" aria-label="Song search results">
             {results.map((song, index) => {
               const isActive = index === activeIndex;
               const isSubmitting = submittingId === song.id;
@@ -216,70 +199,52 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
               return (
                 <div
                   key={song.id}
-                  className={[
-                    "rounded-[14px] border transition",
-                    isActive
-                      ? "border-cyan-300/35 bg-[linear-gradient(90deg,rgba(42,126,214,0.18),rgba(255,255,255,0.04))] shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset]"
-                      : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]",
-                  ].join(" ")}
+                  className={`searchAddRow ${isActive ? "searchAddRow--active" : ""}`}
                   onMouseEnter={() => setActiveIndex(index)}
                 >
-                  <div className="flex flex-col gap-3 p-3 xl:flex-row xl:items-center xl:justify-between">
+                  <button
+                    type="button"
+                    className="searchAddRowMain"
+                    onClick={() => void runFastAction(song, "ADD_TO_QUEUE")}
+                  >
+                    <div className="searchAddCopy">
+                      <div className="searchAddTopline">
+                        <span className="searchAddIndex">{index + 1}</span>
+                        <span className="searchAddTitle">{song.title}</span>
+                      </div>
+                      <div className="searchAddArtist">{song.artist}</div>
+                    </div>
+                  </button>
+
+                  <div className="searchAddButtons">
+                    {isActive ? <span className="searchAddEnterPill">Enter</span> : null}
+
                     <button
                       type="button"
-                      className="min-w-0 flex-1 text-left"
-                      onClick={() => void runFastAction(song, "ADD_TO_QUEUE")}
+                      className="searchBtn searchBtn--neutral"
+                      disabled={isSubmitting}
+                      onClick={() => void addSong(song.id, "ADD_TO_QUEUE")}
                     >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/25 text-[11px] font-black text-white/75">
-                          {index + 1}
-                        </div>
-
-                        <div className="min-w-0">
-                          <div className="truncate text-[15px] font-extrabold leading-5 text-white">
-                            {song.title}
-                          </div>
-                          <div className="truncate text-[12px] font-medium uppercase tracking-[0.08em] text-white/55">
-                            {song.artist}
-                          </div>
-                        </div>
-                      </div>
+                      Add
                     </button>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      {isActive ? (
-                        <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
-                          Enter
-                        </span>
-                      ) : null}
+                    <button
+                      type="button"
+                      className="searchBtn searchBtn--primary"
+                      disabled={isSubmitting}
+                      onClick={() => void addSong(song.id, "PLAY_NEXT")}
+                    >
+                      Next
+                    </button>
 
-                      <button
-                        type="button"
-                        className="rounded-[10px] border border-white/12 bg-white/[0.06] px-3 py-2 text-[12px] font-bold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={isSubmitting}
-                        onClick={() => void addSong(song.id, "ADD_TO_QUEUE")}
-                      >
-                        Add
-                      </button>
-
-                      <button
-                        type="button"
-                        className="rounded-[10px] border border-sky-300/30 bg-[linear-gradient(180deg,#4f9cf7,#2e6cc4)] px-3 py-2 text-[12px] font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={isSubmitting}
-                        onClick={() => void addSong(song.id, "PLAY_NEXT")}
-                      >
-                        Next
-                      </button>
-
-                      <button
-                        type="button"
-                        className="rounded-[10px] border border-white/12 bg-white/[0.06] px-3 py-2 text-[12px] font-bold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={isSubmitting}
-                        onClick={() => void addSong(song.id, "ADD_AFTER_CURRENT")}
-                      >
-                        After
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="searchBtn searchBtn--neutral"
+                      disabled={isSubmitting}
+                      onClick={() => void addSong(song.id, "ADD_AFTER_CURRENT")}
+                    >
+                      After
+                    </button>
                   </div>
                 </div>
               );
@@ -287,6 +252,199 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
           </div>
         ) : null}
       </div>
+
+      <style jsx>{`
+        .searchAddWrap {
+          display: grid;
+          gap: 8px;
+        }
+
+        .searchAddInput {
+          width: 100%;
+        }
+
+        .searchAddHint {
+          border-radius: 4px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.03);
+          padding: 7px 10px;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.2px;
+          color: rgba(235, 241, 255, 0.82);
+        }
+
+        .searchAddState,
+        .searchAddError {
+          border-radius: 4px;
+          padding: 9px 10px;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .searchAddState {
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.03);
+          color: rgba(235, 241, 255, 0.75);
+        }
+
+        .searchAddError {
+          border: 1px solid rgba(255, 120, 120, 0.2);
+          background: rgba(255, 120, 120, 0.08);
+          color: #ffd0d0;
+        }
+
+        .searchAddResults {
+          display: grid;
+          gap: 6px;
+        }
+
+        .searchAddRow {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 10px;
+          align-items: center;
+          padding: 8px 10px;
+          border-radius: 5px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.03),
+            rgba(255, 255, 255, 0.015)
+          );
+        }
+
+        .searchAddRow--active {
+          border-color: rgba(94, 190, 255, 0.34);
+          background: linear-gradient(
+            90deg,
+            rgba(57, 118, 196, 0.18),
+            rgba(255, 255, 255, 0.04)
+          );
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+        }
+
+        .searchAddRowMain {
+          appearance: none;
+          border: 0;
+          background: transparent;
+          padding: 0;
+          margin: 0;
+          min-width: 0;
+          text-align: left;
+          cursor: pointer;
+          color: inherit;
+        }
+
+        .searchAddCopy {
+          min-width: 0;
+        }
+
+        .searchAddTopline {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
+        }
+
+        .searchAddIndex {
+          flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 22px;
+          height: 22px;
+          padding: 0 6px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.04);
+          font-size: 10px;
+          font-weight: 1000;
+          color: rgba(233, 241, 252, 0.75);
+        }
+
+        .searchAddTitle {
+          display: block;
+          min-width: 0;
+          font-size: 15px;
+          line-height: 1.15;
+          font-weight: 1000;
+          color: #fbfdff;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .searchAddArtist {
+          margin-top: 3px;
+          padding-left: 30px;
+          font-size: 12px;
+          line-height: 1.2;
+          color: rgba(223, 233, 248, 0.7);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .searchAddButtons {
+          display: inline-flex;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          gap: 6px;
+          align-items: center;
+        }
+
+        .searchAddEnterPill {
+          display: inline-flex;
+          align-items: center;
+          padding: 3px 8px;
+          border-radius: 999px;
+          border: 1px solid rgba(89, 203, 255, 0.28);
+          background: rgba(89, 203, 255, 0.1);
+          font-size: 9px;
+          font-weight: 1000;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          color: #aee9ff;
+        }
+
+        .searchBtn {
+          appearance: none;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          cursor: pointer;
+          min-height: 28px;
+          padding: 0 10px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 0.4px;
+          color: #f1f5fb;
+        }
+
+        .searchBtn:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+
+        .searchBtn--neutral {
+          background: linear-gradient(180deg, #4a5467 0%, #2d3441 52%, #232935 100%);
+        }
+
+        .searchBtn--primary {
+          background: linear-gradient(180deg, #3d7ec0 0%, #245694 52%, #1c4479 100%);
+        }
+
+        @media (max-width: 900px) {
+          .searchAddRow {
+            grid-template-columns: 1fr;
+            align-items: start;
+          }
+
+          .searchAddButtons {
+            justify-content: flex-start;
+          }
+        }
+      `}</style>
     </section>
   );
 }
