@@ -232,15 +232,14 @@ export default function InterstitialPad({
                 const active = tab === activeTab;
 
                 return (
-                  <button
-                    key={tab}
-                    type="button"
-                    className={`rrFolderTab ${active ? "rrFolderTab--active" : ""}`}
-                    onClick={() => setActiveTab(tab)}
-                  >
-                    <span className="rrFolderTab__text">{TAB_LABELS[tab]}</span>
-                    <strong className="rrFolderTab__count">{count}</strong>
-                  </button>
+<button
+  key={tab}
+  type="button"
+  className={`rrFolderTab ${active ? "rrFolderTab--active" : ""}`}
+  onClick={() => setActiveTab(tab)}
+>
+  <span className="rrFolderTab__text">{TAB_LABELS[tab]}</span>
+</button>
                 );
               })}
             </div>
@@ -405,7 +404,7 @@ export default function InterstitialPad({
   padding: 0 7px;
   border-radius: 8px 8px 0 0;
   display: inline-flex;
-  gap: 5px;
+  gap: 0px;
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -423,19 +422,6 @@ export default function InterstitialPad({
   letter-spacing: 0.4px;
   text-transform: uppercase;
   line-height: 1;
-}
-
-.rrFolderTab__count {
-  min-width: 15px;
-  height: 15px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.08);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  line-height: 1;
-  flex: 0 0 auto;
 }
 
         .rrFolderTray {

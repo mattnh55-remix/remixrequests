@@ -35,27 +35,45 @@ model Location {
 }
 
 model Song {
-  id          String   @id @default(cuid())
-  locationId  String
-  location    Location @relation(fields: [locationId], references: [id])
+  id                String   @id @default(cuid())
+  locationId        String
+  location          Location @relation(fields: [locationId], references: [id])
 
-  trackId     String?
-  title       String
-  artist      String
-  artistKey   String
-  artworkUrl  String?
-  explicit    Boolean  @default(false)
-  tags        String[] @default([])
-  durationSec Int?
+  songId            String?
+  trackId           String?
+  title             String
+  artist            String
+  artistKey         String
 
-  createdAt    DateTime     @default(now())
-  Request      Request[]
-  PlayHistory  PlayHistory[]
-  top10Entries Top10Entry[]
+  active            Boolean  @default(true)
+  explicit          Boolean  @default(false)
+
+  genre             String?
+  tags              String[] @default([])
+
+  songWeight        Int      @default(10)
+  featureBoost      Int      @default(0)
+
+  album             String?
+  releaseYear       Int?
+  preferredAudience String?  @default("both")
+
+  albumArtFile      String?
+  artworkUrl        String?
+
+  importBatch       String?
+  notes             String?
+
+  createdAt         DateTime @default(now())
+  Request           Request[]
+  PlayHistory       PlayHistory[]
+  top10Entries      Top10Entry[]
 
   @@index([locationId])
   @@index([artistKey])
   @@index([locationId, trackId])
+  @@index([locationId, songId])
+  @@index([locationId, active])
 }
 
 model Session {

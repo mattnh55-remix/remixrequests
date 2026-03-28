@@ -1145,6 +1145,12 @@ useEffect(() => {
                 </div>
                 <input type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" onChange={(e) => { const f = e.target.files?.[0]; if (f) importSongs(f); }} className="admFileInput" />
               </div>
+<TextField
+  label="Album Art Base URL"
+  value={(rules as any).albumArtBaseUrl || ""}
+  onChange={(v) => patchRules({ albumArtBaseUrl: v } as any)}
+/>
+
             </Panel>
           </div>
         )}

@@ -1,3 +1,4 @@
+// src/app/queue/[location]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
