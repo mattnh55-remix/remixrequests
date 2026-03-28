@@ -1,12 +1,9 @@
 "use server";
 
+import { Prisma, InterstitialCategory, InterstitialScheduleMode, SessionProfile } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import {
-  InterstitialCategory,
-  InterstitialScheduleMode,
-  SessionProfile,
-} from "@prisma/client";
 
 function toNullableInt(value: FormDataEntryValue | null): number | null {
   if (value == null) return null;
@@ -28,10 +25,7 @@ function toBool(value: FormDataEntryValue | null): boolean {
   return value === "on" || value === "true";
 }
 
-function toStringValue(
-  value: FormDataEntryValue | null,
-  fallback = "",
-): string {
+function toStringValue(value: FormDataEntryValue | null, fallback = ""): string {
   if (value == null) return fallback;
   return String(value).trim();
 }
@@ -45,17 +39,11 @@ function toStringArray(value: FormDataEntryValue | null): string[] {
 }
 
 function isInterstitialCategory(value: string): value is InterstitialCategory {
-  return Object.values(InterstitialCategory).includes(
-    value as InterstitialCategory,
-  );
+  return Object.values(InterstitialCategory).includes(value as InterstitialCategory);
 }
 
-function isInterstitialScheduleMode(
-  value: string,
-): value is InterstitialScheduleMode {
-  return Object.values(InterstitialScheduleMode).includes(
-    value as InterstitialScheduleMode,
-  );
+function isInterstitialScheduleMode(value: string): value is InterstitialScheduleMode {
+  return Object.values(InterstitialScheduleMode).includes(value as InterstitialScheduleMode);
 }
 
 function toSessionProfiles(value: FormDataEntryValue | null): SessionProfile[] {
@@ -84,6 +72,39 @@ async function resolveLocationId(
   if (bySlug) return bySlug;
 
   throw new Error(`Location not found for "${locationIdOrSlug}".`);
+}
+
+function buildInterstitialAdminPath(
+  slug: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) {
+  const search = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value == null) continue;
+    const text = String(value).trim();
+    if (!text) continue;
+    search.set(key, text);
+  }
+
+  const qs = search.toString();
+  return qs ? `/admin/${slug}/interstitials?${qs}` : `/admin/${slug}/interstitials`;
+}
+
+function redirectToAdmin(
+  slug: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+): never {
+  redirect(buildInterstitialAdminPath(slug, params));
+}
+
+function isUniqueConstraintError(
+  error: unknown,
+): error is Prisma.PrismaClientKnownRequestError {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
 }
 
 export async function saveInterstitialAsset(formData: FormData) {
@@ -155,6 +176,10 @@ export async function saveInterstitialAsset(formData: FormData) {
   }
 
   revalidatePath(`/admin/${location.slug}/interstitials`);
+  redirectToAdmin(location.slug, {
+    assetStatus: "saved",
+    assetMessage: id ? "Asset updated." : "Asset created.",
+  });
 }
 
 export async function toggleInterstitialAsset(formData: FormData) {
@@ -174,6 +199,10 @@ export async function toggleInterstitialAsset(formData: FormData) {
   });
 
   revalidatePath(`/admin/${location.slug}/interstitials`);
+  redirectToAdmin(location.slug, {
+    assetStatus: "saved",
+    assetMessage: nextActive ? "Asset activated." : "Asset deactivated.",
+  });
 }
 
 export async function deleteInterstitialAsset(formData: FormData) {
@@ -195,6 +224,10 @@ export async function deleteInterstitialAsset(formData: FormData) {
   });
 
   revalidatePath(`/admin/${location.slug}/interstitials`);
+  redirectToAdmin(location.slug, {
+    assetStatus: "saved",
+    assetMessage: "Asset deleted.",
+  });
 }
 
 export async function saveInterstitialSchedule(formData: FormData) {
@@ -213,12 +246,15 @@ export async function saveInterstitialSchedule(formData: FormData) {
 
   if (!locationRaw) throw new Error("Missing locationId.");
   if (!categoryRaw) throw new Error("Category is required.");
+
   if (!isInterstitialCategory(categoryRaw)) {
     throw new Error(`Invalid category: ${categoryRaw}`);
   }
+
   if (startMinute < 0) {
     throw new Error("Start minute must be 0 or greater.");
   }
+
   if (endMinute < startMinute) {
     throw new Error("End minute must be greater than or equal to start minute.");
   }
@@ -239,18 +275,41 @@ export async function saveInterstitialSchedule(formData: FormData) {
     required,
   };
 
-  if (id) {
-    await prisma.interstitialSchedule.update({
-      where: { id },
-      data,
-    });
-  } else {
+  try {
+    if (id) {
+      await prisma.interstitialSchedule.update({
+        where: { id },
+        data,
+      });
+
+      revalidatePath(`/admin/${location.slug}/interstitials`);
+      redirectToAdmin(location.slug, {
+        scheduleStatus: "saved",
+        scheduleMessage: "Window updated.",
+      });
+    }
+
     await prisma.interstitialSchedule.create({
       data,
     });
-  }
 
-  revalidatePath(`/admin/${location.slug}/interstitials`);
+    revalidatePath(`/admin/${location.slug}/interstitials`);
+    redirectToAdmin(location.slug, {
+      scheduleStatus: "saved",
+      scheduleMessage: "Window created.",
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      redirectToAdmin(location.slug, {
+        scheduleStatus: "error",
+        scheduleMessage:
+          "A window already exists with this same category and minute range.",
+        editSchedule: id ?? "",
+      });
+    }
+
+    throw error;
+  }
 }
 
 export async function toggleInterstitialSchedule(formData: FormData) {
@@ -270,6 +329,10 @@ export async function toggleInterstitialSchedule(formData: FormData) {
   });
 
   revalidatePath(`/admin/${location.slug}/interstitials`);
+  redirectToAdmin(location.slug, {
+    scheduleStatus: "saved",
+    scheduleMessage: nextActive ? "Window activated." : "Window deactivated.",
+  });
 }
 
 export async function deleteInterstitialSchedule(formData: FormData) {
@@ -291,6 +354,10 @@ export async function deleteInterstitialSchedule(formData: FormData) {
   });
 
   revalidatePath(`/admin/${location.slug}/interstitials`);
+  redirectToAdmin(location.slug, {
+    scheduleStatus: "saved",
+    scheduleMessage: "Window deleted.",
+  });
 }
 
 export async function saveBoothNote(formData: FormData) {
@@ -313,4 +380,8 @@ export async function saveBoothNote(formData: FormData) {
   });
 
   revalidatePath(`/admin/${location.slug}/interstitials`);
+  redirectToAdmin(location.slug, {
+    noteStatus: "saved",
+    noteMessage: "Booth notes saved.",
+  });
 }

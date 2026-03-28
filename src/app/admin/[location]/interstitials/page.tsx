@@ -1,13 +1,12 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
-  deleteInterstitialSchedule,
   saveBoothNote,
-  saveInterstitialSchedule,
-  toggleInterstitialSchedule,
 } from "./actions";
 import { InterstitialAssetForm } from "@/components/admin/interstitials/interstitial-asset-form";
 import { InterstitialAssetsTable } from "@/components/admin/interstitials/interstitial-assets-table";
+import { InterstitialScheduleForm } from "@/components/admin/interstitials/interstitial-schedule-form";
+import { InterstitialSchedulesTable } from "@/components/admin/interstitials/interstitial-schedules-table";
 
 const CATEGORY_OPTIONS = [
   "WELCOME_RULES",
@@ -32,17 +31,37 @@ const PROFILE_OPTIONS = [
   "GENERAL",
 ] as const;
 
-function niceCategory(value: string) {
-  return value
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (m) => m.toUpperCase());
+function AlertBanner({
+  tone = "info",
+  title,
+  message,
+}: {
+  tone?: "success" | "error" | "info";
+  title: string;
+  message?: string | null;
+}) {
+  return (
+    <div className={`rrInlineAlert rrInlineAlert--${tone}`}>
+      <div className="rrInlineAlert__title">{title}</div>
+      {message ? <div className="rrInlineAlert__body">{message}</div> : null}
+    </div>
+  );
 }
 
 export default async function AdminInterstitialsPage({
   params,
+  searchParams,
 }: {
   params: { location: string };
+  searchParams?: {
+    editSchedule?: string;
+    scheduleStatus?: string;
+    scheduleMessage?: string;
+    assetStatus?: string;
+    assetMessage?: string;
+    noteStatus?: string;
+    noteMessage?: string;
+  };
 }) {
   const locationSlug = params.location;
 
@@ -60,8 +79,9 @@ export default async function AdminInterstitialsPage({
   }
 
   const locationId = location.id;
+  const editingScheduleId = searchParams?.editSchedule?.trim() || null;
 
-const [assets, scheduleWindows, boothNote] = await Promise.all([
+  const [assets, scheduleWindows, boothNote] = await Promise.all([
     prisma.interstitialAsset.findMany({
       where: { locationId },
       orderBy: [{ active: "desc" }, { priority: "desc" }, { createdAt: "asc" }],
@@ -75,6 +95,13 @@ const [assets, scheduleWindows, boothNote] = await Promise.all([
     }),
   ]);
 
+  const editingSchedule =
+    editingScheduleId != null
+      ? scheduleWindows.find((schedule) => schedule.id === editingScheduleId) ?? null
+      : null;
+
+  const isEditingMissing = !!editingScheduleId && !editingSchedule;
+
   return (
     <div className="rrAdminInterstitials">
       <div className="rrAdminInterstitials__shell">
@@ -83,9 +110,10 @@ const [assets, scheduleWindows, boothNote] = await Promise.all([
             <div className="rrEyebrow">REMIXREQUESTS • ADMIN</div>
             <h1 className="rrTitle">INTERSTITIAL CONTROL</h1>
             <p className="rrSub">
-              Reworked for session-driven category windows. Assets are now the
-              selectable library, while schedule windows decide when a category
-              is due for <span className="rrAccentText">{location.slug}</span>.
+              Session-driven category windows now control when the booth should
+              prompt the DJ. Assets are the playable library. Windows are the
+              timing engine. Booth notes remain the shared operator note box for{" "}
+              <span className="rrAccentText">{location.slug}</span>.
             </p>
           </div>
 
@@ -100,14 +128,57 @@ const [assets, scheduleWindows, boothNote] = await Promise.all([
             </div>
             <div className="rrAdminStatBox">
               <span>WINDOWS</span>
-<strong>{scheduleWindows.length}</strong>
+              <strong>{scheduleWindows.length}</strong>
             </div>
             <div className="rrAdminStatBox">
               <span>ACTIVE WINDOWS</span>
-<strong>{scheduleWindows.filter((schedule) => schedule.active).length}</strong>
+              <strong>{scheduleWindows.filter((schedule) => schedule.active).length}</strong>
             </div>
           </div>
         </header>
+
+        {searchParams?.scheduleStatus === "saved" ? (
+          <AlertBanner
+            tone="success"
+            title="Schedule saved"
+            message={searchParams?.scheduleMessage ?? "Window saved successfully."}
+          />
+        ) : null}
+
+        {searchParams?.scheduleStatus === "error" ? (
+          <AlertBanner
+            tone="error"
+            title="Schedule not saved"
+            message={
+              searchParams?.scheduleMessage ??
+              "There was a problem saving this schedule window."
+            }
+          />
+        ) : null}
+
+        {searchParams?.assetStatus === "saved" ? (
+          <AlertBanner
+            tone="success"
+            title="Asset updated"
+            message={searchParams?.assetMessage ?? "Asset change saved."}
+          />
+        ) : null}
+
+        {searchParams?.noteStatus === "saved" ? (
+          <AlertBanner
+            tone="success"
+            title="Booth notes saved"
+            message={searchParams?.noteMessage ?? "Shared booth note updated."}
+          />
+        ) : null}
+
+        {isEditingMissing ? (
+          <AlertBanner
+            tone="error"
+            title="Edit target not found"
+            message="That schedule window no longer exists. Showing create mode instead."
+          />
+        ) : null}
 
         <div className="rrAdminGrid2">
           <section className="rrAdminPanel rrAdminPanel--form">
@@ -116,7 +187,7 @@ const [assets, scheduleWindows, boothNote] = await Promise.all([
                 <div className="rrPanelTitle">Create New Asset</div>
                 <div className="rrPanelSub">
                   These are the bridge-playable choices DJs will see inside tabs
-                  and timed modals.
+                  and timed modal prompts.
                 </div>
               </div>
               <span className="rrStatusPill rrStatusPill--gold">
@@ -134,165 +205,29 @@ const [assets, scheduleWindows, boothNote] = await Promise.all([
           <section className="rrAdminPanel rrAdminPanel--form">
             <div className="rrPanelHead">
               <div>
-                <div className="rrPanelTitle">Create Session Window</div>
+                <div className="rrPanelTitle">
+                  {editingSchedule ? "Edit Session Window" : "Create Session Window"}
+                </div>
                 <div className="rrPanelSub">
                   These windows drive the booth modal. When a session enters the
                   minute range below, the DJ will be prompted to choose one asset
                   from that category.
                 </div>
               </div>
+
               <span className="rrStatusPill rrStatusPill--cyan">
-                TIMING ENGINE
+                {editingSchedule ? "EDIT WINDOW" : "TIMING ENGINE"}
               </span>
             </div>
 
-            <form action={saveInterstitialSchedule} className="rrFormGrid">
-              <input type="hidden" name="locationId" value={locationId} />
-
-              <div className="rrFormGrid rrFormGrid--triple">
-                <div>
-                  <label className="rrControlLabel" htmlFor="window-category">
-                    Category
-                  </label>
-                  <select
-                    id="window-category"
-                    name="category"
-                    defaultValue={CATEGORY_OPTIONS[0]}
-                    className="gunmetalSelect"
-                    required
-                  >
-                    {CATEGORY_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {niceCategory(option)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="rrControlLabel" htmlFor="window-label">
-                    Window Label
-                  </label>
-                  <input
-                    id="window-label"
-                    name="label"
-                    className="gunmetalInput"
-                    placeholder="Opening rules block"
-                  />
-                </div>
-
-                <div>
-                  <label className="rrControlLabel" htmlFor="window-title">
-                    Prompt Title
-                  </label>
-                  <input
-                    id="window-title"
-                    name="promptTitle"
-                    className="gunmetalInput"
-                    placeholder="Time to play Welcome & Rules"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="rrControlLabel" htmlFor="window-body">
-                  Prompt Body
-                </label>
-                <input
-                  id="window-body"
-                  name="promptBody"
-                  className="gunmetalInput"
-                  placeholder="Choose one to fire through the bridge."
-                />
-              </div>
-
-              <div className="rrFormGrid rrFormGrid--five">
-                <div>
-                  <label className="rrControlLabel" htmlFor="window-start">
-                    Start Min
-                  </label>
-                  <input
-                    id="window-start"
-                    type="number"
-                    name="startMinute"
-                    defaultValue={0}
-                    min={0}
-                    className="gunmetalInput"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="rrControlLabel" htmlFor="window-end">
-                    End Min
-                  </label>
-                  <input
-                    id="window-end"
-                    type="number"
-                    name="endMinute"
-                    defaultValue={10}
-                    min={0}
-                    className="gunmetalInput"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="rrControlLabel" htmlFor="window-sort">
-                    Sort Order
-                  </label>
-                  <input
-                    id="window-sort"
-                    type="number"
-                    name="sortOrder"
-                    defaultValue={0}
-                    className="gunmetalInput"
-                  />
-                </div>
-
-                <div>
-                  <label className="rrControlLabel" htmlFor="window-cooldown">
-                    Cooldown Min
-                  </label>
-                  <input
-                    id="window-cooldown"
-                    type="number"
-                    name="cooldownMinutes"
-                    className="gunmetalInput"
-                    placeholder="Optional"
-                    min={0}
-                  />
-                </div>
-
-                <div className="rrFormGrid" style={{ gap: 8 }}>
-                  <label className="gunmetalCheckboxRow">
-                    <input
-                      type="checkbox"
-                      name="active"
-                      defaultChecked
-                      className="gunmetalCheckbox"
-                    />
-                    Active
-                  </label>
-
-                  <label className="gunmetalCheckboxRow">
-                    <input
-                      type="checkbox"
-                      name="required"
-                      defaultChecked
-                      className="gunmetalCheckbox"
-                    />
-                    Required
-                  </label>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <button type="submit" className="gunmetalBtn gunmetalBtn--primary">
-                  Save Window
-                </button>
-              </div>
-            </form>
+            <InterstitialScheduleForm
+              locationId={locationId}
+              locationSlug={location.slug}
+              categoryOptions={[...CATEGORY_OPTIONS]}
+              initialValues={editingSchedule ?? undefined}
+              submitLabel={editingSchedule ? "Update Window" : "Save Window"}
+              mode={editingSchedule ? "edit" : "create"}
+            />
           </section>
         </div>
 
@@ -331,114 +266,21 @@ const [assets, scheduleWindows, boothNote] = await Promise.all([
             <div>
               <div className="rrPanelTitle">Existing Windows</div>
               <div className="rrPanelSub">
-                Windows decide the required category; assets are just the
-                selectable choices inside that category.
+                Windows decide the required category. Assets are the selectable
+                choices within that category.
               </div>
             </div>
             <span className="rrStatusPill rrStatusPill--cyan">
-{scheduleWindows.length} WINDOWS
+              {scheduleWindows.length} WINDOWS
             </span>
           </div>
 
-{!scheduleWindows.length ? (
-  <div className="rrEmptyBox">No schedule windows yet.</div>
-) : (
-  <div className="rrAssetList">
-    {scheduleWindows.map((schedule) => (
-<div key={schedule.id} className="rrAssetCard">
-                  <div className="rrAssetHeader">
-                    <div>
-                      <div className="rrAssetTitleLine">
-<div className="rrAssetTitle">
-  {schedule.label?.trim() || niceCategory(schedule.category)}
-</div>
-
-                        <span
-                          className={`rrChip ${
-                            schedule.active ? "rrChip--active" : "rrChip--inactive"
-                          }`}
-                        >
-                          {schedule.active ? "ACTIVE" : "INACTIVE"}
-                        </span>
-
-                        <span className="rrChip rrChip--category">
-                          {niceCategory(schedule.category)}
-                        </span>
-
-                        {schedule.required ? (
-                          <span className="rrChip rrChip--schedule">
-                            REQUIRED
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="rrAssetSub">
-                        {schedule.promptTitle?.trim() || "No prompt title"}
-                      </div>
-                    </div>
-
-                    <div className="rrAssetActions">
-                      <form action={toggleInterstitialSchedule}>
-                        <input type="hidden" name="id" value={schedule.id} />
-                        <input type="hidden" name="locationId" value={locationId} />
-                        <input
-                          type="hidden"
-                          name="nextActive"
-                          value={schedule.active ? "false" : "true"}
-                        />
-                        <button
-                          type="submit"
-                          className="gunmetalBtn gunmetalBtn--warn"
-                        >
-                          {schedule.active ? "Deactivate" : "Activate"}
-                        </button>
-                      </form>
-
-<form action={deleteInterstitialSchedule}>
-  <input type="hidden" name="id" value={schedule.id} />
-  <input type="hidden" name="locationId" value={locationId} />
-  <button
-    type="submit"
-    className="gunmetalBtn gunmetalBtn--danger"
-  >
-    Delete
-  </button>
-</form>
-                    </div>
-                  </div>
-
-                  <div className="rrAssetMetaGrid">
-                    <div className="rrAssetMetaCell">
-                      <span>Start</span>
-                      <strong>{schedule.startMinute} min</strong>
-                    </div>
-                    <div className="rrAssetMetaCell">
-                      <span>End</span>
-                      <strong>{schedule.endMinute} min</strong>
-                    </div>
-                    <div className="rrAssetMetaCell">
-                      <span>Sort</span>
-                      <strong>{schedule.sortOrder}</strong>
-                    </div>
-                    <div className="rrAssetMetaCell">
-                      <span>Cooldown</span>
-                      <strong>
-                        {schedule.cooldownMinutes != null
-                          ? `${schedule.cooldownMinutes} min`
-                          : "—"}
-                      </strong>
-                    </div>
-                  </div>
-
-                  {schedule.promptBody?.trim() ? (
-                    <div className="rrAssetProfiles" style={{ marginTop: 8 }}>
-                      <strong>Prompt:</strong> {schedule.promptBody}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
+          <InterstitialSchedulesTable
+            locationId={locationId}
+            locationSlug={location.slug}
+            schedules={scheduleWindows}
+            editingScheduleId={editingScheduleId}
+          />
         </section>
 
         <section className="rrAdminPanel">
@@ -621,6 +463,57 @@ const [assets, scheduleWindows, boothNote] = await Promise.all([
           box-shadow: 0 0 12px rgba(46, 193, 234, 0.14);
         }
 
+        .rrInlineAlert {
+          border-radius: 6px;
+          padding: 10px 12px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.04);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            0 8px 20px rgba(0, 0, 0, 0.18);
+        }
+
+        .rrInlineAlert--success {
+          border-color: rgba(70, 205, 145, 0.35);
+          background: linear-gradient(
+            180deg,
+            rgba(52, 135, 99, 0.20),
+            rgba(20, 35, 29, 0.42)
+          );
+        }
+
+        .rrInlineAlert--error {
+          border-color: rgba(224, 99, 116, 0.34);
+          background: linear-gradient(
+            180deg,
+            rgba(110, 31, 46, 0.26),
+            rgba(35, 17, 22, 0.45)
+          );
+        }
+
+        .rrInlineAlert--info {
+          border-color: rgba(89, 165, 255, 0.30);
+          background: linear-gradient(
+            180deg,
+            rgba(27, 65, 112, 0.24),
+            rgba(16, 22, 35, 0.42)
+          );
+        }
+
+        .rrInlineAlert__title {
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 0.6px;
+          text-transform: uppercase;
+          margin-bottom: 3px;
+        }
+
+        .rrInlineAlert__body {
+          font-size: 12px;
+          color: rgba(235, 241, 255, 0.82);
+          line-height: 1.45;
+        }
+
         .rrControlLabel {
           display: block;
           margin-bottom: 6px;
@@ -694,7 +587,8 @@ const [assets, scheduleWindows, boothNote] = await Promise.all([
           accent-color: #4ea1ff;
         }
 
-        .gunmetalBtn {
+        .gunmetalBtn,
+        .gunmetalBtn--ghostLink {
           appearance: none;
           border: 1px solid rgba(255, 255, 255, 0.12);
           cursor: pointer;
@@ -711,6 +605,10 @@ const [assets, scheduleWindows, boothNote] = await Promise.all([
             #2d3441 52%,
             #232935 100%
           );
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .gunmetalBtn--primary {
@@ -740,6 +638,15 @@ const [assets, scheduleWindows, boothNote] = await Promise.all([
           );
         }
 
+        .gunmetalBtn--ghostLink {
+          background: linear-gradient(
+            180deg,
+            #5e687b 0%,
+            #353d4c 52%,
+            #28303d 100%
+          );
+        }
+
         .rrAssetList {
           display: grid;
           gap: 8px;
@@ -752,6 +659,11 @@ const [assets, scheduleWindows, boothNote] = await Promise.all([
             linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
             linear-gradient(180deg, rgba(25, 31, 44, 0.92), rgba(14, 19, 31, 0.92));
           padding: 10px;
+        }
+
+        .rrAssetCard--editing {
+          border-color: rgba(77, 186, 255, 0.42);
+          box-shadow: 0 0 0 1px rgba(77, 186, 255, 0.14);
         }
 
         .rrAssetHeader {
