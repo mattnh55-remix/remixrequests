@@ -387,65 +387,56 @@ export default function InterstitialPad({
           gap: 0;
         }
 
-        .rrFolderTabs {
-          display: flex;
-          gap: 4px;
-          align-items: flex-end;
-          overflow-x: auto;
-          overflow-y: hidden;
-          padding-bottom: 0;
-        }
+.rrFolderTabs {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  overflow: hidden;
+  padding-bottom: 0;
+}
 
-        .rrFolderTab {
-          appearance: none;
-          border: 1px solid rgba(255,255,255,0.12);
-          border-bottom: none;
-          background: linear-gradient(180deg, rgba(35, 44, 58, 0.98), rgba(18, 23, 33, 0.98));
-          color: rgba(221, 232, 246, 0.78);
-          min-height: 38px;
-          padding: 0 10px;
-          border-radius: 8px 8px 0 0;
-          display: inline-flex;
-          gap: 8px;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          white-space: nowrap;
-          position: relative;
-          top: 1px;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
-        }
+.rrFolderTab {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-bottom: none;
+  background: linear-gradient(180deg, rgba(35, 44, 58, 0.98), rgba(18, 23, 33, 0.98));
+  color: rgba(221, 232, 246, 0.78);
+  min-height: 34px;
+  padding: 0 7px;
+  border-radius: 8px 8px 0 0;
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+  top: 1px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+  flex: 1 1 0;
+  min-width: 0;
+}
 
-        .rrFolderTab:hover {
-          color: #f4f8ff;
-        }
+.rrFolderTab__text {
+  font-size: 9px;
+  font-weight: 1000;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  line-height: 1;
+}
 
-        .rrFolderTab--active {
-          background: linear-gradient(180deg, rgba(47, 62, 83, 0.98), rgba(20, 27, 39, 0.98));
-          color: #ffffff;
-          border-color: rgba(106, 189, 255, 0.28);
-          z-index: 2;
-        }
-
-        .rrFolderTab__text {
-          font-size: 10px;
-          font-weight: 1000;
-          letter-spacing: 1px;
-          text-transform: uppercase;
-          line-height: 1;
-        }
-
-        .rrFolderTab__count {
-          min-width: 18px;
-          height: 18px;
-          border-radius: 999px;
-          background: rgba(255,255,255,0.08);
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 10px;
-          line-height: 1;
-        }
+.rrFolderTab__count {
+  min-width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
 
         .rrFolderTray {
           border: 1px solid rgba(106, 189, 255, 0.18);
