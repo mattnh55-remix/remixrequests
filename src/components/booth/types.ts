@@ -127,3 +127,52 @@ export type ShoutoutActionResult = {
   message: string;
   url?: string | null;
 };
+
+export type InterstitialPadItem = {
+  id: string;
+  name: string;
+  category: string;
+  durationSec?: number | null;
+  filePath?: string | null;
+  fileUrl?: string | null;
+  previewGifUrl?: string | null;
+  iconLabel?: string | null;
+  notes?: string | null;
+  active?: boolean;
+};
+
+export type DueInterstitialPromptOption = {
+  assetId: string;
+  name: string;
+  previewGifUrl: string | null;
+  iconLabel: string | null;
+  durationSec: number | null;
+  lastPlayedText: string;
+};
+
+export type DueInterstitialPrompt = {
+  eventId?: string | null;
+  scheduleId: string;
+  category: string;
+  title: string;
+  body: string | null;
+  startMinute: number;
+  endMinute: number;
+  promptMinute?: number;
+  required?: boolean;
+  options: DueInterstitialPromptOption[];
+};
+
+export type BoothSessionClock = {
+  sessionId: string;
+  startedAtIso: string;
+  cycleMinutes: number;
+};
+
+export type ActiveInterstitialPlayback = {
+  assetId: string;
+  assetName: string;
+  category: string;
+  startedAtIso: string;
+  endsAtIso: string;
+};

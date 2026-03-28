@@ -2,68 +2,81 @@
 
 import { useEffect, useMemo, useState } from "react";
 import PanelShell from "./PanelShell";
-import StatusBadge from "./StatusBadge";
-
-type InterstitialAssetPadItem = {
-  id: string;
-  name: string;
-  category: string;
-  durationSec?: number | null;
-  filePath?: string | null;
-  fileUrl?: string | null;
-  active?: boolean;
-};
+import type {
+  ActiveInterstitialPlayback,
+  DueInterstitialPromptOption,
+  InterstitialPadItem,
+} from "./types";
 
 type InterstitialPadProps = {
   location: string;
-  onPlayAsset: (filename: string) => Promise<unknown>;
+  activeAssetId?: string | null;
+  activePlayback?: ActiveInterstitialPlayback | null;
+  optionHistoryMap?: Record<string, string>;
+  onPlayAsset: (asset: InterstitialPadItem | DueInterstitialPromptOption) => Promise<void>;
   onStopPlayback: () => Promise<unknown>;
 };
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 
 type TabKey =
+  | "WELCOME_RULES"
+  | "REQUEST_DROP"
+  | "BLOCK_OF_SONGS"
+  | "REMIX_RADIO"
+  | "END_ANNOUNCE"
   | "BRANDING"
   | "RULES"
   | "GAME"
   | "BIRTHDAY"
   | "SAFETY"
-  | "REQUEST_SINGLE"
-  | "REQUEST_BLOCK"
+  | "MANUAL_ONLY"
   | "OTHER";
 
 const TAB_ORDER: TabKey[] = [
+  "WELCOME_RULES",
+  "REQUEST_DROP",
+  "BLOCK_OF_SONGS",
+  "REMIX_RADIO",
+  "END_ANNOUNCE",
   "BRANDING",
   "RULES",
   "GAME",
   "BIRTHDAY",
   "SAFETY",
-  "REQUEST_SINGLE",
-  "REQUEST_BLOCK",
+  "MANUAL_ONLY",
   "OTHER",
 ];
 
 const TAB_LABELS: Record<TabKey, string> = {
+  WELCOME_RULES: "WELCOME / RULES",
+  REQUEST_DROP: "REQUEST DROP",
+  BLOCK_OF_SONGS: "BLOCK OF SONGS",
+  REMIX_RADIO: "REMIX RADIO",
+  END_ANNOUNCE: "END ANNOUNCE",
   BRANDING: "BRANDING",
   RULES: "RULES",
   GAME: "GAME",
   BIRTHDAY: "BIRTHDAY",
   SAFETY: "SAFETY",
-  REQUEST_SINGLE: "REQUEST SINGLE",
-  REQUEST_BLOCK: "REQUEST BLOCK",
+  MANUAL_ONLY: "MANUAL",
   OTHER: "OTHER",
 };
 
 function normalizeTab(category: string | null | undefined): TabKey {
   const value = String(category ?? "").trim().toUpperCase();
 
-  if (value === "BRANDING_SHORT") return "BRANDING";
-  if (value === "RULES_ANNOUNCEMENT") return "RULES";
-  if (value === "GAME_ANNOUNCEMENT") return "GAME";
+  if (value === "WELCOME_RULES") return "WELCOME_RULES";
+  if (value === "REQUEST_DROP") return "REQUEST_DROP";
+  if (value === "BLOCK_OF_SONGS") return "BLOCK_OF_SONGS";
+  if (value === "REMIX_RADIO") return "REMIX_RADIO";
+  if (value === "END_ANNOUNCE") return "END_ANNOUNCE";
+  if (value === "BRANDING" || value === "BRANDING_SHORT") return "BRANDING";
+  if (value === "RULES" || value === "RULES_ANNOUNCEMENT") return "RULES";
+  if (value === "GAME" || value === "GAME_ANNOUNCEMENT") return "GAME";
   if (value === "BIRTHDAY") return "BIRTHDAY";
   if (value === "SAFETY") return "SAFETY";
-  if (value === "REQUEST_INTRO_SINGLE" || value === "REQUEST_SINGLE") return "REQUEST_SINGLE";
-  if (value === "REQUEST_INTRO_BLOCK" || value === "REQUEST_BLOCK") return "REQUEST_BLOCK";
+  if (value === "MANUAL_ONLY") return "MANUAL_ONLY";
   return "OTHER";
 }
 
@@ -76,21 +89,26 @@ function formatDuration(durationSec?: number | null) {
   return remaining ? `${minutes}m ${remaining}s` : `${minutes}m`;
 }
 
-function resolvePlaybackFilename(asset: InterstitialAssetPadItem) {
-  return String(asset.filePath ?? asset.fileUrl ?? "").trim();
+function getFileValue(asset: InterstitialPadItem | DueInterstitialPromptOption) {
+  if ("filePath" in asset || "fileUrl" in asset) {
+    return String((asset as InterstitialPadItem).filePath ?? (asset as InterstitialPadItem).fileUrl ?? "").trim();
+  }
+  return "";
 }
 
 export default function InterstitialPad({
   location,
+  activeAssetId,
+  activePlayback,
+  optionHistoryMap,
   onPlayAsset,
   onStopPlayback,
 }: InterstitialPadProps) {
-  const [assets, setAssets] = useState<InterstitialAssetPadItem[]>([]);
+  const [assets, setAssets] = useState<InterstitialPadItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("BRANDING");
   const [busyAssetId, setBusyAssetId] = useState<string | null>(null);
-  const [playingAssetId, setPlayingAssetId] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
 
   async function loadAssets() {
@@ -127,14 +145,18 @@ export default function InterstitialPad({
   }, [location]);
 
   const groupedAssets = useMemo(() => {
-    const groups: Record<TabKey, InterstitialAssetPadItem[]> = {
+    const groups: Record<TabKey, InterstitialPadItem[]> = {
+      WELCOME_RULES: [],
+      REQUEST_DROP: [],
+      BLOCK_OF_SONGS: [],
+      REMIX_RADIO: [],
+      END_ANNOUNCE: [],
       BRANDING: [],
       RULES: [],
       GAME: [],
       BIRTHDAY: [],
       SAFETY: [],
-      REQUEST_SINGLE: [],
-      REQUEST_BLOCK: [],
+      MANUAL_ONLY: [],
       OTHER: [],
     };
 
@@ -159,8 +181,8 @@ export default function InterstitialPad({
 
   const activeAssets = groupedAssets[activeTab] ?? [];
 
-  async function handlePlay(asset: InterstitialAssetPadItem) {
-    const filename = resolvePlaybackFilename(asset);
+  async function handlePlay(asset: InterstitialPadItem) {
+    const filename = getFileValue(asset);
     if (!filename) {
       setError(`Missing filename for ${asset.name}.`);
       return;
@@ -170,12 +192,7 @@ export default function InterstitialPad({
     setError(null);
 
     try {
-      const result: any = await onPlayAsset(filename);
-      if (result?.ok === false) {
-        setError(`Could not play ${asset.name}.`);
-        return;
-      }
-      setPlayingAssetId(asset.id);
+      await onPlayAsset(asset);
     } catch (err) {
       console.error("Interstitial pad play failed", err);
       setError(`Could not play ${asset.name}.`);
@@ -192,9 +209,7 @@ export default function InterstitialPad({
       const result: any = await onStopPlayback();
       if (result?.ok === false) {
         setError("Could not stop interstitial playback.");
-        return;
       }
-      setPlayingAssetId(null);
     } catch (err) {
       console.error("Interstitial pad stop failed", err);
       setError("Could not stop interstitial playback.");
@@ -214,7 +229,7 @@ export default function InterstitialPad({
         title="Interstitial Pad"
         subtitle={subtitle}
         right={
-          <div className="interstitialPadTopActions">
+          <div className="rrPadTopActions">
             <button
               type="button"
               className="boothMiniBtn boothMiniBtn--ghost"
@@ -223,20 +238,32 @@ export default function InterstitialPad({
             >
               {loadState === "loading" ? "Refreshing..." : "Refresh"}
             </button>
+
             <button
               type="button"
               className="boothMiniBtn boothMiniBtn--danger"
               onClick={() => void handleStop()}
-              disabled={stopping || !playingAssetId}
+              disabled={stopping || !activePlayback}
             >
               {stopping ? "Stopping..." : "Stop"}
             </button>
           </div>
         }
       >
-        <div className="interstitialPadWrap">
-          <div className="interstitialTabRow">
-            {(visibleTabs.length ? visibleTabs : TAB_ORDER.slice(0, 7)).map((tab) => {
+        <div className="rrPadShell">
+          {activePlayback ? (
+            <div className="rrPadLiveBanner">
+              <div className="rrPadLiveBanner__label">NOW PLAYING INTERSTITIAL</div>
+              <div className="rrPadLiveBanner__name">{activePlayback.assetName}</div>
+              <div className="rrPadLiveBanner__sub">
+                {TAB_LABELS[normalizeTab(activePlayback.category)]}
+              </div>
+              <div className="rrPadLiveBanner__overlay">LIVE</div>
+            </div>
+          ) : null}
+
+          <div className="rrPadTabs">
+            {(visibleTabs.length ? visibleTabs : TAB_ORDER.filter((tab) => tab !== "OTHER")).map((tab) => {
               const count = groupedAssets[tab]?.length ?? 0;
               const active = tab === activeTab;
 
@@ -244,7 +271,7 @@ export default function InterstitialPad({
                 <button
                   key={tab}
                   type="button"
-                  className={`interstitialTab ${active ? "interstitialTab--active" : ""}`}
+                  className={`rrPadTab ${active ? "rrPadTab--active" : ""}`}
                   onClick={() => setActiveTab(tab)}
                 >
                   <span>{TAB_LABELS[tab]}</span>
@@ -254,59 +281,72 @@ export default function InterstitialPad({
             })}
           </div>
 
-          {error ? <div className="interstitialPadError">{error}</div> : null}
+          {error ? <div className="rrPadError">{error}</div> : null}
 
           {loadState === "loading" ? (
-            <div className="interstitialPadEmpty">Loading interstitial assets...</div>
+            <div className="rrPadEmpty">Loading interstitial assets...</div>
           ) : null}
 
           {loadState !== "loading" && activeAssets.length === 0 ? (
-            <div className="interstitialPadEmpty">No active assets in this category yet.</div>
+            <div className="rrPadEmpty">No active assets in this category yet.</div>
           ) : null}
 
           {activeAssets.length > 0 ? (
-            <div className="interstitialPadGrid">
+            <div className="rrPadGrid">
               {activeAssets.map((asset) => {
                 const durationLabel = formatDuration(asset.durationSec);
-                const isPlaying = asset.id === playingAssetId;
                 const isBusy = asset.id === busyAssetId;
+                const isPlaying = asset.id === activeAssetId;
+                const historyText = optionHistoryMap?.[asset.id] ?? "Tap to fire";
 
                 return (
-                  <div
+                  <button
                     key={asset.id}
-                    className={`interstitialCard ${isPlaying ? "interstitialCard--playing" : ""}`}
+                    type="button"
+                    className={`rrPadTile ${isPlaying ? "rrPadTile--playing" : ""}`}
+                    onClick={() => void handlePlay(asset)}
+                    disabled={isBusy || stopping}
                   >
-                    <div className="interstitialCardTop">
-                      <div className="interstitialCardEyebrow">{TAB_LABELS[normalizeTab(asset.category)]}</div>
-                      <div className="interstitialCardBadges">
-                        {durationLabel ? <StatusBadge label={durationLabel} tone="cyan" /> : null}
-                        {isPlaying ? <StatusBadge label="PLAYING" tone="gold" /> : null}
+                    <div className="rrPadTile__media">
+                      {asset.previewGifUrl ? (
+                        <img
+                          src={asset.previewGifUrl}
+                          alt={asset.name}
+                          className="rrPadTile__gif"
+                        />
+                      ) : (
+                        <div className="rrPadTile__fallback">
+                          {asset.iconLabel?.trim() || TAB_LABELS[normalizeTab(asset.category)]}
+                        </div>
+                      )}
+
+                      {isPlaying ? (
+                        <div className="rrPadTile__liveOverlay">
+                          <div className="rrPadTile__liveText">INTERSTITIAL LIVE</div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="rrPadTile__body">
+                      <div className="rrPadTile__topline">
+                        <span className="rrPadTile__category">
+                          {TAB_LABELS[normalizeTab(asset.category)]}
+                        </span>
+                        {durationLabel ? (
+                          <span className="rrPadTile__duration">{durationLabel}</span>
+                        ) : null}
+                      </div>
+
+                      <div className="rrPadTile__title">{asset.name}</div>
+                      <div className="rrPadTile__history">{historyText}</div>
+
+                      <div className="rrPadTile__footer">
+                        <span className="rrPadTile__cta">
+                          {isBusy ? "Starting..." : isPlaying ? "Playing" : "Play"}
+                        </span>
                       </div>
                     </div>
-
-                    <div className="interstitialCardTitle">{asset.name}</div>
-                    <div className="interstitialCardMeta">{asset.category}</div>
-
-                    <div className="interstitialCardActions">
-                      <button
-                        type="button"
-                        className={`boothActionBtn boothActionBtn--primary ${isPlaying ? "boothActionBtn--disabled" : ""}`}
-                        onClick={() => void handlePlay(asset)}
-                        disabled={isPlaying || isBusy || stopping}
-                      >
-                        {isBusy ? "Playing..." : isPlaying ? "Live" : "Play"}
-                      </button>
-
-                      <button
-                        type="button"
-                        className="boothActionBtn boothActionBtn--secondary"
-                        onClick={() => void handleStop()}
-                        disabled={!isPlaying || stopping}
-                      >
-                        {stopping && isPlaying ? "Stopping..." : "Stop"}
-                      </button>
-                    </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -315,172 +355,269 @@ export default function InterstitialPad({
       </PanelShell>
 
       <style jsx>{`
-        .interstitialPadWrap {
+        .rrPadShell {
           display: grid;
           gap: 10px;
         }
-        .interstitialPadTopActions {
+
+        .rrPadTopActions {
           display: flex;
-          gap: 6px;
-          align-items: center;
-        }
-        .interstitialTabRow {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-        .interstitialTab {
-          display: inline-flex;
-          align-items: center;
           gap: 8px;
+          align-items: center;
+        }
+
+        .rrPadLiveBanner {
+          position: relative;
+          overflow: hidden;
+          border-radius: 10px;
+          border: 1px solid rgba(111, 192, 255, 0.22);
+          background:
+            linear-gradient(135deg, rgba(11, 36, 59, 0.98), rgba(8, 18, 31, 0.98)),
+            radial-gradient(circle at 18% 50%, rgba(69, 165, 255, 0.18), transparent 42%);
+          padding: 14px 16px;
+          min-height: 92px;
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.08),
+            0 10px 24px rgba(8, 22, 42, 0.28);
+        }
+
+        .rrPadLiveBanner__label {
+          font-size: 10px;
+          font-weight: 1000;
+          letter-spacing: 1.6px;
+          color: rgba(170, 214, 255, 0.88);
+          text-transform: uppercase;
+        }
+
+        .rrPadLiveBanner__name {
+          margin-top: 4px;
+          font-size: 21px;
+          line-height: 1;
+          font-weight: 1000;
+          color: #f4fbff;
+        }
+
+        .rrPadLiveBanner__sub {
+          margin-top: 6px;
+          font-size: 12px;
+          color: rgba(219, 232, 250, 0.82);
+        }
+
+        .rrPadLiveBanner__overlay {
+          position: absolute;
+          right: 12px;
+          top: 12px;
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 2px;
+          color: rgba(255, 228, 157, 0.95);
+          text-transform: uppercase;
+          animation: rrPadPulse 1.25s ease-in-out infinite;
+        }
+
+        .rrPadTabs {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .rrPadTab {
+          appearance: none;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: linear-gradient(180deg, rgba(32, 42, 58, 0.96), rgba(13, 20, 30, 0.98));
+          color: rgba(232, 240, 249, 0.86);
           min-height: 34px;
           padding: 0 12px;
           border-radius: 999px;
-          border: 1px solid rgba(120, 149, 182, 0.28);
-          background: linear-gradient(180deg, rgba(24, 33, 47, 0.95), rgba(10, 18, 29, 0.98));
-          color: rgba(235, 242, 252, 0.84);
+          display: inline-flex;
+          gap: 10px;
+          align-items: center;
+          justify-content: center;
           font-size: 11px;
           font-weight: 900;
-          letter-spacing: 0.08em;
+          letter-spacing: 0.8px;
           cursor: pointer;
+          text-transform: uppercase;
         }
-        .interstitialTab strong {
+
+        .rrPadTab strong {
           min-width: 18px;
           height: 18px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.08);
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.08);
-          color: #f7fbff;
           font-size: 10px;
         }
-        .interstitialTab--active {
-          border-color: rgba(111, 223, 255, 0.58);
-          box-shadow: 0 0 0 1px rgba(111, 223, 255, 0.18), 0 0 20px rgba(40, 191, 255, 0.12);
+
+        .rrPadTab--active {
+          border-color: rgba(102, 191, 255, 0.4);
           color: #ffffff;
+          box-shadow: 0 0 18px rgba(69, 165, 255, 0.14);
         }
-        .interstitialPadGrid {
+
+        .rrPadError,
+        .rrPadEmpty {
+          border-radius: 8px;
+          padding: 12px 14px;
+          font-size: 12px;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.08);
+          color: rgba(231, 239, 250, 0.8);
+        }
+
+        .rrPadError {
+          border-color: rgba(255, 110, 132, 0.22);
+          color: #ffd3db;
+        }
+
+        .rrPadGrid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 8px;
+          gap: 10px;
         }
-        .interstitialCard {
-          display: grid;
-          gap: 8px;
-          padding: 10px;
-          border-radius: 8px;
-          border: 1px solid rgba(100, 127, 156, 0.22);
+
+        .rrPadTile {
+          appearance: none;
+          text-align: left;
+          overflow: hidden;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.1);
           background:
-            linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)),
-            linear-gradient(180deg, rgba(17, 24, 36, 0.98), rgba(8, 14, 24, 1));
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 18px rgba(0,0,0,0.18);
-        }
-        .interstitialCard--playing {
-          border-color: rgba(255, 211, 122, 0.5);
+            linear-gradient(180deg, rgba(23, 31, 45, 0.98), rgba(10, 15, 25, 0.98));
+          color: #f2f7ff;
+          cursor: pointer;
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,0.06),
-            0 0 0 1px rgba(255, 211, 122, 0.14),
-            0 0 24px rgba(255, 189, 84, 0.16);
+            0 10px 22px rgba(0,0,0,0.18);
+          transition:
+            transform 120ms ease,
+            border-color 120ms ease,
+            box-shadow 120ms ease;
         }
-        .interstitialCardTop {
+
+        .rrPadTile:hover {
+          transform: translateY(-1px);
+          border-color: rgba(111, 192, 255, 0.24);
+        }
+
+        .rrPadTile--playing {
+          border-color: rgba(255, 214, 117, 0.42);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.08),
+            0 0 0 1px rgba(255, 214, 117, 0.14),
+            0 12px 28px rgba(58, 40, 9, 0.24);
+        }
+
+        .rrPadTile__media {
+          position: relative;
+          height: 132px;
+          overflow: hidden;
+          background:
+            linear-gradient(135deg, rgba(58, 128, 190, 0.92), rgba(113, 201, 255, 0.76));
+        }
+
+        .rrPadTile__gif {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .rrPadTile__fallback {
+          width: 100%;
+          height: 100%;
+          display: grid;
+          place-items: center;
+          padding: 12px;
+          text-align: center;
+          font-size: 16px;
+          font-weight: 1000;
+          line-height: 1.05;
+          letter-spacing: 0.6px;
+          color: #fff3a6;
+          text-transform: uppercase;
+        }
+
+        .rrPadTile__liveOverlay {
+          position: absolute;
+          inset: 0;
+          display: grid;
+          place-items: center;
+          background:
+            linear-gradient(180deg, rgba(255, 203, 77, 0.10), rgba(255, 203, 77, 0.18)),
+            radial-gradient(circle at center, rgba(255,255,255,0.06), transparent 60%);
+          backdrop-filter: blur(1px);
+        }
+
+        .rrPadTile__liveText {
+          padding: 6px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 228, 157, 0.42);
+          background: rgba(13, 18, 27, 0.72);
+          color: #fff0b2;
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 1.6px;
+          animation: rrPadPulse 1.1s ease-in-out infinite;
+        }
+
+        .rrPadTile__body {
+          display: grid;
+          gap: 6px;
+          padding: 11px 12px 12px;
+        }
+
+        .rrPadTile__topline {
           display: flex;
-          align-items: flex-start;
           justify-content: space-between;
           gap: 8px;
+          align-items: center;
         }
-        .interstitialCardEyebrow {
+
+        .rrPadTile__category,
+        .rrPadTile__duration {
           font-size: 10px;
-          font-weight: 900;
-          letter-spacing: 0.12em;
-          color: rgba(107, 216, 255, 0.86);
+          font-weight: 1000;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          color: rgba(216, 228, 245, 0.74);
         }
-        .interstitialCardBadges {
+
+        .rrPadTile__title {
+          font-size: 17px;
+          line-height: 1.02;
+          font-weight: 1000;
+          color: #f8fbff;
+        }
+
+        .rrPadTile__history {
+          font-size: 11px;
+          color: rgba(210, 222, 241, 0.72);
+        }
+
+        .rrPadTile__footer {
           display: flex;
-          gap: 4px;
-          flex-wrap: wrap;
           justify-content: flex-end;
         }
-        .interstitialCardTitle {
-          font-size: 16px;
-          font-weight: 900;
-          line-height: 1.15;
-          color: #f6fbff;
-        }
-        .interstitialCardMeta {
+
+        .rrPadTile__cta {
           font-size: 11px;
-          color: rgba(210, 221, 236, 0.62);
+          font-weight: 1000;
+          letter-spacing: 1.2px;
+          text-transform: uppercase;
+          color: ${"#9ad9ff"};
         }
-        .interstitialCardActions {
-          display: grid;
-          grid-template-columns: 1fr auto;
-          gap: 6px;
+
+        @keyframes rrPadPulse {
+          0%, 100% { opacity: 0.72; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.04); }
         }
-        .interstitialPadError,
-        .interstitialPadEmpty {
-          padding: 10px 12px;
-          border-radius: 8px;
-          border: 1px solid rgba(105, 123, 147, 0.2);
-          background: rgba(9, 15, 24, 0.72);
-          color: rgba(235, 241, 249, 0.76);
-          font-size: 12px;
-        }
-        .interstitialPadError {
-          border-color: rgba(255, 115, 115, 0.32);
-          color: #ffb2b2;
-        }
-        .boothMiniBtn {
-          min-height: 28px;
-          padding: 0 10px;
-          border-radius: 999px;
-          border: 1px solid rgba(120, 149, 182, 0.24);
-          background: linear-gradient(180deg, rgba(27, 37, 52, 0.95), rgba(10, 18, 29, 0.98));
-          color: #f2f7ff;
-          font-size: 10px;
-          font-weight: 900;
-          letter-spacing: 0.08em;
-          cursor: pointer;
-        }
-        .boothMiniBtn:disabled,
-        .boothActionBtn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        .boothMiniBtn--danger {
-          border-color: rgba(255, 107, 107, 0.28);
-        }
-        .boothActionBtn {
-          min-height: 36px;
-          padding: 0 12px;
-          border-radius: 8px;
-          border: 1px solid rgba(111, 145, 182, 0.24);
-          color: #f2f7ff;
-          font-size: 11px;
-          font-weight: 900;
-          letter-spacing: 0.08em;
-          cursor: pointer;
-        }
-        .boothActionBtn--primary {
-          background: linear-gradient(180deg, rgba(28, 150, 201, 0.9), rgba(17, 93, 152, 0.95));
-          border-color: rgba(109, 224, 255, 0.42);
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 18px rgba(11, 83, 120, 0.22);
-        }
-        .boothActionBtn--secondary {
-          background: linear-gradient(180deg, rgba(41, 49, 64, 0.95), rgba(15, 22, 33, 0.98));
-        }
-        .boothActionBtn--disabled {
-          filter: saturate(0.8);
-        }
-        @media (max-width: 760px) {
-          .interstitialPadGrid {
+
+        @media (max-width: 1280px) {
+          .rrPadGrid {
             grid-template-columns: 1fr;
-          }
-          .interstitialCardActions {
-            grid-template-columns: 1fr 1fr;
-          }
-          .interstitialPadTopActions {
-            justify-content: flex-end;
-            width: 100%;
           }
         }
       `}</style>

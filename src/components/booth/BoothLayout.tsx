@@ -9,6 +9,9 @@ import QueueList from "./QueueList";
 import ShoutoutPanel from "./ShoutoutPanel";
 import SearchAddPanel from "./SearchAddPanel";
 import InterstitialPad from "./InterstitialPad";
+import InterstitialPromptModal from "./InterstitialPromptModal";
+import SessionTimerPanel from "./SessionTimerPanel";
+import BoothNotesPanel from "./BoothNotesPanel";
 import {
   enrichQueueWithRequests,
   isInterstitial,
@@ -17,8 +20,13 @@ import {
   safeJson,
 } from "./booth-utils";
 import type {
+  ActiveInterstitialPlayback,
   BoothDataState,
   BoothMode,
+  BoothSessionClock,
+  DueInterstitialPrompt,
+  DueInterstitialPromptOption,
+  InterstitialPadItem,
   RequestItem,
   RuntimePreview,
   ShoutoutItem,
@@ -40,6 +48,7 @@ type MaterializeResult = {
 
 const DEFAULT_LOCAL_BRIDGE_BASE_URL = "http://127.0.0.1:8787";
 const BRIDGE_BASE_URL_STORAGE_KEY = "rr.bridgeBaseUrl";
+const SESSION_CYCLE_MINUTES = 120;
 
 async function postJson(url: string, body: Record<string, unknown>): Promise<PostJsonResult> {
   const res = await fetch(url, {
@@ -167,6 +176,98 @@ async function triggerLocalBridgeStop() {
   }
 }
 
+function getSessionStorageKey(location: string) {
+  return `rr.booth.sessionClock:${location}`;
+}
+
+function getSessionResolvedPromptKey(location: string, sessionId: string) {
+  return `rr.booth.resolvedPrompts:${location}:${sessionId}`;
+}
+
+function createNewSessionClock(): BoothSessionClock {
+  const startedAtIso = new Date().toISOString();
+  return {
+    sessionId: `session-${startedAtIso}`,
+    startedAtIso,
+    cycleMinutes: SESSION_CYCLE_MINUTES,
+  };
+}
+
+function loadSessionClock(location: string): BoothSessionClock {
+  if (typeof window === "undefined") {
+    return createNewSessionClock();
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getSessionStorageKey(location));
+    if (!raw) {
+      const created = createNewSessionClock();
+      window.localStorage.setItem(getSessionStorageKey(location), JSON.stringify(created));
+      return created;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<BoothSessionClock>;
+    if (!parsed.sessionId || !parsed.startedAtIso) {
+      const created = createNewSessionClock();
+      window.localStorage.setItem(getSessionStorageKey(location), JSON.stringify(created));
+      return created;
+    }
+
+    return {
+      sessionId: parsed.sessionId,
+      startedAtIso: parsed.startedAtIso,
+      cycleMinutes: parsed.cycleMinutes || SESSION_CYCLE_MINUTES,
+    };
+  } catch {
+    const created = createNewSessionClock();
+    try {
+      window.localStorage.setItem(getSessionStorageKey(location), JSON.stringify(created));
+    } catch {}
+    return created;
+  }
+}
+
+function saveSessionClock(location: string, clock: BoothSessionClock) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(getSessionStorageKey(location), JSON.stringify(clock));
+  } catch {}
+}
+
+function loadResolvedPromptIds(location: string, sessionId: string): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(getSessionResolvedPromptKey(location, sessionId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((x) => String(x)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveResolvedPromptIds(location: string, sessionId: string, ids: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      getSessionResolvedPromptKey(location, sessionId),
+      JSON.stringify(ids),
+    );
+  } catch {}
+}
+
+function getPromptUniqueId(prompt: DueInterstitialPrompt | null) {
+  if (!prompt) return null;
+  return prompt.eventId?.trim() || `${prompt.scheduleId}:${prompt.startMinute}:${prompt.endMinute}`;
+}
+
+function getAssetFilename(asset: InterstitialPadItem | DueInterstitialPromptOption) {
+  if ("filePath" in asset || "fileUrl" in asset) {
+    return String((asset as InterstitialPadItem).filePath ?? (asset as InterstitialPadItem).fileUrl ?? "").trim();
+  }
+  return "";
+}
+
 export default function BoothLayout({ location }: { location: string }) {
   const mode: BoothMode = "performance";
 
@@ -181,6 +282,40 @@ export default function BoothLayout({ location }: { location: string }) {
     lastUpdated: null,
     errors: [],
   });
+
+  const [sessionClock, setSessionClock] = useState<BoothSessionClock>(() =>
+    createNewSessionClock(),
+  );
+  const [tick, setTick] = useState(0);
+  const [duePrompt, setDuePrompt] = useState<DueInterstitialPrompt | null>(null);
+  const [promptApiAvailable, setPromptApiAvailable] = useState(true);
+  const [playingInterstitial, setPlayingInterstitial] = useState<ActiveInterstitialPlayback | null>(null);
+
+  useEffect(() => {
+    const clock = loadSessionClock(location);
+    setSessionClock(clock);
+  }, [location]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((x) => x + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!playingInterstitial) return;
+
+    const timeout = window.setTimeout(() => {
+      setPlayingInterstitial((prev) => {
+        if (!prev) return null;
+        if (new Date(prev.endsAtIso).getTime() <= Date.now()) {
+          return null;
+        }
+        return prev;
+      });
+    }, 500);
+
+    return () => window.clearTimeout(timeout);
+  }, [playingInterstitial, tick]);
 
   async function load() {
     const [queueRes, requestRes, shoutRes] = await Promise.all([
@@ -245,11 +380,61 @@ export default function BoothLayout({ location }: { location: string }) {
     }));
   }
 
+  async function loadDuePrompt() {
+    const url = `/api/booth/due-interstitial-prompt/${location}?sessionId=${encodeURIComponent(
+      sessionClock.sessionId,
+    )}&sessionStartedAt=${encodeURIComponent(sessionClock.startedAtIso)}&profile=GENERAL`;
+
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+
+      if (res.status === 404) {
+        setPromptApiAvailable(false);
+        setDuePrompt(null);
+        return;
+      }
+
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setDuePrompt(null);
+        return;
+      }
+
+      setPromptApiAvailable(true);
+
+      const prompt = (payload?.prompt ?? payload ?? null) as DueInterstitialPrompt | null;
+      const promptId = getPromptUniqueId(prompt);
+
+      if (!prompt || !promptId) {
+        setDuePrompt(null);
+        return;
+      }
+
+      const resolvedIds = loadResolvedPromptIds(location, sessionClock.sessionId);
+      if (resolvedIds.includes(promptId)) {
+        setDuePrompt(null);
+        return;
+      }
+
+      setDuePrompt(prompt);
+    } catch {
+      setDuePrompt(null);
+    }
+  }
+
   useEffect(() => {
     void load();
     const id = window.setInterval(load, 3000);
     return () => window.clearInterval(id);
   }, [location]);
+
+  useEffect(() => {
+    if (!sessionClock.sessionId) return;
+    void loadDuePrompt();
+    const id = window.setInterval(loadDuePrompt, 4000);
+    return () => window.clearInterval(id);
+  }, [location, sessionClock.sessionId, sessionClock.startedAtIso]);
 
   const nowPlaying = useMemo(
     () => state.queue.find((item) => item.status === "PLAYING") || null,
@@ -266,9 +451,9 @@ export default function BoothLayout({ location }: { location: string }) {
 
   const summary = useMemo(() => queueSummary(state.queue), [state.queue]);
 
-function getQueueItem(queueItemId: string) {
-  return state.queue.find((item) => item.id === queueItemId) ?? null;
-}
+  function getQueueItem(queueItemId: string) {
+    return state.queue.find((item) => item.id === queueItemId) ?? null;
+  }
 
   async function materializeRuntimeAndMaybePlay() {
     const result = await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
@@ -288,113 +473,180 @@ function getQueueItem(queueItemId: string) {
     return payload;
   }
 
-async function queueAction(
-  endpoint: string,
-  queueItemId: string,
-  options?: { materializeAfter?: boolean }
-) {
-  const queueItem = getQueueItem(queueItemId);
-  const itemIsInterstitial = isInterstitial(queueItem);
+  async function queueAction(
+    endpoint: string,
+    queueItemId: string,
+    options?: { materializeAfter?: boolean }
+  ) {
+    const queueItem = getQueueItem(queueItemId);
+    const itemIsInterstitial = isInterstitial(queueItem);
 
-  const actionResult = await postJson(endpoint, { queueItemId });
+    const actionResult = await postJson(endpoint, { queueItemId });
 
-  if (!actionResult.ok) {
-    console.error("Queue action failed", {
-      endpoint,
-      queueItemId,
-      response: actionResult.data,
-    });
+    if (!actionResult.ok) {
+      console.error("Queue action failed", {
+        endpoint,
+        queueItemId,
+        response: actionResult.data,
+      });
+      await load();
+      return actionResult.data;
+    }
+
+    if (endpoint === "/api/booth/queue/mark-playing" && itemIsInterstitial) {
+      const playbackFilename = actionResult.data?.bridgePlaybackFilename ?? null;
+
+      if (playbackFilename) {
+        await triggerLocalBridgePlay(playbackFilename);
+      } else {
+        console.error("Interstitial play was marked PLAYING but no filename was returned.", {
+          queueItemId,
+          response: actionResult.data,
+        });
+      }
+    }
+
+    if (
+      itemIsInterstitial &&
+      (endpoint === "/api/booth/queue/hold" ||
+        endpoint === "/api/booth/queue/skip" ||
+        endpoint === "/api/booth/queue/mark-played")
+    ) {
+      await triggerLocalBridgeStop();
+      setPlayingInterstitial(null);
+    }
+
+    if (options?.materializeAfter && !itemIsInterstitial) {
+      await materializeRuntimeAndMaybePlay();
+    }
+
     await load();
     return actionResult.data;
   }
 
-  if (endpoint === "/api/booth/queue/mark-playing" && itemIsInterstitial) {
-    const playbackFilename = actionResult.data?.bridgePlaybackFilename ?? null;
+  async function handlePlayInterstitialAsset(
+    asset: InterstitialPadItem | DueInterstitialPromptOption,
+    categoryOverride?: string,
+  ) {
+    const filename = getAssetFilename(asset);
 
-    if (playbackFilename) {
-      await triggerLocalBridgePlay(playbackFilename);
-    } else {
-      console.error("Interstitial play was marked PLAYING but no filename was returned.", {
-        queueItemId,
-        response: actionResult.data,
-      });
+    if (!filename) {
+      throw new Error(`No bridge filename found for "${asset.name}".`);
+    }
+
+    const result: any = await triggerLocalBridgePlay(filename);
+
+    if (result?.ok === false) {
+      throw new Error(`Could not play "${asset.name}".`);
+    }
+
+    const durationMs = Math.max(1000, Number(asset.durationSec ?? 8) * 1000);
+    const now = new Date();
+    const ends = new Date(now.getTime() + durationMs);
+
+    setPlayingInterstitial({
+      assetId: "assetId" in asset ? asset.assetId : asset.id,
+      assetName: asset.name,
+      category: categoryOverride || "category" in asset ? String(categoryOverride || (asset as any).category || "MANUAL_ONLY") : "MANUAL_ONLY",
+      startedAtIso: now.toISOString(),
+      endsAtIso: ends.toISOString(),
+    });
+
+    if (duePrompt) {
+      const promptId = getPromptUniqueId(duePrompt);
+      if (promptId) {
+        const resolvedIds = loadResolvedPromptIds(location, sessionClock.sessionId);
+        const nextIds = Array.from(new Set([...resolvedIds, promptId]));
+        saveResolvedPromptIds(location, sessionClock.sessionId, nextIds);
+      }
+      setDuePrompt(null);
     }
   }
 
-  if (
-    itemIsInterstitial &&
-    (endpoint === "/api/booth/queue/hold" ||
-      endpoint === "/api/booth/queue/skip" ||
-      endpoint === "/api/booth/queue/mark-played")
-  ) {
-    await triggerLocalBridgeStop();
-  }
+  const optionHistoryMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (!duePrompt?.options?.length) return map;
 
-  if (options?.materializeAfter && !itemIsInterstitial) {
-    await materializeRuntimeAndMaybePlay();
-  }
+    for (const option of duePrompt.options) {
+      map[option.assetId] = option.lastPlayedText;
+    }
 
-  await load();
-  return actionResult.data;
-}
+    return map;
+  }, [duePrompt]);
+
+  function resetSessionClock() {
+    const next = createNewSessionClock();
+    setSessionClock(next);
+    saveSessionClock(location, next);
+    saveResolvedPromptIds(location, next.sessionId, []);
+    setDuePrompt(null);
+  }
 
   return (
     <div className="rrBooth rrBooth--compact">
       <div className="rrBooth__topbar">
-        <div>
+        <div className="rrTopbarLeft">
           <div className="rrEyebrow">REMIXREQUESTS • LIVE BOOTH</div>
           <div className="rrTitle">PERFORMANCE CONSOLE</div>
           <div className="rrSub">
             Gunmetal booth surface for now playing, on deck, unified queue flow, runtime insertions,
-            and shoutouts.
+            scheduled interstitial prompts, and shoutouts.
           </div>
         </div>
 
-<div className="rrTopRight">
-  <div className="statBoxes">
-    <div className="statBox">
-      <span>QUEUE</span>
-      <strong>{summary.total}</strong>
-    </div>
+        <div className="rrTopbarCenter">
+          <SessionTimerPanel
+            startedAtIso={sessionClock.startedAtIso}
+            cycleMinutes={sessionClock.cycleMinutes}
+            onReset={resetSessionClock}
+          />
+        </div>
 
-    <div className="statBox">
-      <span>SONGS</span>
-      <strong>{summary.songs}</strong>
-    </div>
+        <div className="rrTopbarRight">
+          <div className="statBoxes">
+            <div className="statBox">
+              <span>QUEUE</span>
+              <strong>{summary.total}</strong>
+            </div>
 
-    <div className="statBox">
-      <span>INTERSTITIALS</span>
-      <strong>{summary.interstitials}</strong>
-    </div>
+            <div className="statBox">
+              <span>SONGS</span>
+              <strong>{summary.songs}</strong>
+            </div>
 
-    <div className="statBox">
-      <span>UPDATED</span>
-      <strong>
-        {state.lastUpdated
-          ? new Date(state.lastUpdated).toLocaleTimeString()
-          : "—"}
-      </strong>
-    </div>
+            <div className="statBox">
+              <span>INTERSTITIALS</span>
+              <strong>{summary.interstitials}</strong>
+            </div>
 
-    <Link
-      href={`/admin/${location}`}
-      className="statBox statBox--link"
-      aria-label="Admin settings"
-    >
-      <span>SETTINGS</span>
-      <strong>⚙</strong>
-    </Link>
-  </div>
-</div>        </div>
-      
+            <div className="statBox">
+              <span>UPDATED</span>
+              <strong>
+                {state.lastUpdated
+                  ? new Date(state.lastUpdated).toLocaleTimeString()
+                  : "—"}
+              </strong>
+            </div>
+
+            <Link
+              href={`/admin/${location}`}
+              className="statBox statBox--link"
+              aria-label="Admin settings"
+            >
+              <span>SETTINGS</span>
+              <strong>⚙</strong>
+            </Link>
+          </div>
+        </div>
+      </div>
 
       <div className="rrBooth__grid">
-        <section className="boothPanel boothPanel--primary">
+        <section className="boothPanel boothPanel--primary rrQueueStage">
           <div className="panelHead panelHead--tight">
             <div>
               <div className="panelTitle">Playback / Queue</div>
               <div className="panelSub">
-                Primary operator lane for now playing, on deck, and live order.
+                Primary operator lane for now playing, on deck, live order, and timed DJ prompts.
               </div>
             </div>
             <div className="panelHeadBadge">
@@ -402,54 +654,78 @@ async function queueAction(
             </div>
           </div>
 
-          <NowPlayingCard
-            item={nowPlaying}
-            mode={mode}
-            onPause={(id) => queueAction("/api/booth/queue/hold", id)}
-            onSkip={(id) =>
-              queueAction("/api/booth/queue/skip", id, {
-                materializeAfter: true,
-              })
-            }
-            onDone={(id) =>
-              queueAction("/api/booth/queue/mark-played", id, {
-                materializeAfter: true,
-              })
-            }
-          />
+          <div className="rrQueueStage__search">
+            <SearchAddPanel location={location} onAdded={load} />
+          </div>
 
-          <OnDeckCard
-            item={onDeck}
-            mode={mode}
-            onLoad={(id) => queueAction("/api/booth/queue/mark-loaded", id)}
-            onPlay={(id) => queueAction("/api/booth/queue/mark-playing", id)}
-            onPause={(id) => queueAction("/api/booth/queue/hold", id)}
-            onSkip={(id) =>
-              queueAction("/api/booth/queue/skip", id, {
-                materializeAfter: true,
-              })
-            }
-          />
+          <div className="rrQueueStage__content">
+            <div className="rrQueueStage__stack">
+              <NowPlayingCard
+                item={nowPlaying}
+                mode={mode}
+                onPause={(id) => queueAction("/api/booth/queue/hold", id)}
+                onSkip={(id) =>
+                  queueAction("/api/booth/queue/skip", id, {
+                    materializeAfter: true,
+                  })
+                }
+                onDone={(id) =>
+                  queueAction("/api/booth/queue/mark-played", id, {
+                    materializeAfter: true,
+                  })
+                }
+              />
 
-          <QueueList
-            items={state.queue.filter(
-              (item) =>
-                item.status !== "PLAYING" && item.id !== onDeck?.id && item.status !== "PLAYED"
-            )}
-            mode={mode}
-            onLoad={(id) => queueAction("/api/booth/queue/mark-loaded", id)}
-            onPlay={(id) => queueAction("/api/booth/queue/mark-playing", id)}
-            onPause={(id) => queueAction("/api/booth/queue/hold", id)}
-            onSkip={(id) =>
-              queueAction("/api/booth/queue/skip", id, {
-                materializeAfter: true,
-              })
-            }
-          />
+              <OnDeckCard
+                item={onDeck}
+                mode={mode}
+                onLoad={(id) => queueAction("/api/booth/queue/mark-loaded", id)}
+                onPlay={(id) => queueAction("/api/booth/queue/mark-playing", id)}
+                onPause={(id) => queueAction("/api/booth/queue/hold", id)}
+                onSkip={(id) =>
+                  queueAction("/api/booth/queue/skip", id, {
+                    materializeAfter: true,
+                  })
+                }
+              />
+
+              <div className="rrQueueStage__queueShell">
+                <QueueList
+                  items={state.queue.filter(
+                    (item) =>
+                      item.status !== "PLAYING" && item.id !== onDeck?.id && item.status !== "PLAYED"
+                  )}
+                  mode={mode}
+                  onLoad={(id) => queueAction("/api/booth/queue/mark-loaded", id)}
+                  onPlay={(id) => queueAction("/api/booth/queue/mark-playing", id)}
+                  onPause={(id) => queueAction("/api/booth/queue/hold", id)}
+                  onSkip={(id) =>
+                    queueAction("/api/booth/queue/skip", id, {
+                      materializeAfter: true,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            <InterstitialPromptModal
+              prompt={duePrompt}
+              activeAssetId={playingInterstitial?.assetId ?? null}
+              onPlayOption={async (option) => {
+                await handlePlayInterstitialAsset(option, duePrompt?.category || "MANUAL_ONLY");
+              }}
+            />
+          </div>
+
+          {!promptApiAvailable ? (
+            <div className="rrPromptApiHint">
+              Scheduled booth prompt endpoint is not available yet. The booth surface is ready,
+              but the timed modal will appear after that route is wired.
+            </div>
+          ) : null}
         </section>
 
         <div className="boothStack">
-          <SearchAddPanel location={location} onAdded={load} />
           <EnginePanel
             preview={state.runtimePreview}
             mode={mode}
@@ -459,45 +735,55 @@ async function queueAction(
               return result.data;
             }}
           />
+
           <InterstitialPad
             location={location}
-            onPlayAsset={async (filename) => {
-              return triggerLocalBridgePlay(filename);
+            activeAssetId={playingInterstitial?.assetId ?? null}
+            activePlayback={playingInterstitial}
+            optionHistoryMap={optionHistoryMap}
+            onPlayAsset={async (asset) => {
+              await handlePlayInterstitialAsset(asset, "category" in asset ? asset.category : duePrompt?.category || "MANUAL_ONLY");
             }}
             onStopPlayback={async () => {
-              return triggerLocalBridgeStop();
+              const result = await triggerLocalBridgeStop();
+              setPlayingInterstitial(null);
+              return result;
             }}
           />
         </div>
 
-        <ShoutoutPanel
-          pending={state.pendingShoutouts}
-          approved={state.approvedShoutouts}
-          mode={mode}
-          onRefresh={load}
-          onApprove={async (messageId) => {
-            const result = await postJson("/api/admin/shoutouts/approve", { messageId });
-            await load();
-            return result.data;
-          }}
-onReject={async (messageId, note) => {
-  const result = await postJson("/api/admin/shoutouts/reject", {
-    messageId,
-    note: note?.trim() || "Rejected from booth",
-  });
-  await load();
-  return result.data;
-}}
-          onEdit={async ({ messageId, messageText, fromName }) => {
-            const result = await postJson("/api/admin/shoutouts/edit", {
-              messageId,
-              messageText,
-              fromName,
-            });
-            await load();
-            return result.data;
-          }}
-        />
+        <div className="boothStack boothStack--right">
+          <ShoutoutPanel
+            pending={state.pendingShoutouts}
+            approved={state.approvedShoutouts}
+            mode={mode}
+            onRefresh={load}
+            onApprove={async (messageId) => {
+              const result = await postJson("/api/admin/shoutouts/approve", { messageId });
+              await load();
+              return result.data;
+            }}
+            onReject={async (messageId, note) => {
+              const result = await postJson("/api/admin/shoutouts/reject", {
+                messageId,
+                note: note?.trim() || "Rejected from booth",
+              });
+              await load();
+              return result.data;
+            }}
+            onEdit={async ({ messageId, messageText, fromName }) => {
+              const result = await postJson("/api/admin/shoutouts/edit", {
+                messageId,
+                messageText,
+                fromName,
+              });
+              await load();
+              return result.data;
+            }}
+          />
+
+          <BoothNotesPanel storageKey={`rr.booth.notes:${location}`} />
+        </div>
       </div>
 
       <style jsx global>{`
@@ -511,6 +797,7 @@ onReject={async (messageId, note) => {
           color: #f2f5fb;
           font-family: Inter, ui-sans-serif, system-ui, sans-serif;
         }
+
         .rrBooth--compact {
           --panel-radius: 6px;
           --card-radius: 5px;
@@ -518,62 +805,159 @@ onReject={async (messageId, note) => {
           --row-gap: 5px;
           --inset-border: rgba(255,255,255,0.1);
         }
+
         .rrBooth__topbar {
           display: grid;
-          grid-template-columns: 1fr auto;
+          grid-template-columns: minmax(320px, 1.2fr) minmax(360px, 0.9fr) minmax(420px, 1fr);
           gap: 12px;
-          align-items: center;
-          padding: 10px 12px;
-          border-radius: 4px;
-          border: 1px solid rgba(84, 122, 162, 0.32);
-          background:
-            linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02)),
-            linear-gradient(90deg, rgba(24,36,52,0.9), rgba(9,18,31,0.86));
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.08),
-            inset 0 -1px 0 rgba(0,0,0,0.35),
-            0 10px 24px rgba(0,0,0,0.28);
+          align-items: stretch;
           margin-bottom: 8px;
+          padding: 10px 12px;
+          border-radius: 6px;
+          border: 1px solid rgba(84, 118, 160, 0.28);
+          background:
+            linear-gradient(180deg, rgba(20, 27, 42, 0.96), rgba(9, 14, 24, 0.96));
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.05),
+            inset 0 -1px 0 rgba(0,0,0,0.34),
+            0 12px 28px rgba(0,0,0,0.24);
         }
+
+        .rrTopbarLeft,
+        .rrTopbarCenter,
+        .rrTopbarRight {
+          min-width: 0;
+        }
+
+        .rrTopbarCenter {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .rrTopbarRight {
+          display: flex;
+          align-items: stretch;
+          justify-content: flex-end;
+        }
+
         .rrEyebrow {
           font-size: 9px;
           font-weight: 900;
           letter-spacing: 2.2px;
           opacity: 0.72;
         }
+
         .rrTitle {
-          margin: 6px 0 5px;
+          margin-top: 2px;
+          font-size: 28px;
+          line-height: 1;
+          font-weight: 1000;
+          letter-spacing: -0.8px;
+        }
+
+        .rrSub {
+          margin-top: 4px;
+          color: rgba(235, 241, 255, 0.74);
+          font-size: 12px;
+          line-height: 1.42;
+          max-width: 720px;
+        }
+
+        .rrSessionHero {
+          width: 100%;
+          max-width: 460px;
+          border-radius: 10px;
+          border: 1px solid rgba(92, 170, 255, 0.26);
+          background:
+            radial-gradient(circle at 50% 0%, rgba(53, 110, 196, 0.20), transparent 46%),
+            linear-gradient(180deg, rgba(15, 25, 43, 0.98), rgba(10, 15, 25, 0.98));
+          padding: 12px 14px 13px;
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.06),
+            0 12px 26px rgba(0,0,0,0.2);
+        }
+
+        .rrSessionHero__eyebrow {
+          font-size: 10px;
+          font-weight: 1000;
+          letter-spacing: 2px;
+          color: rgba(173, 214, 255, 0.78);
+          text-transform: uppercase;
+          text-align: center;
+        }
+
+        .rrSessionHero__main {
+          margin-top: 3px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .rrSessionHero__time {
           font-size: 30px;
           line-height: 1;
           font-weight: 1000;
           letter-spacing: -1px;
+          color: #f8fbff;
         }
-        .rrSub {
-          color: rgba(235, 241, 255, 0.7);
-          font-size: 12px;
-          line-height: 1.4;
+
+        .rrSessionHero__reset {
+          min-height: 28px;
+          padding: 0 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.16);
+          background: linear-gradient(180deg, rgba(52, 62, 82, 0.96), rgba(24, 30, 42, 0.98));
+          color: #f1f5fb;
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 0.6px;
+          cursor: pointer;
         }
-        .rrTopRight {
-          display: grid;
-          gap: 5px;
-          justify-items: end;
+
+        .rrSessionHero__sub {
+          margin-top: 5px;
+          font-size: 11px;
+          color: rgba(216, 228, 247, 0.74);
+          text-align: center;
         }
+
+        .rrSessionHero__bar {
+          margin-top: 8px;
+          height: 6px;
+          border-radius: 999px;
+          overflow: hidden;
+          background: rgba(255,255,255,0.08);
+        }
+
+        .rrSessionHero__barFill {
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(90deg, rgba(73, 186, 255, 0.92), rgba(142, 232, 255, 0.92));
+          box-shadow: 0 0 16px rgba(67, 185, 255, 0.32);
+        }
+
         .statBoxes {
           display: flex;
-          gap: 5px;
+          gap: 6px;
           flex-wrap: wrap;
           justify-content: flex-end;
         }
+
         .statBox {
-          min-width: 112px;
+          min-width: 104px;
           padding: 10px 12px;
           border-radius: 4px;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid rgba(255, 255, 255, 0.1);
           background:
-            linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)),
-            linear-gradient(180deg, rgba(19,24,37,0.92), rgba(11,16,27,0.92));
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.28);
+            linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+            linear-gradient(180deg, rgba(19, 24, 37, 0.92), rgba(11, 16, 27, 0.92));
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.28);
         }
+
         .statBox span {
           display: block;
           margin-bottom: 5px;
@@ -582,1031 +966,467 @@ onReject={async (messageId, note) => {
           letter-spacing: 1.8px;
           opacity: 0.7;
         }
+
         .statBox strong {
           font-size: 13px;
           font-weight: 1000;
         }
-.statBox--link {
-  text-decoration: none;
-  color: #f2f5fb;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
 
-.statBox--link strong {
-  font-size: 20px;
-  line-height: 1;
-}
+        .statBox--link {
+          text-decoration: none;
+          color: inherit;
+          display: block;
+        }
 
-.statBox--link:hover {
-  filter: brightness(1.08);
-  border-color: rgba(120, 170, 230, 0.42);
-}
         .rrBooth__grid {
           display: grid;
-          grid-template-columns: minmax(0, 1.85fr) minmax(340px, 0.98fr) minmax(280px, 0.62fr);
-          gap: 5px;
+          grid-template-columns: minmax(0, 2fr) minmax(360px, 1fr) minmax(360px, 1fr);
+          gap: 10px;
           align-items: start;
         }
+
+        .boothPanel,
+        .boothPanel--compact,
+        .boothPanel--primary {
+          min-width: 0;
+          border-radius: 6px;
+          border: 1px solid rgba(77, 107, 143, 0.28);
+          background: linear-gradient(180deg, rgba(21, 27, 41, 0.95), rgba(8, 13, 23, 0.94));
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+            0 12px 26px rgba(0, 0, 0, 0.24);
+          padding: 10px;
+        }
+
         .boothStack {
           display: grid;
-          gap: 5px;
-          align-content: start;
-        }
-        .boothPanel {
+          gap: 10px;
           min-width: 0;
-          border-radius: 5px;
-          border: 1px solid rgba(77, 107, 143, 0.28);
-          background:
-            linear-gradient(180deg, rgba(21,27,41,0.95), rgba(8,13,23,0.94));
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.05),
-            inset 0 -1px 0 rgba(0,0,0,0.35),
-            0 12px 26px rgba(0,0,0,0.24);
-          padding: 7px;
         }
-        .boothPanel--primary {
-          display: grid;
-          gap: 5px;
+
+        .boothStack--right > .boothPanel,
+        .boothStack--right > .boothPanel--compact {
+          min-height: 0;
         }
+
         .panelHead,
         .boothPanelHeader {
           display: flex;
           justify-content: space-between;
           gap: 8px;
           align-items: flex-start;
-          margin-bottom: 4px;
+          margin-bottom: 8px;
         }
-        .panelHead--tight,
-        .boothPanelHeader {
-          margin-bottom: 4px;
-        }
+
         .panelTitle,
         .boothPanelTitle {
           font-size: 12px;
           font-weight: 1000;
-          letter-spacing: 0.4px;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
         }
+
         .panelSub,
         .boothPanelSub {
           margin-top: 2px;
-          color: rgba(235,241,255,0.72);
+          color: rgba(235, 241, 255, 0.72);
           font-size: 12px;
           line-height: 1.35;
         }
-        .heroCard {
-          border-radius: 3px;
-          border: 1px solid rgba(255,255,255,0.085);
-          background:
-            linear-gradient(90deg, rgba(255,255,255,0.028), rgba(255,255,255,0.04) 45%, rgba(255,255,255,0.02)),
-            linear-gradient(180deg, rgba(28,36,53,0.96), rgba(10,17,29,0.96));
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.32);
-          padding: 7px;
+
+        .panelHeadBadge {
+          display: flex;
+          align-items: center;
         }
-        .heroCardHeader {
+
+        .statusPill {
+          display: inline-flex;
+          align-items: center;
+          padding: 3px 8px;
+          border-radius: 999px;
+          font-size: 9px;
+          font-weight: 1000;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          background: rgba(255, 255, 255, 0.04);
+          color: #f2f5fb;
+          white-space: nowrap;
+        }
+
+        .statusPill--playing {
+          border-color: rgba(46, 193, 234, 0.36);
+          box-shadow: 0 0 12px rgba(46, 193, 234, 0.14);
+        }
+
+        .rrQueueStage {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .rrQueueStage__search {
+          margin-bottom: 8px;
+        }
+
+        .rrQueueStage__content {
+          position: relative;
+          min-height: 520px;
+        }
+
+        .rrQueueStage__stack {
+          display: grid;
+          gap: 6px;
+        }
+
+        .rrQueueStage__queueShell {
+          min-height: 240px;
+        }
+
+        .rrPromptApiHint {
+          margin-top: 8px;
+          border-radius: 6px;
+          border: 1px solid rgba(255, 196, 76, 0.2);
+          background: rgba(255, 196, 76, 0.05);
+          padding: 8px 10px;
+          font-size: 11px;
+          color: rgba(255, 232, 180, 0.92);
+        }
+
+        .rrInterstitialPromptModal {
+          position: absolute;
+          left: 10px;
+          right: 10px;
+          top: 96px;
+          z-index: 20;
+          pointer-events: auto;
+          animation: rrPromptDissolve 240ms ease-out;
+        }
+
+        .rrInterstitialPromptModal__pulse {
+          position: absolute;
+          inset: -10px;
+          border-radius: 18px;
+          background: radial-gradient(circle at center, rgba(73, 174, 255, 0.12), transparent 66%);
+          filter: blur(20px);
+          animation: rrPromptBreath 1.4s ease-in-out infinite;
+        }
+
+        .rrInterstitialPromptModal__card {
+          position: relative;
+          overflow: hidden;
+          border-radius: 14px;
+          border: 1px solid rgba(107, 187, 255, 0.28);
+          background:
+            linear-gradient(180deg, rgba(13, 23, 39, 0.96), rgba(8, 13, 23, 0.98)),
+            radial-gradient(circle at top, rgba(79, 176, 255, 0.10), transparent 42%);
+          padding: 14px;
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.06),
+            0 24px 44px rgba(3, 8, 16, 0.54);
+        }
+
+        .rrInterstitialPromptModal__head {
           display: flex;
           justify-content: space-between;
-          gap: 5px;
+          gap: 12px;
           align-items: flex-start;
-          margin-bottom: 5px;
+          margin-bottom: 12px;
         }
-        .heroCardTitle {
+
+        .rrInterstitialPromptModal__eyebrow {
           font-size: 10px;
-          text-transform: uppercase;
-          letter-spacing: 1.7px;
           font-weight: 1000;
-          opacity: 0.9;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          color: rgba(173, 214, 255, 0.82);
         }
-        .heroCardSub {
+
+        .rrInterstitialPromptModal__title {
+          margin-top: 4px;
+          font-size: 24px;
+          line-height: 1;
+          font-weight: 1000;
+          color: #f7fbff;
+        }
+
+        .rrInterstitialPromptModal__sub {
+          margin-top: 6px;
           font-size: 12px;
-          color: rgba(235,241,255,0.72);
-          margin-top: 2px;
+          line-height: 1.4;
+          color: rgba(225, 236, 250, 0.76);
+          max-width: 720px;
         }
-        .heroEmpty,
-        .emptyBox,
-        .insertBlockBody {
-          border: 1px dashed rgba(255,255,255,0.1);
-          border-radius: 3px;
-          padding: 12px;
-          color: rgba(235,241,255,0.7);
-          background: rgba(255,255,255,0.015);
+
+        .rrInterstitialPromptModal__meta {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: flex-end;
         }
-        .heroMain {
+
+        .rrPromptChip {
+          display: inline-flex;
+          align-items: center;
+          padding: 3px 8px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.14);
+          background: rgba(255,255,255,0.04);
+          font-size: 10px;
+          font-weight: 1000;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          color: rgba(241, 246, 255, 0.88);
+        }
+
+        .rrPromptChip--gold {
+          border-color: rgba(255, 214, 117, 0.36);
+          color: #ffeab0;
+        }
+
+        .rrInterstitialPromptModal__grid {
           display: grid;
-          grid-template-columns: 68px minmax(0, 1fr);
-          gap: 5px;
-          align-items: start;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
         }
-        .heroArtwork,
-        .deckArt,
-        .queueMedia img {
+
+        .rrPromptTile {
+          appearance: none;
+          overflow: hidden;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.12);
+          background:
+            linear-gradient(180deg, rgba(26, 35, 49, 0.98), rgba(10, 15, 25, 0.98));
+          padding: 0;
+          color: inherit;
+          cursor: pointer;
+          text-align: left;
+          transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+        }
+
+        .rrPromptTile:hover {
+          transform: translateY(-1px);
+          border-color: rgba(94, 190, 255, 0.26);
+          box-shadow: 0 12px 24px rgba(0,0,0,0.2);
+        }
+
+        .rrPromptTile--active {
+          border-color: rgba(255, 214, 117, 0.4);
+        }
+
+        .rrPromptTile__media {
+          position: relative;
+          height: 118px;
+          overflow: hidden;
+          background:
+            linear-gradient(135deg, rgba(64, 140, 202, 0.94), rgba(116, 214, 255, 0.78));
+        }
+
+        .rrPromptTile__gif {
           width: 100%;
           height: 100%;
           object-fit: cover;
           display: block;
-          border-radius: 3px;
-        }
-        .heroArtworkWrap {
-          width: 68px;
-          height: 68px;
-        }
-        .heroArtwork--placeholder,
-        .deckArt--placeholder,
-        .queueMediaPlaceholder {
-          width: 100%;
-          height: 100%;
-          border-radius: 3px;
-          background: linear-gradient(135deg, rgba(59,139,177,0.34), rgba(111,56,126,0.3));
-          border: 1px solid rgba(255,255,255,0.12);
-        }
-        .heroInfo {
-          display: grid;
-          gap: 5px;
-          min-width: 0;
-        }
-        .heroTitleRow {
-          display: flex;
-          gap: 5px;
-          align-items: center;
-          flex-wrap: wrap;
-        }
-        .heroTitle {
-          font-size: 18px;
-          font-weight: 1000;
-          line-height: 1.05;
-          letter-spacing: -0.4px;
-        }
-        .heroArtist {
-          font-size: 12px;
-          line-height: 1.35;
-          color: rgba(235,241,255,0.78);
-        }
-        .heroTelemetry {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 0;
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 3px;
-          overflow: hidden;
-          background: rgba(255,255,255,0.02);
-        }
-        .heroTelemetryCell {
-          padding: 6px 8px 7px;
-          border-right: 1px solid rgba(255,255,255,0.08);
-          min-width: 0;
-        }
-        .heroTelemetryCell:last-child {
-          border-right: none;
-        }
-        .heroTelemetryCell span {
-          display: block;
-          font-size: 9px;
-          text-transform: uppercase;
-          letter-spacing: 1.6px;
-          opacity: 0.68;
-          margin-bottom: 4px;
-        }
-        .heroTelemetryCell strong {
-          display: block;
-          font-size: 12px;
-          font-weight: 1000;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .progressWrap {
-          display: grid;
-          gap: 5px;
-        }
-        .progressBar {
-          height: 12px;
-          border-radius: 999px;
-          background: rgba(255,255,255,0.07);
-          box-shadow: inset 0 1px 3px rgba(0,0,0,0.45);
-          overflow: hidden;
-        }
-        .progressFill {
-          height: 100%;
-          background: linear-gradient(90deg, #2790c8 0%, #36d2ff 52%, #53e3ff 100%);
-          box-shadow: 0 0 16px rgba(43, 208, 255, 0.4);
-        }
-        .progressMeta {
-          display: flex;
-          justify-content: space-between;
-          font-size: 9px;
-          font-weight: 900;
-          letter-spacing: 1.3px;
-          text-transform: uppercase;
-          color: rgba(235,241,255,0.76);
-        }
-        .deckLine {
-          display: grid;
-          grid-template-columns: 44px minmax(0, 1fr) auto;
-          gap: 10px;
-          align-items: center;
-        }
-        .deckArt {
-          width: 44px;
-          height: 44px;
-        }
-        .deckTitle {
-          font-size: 13px;
-          font-weight: 1000;
-          line-height: 1.05;
-        }
-        .deckArtist {
-          margin-top: 0;
-          color: rgba(235,241,255,0.76);
-          font-size: 12px;
-        }
-        .statusPill {
-          display: inline-flex;
-          align-items: center;
-          padding: 2px 6px;
-          border-radius: 999px;
-          font-size: 9px;
-          font-weight: 1000;
-          letter-spacing: 0.9px;
-          text-transform: uppercase;
-          border: 1px solid rgba(255,255,255,0.14);
-          background: rgba(255,255,255,0.04);
-          color: #f2f5fb;
-          white-space: nowrap;
-        }
-        .statusPill--playing,
-        .statusPill--cyan {
-          border-color: rgba(46, 193, 234, 0.36);
-          box-shadow: 0 0 12px rgba(46,193,234,0.14);
-        }
-        .statusPill--loaded,
-        .statusPill--pink {
-          border-color: rgba(212, 104, 255, 0.28);
-          box-shadow: 0 0 12px rgba(212,104,255,0.1);
-        }
-        .statusPill--held,
-        .statusPill--gold,
-        .statusPill--warn {
-          border-color: rgba(230, 170, 52, 0.34);
-        }
-        .statusPill--skip {
-          border-color: rgba(219, 95, 95, 0.36);
-        }
-        .statusPill--queued,
-        .statusPill--default,
-        .statusPill--muted {
-          border-color: rgba(255,255,255,0.16);
-          opacity: 0.88;
-        }
-        .statusPill--alert {
-          border-color: rgba(255,92,92,0.62);
-          background: linear-gradient(180deg, rgba(128,24,24,0.78), rgba(68,9,9,0.88));
-          box-shadow: 0 0 14px rgba(255,70,70,0.2);
-        }
-        .statusPill--boost {
-          border-color: rgba(255,92,92,0.72);
-          background: linear-gradient(180deg, rgba(164,18,18,0.82), rgba(86,8,8,0.92));
-          box-shadow: 0 0 16px rgba(255,60,60,0.26);
-        }
-        .queueMetaMinor {
-          opacity: 0.7;
         }
 
-        .queueRow--interstitial {
-          position: relative;
-          border-color: rgba(255, 191, 89, 0.24);
-          background:
-            linear-gradient(90deg, rgba(255, 185, 68, 0.13) 0%, rgba(255, 185, 68, 0.05) 14%, rgba(255,255,255,0.02) 14.1%, rgba(255,255,255,0.015) 100%),
-            linear-gradient(180deg, rgba(44, 38, 29, 0.96), rgba(18, 19, 26, 0.96));
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.04),
-            inset 0 -1px 0 rgba(0,0,0,0.32),
-            0 0 0 1px rgba(255,185,68,0.04);
-        }
-        .queueRow--interstitial::before {
-          content: "";
-          position: absolute;
-          inset: 0 auto 0 0;
-          width: 4px;
-          border-radius: 5px 0 0 5px;
-          background: linear-gradient(180deg, rgba(255, 210, 122, 0.95), rgba(216, 132, 38, 0.95));
-          box-shadow: 0 0 10px rgba(255, 187, 77, 0.32);
-        }
-        .queueIndex--interstitial {
-          border-color: rgba(255, 214, 139, 0.18);
-          background: linear-gradient(180deg, rgba(78, 62, 28, 0.52), rgba(39, 28, 13, 0.55));
-          color: #ffe2ad;
-        }
-        .queueText--interstitial {
+        .rrPromptTile__fallback {
+          width: 100%;
+          height: 100%;
           display: grid;
-          gap: 3px;
-        }
-        .queueTitleLine--interstitial {
-          gap: 6px;
-          align-items: center;
-        }
-        .interstitialEyebrow {
-          display: inline-flex;
-          align-items: center;
-          padding: 2px 6px;
-          border-radius: 999px;
-          border: 1px solid rgba(255, 214, 139, 0.22);
-          background: rgba(255, 194, 94, 0.08);
-          color: rgba(255, 224, 168, 0.86);
-          font-size: 9px;
+          place-items: center;
+          padding: 10px;
+          text-align: center;
+          font-size: 16px;
+          line-height: 1.02;
           font-weight: 1000;
-          letter-spacing: 1.45px;
+          color: #fff3a6;
           text-transform: uppercase;
-          white-space: nowrap;
         }
-        .queueTitle--interstitial {
-          font-style: italic;
-          letter-spacing: 0.1px;
-          color: #fff4de;
-          text-shadow: 0 1px 0 rgba(0,0,0,0.28);
+
+        .rrPromptTile__shine {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(120deg, transparent 10%, rgba(255,255,255,0.08) 50%, transparent 90%);
+          mix-blend-mode: screen;
         }
-        .queueMeta--interstitial {
-          color: rgba(255, 233, 196, 0.74);
+
+        .rrPromptTile__body {
+          display: grid;
+          gap: 5px;
+          padding: 10px 11px 12px;
         }
-        .interstitialContext {
-          color: rgba(255, 241, 214, 0.94);
+
+        .rrPromptTile__topline {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          align-items: center;
         }
-        .queueMetaStrong {
-          color: rgba(255,255,255,0.9);
-        }
-        .queueRow--request {
-          border-color: rgba(255,92,92,0.18);
-        }
-        .queueRow--boosted {
-          border-color: rgba(255,92,92,0.28);
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(255,92,92,0.06);
-        }
-        .gunmetalBtn {
-          appearance: none;
-          border: 1px solid rgba(255,255,255,0.12);
-          cursor: pointer;
-          min-height: 24px;
-          padding: 0 8px;
-          border-radius: 3px;
+
+        .rrPromptTile__label,
+        .rrPromptTile__duration {
           font-size: 10px;
           font-weight: 1000;
-          letter-spacing: 0.4px;
-          color: #f1f5fb;
-          text-transform: none;
-          background: linear-gradient(180deg, #4a5467 0%, #2d3441 52%, #232935 100%);
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.16),
-            inset 0 -1px 0 rgba(0,0,0,0.46),
-            0 1px 2px rgba(0,0,0,0.32);
+          letter-spacing: 1px;
+          color: rgba(218, 230, 248, 0.74);
+          text-transform: uppercase;
         }
+
+        .rrPromptTile__title {
+          font-size: 15px;
+          line-height: 1.04;
+          font-weight: 1000;
+          color: #f8fbff;
+        }
+
+        .rrPromptTile__last {
+          font-size: 11px;
+          color: rgba(209, 222, 242, 0.74);
+        }
+
+        .rrBoothNotes {
+          display: grid;
+          gap: 8px;
+        }
+
+        .rrBoothNotes__textarea {
+          min-height: 130px;
+          padding-top: 10px;
+          resize: vertical;
+        }
+
+        .rrBoothNotes__footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .rrBoothNotes__saved {
+          font-size: 11px;
+          color: rgba(214, 226, 244, 0.72);
+        }
+
         .gunmetalInput {
           width: 100%;
-          min-height: 30px;
-          padding: 0 10px;
+          min-height: 34px;
+          padding: 0 11px;
           border-radius: 4px;
           border: 1px solid rgba(123, 156, 196, 0.32);
-          background: linear-gradient(180deg, rgba(8, 16, 30, 0.94), rgba(7, 13, 24, 0.98));
+          background: linear-gradient(
+            180deg,
+            rgba(8, 16, 30, 0.94),
+            rgba(7, 13, 24, 0.98)
+          );
           color: #f4f7fd;
           font-size: 13px;
           font-weight: 700;
           outline: none;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 1px rgba(12, 26, 48, 0.34);
-        }
-        .gunmetalInput:focus {
-          border-color: rgba(111, 167, 255, 0.54);
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(71, 118, 210, 0.46), 0 0 14px rgba(71, 118, 210, 0.16);
-        }
-        .gunmetalBtn:hover {
-          filter: brightness(1.06);
-        }
-        .gunmetalBtn:disabled {
-          opacity: 0.58;
-          cursor: not-allowed;
-        }
-        .gunmetalBtn--primary,
-        .gunmetalBtn--load,
-        .gunmetalBtn--play {
-          background: linear-gradient(180deg, #3d7ec0 0%, #245694 52%, #1c4479 100%);
-        }
-        .gunmetalBtn--pause,
-        .gunmetalBtn--hold {
-          background: linear-gradient(180deg, #8a6a1d 0%, #735515 52%, #5a430f 100%);
-        }
-        .gunmetalBtn--skip,
-        .gunmetalBtn--remove {
-          background: linear-gradient(180deg, #8d4450 0%, #713341 52%, #5b2834 100%);
-        }
-        .gunmetalBtn--done {
-          background: linear-gradient(180deg, #1d8095 0%, #166779 52%, #105766 100%);
-        }
-        .gunmetalBtn--neutral {
-          background: linear-gradient(180deg, #4a5467 0%, #303847 52%, #252c38 100%);
-        }
-        .gunmetalBtn--wide {
-          width: 100%;
-        }
-        .boothActionRail {
-          display: flex;
-          gap: 3px;
-          flex-wrap: wrap;
-        }
-        .queueListShell {
-          display: grid;
-          gap: 5px;
-        }
-        .queueListHeader {
-          display: flex;
-          justify-content: space-between;
-          align-items: end;
-          gap: 5px;
-        }
-        .queueListTitle,
-        .listSectionTitle,
-        .insertBlockTitle,
-        .engineLabel {
-          font-size: 10px;
-          font-weight: 1000;
-          letter-spacing: 1.7px;
-          text-transform: uppercase;
-        }
-        .queueListSub,
-        .queueListHelp {
-          color: rgba(235,241,255,0.7);
-          font-size: 12px;
-          line-height: 1.35;
-        }
-        .queueListScroller,
-        .requestListScroller,
-        .shoutoutListScroller {
-          display: grid;
-          gap: 5px;
-          max-height: 540px;
-          overflow: auto;
-          padding-right: 1px;
-        }
-        .queueRow,
-        .requestRow,
-        .shoutoutRow {
-          display: grid;
-          align-items: center;
-          gap: 5px;
-          border-radius: 5px;
-          border: 1px solid rgba(255,255,255,0.085);
-          background:
-            linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015)),
-            linear-gradient(180deg, rgba(25,31,44,0.92), rgba(14,19,31,0.92));
-          padding: 5px 7px;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), inset 0 -1px 0 rgba(0,0,0,0.25);
-        }
-        .queueRow {
-          grid-template-columns: 22px minmax(0, 1fr) auto;
-        }
-        .requestRow {
-          grid-template-columns: 24px minmax(0, 1fr) auto;
-        }
-        .queueIndex,
-        .requestIndex {
-          font-size: 13px;
-          font-weight: 1000;
-          line-height: 1;
-          color: rgba(235,241,255,0.92);
-          width: 22px;
-          height: 22px;
-          border-radius: 4px;
-          display: grid;
-          place-items: center;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.03);
-        }
-        .queueText,
-        .requestText {
-          min-width: 0;
-        }
-        .queueTitleLine,
-        .requestTitleLine {
-          display: flex;
-          gap: 5px;
-          align-items: center;
-          flex-wrap: wrap;
-          min-width: 0;
-        }
-        .queueTitle,
-        .requestTitleLine strong,
-        .requestTitle {
-          font-size: 13px;
-          font-weight: 1000;
-          line-height: 1.05;
-        }
-        .queueMeta,
-        .requestMeta,
-        .shoutoutMeta {
-          margin-top: 1px;
-          color: rgba(235,241,255,0.66);
-          font-size: 11px;
-          line-height: 1.3;
-          min-width: 0;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .requestActions,
-        .queueActions,
-        .boothRequestActions {
-          display: flex;
-          gap: 3px;
-          justify-content: flex-end;
-          flex-wrap: wrap;
-        }
-        .engineBox,
-        .insertBlock,
-        .requestSection,
-        .shoutoutSection {
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 5px;
-          background:
-            linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015)),
-            linear-gradient(180deg, rgba(18,24,38,0.94), rgba(10,15,26,0.94));
-          padding: 7px;
-        }
-        .engineAction {
-          font-size: 16px;
-          line-height: 1;
-          font-weight: 1000;
-          margin: 6px 0 8px;
-        }
-        .engineGrid {
-          display: grid;
-          gap: 0;
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 3px;
-          overflow: hidden;
-        }
-        .engineRow {
-          display: grid;
-          grid-template-columns: 120px minmax(0, 1fr);
-          gap: 10px;
-          align-items: center;
-          padding: 7px 8px;
-          border-top: 1px solid rgba(255,255,255,0.07);
-          font-size: 12px;
-        }
-        .engineRow:first-child {
-          border-top: none;
-        }
-        .engineRow span {
-          color: rgba(235,241,255,0.64);
-          text-transform: uppercase;
-          letter-spacing: 0.9px;
-          font-weight: 800;
-        }
-        .engineRow strong {
-          text-align: right;
-          min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-.rrBoothRejectModal {
-  position: fixed;
-  inset: 0;
-  z-index: 1300;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(2, 7, 14, 0.78);
-  backdrop-filter: blur(4px);
-}
-
-.rrBoothRejectModalCard {
-  width: min(520px, 96vw);
-  display: grid;
-  gap: 10px;
-  padding: 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(110, 150, 200, 0.24);
-  background:
-    linear-gradient(180deg, rgba(24,31,47,0.98), rgba(10,15,26,0.98));
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.06),
-    0 24px 60px rgba(0,0,0,0.4);
-}
-
-.rrBoothRejectModalTitle {
-  font-size: 14px;
-  font-weight: 1000;
-  letter-spacing: 0.4px;
-  color: #f4f7ff;
-}
-
-.rrBoothRejectModalSub {
-  font-size: 12px;
-  line-height: 1.4;
-  color: rgba(228, 238, 255, 0.78);
-}
-
-
-        .shoutoutRow {
-          align-items: start;
-          gap: 5px;
-        }
-        .shoutoutTop {
-          display: flex;
-          justify-content: space-between;
-          gap: 5px;
-          align-items: flex-start;
-        }
-        .shoutoutBadges {
-          display: flex;
-          gap: 3px;
-          flex-wrap: wrap;
-          justify-content: flex-end;
-        }
-        .shoutoutText {
-          font-size: 12px;
-          line-height: 1.35;
-          color: rgba(243,246,255,0.9);
-        }
-
-        .shoutoutIdentity {
-          display: grid;
-          gap: 4px;
-          min-width: 0;
-        }
-        .shoutoutMetaRow {
-          display: grid;
-          gap: 4px;
-        }
-        .shoutoutMeta--warn {
-          color: rgba(255, 205, 126, 0.92);
-        }
-        .shoutoutThumbButton {
-          display: grid;
-          gap: 6px;
-          justify-items: start;
-          padding: 0;
-          border: 0;
-          background: transparent;
-          cursor: pointer;
-          text-align: left;
-        }
-        .shoutoutThumbImage {
-          width: 84px;
-          height: 84px;
-          object-fit: cover;
-          display: block;
-          border-radius: 6px;
-          border: 1px solid rgba(255,255,255,0.12);
-          box-shadow: 0 8px 18px rgba(0,0,0,0.25);
-          background: rgba(255,255,255,0.04);
-        }
-        .shoutoutThumbLabel {
-          font-size: 10px;
-          font-weight: 900;
-          letter-spacing: 1.2px;
-          text-transform: uppercase;
-          color: rgba(210, 226, 255, 0.72);
-        }
-        .shoutoutEditCard {
-          display: grid;
-          gap: 8px;
-          padding: 8px;
-          border-radius: 6px;
-          border: 1px solid rgba(120, 180, 255, 0.18);
-          background: rgba(11, 18, 30, 0.72);
-        }
-        .shoutoutEditGrid {
-          display: grid;
-          gap: 8px;
-        }
-        .shoutoutField {
-          display: grid;
-          gap: 5px;
-        }
-        .shoutoutFieldLabel {
-          font-size: 10px;
-          font-weight: 900;
-          letter-spacing: 1.2px;
-          text-transform: uppercase;
-          color: rgba(210, 226, 255, 0.72);
-        }
-        .shoutoutEditInput {
-          min-height: 32px;
-        }
-        .shoutoutEditTextarea {
-          min-height: 90px;
-          resize: vertical;
-          padding: 8px 10px;
-        }
-        .rrBoothLightbox {
-          position: fixed;
-          inset: 0;
-          z-index: 1200;
-          display: grid;
-          place-items: center;
-          padding: 20px;
-          background: rgba(2, 7, 14, 0.82);
-          backdrop-filter: blur(4px);
-        }
-        .rrBoothLightboxInner {
-          width: min(820px, 96vw);
-          max-height: 92vh;
-          overflow: auto;
-          display: grid;
-          gap: 10px;
-          padding: 14px;
-          border-radius: 10px;
-          border: 1px solid rgba(110, 150, 200, 0.24);
-          background:
-            linear-gradient(180deg, rgba(24,31,47,0.98), rgba(10,15,26,0.98));
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.06),
-            0 24px 60px rgba(0,0,0,0.4);
-        }
-        .rrBoothLightboxClose {
-          justify-self: end;
-          appearance: none;
-          border: 1px solid rgba(255,255,255,0.14);
-          background: linear-gradient(180deg, #3e495d 0%, #283142 100%);
-          color: #f2f5fb;
-          border-radius: 6px;
-          padding: 8px 12px;
-          font-size: 12px;
-          font-weight: 900;
-          cursor: pointer;
-        }
-        .rrBoothLightboxMeta {
-          display: flex;
-          justify-content: space-between;
-          gap: 8px;
-          flex-wrap: wrap;
-          color: rgba(228, 238, 255, 0.84);
-          font-size: 12px;
-        }
-        .rrBoothLightboxImage {
-          width: 100%;
-          height: auto;
-          max-height: 72vh;
-          object-fit: contain;
-          border-radius: 8px;
-          background: rgba(0,0,0,0.25);
-        }
-        .rrBoothLightboxCaption {
-          font-size: 14px;
-          line-height: 1.45;
-          color: rgba(244, 247, 255, 0.94);
-        }
-        .boothSplit {
-          display: grid;
-          gap: 5px;
-        }
-        .heroCard--live {
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.32), 0 0 0 1px rgba(40,170,212,0.12);
-        }
-        .heroCard--deck {
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.32), 0 0 0 1px rgba(203,152,51,0.10);
-        }
-        .heroInfoTop {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          gap: 8px;
-          align-items: start;
-        }
-        .heroActions,
-        .deckActions {
-          display: flex;
-          justify-content: flex-end;
-          align-items: flex-start;
-        }
-        .heroActions--topRight .boothActionRail,
-        .deckActions .boothActionRail {
-          justify-content: flex-end;
-        }
-        .deckLine--single {
-          grid-template-columns: 44px minmax(0, 1fr) auto;
-        }
-        .deckText--single {
-          min-width: 0;
-        }
-        .deckSingleLine {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          min-width: 0;
-          white-space: nowrap;
-          overflow: hidden;
-        }
-        .deckSingleLine > * {
-          flex: 0 0 auto;
-        }
-        .deckTitle {
-          flex: 0 1 auto;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-        .deckArtist--inline,
-        .deckRequestor {
-          flex: 0 1 auto;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          min-width: 0;
-        }
-        .deckDivider {
-          opacity: 0.55;
-        }
-        .queueRow--dense {
-          grid-template-columns: 22px minmax(0, 1fr) auto;
-        }
-        .gunmetalBtn--mini {
-          min-height: 24px;
-          padding: 0 8px;
-          font-size: 10px;
-        }
-        .gunmetalBtn--wide {
-          width: 100%;
-          min-height: 28px;
-        }
-        .searchAddPanel {
-          margin-top: 6px;
-        }
-        .searchAddInput {
-          width: 100%;
-        }
-        .searchAddHint {
-          margin-top: 8px;
-          padding: 7px 10px;
-          border: 1px solid rgba(120, 180, 255, 0.16);
-          border-radius: 4px;
-          background: linear-gradient(180deg, rgba(16, 36, 64, 0.42), rgba(8, 18, 34, 0.48));
-          color: rgba(220, 232, 255, 0.76);
-          font-size: 10px;
-          line-height: 1.35;
-          font-weight: 700;
-        }
-        .searchAddState,
-        .searchAddError {
-          margin-top: 8px;
-          padding: 9px 10px;
-          border-radius: 4px;
-          font-size: 11px;
-          line-height: 1.35;
-        }
-        .searchAddState {
-          border: 1px solid rgba(120, 180, 255, 0.14);
-          background: rgba(10, 19, 33, 0.62);
-          color: rgba(220, 232, 255, 0.78);
-        }
-        .searchAddError {
-          border: 1px solid rgba(255, 120, 120, 0.18);
-          background: rgba(60, 16, 22, 0.45);
-          color: #ffb0b0;
-        }
-        .searchAddResults {
-          margin-top: 8px;
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-          max-height: 360px;
-          overflow-y: auto;
-          padding-right: 1px;
-        }
-        .searchAddResult {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          gap: 8px;
-          align-items: center;
-          padding: 7px 8px;
-          border-radius: 5px;
-          border: 1px solid rgba(120, 180, 255, 0.12);
-          background:
-            linear-gradient(180deg, rgba(20, 30, 52, 0.88), rgba(10, 16, 30, 0.96));
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.03),
-            0 0 0 1px rgba(20, 34, 60, 0.28);
-        }
-        .searchAddResult--active {
-          border-color: rgba(115, 174, 255, 0.42);
           box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.04),
-            0 0 0 1px rgba(70, 120, 220, 0.4),
-            0 0 14px rgba(70, 120, 220, 0.14);
-          background:
-            linear-gradient(180deg, rgba(28, 43, 76, 0.9), rgba(12, 20, 38, 1));
+            0 0 0 1px rgba(12, 26, 48, 0.34);
         }
-        .searchAddMain {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          width: 100%;
-          min-width: 0;
-          padding: 0;
-          border: 0;
-          background: transparent;
-          color: inherit;
-          text-align: left;
+
+        .gunmetalBtn {
+          appearance: none;
+          border: 1px solid rgba(255, 255, 255, 0.12);
           cursor: pointer;
-        }
-        .searchAddMeta {
-          display: flex;
-          flex-direction: column;
-          min-width: 0;
-        }
-        .searchAddTitle {
-          color: #f7f8fc;
-          font-size: 12px;
-          font-weight: 1000;
-          line-height: 1.1;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .searchAddArtist {
-          margin-top: 2px;
-          color: rgba(210, 222, 244, 0.72);
+          min-height: 30px;
+          padding: 0 10px;
+          border-radius: 4px;
           font-size: 11px;
-          line-height: 1.25;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .searchAddHotkey {
-          flex: 0 0 auto;
-          padding: 3px 7px;
-          border-radius: 999px;
-          border: 1px solid rgba(255, 210, 120, 0.32);
-          background: rgba(110, 82, 18, 0.32);
-          color: #ffd97b;
-          font-size: 9px;
           font-weight: 1000;
-          letter-spacing: 0.1em;
+          letter-spacing: 0.4px;
+          color: #f1f5fb;
+          background: linear-gradient(180deg, #4a5467 0%, #2d3441 52%, #232935 100%);
         }
-        .searchAddActions {
-          display: flex;
-          gap: 5px;
-          align-items: center;
+
+        .gunmetalBtn--primary {
+          background: linear-gradient(180deg, #3d7ec0 0%, #245694 52%, #1c4479 100%);
         }
-        .searchAddMiniBtn {
-          min-width: 52px;
-          min-height: 22px;
-          padding-inline: 8px;
-          font-size: 10px;
+
+        .gunmetalBtn--mini {
+          min-height: 28px;
         }
+
+        .boothMiniBtn {
+          appearance: none;
+          border: 1px solid rgba(255,255,255,0.14);
+          min-height: 28px;
+          padding: 0 10px;
+          border-radius: 999px;
+          cursor: pointer;
+          font-size: 11px;
+          font-weight: 1000;
+          letter-spacing: 0.4px;
+          color: #f2f6fb;
+          background: linear-gradient(180deg, rgba(58,66,82,0.96), rgba(24, 29, 39, 0.98));
+        }
+
+        .boothMiniBtn--danger {
+          border-color: rgba(255, 127, 145, 0.2);
+        }
+
+        @keyframes rrPromptDissolve {
+          0% { opacity: 0; transform: translateY(-8px) scale(0.985); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes rrPromptBreath {
+          0%, 100% { opacity: 0.66; transform: scale(0.985); }
+          50% { opacity: 1; transform: scale(1.015); }
+        }
+
         @media (max-width: 1480px) {
-          .rrBooth__grid {
-            grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.96fr) minmax(270px, 0.62fr);
-          }
-        }
-        @media (max-width: 1280px) {
-          .rrBooth__grid {
-            grid-template-columns: 1fr;
-          }
           .rrBooth__topbar {
             grid-template-columns: 1fr;
           }
-          .rrTopRight {
-            justify-items: start;
-          }
-          .statBoxes {
+
+          .rrTopbarRight {
             justify-content: flex-start;
           }
+
+          .rrBooth__grid {
+            grid-template-columns: 1.7fr 1fr 1fr;
+          }
+
+          .rrInterstitialPromptModal__grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
         }
-        @media (max-width: 1100px) {
-          .searchAddResult {
+
+        @media (max-width: 1200px) {
+          .rrBooth__grid {
             grid-template-columns: 1fr;
           }
-          .searchAddActions {
-            justify-content: flex-start;
-            flex-wrap: wrap;
+
+          .rrInterstitialPromptModal {
+            position: relative;
+            inset: auto;
+            margin-top: 8px;
+          }
+
+          .rrInterstitialPromptModal__grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
           }
         }
+
         @media (max-width: 760px) {
-          .heroMain,
-          .deckLine,
-          .requestRow,
-          .engineRow {
+          .rrTitle {
+            font-size: 24px;
+          }
+
+          .rrSessionHero__time {
+            font-size: 24px;
+          }
+
+          .rrInterstitialPromptModal__head {
+            flex-direction: column;
+          }
+
+          .rrInterstitialPromptModal__grid {
             grid-template-columns: 1fr;
-          }
-          .queueRow {
-            grid-template-columns: 1fr;
-          }
-          .heroInfoTop {
-            grid-template-columns: 1fr;
-          }
-          .heroTelemetry {
-            grid-template-columns: 1fr 1fr;
-          }
-          .heroTelemetryCell {
-            border-right: none;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
-          }
-          .heroTelemetryCell:nth-last-child(-n+2) {
-            border-bottom: none;
-          }
-          .engineRow strong {
-            text-align: left;
           }
         }
       `}</style>

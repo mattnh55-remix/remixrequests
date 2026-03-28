@@ -11,12 +11,15 @@ export type DueInterstitialPromptOption = {
 };
 
 export type DueInterstitialPrompt = {
+  eventId: string | null;
   scheduleId: string;
   category: string;
   title: string;
   body: string | null;
   startMinute: number;
   endMinute: number;
+  promptMinute: number;
+  required: boolean;
   options: DueInterstitialPromptOption[];
 };
 
@@ -45,6 +48,13 @@ function formatLastPlayedText(playedAt: Date | null) {
   return `Played ${days} days ago`;
 }
 
+function categoryTitle(value: string) {
+  return String(value)
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
 export async function getDueInterstitialPromptForSession(args: {
   locationId: string;
   sessionId: string;
@@ -62,7 +72,7 @@ export async function getDueInterstitialPromptForSession(args: {
       startMinute: { lte: promptMinute },
       endMinute: { gte: promptMinute },
     },
-    orderBy: [{ sortOrder: "asc" }, { startMinute: "asc" }],
+    orderBy: [{ sortOrder: "asc" }, { startMinute: "asc" }, { category: "asc" }],
   });
 
   if (activeSchedules.length === 0) {
@@ -70,39 +80,60 @@ export async function getDueInterstitialPromptForSession(args: {
   }
 
   for (const schedule of activeSchedules) {
-    const existingEvent = await prisma.interstitialEvent.findFirst({
+    const handledEvent = await prisma.interstitialEvent.findFirst({
       where: {
         locationId,
         sessionId,
         scheduleId: schedule.id,
         status: {
           in: [
-            InterstitialEventStatus.PLANNED,
             InterstitialEventStatus.PLAYED,
             InterstitialEventStatus.SKIPPED,
+            InterstitialEventStatus.CANCELED,
           ],
         },
       },
       orderBy: { plannedAt: "desc" },
+      select: {
+        id: true,
+        status: true,
+      },
     });
 
-    // If already handled for this session/window, skip this schedule.
-    if (
-      existingEvent &&
-      (existingEvent.status === InterstitialEventStatus.PLAYED ||
-        existingEvent.status === InterstitialEventStatus.SKIPPED)
-    ) {
+    if (handledEvent) {
       continue;
     }
+
+    let plannedEvent = await prisma.interstitialEvent.findFirst({
+      where: {
+        locationId,
+        sessionId,
+        scheduleId: schedule.id,
+        status: InterstitialEventStatus.PLANNED,
+      },
+      orderBy: { plannedAt: "desc" },
+      select: {
+        id: true,
+        plannedAt: true,
+      },
+    });
 
     const assets = await prisma.interstitialAsset.findMany({
       where: {
         locationId,
         active: true,
         category: schedule.category,
-        OR: [{ manualOnly: false }, { manualOnly: true }],
       },
       orderBy: [{ priority: "desc" }, { randomWeight: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        previewGifUrl: true,
+        iconLabel: true,
+        durationSec: true,
+        allowedProfiles: true,
+        blockedProfiles: true,
+      },
     });
 
     const filteredAssets = assets.filter((asset) => {
@@ -115,8 +146,8 @@ export async function getDueInterstitialPromptForSession(args: {
       continue;
     }
 
-    if (!existingEvent) {
-      await prisma.interstitialEvent.create({
+    if (!plannedEvent) {
+      const created = await prisma.interstitialEvent.create({
         data: {
           locationId,
           sessionId,
@@ -126,7 +157,13 @@ export async function getDueInterstitialPromptForSession(args: {
           promptMinute,
           plannedAt: new Date(),
         },
+        select: {
+          id: true,
+          plannedAt: true,
+        },
       });
+
+      plannedEvent = created;
     }
 
     const options: DueInterstitialPromptOption[] = await Promise.all(
@@ -153,17 +190,17 @@ export async function getDueInterstitialPromptForSession(args: {
     );
 
     return {
+      eventId: plannedEvent?.id ?? null,
       scheduleId: schedule.id,
       category: String(schedule.category),
       title:
         schedule.promptTitle?.trim() ||
-        `Time to play ${String(schedule.category)
-          .replace(/_/g, " ")
-          .toLowerCase()
-          .replace(/\b\w/g, (m) => m.toUpperCase())}`,
-      body: schedule.promptBody ?? "Choose one:",
+        `Time to play ${categoryTitle(String(schedule.category))}`,
+      body: schedule.promptBody?.trim() || "Choose one interstitial to play now.",
       startMinute: schedule.startMinute,
       endMinute: schedule.endMinute,
+      promptMinute,
+      required: schedule.required,
       options,
     } satisfies DueInterstitialPrompt;
   }
