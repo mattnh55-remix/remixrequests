@@ -194,6 +194,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
   const [showA, setShowA] = useState(true);
   const [timerNowMs, setTimerNowMs] = useState(Date.now());
   const [isPortraitLayout, setIsPortraitLayout] = useState(false);
+  const [defaultAlbumArtUrl, setDefaultAlbumArtUrl] = useState<string | null>(null);
 
   const prevTopId = useRef<string | null>(null);
   const placeholderEpochMsRef = useRef(Date.now());
@@ -314,6 +315,16 @@ const topIsBoosted = Boolean(
 
     void tickQueue();
     void tickShoutouts();
+    
+    // load default album art
+    fetch(`/api/public/rules/${location}`)
+      .then(r => r.json())
+      .then(d => {
+        const url = d?.rules?.defaultAlbumArtUrl || d?.defaultAlbumArtUrl || null;
+        if (url) setDefaultAlbumArtUrl(url);
+      })
+      .catch(() => {});
+
     void loadShoutoutSlideSeconds(location).then((seconds) => {
       setShoutoutSlideSeconds(seconds);
     });
@@ -321,7 +332,17 @@ const topIsBoosted = Boolean(
     const q = window.setInterval(() => void tickQueue(), 3000);
     const s = window.setInterval(() => void tickShoutouts(), 5000);
     const r = window.setInterval(() => {
-      void loadShoutoutSlideSeconds(location).then((seconds) => {
+      
+    // load default album art
+    fetch(`/api/public/rules/${location}`)
+      .then(r => r.json())
+      .then(d => {
+        const url = d?.rules?.defaultAlbumArtUrl || d?.defaultAlbumArtUrl || null;
+        if (url) setDefaultAlbumArtUrl(url);
+      })
+      .catch(() => {});
+
+    void loadShoutoutSlideSeconds(location).then((seconds) => {
         setShoutoutSlideSeconds(seconds);
       });
 
@@ -401,28 +422,30 @@ const topIsBoosted = Boolean(
     }
   }, [nowPlaying?.artworkUrl, artA, artB, showA]);
 
-  const queuePanel = isPortraitLayout ? (
-    <PortraitQueuePanel
-      nowPlaying={nowPlaying}
-      queueList={queueList}
-      topIsBoosted={topIsBoosted}
-      showA={showA}
-      artA={artA}
-      artB={artB}
-      qrSrc={qrSrc}
-    />
-  ) : (
-    <LandscapeQueuePanel
-      nowPlaying={nowPlaying}
-      queueList={queueList}
-      topIsBoosted={topIsBoosted}
-      showA={showA}
-      artA={artA}
-      artB={artB}
-      qrSrc={qrSrc}
-      requestUrl={requestUrl}
-    />
-  );
+const queuePanel = isPortraitLayout ? (
+  <PortraitQueuePanel
+    nowPlaying={nowPlaying}
+    queueList={queueList}
+    topIsBoosted={topIsBoosted}
+    showA={showA}
+    artA={artA}
+    artB={artB}
+    qrSrc={qrSrc}
+    defaultAlbumArtUrl={defaultAlbumArtUrl}
+  />
+) : (
+  <LandscapeQueuePanel
+    nowPlaying={nowPlaying}
+    queueList={queueList}
+    topIsBoosted={topIsBoosted}
+    showA={showA}
+    artA={artA}
+    artB={artB}
+    qrSrc={qrSrc}
+    requestUrl={requestUrl}
+    defaultAlbumArtUrl={defaultAlbumArtUrl}
+  />
+);
 
   return (
     <div className={`neonRoot remixTvRoot ${boostFlash ? "remixTvFlash" : ""}`}>
@@ -1468,6 +1491,7 @@ function LandscapeQueuePanel({
   artB,
   qrSrc,
   requestUrl,
+  defaultAlbumArtUrl,
 }: {
   nowPlaying: QueueItem | null;
   queueList: QueueItem[];
@@ -1477,6 +1501,7 @@ function LandscapeQueuePanel({
   artB: string | null;
   qrSrc: string;
   requestUrl: string;
+  defaultAlbumArtUrl?: string | null;
 }) {
   return (
     <div className="neonPanel remixTvQueuePanel remixTvQueuePanel--landscape">
@@ -1484,14 +1509,15 @@ function LandscapeQueuePanel({
         <div className="remixTvSectionTitle">Queued Up</div>
       </div>
 
-      <TopCard
-        mode="landscape"
-        nowPlaying={nowPlaying}
-        topIsBoosted={topIsBoosted}
-        showA={showA}
-        artA={artA}
-        artB={artB}
-      >
+<TopCard
+  mode="landscape"
+  nowPlaying={nowPlaying}
+  topIsBoosted={topIsBoosted}
+  showA={showA}
+  artA={artA}
+  artB={artB}
+  defaultAlbumArtUrl={defaultAlbumArtUrl}
+>
         <div className="remixTvTagRow">
           <div className="tvTag">REMIX REQUESTS</div>
           <div className="tvTag" style={{ boxShadow: "var(--glowB)" }}>
@@ -1528,6 +1554,7 @@ function PortraitQueuePanel({
   artA,
   artB,
   qrSrc,
+  defaultAlbumArtUrl,
 }: {
   nowPlaying: QueueItem | null;
   queueList: QueueItem[];
@@ -1536,6 +1563,7 @@ function PortraitQueuePanel({
   artA: string | null;
   artB: string | null;
   qrSrc: string;
+  defaultAlbumArtUrl?: string | null;
 }) {
   return (
     <div className="neonPanel remixTvQueuePanel remixTvQueuePanel--portrait">
@@ -1544,14 +1572,15 @@ function PortraitQueuePanel({
           <div className="remixTvSectionTitle">Queued Up</div>
         </div>
 
-        <TopCard
-          mode="portrait"
-          nowPlaying={nowPlaying}
-          topIsBoosted={topIsBoosted}
-          showA={showA}
-          artA={artA}
-          artB={artB}
-        >
+<TopCard
+  mode="portrait"
+  nowPlaying={nowPlaying}
+  topIsBoosted={topIsBoosted}
+  showA={showA}
+  artA={artA}
+  artB={artB}
+  defaultAlbumArtUrl={defaultAlbumArtUrl}
+>
           <div className="remixTvTopMetaRow">
             <div className="remixTvTopBadge">Top 10 Live</div>
             {topIsBoosted ? <div className="remixTvTopBadge remixTvTopBadge--boosted">Boosted</div> : null}
@@ -1576,6 +1605,7 @@ function TopCard({
   artA,
   artB,
   children,
+  defaultAlbumArtUrl,
 }: {
   mode: "landscape" | "portrait";
   nowPlaying: QueueItem | null;
@@ -1584,6 +1614,7 @@ function TopCard({
   artA: string | null;
   artB: string | null;
   children?: ReactNode;
+  defaultAlbumArtUrl?: string | null;
 }) {
   return (
     <div className={`remixTvTopCard remixTvTopCard--${mode} ${topIsBoosted ? "remixTvTopCardBoosted" : ""}`}>
@@ -1591,10 +1622,10 @@ function TopCard({
         <div className="remixTvTopArtFrame">
           <div className="remixTvTopArtGlow" />
           <div className="remixTvTopArtLayer" style={{ opacity: showA ? 1 : 0 }}>
-            <Artwork src={artA} alt="" />
+            <Artwork src={artA} alt="" defaultSrc={defaultAlbumArtUrl} />
           </div>
           <div className="remixTvTopArtLayer" style={{ opacity: showA ? 0 : 1 }}>
-            <Artwork src={artB} alt="" />
+            <Artwork src={artB} alt="" defaultSrc={defaultAlbumArtUrl} />
           </div>
           {topIsBoosted && mode === "landscape" ? <div className="remixTvTopRibbon">BOOSTED</div> : null}
         </div>
@@ -1751,10 +1782,12 @@ function FeatureBubble({
   );
 }
 
-function Artwork({ src, alt }: { src?: string | null; alt: string }) {
+function Artwork({ src, alt, defaultSrc }: { src?: string | null; alt: string; defaultSrc?: string | null }) {
   const [bad, setBad] = useState(false);
 
-  if (!src || bad) {
+  const finalSrc = !bad && src ? src : (defaultSrc || null);
+
+  if (!finalSrc) {
     return (
       <div
         style={{
@@ -1775,7 +1808,7 @@ function Artwork({ src, alt }: { src?: string | null; alt: string }) {
 
   return (
     <img
-      src={src}
+      src={finalSrc}
       alt={alt}
       onError={() => setBad(true)}
       loading="lazy"

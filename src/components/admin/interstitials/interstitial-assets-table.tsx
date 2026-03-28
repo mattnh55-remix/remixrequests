@@ -30,13 +30,11 @@ export function InterstitialAssetsTable({
   assets,
   categoryOptions,
   scheduleOptions,
-  profileOptions,
 }: {
   locationId: string;
   assets: AssetRow[];
   categoryOptions: string[];
-  scheduleOptions?: string[]; // kept optional for call-site compatibility
-  profileOptions: string[];
+  scheduleOptions?: string[];
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -157,18 +155,6 @@ export function InterstitialAssetsTable({
               </div>
             </div>
 
-            <div className="rrAssetProfiles">
-              <strong>Allowed:</strong>{" "}
-              {asset.allowedProfiles.length
-                ? asset.allowedProfiles.join(", ")
-                : "All"}
-              {"  •  "}
-              <strong>Blocked:</strong>{" "}
-              {asset.blockedProfiles.length
-                ? asset.blockedProfiles.join(", ")
-                : "None"}
-            </div>
-
             {asset.notes?.trim() ? (
               <div className="rrAssetProfiles" style={{ marginTop: 6 }}>
                 <strong>Notes:</strong> {asset.notes}
@@ -181,7 +167,6 @@ export function InterstitialAssetsTable({
                   locationId={locationId}
                   categoryOptions={categoryOptions}
                   scheduleOptions={scheduleOptions}
-                  profileOptions={profileOptions}
                   initialValues={asset}
                   submitLabel="Update Asset"
                 />

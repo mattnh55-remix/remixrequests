@@ -46,9 +46,9 @@ type SessionRes = {
     costUpvote?: number;
     costDownvote?: number;
     logoUrl?: string | null;
+    defaultAlbumArtUrl?: string | null;
   };
 };
-
 type BalanceRes = {
   ok?: boolean;
   balance?: number;
@@ -85,11 +85,14 @@ function getCountdownLabel(endsAtIso?: string | null, active?: boolean) {
   return h > 0 ? `Session ends in ${h}h ${m}m` : `Session ends in ${m}m`;
 }
 
-function TinyArt({ src, alt }: { src?: string; alt?: string }) {
+function TinyArt({ src, alt, defaultSrc }: { src?: string; alt?: string; defaultSrc?: string }) {
   const [bad, setBad] = useState(false);
   const real = (src || "").trim();
+  const fallback = (defaultSrc || "").trim();
 
-  if (!real || bad) {
+  const finalSrc = !bad && real ? real : (fallback || "");
+
+  if (!finalSrc) {
     return (
       <div className="rrArt">
         <div className="rrArtFallback">RMX</div>
@@ -100,7 +103,7 @@ function TinyArt({ src, alt }: { src?: string; alt?: string }) {
   return (
     <div className="rrArt">
       <img
-        src={real}
+        src={finalSrc}
         alt={alt || ""}
         loading="lazy"
         referrerPolicy="no-referrer"
@@ -207,6 +210,7 @@ function QueueRow({
   costDownvote,
   busyVoteId,
   onVote,
+  defaultAlbumArtUrl,
 }: {
   item: QueueItem;
   rank: number;
@@ -218,6 +222,7 @@ function QueueRow({
   costDownvote: number;
   busyVoteId: string;
   onVote: (requestId: string, dir: "up" | "down") => void;
+  defaultAlbumArtUrl?: string;
 }) {
   const sourceType = String(item.sourceType || "").toUpperCase();
   const isInterstitial = sourceType.includes("INTERSTITIAL");
@@ -232,7 +237,11 @@ function QueueRow({
     <div className={`rrQueueRow ${emphasis ? "rrQueueRow--emphasis" : ""}`}>
       <div className="rrQueueRank">{rank}</div>
 
-      <TinyArt src={getArtwork(item)} alt={getTitle(item)} />
+      <TinyArt
+  src={getArtwork(item)}
+  alt={getTitle(item)}
+  defaultSrc={defaultAlbumArtUrl || ""}
+/>
 
       <div className="rrQueueCopy">
         <div className="rrQueueTopline">
@@ -458,6 +467,7 @@ const displayedBalance = verified
   ? Number(bal.balance ?? 0)
   : 5;
   const logoUrl = rulesData?.rules?.logoUrl || REMIX_LOGO_URL;
+  const defaultAlbumArtUrl = rulesData?.rules?.defaultAlbumArtUrl || "";
   const canVote = Boolean(email.trim()) && verified;
 
   const goToRequests = () => {
@@ -639,19 +649,20 @@ if (/session has expired/i.test(nextMsg)) {
               <div className="rrEmpty">Loading queue…</div>
             ) : playNow.length ? (
               playNow.map((item, idx) => (
-                <QueueRow
-                  key={String(item.id || item.requestId || idx)}
-                  item={item}
-                  rank={idx + 1}
-                  emphasis
-                  laneLabel={idx === 0 ? "live lane" : undefined}
-                  enableVoting={votingOn}
-                  canVote={canVote}
-                  costUpvote={upvoteCost}
-                  costDownvote={downvoteCost}
-                  busyVoteId={busyVoteId}
-                  onVote={doVote}
-                />
+<QueueRow
+  key={String(item.id || item.requestId || idx)}
+  item={item}
+  rank={idx + 1}
+  emphasis
+  laneLabel={idx === 0 ? "live lane" : undefined}
+  enableVoting={votingOn}
+  canVote={canVote}
+  costUpvote={upvoteCost}
+  costDownvote={downvoteCost}
+  busyVoteId={busyVoteId}
+  onVote={doVote}
+  defaultAlbumArtUrl={defaultAlbumArtUrl}
+/>
               ))
             ) : (
               <div className="rrEmpty">No boosted requests right now.</div>
@@ -674,17 +685,18 @@ if (/session has expired/i.test(nextMsg)) {
               <div className="rrEmpty">Loading queue…</div>
             ) : upNext.length ? (
               upNext.map((item, idx) => (
-                <QueueRow
-                  key={String(item.id || item.requestId || idx)}
-                  item={item}
-                  rank={idx + 1}
-                  enableVoting={votingOn}
-                  canVote={canVote}
-                  costUpvote={upvoteCost}
-                  costDownvote={downvoteCost}
-                  busyVoteId={busyVoteId}
-                  onVote={doVote}
-                />
+<QueueRow
+  key={String(item.id || item.requestId || idx)}
+  item={item}
+  rank={idx + 1}
+  enableVoting={votingOn}
+  canVote={canVote}
+  costUpvote={upvoteCost}
+  costDownvote={downvoteCost}
+  busyVoteId={busyVoteId}
+  onVote={doVote}
+  defaultAlbumArtUrl={defaultAlbumArtUrl}
+/>
               ))
             ) : (
               <div className="rrEmpty">Nothing queued yet. Be the first to request a song.</div>

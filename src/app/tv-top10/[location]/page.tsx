@@ -87,8 +87,10 @@ function snapshotEquals(a: Snapshot | null, b: Snapshot | null) {
   return true;
 }
 
-function safeArt(url?: string | null) {
-  return url && url !== "unknown" ? url : DEFAULT_ART;
+function safeArt(url?: string | null, defaultUrl?: string | null) {
+  if (url && url !== "unknown") return url;
+  if (defaultUrl && defaultUrl !== "unknown") return defaultUrl;
+  return DEFAULT_ART;
 }
 
 function formatShortTime(value: string) {
@@ -112,6 +114,7 @@ export default function TvTop10Page({ params }: { params: { location: string } }
   const [bucketLabel, setBucketLabel] = useState("REMIX TOP 10");
   const [queueCount, setQueueCount] = useState(0);
   const [boardUpdatedAt, setBoardUpdatedAt] = useState("");
+  const [defaultAlbumArtUrl, setDefaultAlbumArtUrl] = useState<string | null>(null);
   const snapshotRef = useRef<Snapshot | null>(null);
 
   const requestUrl = useMemo(() => requestUrlFor(location), [location]);
@@ -130,6 +133,20 @@ export default function TvTop10Page({ params }: { params: { location: string } }
     if (data.displayLabel) setBucketLabel(data.displayLabel);
     if (typeof data.queueCount === "number") setQueueCount(data.queueCount);
     if (data.updatedAt) setBoardUpdatedAt(data.updatedAt);
+
+    try {
+      const rulesRes = await fetch(`/api/public/rules/${location}`, { cache: "no-store" });
+      if (rulesRes.ok) {
+        const rulesData = await rulesRes.json();
+        const nextDefaultArt =
+          rulesData?.rules?.defaultAlbumArtUrl ||
+          rulesData?.defaultAlbumArtUrl ||
+          null;
+        setDefaultAlbumArtUrl(typeof nextDefaultArt === "string" ? nextDefaultArt : null);
+      }
+    } catch {
+      // ignore rules fallback lookup failures
+    }
 
     return {
       location,
@@ -249,7 +266,9 @@ export default function TvTop10Page({ params }: { params: { location: string } }
             {logoUrl ? (
               <img className="remixTop10Logo" src={logoUrl} alt={`${locationName} logo`} />
             ) : (
-              <div className="remixTop10LogoFallback">REMIX</div>
+              <div className="remixTop10LogoFallback remixTop10LogoFallback--hero">
+                <div className="remixTop10LogoInner">REMIX</div>
+              </div>
             )}
             <div className="remixTop10BrandText">
               <div className="remixTop10Title">REMIX TOP 10</div>
@@ -280,7 +299,7 @@ export default function TvTop10Page({ params }: { params: { location: string } }
                     <div className="remixTop10HeroArtGlow" />
                     <img
                       className="remixTop10HeroArt"
-                      src={safeArt(hero.artworkUrl)}
+                      src={safeArt(hero.artworkUrl, defaultAlbumArtUrl)}
                       alt=""
                       referrerPolicy="no-referrer"
                     />
@@ -322,7 +341,7 @@ export default function TvTop10Page({ params }: { params: { location: string } }
                         <div className="remixTop10RowArtWrap">
                           <img
                             className="remixTop10RowArt"
-                            src={safeArt(item.artworkUrl)}
+                            src={safeArt(item.artworkUrl, defaultAlbumArtUrl)}
                             alt=""
                             referrerPolicy="no-referrer"
                           />
@@ -367,7 +386,7 @@ export default function TvTop10Page({ params }: { params: { location: string } }
                     <div className="remixTop10HeroArtGlow" />
                     <img
                       className="remixTop10PortraitArt"
-                      src={safeArt(hero.artworkUrl)}
+                      src={safeArt(hero.artworkUrl, defaultAlbumArtUrl)}
                       alt=""
                       referrerPolicy="no-referrer"
                     />
@@ -486,6 +505,23 @@ export default function TvTop10Page({ params }: { params: { location: string } }
           box-shadow: var(--glowA);
         }
         .remixTop10LogoFallback { display: grid; place-items: center; font-weight: 1000; letter-spacing: 1px; }
+
+        .remixTop10LogoFallback--hero {
+          display: grid;
+          place-items: center;
+          background: radial-gradient(circle at 30% 30%, rgba(0,247,255,.25), transparent 60%),
+                      linear-gradient(135deg, rgba(0,247,255,.15), rgba(255,57,212,.15));
+          box-shadow: 0 0 20px rgba(0,247,255,.25), inset 0 0 10px rgba(255,255,255,.1);
+        }
+        .remixTop10LogoInner {
+          font-weight: 1000;
+          letter-spacing: 2px;
+          font-size: 18px;
+          background: linear-gradient(90deg, #00f7ff, #ff39d4);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+
         .remixTop10BrandText { min-width: 0; }
         .remixTop10Title { font-size: clamp(28px, 2.6vw, 40px); line-height: 1; font-weight: 1000; letter-spacing: -.9px; }
         .remixTop10Sub { margin-top: 6px; color: var(--muted); font-size: clamp(13px, 1vw, 16px); }

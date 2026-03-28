@@ -13,15 +13,6 @@ const CATEGORY_OPTIONS = [
   "REMIX_PROMOS",
 ] as const;
 
-const PROFILE_OPTIONS = [
-  "FAMILY",
-  "ADULT",
-  "BIRTHDAY",
-  "SCHOOL",
-  "PRIVATE_EVENT",
-  "GENERAL",
-] as const;
-
 function AlertBanner({
   tone = "info",
   title,
@@ -188,7 +179,6 @@ export default async function AdminInterstitialsPage({
             <InterstitialAssetForm
               locationId={locationId}
               categoryOptions={[...CATEGORY_OPTIONS]}
-              profileOptions={[...PROFILE_OPTIONS]}
             />
           </section>
 
@@ -219,6 +209,27 @@ export default async function AdminInterstitialsPage({
             />
           </section>
         </div>
+
+        <section className="rrAdminPanel">
+          <div className="rrPanelHead">
+            <div>
+              <div className="rrPanelTitle">Booth Visuals</div>
+              <div className="rrPanelSub">
+                This is where the shared booth-level “now playing” interstitial
+                overlay GIF should be assigned next. It is not wired yet in the
+                current pack, but this is the right home for it.
+              </div>
+            </div>
+            <span className="rrStatusPill">NEXT</span>
+          </div>
+
+          <div className="rrEmptyBox">
+            Planned field: <strong>Now Playing Overlay GIF URL</strong>
+            <br />
+            This should be one shared location-level visual used whenever any
+            interstitial is actively playing in the booth.
+          </div>
+        </section>
 
         <section className="rrAdminPanel">
           <div className="rrPanelHead">
@@ -290,7 +301,6 @@ export default async function AdminInterstitialsPage({
             locationId={locationId}
             assets={assets}
             categoryOptions={[...CATEGORY_OPTIONS]}
-            profileOptions={[...PROFILE_OPTIONS]}
           />
         </section>
       </div>

@@ -5,7 +5,6 @@ import { saveInterstitialAsset } from "@/app/admin/[location]/interstitials/acti
 type InterstitialAssetFormProps = {
   locationId: string;
   categoryOptions: string[];
-  profileOptions: string[];
   scheduleOptions?: string[];
   initialValues?: {
     id?: string;
@@ -20,8 +19,6 @@ type InterstitialAssetFormProps = {
     manualOnly?: boolean;
     priority?: number;
     randomWeight?: number;
-    allowedProfiles?: string[];
-    blockedProfiles?: string[];
   };
   submitLabel?: string;
 };
@@ -33,10 +30,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   REMIX_PROMOS: "Remix & Promos",
 };
 
-function normalizeCsv(values?: string[]) {
-  return (values ?? []).join(", ");
-}
-
 function getCategoryLabel(value: string) {
   return CATEGORY_LABELS[value] ?? value;
 }
@@ -44,7 +37,6 @@ function getCategoryLabel(value: string) {
 export function InterstitialAssetForm({
   locationId,
   categoryOptions,
-  profileOptions,
   initialValues,
   submitLabel = "Save Asset",
 }: InterstitialAssetFormProps) {
@@ -184,46 +176,6 @@ export function InterstitialAssetForm({
                 placeholder="100"
               />
             </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="rrFormSection">
-        <div className="rrFormSectionHeader">
-          <div>
-            <div className="rrSectionEyebrow">Audience Targeting</div>
-            <div className="rrFormSectionSub">
-              Limit visibility by session profile. Leave allowed blank to make
-              the asset broadly available.
-            </div>
-          </div>
-        </div>
-
-        <div className="rrFormGrid rrFormGrid--double">
-          <div>
-            <label className="rrControlLabel" htmlFor="asset-allowed">
-              Allowed Profiles
-            </label>
-            <input
-              id="asset-allowed"
-              name="allowedProfiles"
-              defaultValue={normalizeCsv(initialValues?.allowedProfiles)}
-              className="gunmetalInput"
-              placeholder={profileOptions.join(", ")}
-            />
-          </div>
-
-          <div>
-            <label className="rrControlLabel" htmlFor="asset-blocked">
-              Blocked Profiles
-            </label>
-            <input
-              id="asset-blocked"
-              name="blockedProfiles"
-              defaultValue={normalizeCsv(initialValues?.blockedProfiles)}
-              className="gunmetalInput"
-              placeholder={profileOptions.join(", ")}
-            />
           </div>
         </div>
       </section>
