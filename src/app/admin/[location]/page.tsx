@@ -14,9 +14,10 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import AdminGunmetalTheme from "../../../components/ui/admin/AdminGunmetalTheme";
+import SongManagementPanel from "@/components/admin/SongManagementPanel";
 import { SHOUTOUT_PRODUCTS } from "@/lib/shoutoutProducts";
 
-type TabKey = "dashboard" | "requestSettings" | "top10" | "users" | "shoutoutSettings";
+type TabKey = "dashboard" | "songs" | "requestSettings" | "top10" | "users" | "shoutoutSettings";
 
 type RequestItem = {
   id: string;
@@ -990,6 +991,7 @@ useEffect(() => {
 
 <div className="admTabs">
   <TabButton active={tab === "dashboard"} onClick={() => setTab("dashboard")}>Dashboard</TabButton>
+  <TabButton active={tab === "songs"} onClick={() => setTab("songs")}>Songs</TabButton>
   <TabButton active={tab === "requestSettings"} onClick={() => setTab("requestSettings")}>Request Settings</TabButton>
   <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>Top 10</TabButton>
   <TabButton active={tab === "users"} onClick={() => setTab("users")}>Users & Points</TabButton>
@@ -1080,6 +1082,17 @@ useEffect(() => {
               </Panel>
             </div>
           </>
+        )}
+
+        {tab === "songs" && (
+          <SongManagementPanel
+            location={location}
+            rules={rules ? {
+              albumArtBaseUrl: rules.albumArtBaseUrl,
+              defaultAlbumArtUrl: rules.defaultAlbumArtUrl,
+            } : null}
+            onGlobalMessage={setMsg}
+          />
         )}
 
         {tab === "requestSettings" && rules && (

@@ -66,6 +66,11 @@ export default function OnDeckCard({
               {isBoosted ? <StatusBadge label="BOOSTED" tone="boost" /> : null}
               {isRequest ? <StatusBadge label="REQUEST" tone="alert" /> : null}
               {item.requestedByLabel ? <span className="deckRequestor">• {item.requestedByLabel}</span> : null}
+              {item.verified ? <span className="deckRequestor">• VERIFIED</span> : null}
+              {typeof item.upvotes === "number" ? <span className="deckRequestor">• 👍 {item.upvotes}</span> : null}
+              {typeof item.downvotes === "number" ? <span className="deckRequestor">• 👎 {item.downvotes}</span> : null}
+              {typeof item.score === "number" ? <span className="deckRequestor">• Score {item.score}</span> : null}
+              {item.redemptionCode ? <span className="deckRequestor">• Code {item.redemptionCode}</span> : null}
               {isSystem ? <StatusBadge label="INTERSTITIAL" tone="pink" /> : null}
             </div>
           </div>

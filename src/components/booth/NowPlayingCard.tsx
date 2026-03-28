@@ -3,9 +3,7 @@
 import BoothActionButtons from "./BoothActionButtons";
 import StatusBadge from "./StatusBadge";
 import {
-  formatDuration,
   getAllowedActions,
-  getProgressPercent,
   isBoostedLike,
   isInterstitial,
   isRequestLike,
@@ -34,7 +32,6 @@ export default function NowPlayingCard({
   const isHouse = item?.sourceType === "HOUSE";
   const isRequest = !!item && isRequestLike(item) && !isSystem && !isHouse;
   const isBoosted = !!item && isBoostedLike(item) && !isSystem;
-  const progressPct = getProgressPercent(item);
 
   function handleAction(action: BoothActionName) {
     if (!item) return;
@@ -77,40 +74,15 @@ export default function NowPlayingCard({
                   {item.artist || "Unknown artist"}
                   {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
                   {item.verified ? " • VERIFIED" : ""}
+                  {typeof item.upvotes === "number" ? ` • 👍 ${item.upvotes}` : ""}
+                  {typeof item.downvotes === "number" ? ` • 👎 ${item.downvotes}` : ""}
+                  {typeof item.score === "number" ? ` • Score ${item.score}` : ""}
+                  {item.redemptionCode ? ` • Code ${item.redemptionCode}` : ""}
                 </div>
               </div>
 
               <div className="heroActions heroActions--topRight">
                 <BoothActionButtons actions={actions} busyAction={busyAction} onAction={handleAction} compact />
-              </div>
-            </div>
-
-            <div className="heroTelemetry">
-              <div className="heroTelemetryCell">
-                <span>Duration</span>
-                <strong>{formatDuration(item.durationSec)}</strong>
-              </div>
-              <div className="heroTelemetryCell">
-                <span>Elapsed</span>
-                <strong>{typeof item.elapsedSec === "number" ? formatDuration(item.elapsedSec) : "—"}</strong>
-              </div>
-              <div className="heroTelemetryCell">
-                <span>Remaining</span>
-                <strong>{typeof item.remainingSec === "number" ? formatDuration(item.remainingSec) : "—"}</strong>
-              </div>
-              <div className="heroTelemetryCell">
-                <span>Status</span>
-                <strong>{String(item.status || "PLAYING")}</strong>
-              </div>
-            </div>
-
-            <div className="progressWrap">
-              <div className="progressBar">
-                <div className="progressFill" style={{ width: `${progressPct}%` }} />
-              </div>
-              <div className="progressMeta">
-                <span>Runtime Progress</span>
-                <span>{Math.round(progressPct)}%</span>
               </div>
             </div>
           </div>
