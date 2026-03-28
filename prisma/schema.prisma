@@ -60,14 +60,15 @@ model Song {
 
   albumArtFile      String?
   artworkUrl        String?
+  durationSec       Int?
 
   importBatch       String?
   notes             String?
 
-  createdAt         DateTime @default(now())
-  Request           Request[]
-  PlayHistory       PlayHistory[]
-  top10Entries      Top10Entry[]
+  createdAt    DateTime     @default(now())
+  Request      Request[]
+  PlayHistory  PlayHistory[]
+  top10Entries Top10Entry[]
 
   @@index([locationId])
   @@index([artistKey])
@@ -213,7 +214,9 @@ model Ruleset {
   packTier3PriceCents Int @default(1500)
   packTier4PriceCents Int @default(2000)
 
-  logoUrl String?
+  logoUrl            String?
+  albumArtBaseUrl    String?
+  defaultAlbumArtUrl String?
 
   maxRequestsPerSession    Int @default(1)
   maxVotesPerSession       Int @default(3)

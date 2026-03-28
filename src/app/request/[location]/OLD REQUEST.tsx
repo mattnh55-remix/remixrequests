@@ -59,7 +59,6 @@ type SessionRes = {
   rules?: {
     logoUrl?: string | null;
     buyUrl?: string | null;
-    defaultAlbumArtUrl?: string | null;
     costRequest?: number;
     costPlayNow?: number;
     packTier1PriceCents?: number | null;
@@ -99,44 +98,6 @@ type FlyAnim = {
 
 const BUY_URL_BY_LOCATION: Record<string, string> = {};
 
-function resolveArtworkSrc(primary?: string | null, fallback?: string | null) {
-  const first = String(primary ?? "").trim();
-  if (first) return first;
-
-  const second = String(fallback ?? "").trim();
-  if (second) return second;
-
-  return "";
-}
-
-function parseWriteInSearchInput(input: string) {
-  const cleaned = String(input || "").trim().replace(/^["']+|["']+$/g, "");
-  if (!cleaned) {
-    return { requestedTitle: "", requestedArtist: "" };
-  }
-
-  const dashIndex = cleaned.lastIndexOf(" - ");
-  if (dashIndex > 0) {
-    return {
-      requestedTitle: cleaned.slice(0, dashIndex).trim(),
-      requestedArtist: cleaned.slice(dashIndex + 3).trim(),
-    };
-  }
-
-  const byMatch = cleaned.match(/^(.*)\s+by\s+(.*)$/i);
-  if (byMatch) {
-    return {
-      requestedTitle: String(byMatch[1] || "").trim(),
-      requestedArtist: String(byMatch[2] || "").trim(),
-    };
-  }
-
-  return {
-    requestedTitle: cleaned,
-    requestedArtist: "",
-  };
-}
-
 function formatCountdown(endsAt?: string | null) {
   if (!endsAt) return "Session live";
   const endMs = new Date(endsAt).getTime();
@@ -152,28 +113,11 @@ function formatCountdown(endsAt?: string | null) {
   return h > 0 ? `Ends in ${h}h ${m}m` : `Ends in ${m}m`;
 }
 
-function AlbumArt({
-  src,
-  fallbackSrc,
-  alt,
-}: {
-  src?: string;
-  fallbackSrc?: string | null;
-  alt?: string;
-}) {
-  const [badPrimary, setBadPrimary] = useState(false);
-  const [badFallback, setBadFallback] = useState(false);
+function AlbumArt({ src, alt }: { src?: string; alt?: string }) {
+  const [bad, setBad] = useState(false);
+  const real = (src || "").trim();
 
-  const primarySrc = String(src || "").trim();
-  const backupSrc = String(fallbackSrc || "").trim();
-  const real =
-    !badPrimary && primarySrc
-      ? primarySrc
-      : !badFallback && backupSrc && backupSrc !== primarySrc
-        ? backupSrc
-        : "";
-
-  if (!real) {
+  if (!real || bad) {
     return (
       <div className="rrRequestArt rrRequestArt--lg">
         <div className="rrArtFallback">RMX</div>
@@ -188,10 +132,7 @@ function AlbumArt({
         alt={alt || ""}
         loading="lazy"
         referrerPolicy="no-referrer"
-        onError={() => {
-          if (real === primarySrc) setBadPrimary(true);
-          else setBadFallback(true);
-        }}
+        onError={() => setBad(true)}
       />
     </div>
   );
@@ -790,7 +731,6 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [queuePulseOn, setQueuePulseOn] = useState(false);
   const [flyAnim, setFlyAnim] = useState<FlyAnim | null>(null);
   const [buyBusy, setBuyBusy] = useState(false);
-  const [writeInBusy, setWriteInBusy] = useState(false);
 
   const queueTargetRef = useRef<HTMLButtonElement | null>(null);
   const flyTimerRef = useRef<number | null>(null);
@@ -1224,7 +1164,7 @@ export default function RequestPage({ params }: { params: { location: string } }
     flyKeyRef.current += 1;
     setFlyAnim({
       key: flyKeyRef.current,
-      src: resolveArtworkSrc(song.artworkUrl, rules?.rules?.defaultAlbumArtUrl),
+      src: song.artworkUrl,
       startX,
       startY,
       deltaX: endX - startX,
@@ -1297,103 +1237,12 @@ export default function RequestPage({ params }: { params: { location: string } }
     }
   }
 
-
-  async function submitWriteIn(sourceEl?: HTMLElement | null) {
-    const requestedTitle = writeInSearch.requestedTitle.trim();
-    const requestedArtist = writeInSearch.requestedArtist.trim();
-
-    if (!requestedTitle) {
-      sfx.playError();
-      setMsg("Enter a song title first.");
-      return false;
-    }
-
-    if (!sessionActive || !verified || !identityId) {
-      sfx.playTap();
-      setMsg("Claim your points to request songs.");
-      setShowVerify(true);
-      return false;
-    }
-
-    const costRequest = Number(rules?.rules?.costRequest ?? 1);
-
-    if (typeof bal.balance === "number" && bal.balance < costRequest) {
-      sfx.playError();
-      setMsg("Not enough points.");
-      openBuy("notEnough");
-      return false;
-    }
-
-    setWriteInBusy(true);
-
-    try {
-      const res = await fetch(`/api/public/request/write-in`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          location,
-          email,
-          requestedTitle,
-          requestedArtist,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!data.ok) {
-        const lower = String(data.error || "").toLowerCase();
-        if (lower.includes("expired") || lower.includes("verify")) {
-          resetToClaimState(true);
-          setMsg("Your session expired. Claim your points to continue.");
-          setShowVerify(true);
-          return false;
-        }
-
-        sfx.playError();
-        setMsg(data.error || "Could not submit write-in request.");
-        return false;
-      }
-
-      sfx.playSuccess();
-      triggerSuccessVisuals(
-        {
-          id: `write-in-${Date.now()}`,
-          title: requestedTitle,
-          artist: requestedArtist,
-          artworkUrl: undefined,
-        },
-        sourceEl
-      );
-
-      if (typeof data?.balance === "number") bal.applyBalance(data.balance);
-      else if (typeof data?.credits?.balance === "number") bal.applyBalance(data.credits.balance);
-      else bal.refreshOnce();
-
-      await refreshQueuePreview();
-
-      setMsg(
-        requestedArtist
-          ? `Write-in request added: ${requestedTitle} - ${requestedArtist}`
-          : `Write-in request added: ${requestedTitle}`
-      );
-      return true;
-    } catch {
-      sfx.playError();
-      setMsg("Could not submit write-in request.");
-      return false;
-    } finally {
-      setWriteInBusy(false);
-    }
-  }
-
   const logoUrl = rules?.rules?.logoUrl || REMIX_LOGO_URL;
   const balanceValue = sessionActive && verified && identityId ? Number(bal.balance || 0) : 5;
   const requestCost = Number(rules?.rules?.costRequest ?? 1);
   const playNowCost = Number(rules?.rules?.costPlayNow ?? 5);
 
   const trending = useMemo(() => songs.slice(0, 8), [songs]);
-  const defaultAlbumArtUrl = rules?.rules?.defaultAlbumArtUrl || "";
-  const writeInSearch = useMemo(() => parseWriteInSearchInput(search), [search]);
 
   const packs: UiPack[] = useMemo(() => {
     const p1 = Number(rules?.rules?.packTier1PriceCents ?? 500);
@@ -1533,36 +1382,6 @@ export default function RequestPage({ params }: { params: { location: string } }
               ›
             </div>
           </div>
-
-          {search.trim() && songs.length === 0 ? (
-            <div
-              style={{
-                marginTop: 14,
-                padding: 14,
-                borderRadius: 16,
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                display: "grid",
-                gap: 10,
-              }}
-            >
-              <div style={{ fontWeight: 900 }}>Can’t find your song?</div>
-              <button
-                className="rrBtnGhost"
-                disabled={writeInBusy || !writeInSearch.requestedTitle}
-                onClick={(e) => {
-                  sfx.playTap();
-                  void submitWriteIn(e.currentTarget);
-                }}
-              >
-                {writeInBusy
-                  ? "SENDING..."
-                  : writeInSearch.requestedArtist
-                    ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
-                    : `Request "${writeInSearch.requestedTitle}" • ${requestCost}pt`}
-              </button>
-            </div>
-          ) : null}
         </div>
       </div>
 
@@ -1583,7 +1402,7 @@ export default function RequestPage({ params }: { params: { location: string } }
 
                 return (
                   <div key={song.id} className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}>
-                    <AlbumArt src={song.artworkUrl} fallbackSrc={defaultAlbumArtUrl} alt={song.title} />
+                    <AlbumArt src={song.artworkUrl} alt={song.title} />
 
                     <div className="rrSongTileCopy">
                       <div className="rrSongTileTitle">{song.title}</div>
@@ -1638,7 +1457,7 @@ export default function RequestPage({ params }: { params: { location: string } }
 
               return (
                 <div key={song.id} className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}>
-                  <AlbumArt src={song.artworkUrl} fallbackSrc={defaultAlbumArtUrl} alt={song.title} />
+                  <AlbumArt src={song.artworkUrl} alt={song.title} />
 
                   <div className="rrSongTileCopy">
                     <div className="rrSongTileTitle">{song.title}</div>
@@ -1671,51 +1490,7 @@ export default function RequestPage({ params }: { params: { location: string } }
               );
             })
           ) : (
-            <div className="rrEmpty" style={{ display: "grid", gap: 14 }}>
-              <div>No songs matched that search.</div>
-
-              {search.trim() ? (
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 10,
-                    width: "min(100%, 560px)",
-                    margin: "0 auto",
-                    textAlign: "left",
-                    padding: 16,
-                    borderRadius: 18,
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <div style={{ fontWeight: 900 }}>Can’t find your song?</div>
-                  <div className="rrPanelSub" style={{ marginTop: 0 }}>
-                    Send a write-in request for the DJ to review.
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      color: "rgba(255,255,255,0.88)",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {writeInSearch.requestedArtist
-                      ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
-                      : `Request "${writeInSearch.requestedTitle}" • ${requestCost}pt`}
-                  </div>
-                  <button
-                    className="rrBtn"
-                    disabled={writeInBusy || !writeInSearch.requestedTitle}
-                    onClick={(e) => {
-                      sfx.playTap();
-                      void submitWriteIn(e.currentTarget);
-                    }}
-                  >
-                    {writeInBusy ? "SENDING..." : "Send Write-In Request"}
-                  </button>
-                </div>
-              ) : null}
-            </div>
+            <div className="rrEmpty">No songs matched that search.</div>
           )}
         </div>
       </div>
