@@ -6,7 +6,7 @@ type InterstitialAssetFormProps = {
   locationId: string;
   categoryOptions: string[];
   profileOptions: string[];
-  scheduleOptions?: string[]; // kept optional so older callers do not break
+  scheduleOptions?: string[];
   initialValues?: {
     id?: string;
     name?: string;
@@ -26,8 +26,19 @@ type InterstitialAssetFormProps = {
   submitLabel?: string;
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  ANNOUNCEMENTS: "Announcements",
+  SONG_INTROS: "Song Intros",
+  GAMES_DANCES: "Games & Dances",
+  REMIX_PROMOS: "Remix & Promos",
+};
+
 function normalizeCsv(values?: string[]) {
   return (values ?? []).join(", ");
+}
+
+function getCategoryLabel(value: string) {
+  return CATEGORY_LABELS[value] ?? value;
 }
 
 export function InterstitialAssetForm({
@@ -47,8 +58,8 @@ export function InterstitialAssetForm({
           <div>
             <div className="rrSectionEyebrow">Asset Identity</div>
             <div className="rrFormSectionSub">
-              These are the bridge-playable choices DJs will see inside tabs and
-              timed modal prompts.
+              These are the booth-playable interstitial choices DJs will see in
+              the folder tabs and scheduled prompt modal.
             </div>
           </div>
           <span className="rrStatusPill rrStatusPill--gold">ASSET LIBRARY</span>
@@ -64,7 +75,7 @@ export function InterstitialAssetForm({
               name="name"
               defaultValue={initialValues?.name ?? ""}
               className="gunmetalInput"
-              placeholder="Reverse Call [Begin]"
+              placeholder="Reverse Skate Intro"
               required
             />
           </div>
@@ -78,7 +89,7 @@ export function InterstitialAssetForm({
               name="fileUrl"
               defaultValue={initialValues?.fileUrl ?? ""}
               className="gunmetalInput"
-              placeholder="reverse-begin.mp3"
+              placeholder="reverse-skate-intro.mp3"
               required
             />
           </div>
@@ -96,10 +107,7 @@ export function InterstitialAssetForm({
             >
               {categoryOptions.map((option) => (
                 <option key={option} value={option}>
-                  {option
-                    .replace(/_/g, " ")
-                    .toLowerCase()
-                    .replace(/\b\w/g, (m) => m.toUpperCase())}
+                  {getCategoryLabel(option)}
                 </option>
               ))}
             </select>
@@ -116,11 +124,11 @@ export function InterstitialAssetForm({
               name="previewGifUrl"
               defaultValue={initialValues?.previewGifUrl ?? ""}
               className="gunmetalInput"
-              placeholder="/interstitials/reverse-call.gif"
+              placeholder="/interstitials/reverse-skate-intro.gif"
             />
           </div>
 
-          <div style={{ gridColumn: "span 1" }}>
+          <div>
             <label className="rrControlLabel" htmlFor="asset-icon-label">
               Tile Label
             </label>
@@ -129,7 +137,7 @@ export function InterstitialAssetForm({
               name="iconLabel"
               defaultValue={initialValues?.iconLabel ?? ""}
               className="gunmetalInput"
-              placeholder="Reverse Call"
+              placeholder="Reverse Intro"
             />
           </div>
 
@@ -144,7 +152,7 @@ export function InterstitialAssetForm({
               defaultValue={initialValues?.durationSec ?? ""}
               className="gunmetalInput"
               min={0}
-              placeholder="5"
+              placeholder="7"
             />
           </div>
 
@@ -254,7 +262,7 @@ export function InterstitialAssetForm({
             defaultChecked={initialValues?.active ?? true}
             className="gunmetalCheckbox"
           />
-          Active and available in booth tabs
+          Active and visible in booth tabs
         </label>
 
         <label className="gunmetalCheckboxRow">
@@ -264,7 +272,7 @@ export function InterstitialAssetForm({
             defaultChecked={initialValues?.manualOnly ?? false}
             className="gunmetalCheckbox"
           />
-          Manual only (visible in tabs, excluded from auto prompt selection)
+          Manual only (visible in tabs, excluded from scheduled prompt selection)
         </label>
       </div>
 

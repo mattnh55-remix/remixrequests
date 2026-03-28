@@ -1,25 +1,16 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import {
-  saveBoothNote,
-} from "./actions";
+import { saveBoothNote } from "./actions";
 import { InterstitialAssetForm } from "@/components/admin/interstitials/interstitial-asset-form";
 import { InterstitialAssetsTable } from "@/components/admin/interstitials/interstitial-assets-table";
 import { InterstitialScheduleForm } from "@/components/admin/interstitials/interstitial-schedule-form";
 import { InterstitialSchedulesTable } from "@/components/admin/interstitials/interstitial-schedules-table";
 
 const CATEGORY_OPTIONS = [
-  "WELCOME_RULES",
-  "REQUEST_DROP",
-  "BLOCK_OF_SONGS",
-  "REMIX_RADIO",
-  "END_ANNOUNCE",
-  "BRANDING",
-  "RULES",
-  "GAME",
-  "BIRTHDAY",
-  "SAFETY",
-  "MANUAL_ONLY",
+  "ANNOUNCEMENTS",
+  "SONG_INTROS",
+  "GAMES_DANCES",
+  "REMIX_PROMOS",
 ] as const;
 
 const PROFILE_OPTIONS = [
@@ -110,9 +101,8 @@ export default async function AdminInterstitialsPage({
             <div className="rrEyebrow">REMIXREQUESTS • ADMIN</div>
             <h1 className="rrTitle">INTERSTITIAL CONTROL</h1>
             <p className="rrSub">
-              Session-driven category windows now control when the booth should
-              prompt the DJ. Assets are the playable library. Windows are the
-              timing engine. Booth notes remain the shared operator note box for{" "}
+              Category system is now simplified into four live booth buckets:
+              announcements, song intros, games & dances, and Remix promos for{" "}
               <span className="rrAccentText">{location.slug}</span>.
             </p>
           </div>
@@ -186,8 +176,8 @@ export default async function AdminInterstitialsPage({
               <div>
                 <div className="rrPanelTitle">Create New Asset</div>
                 <div className="rrPanelSub">
-                  These are the bridge-playable choices DJs will see inside tabs
-                  and timed modal prompts.
+                  These are the booth-playable choices DJs will see inside the
+                  folder tabs and the timed prompt modal.
                 </div>
               </div>
               <span className="rrStatusPill rrStatusPill--gold">
@@ -209,9 +199,8 @@ export default async function AdminInterstitialsPage({
                   {editingSchedule ? "Edit Session Window" : "Create Session Window"}
                 </div>
                 <div className="rrPanelSub">
-                  These windows drive the booth modal. When a session enters the
-                  minute range below, the DJ will be prompted to choose one asset
-                  from that category.
+                  These windows decide when the booth should prompt the DJ to
+                  choose one interstitial from the matching category.
                 </div>
               </div>
 
@@ -266,8 +255,8 @@ export default async function AdminInterstitialsPage({
             <div>
               <div className="rrPanelTitle">Existing Windows</div>
               <div className="rrPanelSub">
-                Windows decide the required category. Assets are the selectable
-                choices within that category.
+                Windows now resolve into just four booth-facing categories for a
+                tighter tab experience and faster DJ decision-making.
               </div>
             </div>
             <span className="rrStatusPill rrStatusPill--cyan">
@@ -289,7 +278,7 @@ export default async function AdminInterstitialsPage({
               <div className="rrPanelTitle">Existing Assets</div>
               <div className="rrPanelSub">
                 These are the selectable interstitial choices available inside a
-                category.
+                booth category.
               </div>
             </div>
             <span className="rrStatusPill rrStatusPill--cyan">

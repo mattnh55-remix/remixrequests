@@ -653,10 +653,15 @@ enum AudioAssetCategory {
 }
 
 enum InterstitialCategory {
-  // keep legacy values during transition
+  // New live booth categories
+  ANNOUNCEMENTS
+  SONG_INTROS
+  GAMES_DANCES
+  REMIX_PROMOS
+
+  // Legacy values kept temporarily so old tester rows do not block db push
   REQUEST_SINGLE
   REQUEST_BLOCK
-
   WELCOME_RULES
   REQUEST_DROP
   BLOCK_OF_SONGS
@@ -669,7 +674,6 @@ enum InterstitialCategory {
   SAFETY
   MANUAL_ONLY
 }
-
 enum InterstitialScheduleMode {
   NONE
   INTERVAL_MINUTES

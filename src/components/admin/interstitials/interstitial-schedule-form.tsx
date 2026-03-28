@@ -24,11 +24,15 @@ type InterstitialScheduleFormProps = {
   mode?: "create" | "edit";
 };
 
-function niceCategory(value: string) {
-  return value
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (m) => m.toUpperCase());
+const CATEGORY_LABELS: Record<string, string> = {
+  ANNOUNCEMENTS: "Announcements",
+  SONG_INTROS: "Song Intros",
+  GAMES_DANCES: "Games & Dances",
+  REMIX_PROMOS: "Remix & Promos",
+};
+
+function getCategoryLabel(value: string) {
+  return CATEGORY_LABELS[value] ?? value;
 }
 
 export function InterstitialScheduleForm({
@@ -60,7 +64,7 @@ export function InterstitialScheduleForm({
           >
             {categoryOptions.map((option) => (
               <option key={option} value={option}>
-                {niceCategory(option)}
+                {getCategoryLabel(option)}
               </option>
             ))}
           </select>
@@ -75,7 +79,7 @@ export function InterstitialScheduleForm({
             name="label"
             defaultValue={initialValues?.label ?? ""}
             className="gunmetalInput"
-            placeholder="Opening rules block"
+            placeholder="Main announcement window"
           />
         </div>
 
@@ -88,7 +92,7 @@ export function InterstitialScheduleForm({
             name="promptTitle"
             defaultValue={initialValues?.promptTitle ?? ""}
             className="gunmetalInput"
-            placeholder="Time to play Welcome & Rules"
+            placeholder="Time to play Announcements"
           />
         </div>
       </div>
@@ -102,7 +106,7 @@ export function InterstitialScheduleForm({
           name="promptBody"
           defaultValue={initialValues?.promptBody ?? ""}
           className="gunmetalInput"
-          placeholder="Choose one to fire through the bridge."
+          placeholder="Choose one interstitial to play now."
         />
       </div>
 

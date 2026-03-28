@@ -18,66 +18,33 @@ type InterstitialPadProps = {
 };
 
 type LoadState = "idle" | "loading" | "ready" | "error";
-
 type TabKey =
-  | "WELCOME_RULES"
-  | "REQUEST_DROP"
-  | "BLOCK_OF_SONGS"
-  | "REMIX_RADIO"
-  | "END_ANNOUNCE"
-  | "BRANDING"
-  | "RULES"
-  | "GAME"
-  | "BIRTHDAY"
-  | "SAFETY"
-  | "MANUAL_ONLY"
-  | "OTHER";
+  | "ANNOUNCEMENTS"
+  | "SONG_INTROS"
+  | "GAMES_DANCES"
+  | "REMIX_PROMOS";
 
 const TAB_ORDER: TabKey[] = [
-  "WELCOME_RULES",
-  "REQUEST_DROP",
-  "BLOCK_OF_SONGS",
-  "REMIX_RADIO",
-  "END_ANNOUNCE",
-  "BRANDING",
-  "RULES",
-  "GAME",
-  "BIRTHDAY",
-  "SAFETY",
-  "MANUAL_ONLY",
-  "OTHER",
+  "ANNOUNCEMENTS",
+  "SONG_INTROS",
+  "GAMES_DANCES",
+  "REMIX_PROMOS",
 ];
 
 const TAB_LABELS: Record<TabKey, string> = {
-  WELCOME_RULES: "WELCOME / RULES",
-  REQUEST_DROP: "REQUEST DROP",
-  BLOCK_OF_SONGS: "BLOCK OF SONGS",
-  REMIX_RADIO: "REMIX RADIO",
-  END_ANNOUNCE: "END ANNOUNCE",
-  BRANDING: "BRANDING",
-  RULES: "RULES",
-  GAME: "GAME",
-  BIRTHDAY: "BIRTHDAY",
-  SAFETY: "SAFETY",
-  MANUAL_ONLY: "MANUAL",
-  OTHER: "OTHER",
+  ANNOUNCEMENTS: "ANNOUNCEMENTS",
+  SONG_INTROS: "SONG INTROS",
+  GAMES_DANCES: "GAMES & DANCES",
+  REMIX_PROMOS: "REMIX & PROMOS",
 };
 
 function normalizeTab(category: string | null | undefined): TabKey {
   const value = String(category ?? "").trim().toUpperCase();
 
-  if (value === "WELCOME_RULES") return "WELCOME_RULES";
-  if (value === "REQUEST_DROP") return "REQUEST_DROP";
-  if (value === "BLOCK_OF_SONGS") return "BLOCK_OF_SONGS";
-  if (value === "REMIX_RADIO") return "REMIX_RADIO";
-  if (value === "END_ANNOUNCE") return "END_ANNOUNCE";
-  if (value === "BRANDING" || value === "BRANDING_SHORT") return "BRANDING";
-  if (value === "RULES" || value === "RULES_ANNOUNCEMENT") return "RULES";
-  if (value === "GAME" || value === "GAME_ANNOUNCEMENT") return "GAME";
-  if (value === "BIRTHDAY") return "BIRTHDAY";
-  if (value === "SAFETY") return "SAFETY";
-  if (value === "MANUAL_ONLY") return "MANUAL_ONLY";
-  return "OTHER";
+  if (value === "ANNOUNCEMENTS") return "ANNOUNCEMENTS";
+  if (value === "SONG_INTROS") return "SONG_INTROS";
+  if (value === "GAMES_DANCES") return "GAMES_DANCES";
+  return "REMIX_PROMOS";
 }
 
 function formatDuration(durationSec?: number | null) {
@@ -91,7 +58,11 @@ function formatDuration(durationSec?: number | null) {
 
 function getFileValue(asset: InterstitialPadItem | DueInterstitialPromptOption) {
   if ("filePath" in asset || "fileUrl" in asset) {
-    return String((asset as InterstitialPadItem).filePath ?? (asset as InterstitialPadItem).fileUrl ?? "").trim();
+    return String(
+      (asset as InterstitialPadItem).filePath ??
+        (asset as InterstitialPadItem).fileUrl ??
+        "",
+    ).trim();
   }
   return "";
 }
@@ -107,7 +78,7 @@ export default function InterstitialPad({
   const [assets, setAssets] = useState<InterstitialPadItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>("BRANDING");
+  const [activeTab, setActiveTab] = useState<TabKey>("ANNOUNCEMENTS");
   const [busyAssetId, setBusyAssetId] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
 
@@ -146,18 +117,10 @@ export default function InterstitialPad({
 
   const groupedAssets = useMemo(() => {
     const groups: Record<TabKey, InterstitialPadItem[]> = {
-      WELCOME_RULES: [],
-      REQUEST_DROP: [],
-      BLOCK_OF_SONGS: [],
-      REMIX_RADIO: [],
-      END_ANNOUNCE: [],
-      BRANDING: [],
-      RULES: [],
-      GAME: [],
-      BIRTHDAY: [],
-      SAFETY: [],
-      MANUAL_ONLY: [],
-      OTHER: [],
+      ANNOUNCEMENTS: [],
+      SONG_INTROS: [],
+      GAMES_DANCES: [],
+      REMIX_PROMOS: [],
     };
 
     for (const asset of assets) {
@@ -169,7 +132,7 @@ export default function InterstitialPad({
 
   const visibleTabs = useMemo(
     () => TAB_ORDER.filter((tab) => groupedAssets[tab].length > 0),
-    [groupedAssets]
+    [groupedAssets],
   );
 
   useEffect(() => {
@@ -220,7 +183,7 @@ export default function InterstitialPad({
 
   const subtitle =
     loadState === "ready"
-      ? `${assets.length} active assets • tap to fire directly through the booth bridge`
+      ? `${assets.length} active assets • booth-fired from folder tabs`
       : "Manual bridge-triggered interstitial soundboard";
 
   return (
@@ -262,95 +225,99 @@ export default function InterstitialPad({
             </div>
           ) : null}
 
-          <div className="rrPadTabs">
-            {(visibleTabs.length ? visibleTabs : TAB_ORDER.filter((tab) => tab !== "OTHER")).map((tab) => {
-              const count = groupedAssets[tab]?.length ?? 0;
-              const active = tab === activeTab;
-
-              return (
-                <button
-                  key={tab}
-                  type="button"
-                  className={`rrPadTab ${active ? "rrPadTab--active" : ""}`}
-                  onClick={() => setActiveTab(tab)}
-                >
-                  <span>{TAB_LABELS[tab]}</span>
-                  <strong>{count}</strong>
-                </button>
-              );
-            })}
-          </div>
-
-          {error ? <div className="rrPadError">{error}</div> : null}
-
-          {loadState === "loading" ? (
-            <div className="rrPadEmpty">Loading interstitial assets...</div>
-          ) : null}
-
-          {loadState !== "loading" && activeAssets.length === 0 ? (
-            <div className="rrPadEmpty">No active assets in this category yet.</div>
-          ) : null}
-
-          {activeAssets.length > 0 ? (
-            <div className="rrPadGrid">
-              {activeAssets.map((asset) => {
-                const durationLabel = formatDuration(asset.durationSec);
-                const isBusy = asset.id === busyAssetId;
-                const isPlaying = asset.id === activeAssetId;
-                const historyText = optionHistoryMap?.[asset.id] ?? "Tap to fire";
+          <div className="rrFolderTabsWrap">
+            <div className="rrFolderTabs">
+              {(visibleTabs.length ? visibleTabs : TAB_ORDER).map((tab) => {
+                const count = groupedAssets[tab]?.length ?? 0;
+                const active = tab === activeTab;
 
                 return (
                   <button
-                    key={asset.id}
+                    key={tab}
                     type="button"
-                    className={`rrPadTile ${isPlaying ? "rrPadTile--playing" : ""}`}
-                    onClick={() => void handlePlay(asset)}
-                    disabled={isBusy || stopping}
+                    className={`rrFolderTab ${active ? "rrFolderTab--active" : ""}`}
+                    onClick={() => setActiveTab(tab)}
                   >
-                    <div className="rrPadTile__media">
-                      {asset.previewGifUrl ? (
-                        <img
-                          src={asset.previewGifUrl}
-                          alt={asset.name}
-                          className="rrPadTile__gif"
-                        />
-                      ) : (
-                        <div className="rrPadTile__fallback">
-                          {asset.iconLabel?.trim() || TAB_LABELS[normalizeTab(asset.category)]}
-                        </div>
-                      )}
-
-                      {isPlaying ? (
-                        <div className="rrPadTile__liveOverlay">
-                          <div className="rrPadTile__liveText">INTERSTITIAL LIVE</div>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="rrPadTile__body">
-                      <div className="rrPadTile__topline">
-                        <span className="rrPadTile__category">
-                          {TAB_LABELS[normalizeTab(asset.category)]}
-                        </span>
-                        {durationLabel ? (
-                          <span className="rrPadTile__duration">{durationLabel}</span>
-                        ) : null}
-                      </div>
-
-                      <div className="rrPadTile__title">{asset.name}</div>
-                      <div className="rrPadTile__history">{historyText}</div>
-
-                      <div className="rrPadTile__footer">
-                        <span className="rrPadTile__cta">
-                          {isBusy ? "Starting..." : isPlaying ? "Playing" : "Play"}
-                        </span>
-                      </div>
-                    </div>
+                    <span className="rrFolderTab__text">{TAB_LABELS[tab]}</span>
+                    <strong className="rrFolderTab__count">{count}</strong>
                   </button>
                 );
               })}
             </div>
-          ) : null}
+
+            <div className="rrFolderTray">
+              {error ? <div className="rrPadError">{error}</div> : null}
+
+              {loadState === "loading" ? (
+                <div className="rrPadEmpty">Loading interstitial assets...</div>
+              ) : null}
+
+              {loadState !== "loading" && activeAssets.length === 0 ? (
+                <div className="rrPadEmpty">No active assets in this category yet.</div>
+              ) : null}
+
+              {activeAssets.length > 0 ? (
+                <div className="rrPadGrid">
+                  {activeAssets.map((asset) => {
+                    const durationLabel = formatDuration(asset.durationSec);
+                    const isBusy = asset.id === busyAssetId;
+                    const isPlaying = asset.id === activeAssetId;
+                    const historyText = optionHistoryMap?.[asset.id] ?? "Tap to fire";
+
+                    return (
+                      <button
+                        key={asset.id}
+                        type="button"
+                        className={`rrPadTile ${isPlaying ? "rrPadTile--playing" : ""}`}
+                        onClick={() => void handlePlay(asset)}
+                        disabled={isBusy || stopping}
+                      >
+                        <div className="rrPadTile__media">
+                          {asset.previewGifUrl ? (
+                            <img
+                              src={asset.previewGifUrl}
+                              alt={asset.name}
+                              className="rrPadTile__gif"
+                            />
+                          ) : (
+                            <div className="rrPadTile__fallback">
+                              {asset.iconLabel?.trim() || TAB_LABELS[normalizeTab(asset.category)]}
+                            </div>
+                          )}
+
+                          {isPlaying ? (
+                            <div className="rrPadTile__liveOverlay">
+                              <div className="rrPadTile__liveText">INTERSTITIAL LIVE</div>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="rrPadTile__body">
+                          <div className="rrPadTile__topline">
+                            <span className="rrPadTile__category">
+                              {TAB_LABELS[normalizeTab(asset.category)]}
+                            </span>
+                            {durationLabel ? (
+                              <span className="rrPadTile__duration">{durationLabel}</span>
+                            ) : null}
+                          </div>
+
+                          <div className="rrPadTile__title">{asset.name}</div>
+                          <div className="rrPadTile__history">{historyText}</div>
+
+                          <div className="rrPadTile__footer">
+                            <span className="rrPadTile__cta">
+                              {isBusy ? "Starting..." : isPlaying ? "Playing" : "Play"}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       </PanelShell>
 
@@ -415,32 +382,60 @@ export default function InterstitialPad({
           animation: rrPadPulse 1.25s ease-in-out infinite;
         }
 
-        .rrPadTabs {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
+        .rrFolderTabsWrap {
+          display: grid;
+          gap: 0;
         }
 
-        .rrPadTab {
+        .rrFolderTabs {
+          display: flex;
+          gap: 4px;
+          align-items: flex-end;
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding-bottom: 0;
+        }
+
+        .rrFolderTab {
           appearance: none;
           border: 1px solid rgba(255,255,255,0.12);
-          background: linear-gradient(180deg, rgba(32, 42, 58, 0.96), rgba(13, 20, 30, 0.98));
-          color: rgba(232, 240, 249, 0.86);
-          min-height: 34px;
-          padding: 0 12px;
-          border-radius: 999px;
+          border-bottom: none;
+          background: linear-gradient(180deg, rgba(35, 44, 58, 0.98), rgba(18, 23, 33, 0.98));
+          color: rgba(221, 232, 246, 0.78);
+          min-height: 38px;
+          padding: 0 10px;
+          border-radius: 8px 8px 0 0;
           display: inline-flex;
-          gap: 10px;
+          gap: 8px;
           align-items: center;
           justify-content: center;
-          font-size: 11px;
-          font-weight: 900;
-          letter-spacing: 0.8px;
           cursor: pointer;
-          text-transform: uppercase;
+          white-space: nowrap;
+          position: relative;
+          top: 1px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
         }
 
-        .rrPadTab strong {
+        .rrFolderTab:hover {
+          color: #f4f8ff;
+        }
+
+        .rrFolderTab--active {
+          background: linear-gradient(180deg, rgba(47, 62, 83, 0.98), rgba(20, 27, 39, 0.98));
+          color: #ffffff;
+          border-color: rgba(106, 189, 255, 0.28);
+          z-index: 2;
+        }
+
+        .rrFolderTab__text {
+          font-size: 10px;
+          font-weight: 1000;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          line-height: 1;
+        }
+
+        .rrFolderTab__count {
           min-width: 18px;
           height: 18px;
           border-radius: 999px;
@@ -449,12 +444,18 @@ export default function InterstitialPad({
           align-items: center;
           justify-content: center;
           font-size: 10px;
+          line-height: 1;
         }
 
-        .rrPadTab--active {
-          border-color: rgba(102, 191, 255, 0.4);
-          color: #ffffff;
-          box-shadow: 0 0 18px rgba(69, 165, 255, 0.14);
+        .rrFolderTray {
+          border: 1px solid rgba(106, 189, 255, 0.18);
+          border-radius: 0 10px 10px 10px;
+          background:
+            linear-gradient(180deg, rgba(15, 21, 31, 0.98), rgba(9, 14, 22, 0.98));
+          padding: 10px;
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.05),
+            0 12px 22px rgba(0,0,0,0.16);
         }
 
         .rrPadError,
@@ -607,7 +608,7 @@ export default function InterstitialPad({
           font-weight: 1000;
           letter-spacing: 1.2px;
           text-transform: uppercase;
-          color: ${"#9ad9ff"};
+          color: #9ad9ff;
         }
 
         @keyframes rrPadPulse {
