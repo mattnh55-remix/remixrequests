@@ -15,8 +15,8 @@ export default function QueueList({ items, mode, onPlayed, onReject }: QueueList
     <div className="queueListShell">
       <div className="queueListHeader">
         <div>
-          <div className="queueListTitle">Up Next</div>
-          <div className="queueListSub">DJ decision queue. Play or reject requests below.</div>
+          <div className="queueListTitle">On Deck</div>
+          <div className="queueListSub">Accepted requests waiting to be played or removed.</div>
         </div>
         <div className="queueListHelp">
           {items.length} item{items.length === 1 ? "" : "s"}
@@ -36,7 +36,7 @@ export default function QueueList({ items, mode, onPlayed, onReject }: QueueList
           ))}
         </div>
       ) : (
-        <div className="emptyBox">No queued requests.</div>
+        <div className="emptyBox">No accepted requests on deck.</div>
       )}
     </div>
   );

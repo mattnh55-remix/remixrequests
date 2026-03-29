@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import QueueList from "./QueueList";
+import RequestPanel from "./RequestPanel";
 import ShoutoutPanel from "./ShoutoutPanel";
 import SearchAddPanel from "./SearchAddPanel";
 import InterstitialPad from "./InterstitialPad";
@@ -341,12 +342,12 @@ const [cycleSuppressed, setCycleSuppressed] = useState(false);
       ? shoutPayload.approved
       : [];
 
-    const requestDecisionQueue = [...playNowRequests, ...upNextRequests];
+    const pendingDecisionQueue = [...playNowRequests, ...upNextRequests];
 
     let runtimePreview: RuntimePreview | null = null;
 
-    if (requestDecisionQueue.length > 0) {
-      const target = requestDecisionQueue[0];
+    if (pendingDecisionQueue.length > 0) {
+      const target = pendingDecisionQueue[0];
       runtimePreview = {
         action: "PLAY_QUEUE_ITEM",
         reason: "DJ_DECISION_QUEUE",
@@ -375,7 +376,7 @@ const [cycleSuppressed, setCycleSuppressed] = useState(false);
 
     setState((prev) => ({
       ...prev,
-      queue: requestDecisionQueue as any,
+      queue: queue as any,
       runtimePreview,
       playNowRequests,
       upNextRequests,
@@ -446,6 +447,18 @@ const [cycleSuppressed, setCycleSuppressed] = useState(false);
     }
 
     await materializeRuntimeAndMaybePlay();
+    await load();
+    return actionResult.data;
+  }
+
+    async function acceptRequest(requestId: string) {
+    const actionResult = await postJson(`/api/admin/queue/accept`, { requestId });
+    if (!actionResult.ok) {
+      console.error("Request accept failed", { requestId, response: actionResult.data });
+      await load();
+      return actionResult.data;
+    }
+
     await load();
     return actionResult.data;
   }
@@ -608,7 +621,7 @@ const handlePromptResolved = () => {
             <div>
               <div className="panelTitle">Request Queue</div>
               <div className="panelSub">
-                Hard-edge DJ decision lane. Play or reject requests here.
+                Pending request approval above, live on-deck queue below.
               </div>
             </div>
             <div className="panelHeadBadge">
@@ -622,6 +635,14 @@ const handlePromptResolved = () => {
 
           <div className="rrQueueStage__content">
             <div className="rrQueueStage__stack">
+              <RequestPanel
+                playNow={state.playNowRequests}
+                upNext={state.upNextRequests}
+                mode={mode}
+                onAccept={acceptRequest}
+                onReject={rejectRequest}
+              />
+
               <div className="rrQueueStage__queueShell">
                 <QueueList
                   items={state.queue as any}
@@ -632,12 +653,12 @@ const handlePromptResolved = () => {
               </div>
             </div>
 
-<BoothInterstitialRuntime
-  location={location}
-  sessionStartedAt={sessionClock.startedAtIso}
-  onPromptOpen={handlePromptOpen}
-  onPromptResolved={handlePromptResolved}
-/>
+            <BoothInterstitialRuntime
+              location={location}
+              sessionStartedAt={sessionClock.startedAtIso}
+              onPromptOpen={handlePromptOpen}
+              onPromptResolved={handlePromptResolved}
+            />
           </div>
         </section>
 
