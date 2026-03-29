@@ -30,8 +30,8 @@ export async function POST(req: Request) {
     const location = String(body.location || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
     const code = String(body.code || "").trim();
-    const emailOptIn = Boolean(body.emailOptIn);
-    const smsOptIn = Boolean(body.smsOptIn);
+const emailOptInFromBody = typeof body.emailOptIn === "boolean" ? body.emailOptIn : null;
+const smsOptInFromBody = typeof body.smsOptIn === "boolean" ? body.smsOptIn : null;
 
     if (!location || !email || !code) {
       return NextResponse.json({ ok: false, error: "Missing fields." }, { status: 400 });
@@ -73,20 +73,26 @@ export async function POST(req: Request) {
     await prisma.otpCode.delete({ where: { id: otp.id } });
 
     const now = new Date();
-    const existingIdentity = await prisma.identity.findUnique({
-      where: { locationId_emailHash: { locationId: loc.id, emailHash } },
-      select: {
-        id: true,
-        sessionStartedAt: true,
-        sessionExpiresAt: true,
-        smsVerifiedAt: true,
-        emailOptInAt: true,
-      },
-    });
+const existingIdentity = await prisma.identity.findUnique({
+  where: { locationId_emailHash: { locationId: loc.id, emailHash } },
+  select: {
+    id: true,
+    sessionStartedAt: true,
+    sessionExpiresAt: true,
+    smsVerifiedAt: true,
+    emailOptInAt: true,
+    smsOptInAt: true,
+  },
+});
 
 const wasActive = isGuestSessionActive(existingIdentity, now);
 
 const isNewSession = !wasActive;
+const effectiveEmailOptIn =
+  emailOptInFromBody ?? Boolean(existingIdentity?.emailOptInAt);
+
+const effectiveSmsOptIn =
+  smsOptInFromBody ?? Boolean(existingIdentity?.smsOptInAt);
 
 const activeWindow = isNewSession
   ? buildGuestSessionTimes(now)
@@ -96,30 +102,30 @@ const activeWindow = isNewSession
     };
 
 
-    const identity = await prisma.identity.upsert({
-      where: { locationId_emailHash: { locationId: loc.id, emailHash } },
-      update: {
-        deviceId,
-        smsVerifiedAt: now,
-        emailOptInAt: emailOptIn ? now : undefined,
-        smsOptInAt: smsOptIn ? now : undefined,
-        sessionStartedAt: activeWindow.startedAt,
-        sessionExpiresAt: activeWindow.expiresAt,
-      },
-      create: {
-        locationId: loc.id,
-        emailHash,
-        deviceId,
-        smsVerifiedAt: now,
-        emailOptInAt: emailOptIn ? now : undefined,
-        smsOptInAt: smsOptIn ? now : undefined,
-        sessionStartedAt: activeWindow.startedAt,
-        sessionExpiresAt: activeWindow.expiresAt,
-      },
-      select: { id: true, sessionStartedAt: true, sessionExpiresAt: true },
-    });
+const identity = await prisma.identity.upsert({
+  where: { locationId_emailHash: { locationId: loc.id, emailHash } },
+  update: {
+    deviceId,
+    smsVerifiedAt: now,
+    emailOptInAt: effectiveEmailOptIn ? (existingIdentity?.emailOptInAt ?? now) : undefined,
+    smsOptInAt: effectiveSmsOptIn ? (existingIdentity?.smsOptInAt ?? now) : undefined,
+    sessionStartedAt: activeWindow.startedAt,
+    sessionExpiresAt: activeWindow.expiresAt,
+  },
+  create: {
+    locationId: loc.id,
+    emailHash,
+    deviceId,
+    smsVerifiedAt: now,
+    emailOptInAt: effectiveEmailOptIn ? now : undefined,
+    smsOptInAt: effectiveSmsOptIn ? now : undefined,
+    sessionStartedAt: activeWindow.startedAt,
+    sessionExpiresAt: activeWindow.expiresAt,
+  },
+  select: { id: true, sessionStartedAt: true, sessionExpiresAt: true },
+});
 
-    if (!emailOptIn) {
+    if (!effectiveEmailOptIn) {
       const balance = await getCreditBalance(loc.id, emailHash).catch(() => 0);
       const res = NextResponse.json({
         ok: true,

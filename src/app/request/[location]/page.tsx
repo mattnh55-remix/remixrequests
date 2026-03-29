@@ -498,14 +498,16 @@ function VerifyDrawer({
     setMsg("");
 
     try {
-      const res = await fetch(`/api/public/auth/verify`, {
+      const res = await fetch("/api/public/auth/verify", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           location,
           email,
           phone,
           code,
+          emailOptIn,
+          smsOptIn,
         }),
       });
 
