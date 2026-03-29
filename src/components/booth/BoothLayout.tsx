@@ -285,6 +285,17 @@ export default function BoothLayout({ location }: { location: string }) {
     return () => window.clearTimeout(timeout);
   }, [playingInterstitial, tick]);
 
+  const [warningLevel, setWarningLevel] = useState<
+  "normal" | "warn5" | "warn2" | "hot1"
+>("normal");
+
+const [latchedWarning, setLatchedWarning] = useState<
+  "normal" | "warn5" | "warn2" | "hot1"
+>("normal");
+
+const [promptLatched, setPromptLatched] = useState(false);
+const [cycleSuppressed, setCycleSuppressed] = useState(false);
+
   async function load() {
     const [queueRes, requestRes, shoutRes] = await Promise.all([
       fetch(`/api/booth/queue/${location}`, { cache: "no-store" }),
@@ -292,6 +303,15 @@ export default function BoothLayout({ location }: { location: string }) {
       fetch(`/api/admin/shoutouts/${location}`, { cache: "no-store" }),
     ]);
 
+function resetSessionClock() {
+  const next = createNewSessionClock();
+  setSessionClock(next);
+  saveSessionClock(location, next);
+
+  setCycleSuppressed(false);
+  setPromptLatched(false);
+  setLatchedWarning("normal");
+}
     const queuePayload = queueRes.ok ? await safeJson(queueRes) : null;
     const requestPayload = requestRes.ok ? await safeJson(requestRes) : null;
     const shoutPayload = shoutRes.ok ? await safeJson(shoutRes) : null;
@@ -374,6 +394,22 @@ export default function BoothLayout({ location }: { location: string }) {
     [state.queue]
   );
 
+  useEffect(() => {
+  const started = new Date(sessionClock.startedAtIso).getTime();
+  const elapsedMin = Math.floor((Date.now() - started) / 60000);
+  const remaining = sessionClock.cycleMinutes - elapsedMin;
+
+  let level: "normal" | "warn5" | "warn2" | "hot1" = "normal";
+
+  if (!cycleSuppressed) {
+    if (remaining <= 1) level = "hot1";
+    else if (remaining <= 2) level = "warn2";
+    else if (remaining <= 5) level = "warn5";
+  }
+
+  setWarningLevel(level);
+}, [tick, sessionClock, cycleSuppressed]);
+
   async function materializeRuntimeAndMaybePlay() {
     const result = await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
     const payload = (result.data ?? {}) as MaterializeResult;
@@ -455,6 +491,17 @@ export default function BoothLayout({ location }: { location: string }) {
     saveSessionClock(location, next);
   }
 
+      const handlePromptOpen = () => {
+  setLatchedWarning(warningLevel);
+  setPromptLatched(true);
+};
+
+const handlePromptResolved = () => {
+  setPromptLatched(false);
+  setCycleSuppressed(true);
+  setLatchedWarning("normal");
+};
+
   return (
     <div className="rrBooth rrBooth--compact">
       <div className="rrBooth__topbar">
@@ -467,11 +514,13 @@ export default function BoothLayout({ location }: { location: string }) {
         </div>
 
         <div className="rrTopbarCenter">
-          <SessionTimerPanel
-            startedAtIso={sessionClock.startedAtIso}
-            cycleMinutes={sessionClock.cycleMinutes}
-            onReset={resetSessionClock}
-          />
+<SessionTimerPanel
+  startedAtIso={sessionClock.startedAtIso}
+  cycleMinutes={sessionClock.cycleMinutes}
+  onReset={resetSessionClock}
+  warningLevel={promptLatched ? latchedWarning : warningLevel}
+  promptLatched={promptLatched}
+/>
         </div>
 
         <div className="rrTopbarRight">
@@ -540,10 +589,12 @@ export default function BoothLayout({ location }: { location: string }) {
               </div>
             </div>
 
-            <BoothInterstitialRuntime
-              location={location}
-              sessionStartedAt={sessionClock.startedAtIso}
-            />
+<BoothInterstitialRuntime
+  location={location}
+  sessionStartedAt={sessionClock.startedAtIso}
+  onPromptOpen={handlePromptOpen}
+  onPromptResolved={handlePromptResolved}
+/>
           </div>
         </section>
 

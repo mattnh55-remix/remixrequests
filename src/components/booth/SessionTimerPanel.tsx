@@ -1,49 +1,58 @@
 "use client";
 
-type SessionTimerPanelProps = {
+type WarningLevel = "normal" | "warn5" | "warn2" | "hot1";
+
+type Props = {
   startedAtIso: string;
   cycleMinutes?: number;
   onReset: () => void;
+
+  warningLevel?: WarningLevel;
+  promptLatched?: boolean;
 };
 
 function formatElapsed(ms: number) {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSec / 60);
-  const seconds = totalSec % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 function formatClockTime(iso: string) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 export default function SessionTimerPanel({
   startedAtIso,
   cycleMinutes = 120,
   onReset,
-}: SessionTimerPanelProps) {
+  warningLevel = "normal",
+  promptLatched = false,
+}: Props) {
   const elapsedMs = Date.now() - new Date(startedAtIso).getTime();
-  const elapsedMin = Math.max(0, Math.floor(elapsedMs / 1000 / 60));
+  const elapsedMin = Math.floor(elapsedMs / 60000);
   const pct = Math.min(100, Math.round((elapsedMin / cycleMinutes) * 100));
 
+  const className = [
+    "rrSessionHero",
+    warningLevel !== "normal" && `rrSessionHero--${warningLevel}`,
+    promptLatched && "rrSessionHero--latched",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className="rrSessionHero">
+    <div className={className}>
       <div className="rrSessionHero__eyebrow">INTERSTITIAL CYCLE</div>
 
       <div className="rrSessionHero__main">
-        <div className="rrSessionHero__time">{formatElapsed(elapsedMs)}</div>
+        <div className="rrSessionHero__time">
+          {formatElapsed(elapsedMs)}
+        </div>
 
-        <button
-          type="button"
-          className="rrSessionHero__reset"
-          onClick={onReset}
-          title="Reset session timer"
-        >
+        <button className="rrSessionHero__reset" onClick={onReset}>
           Reset
         </button>
       </div>

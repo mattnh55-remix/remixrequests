@@ -9,8 +9,18 @@ type RouteContext = {
 
 export async function GET(req: NextRequest, { params }: RouteContext) {
   try {
-    const location = params.location;
+    const location = String(params.location ?? "").trim();
     const sessionStartedAt = req.nextUrl.searchParams.get("sessionStartedAt");
+
+    if (!location) {
+      return NextResponse.json(
+        {
+          due: false,
+          error: "Missing location.",
+        },
+        { status: 400 }
+      );
+    }
 
     const result = await getDueInterstitialPrompt({
       location,
@@ -20,7 +30,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("[due-interstitial-prompt][GET] error", error);
+    console.error("[GET /api/booth/due-interstitial-prompt/[location]]", error);
 
     return NextResponse.json(
       {

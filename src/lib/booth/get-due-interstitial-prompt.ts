@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { InterstitialCategory, InterstitialEventStatus } from "@prisma/client";
 
 type GetDueInterstitialPromptArgs = {
   location: string;
@@ -6,7 +7,7 @@ type GetDueInterstitialPromptArgs = {
   now?: Date;
 };
 
-type PromptAsset = {
+type BoothInterstitialAsset = {
   id: string;
   category: string;
   title: string;
@@ -18,7 +19,7 @@ type PromptAsset = {
   cooldownRemainingMinutes: number;
 };
 
-type DuePromptResponse = {
+type DueInterstitialPromptResult = {
   due: boolean;
   location: string;
   category: string | null;
@@ -30,473 +31,49 @@ type DuePromptResponse = {
     elapsedMinutes: number;
     startedAt: string | null;
   };
-  eligibleAssets: PromptAsset[];
-  lastPlayedTimestamps: Array<{
-    assetId: string | null;
-    category: string | null;
-    playedAt: string;
-    status: string | null;
-  }>;
+  eligibleAssets: BoothInterstitialAsset[];
 };
 
 const SESSION_CYCLE_MINUTES = 120;
 
-const CATEGORY_ORDER = [
-  "ANNOUNCEMENTS",
-  "SONG_INTROS",
-  "GAMES_DANCES",
-  "REMIX_PROMOS",
-] as const;
+function normalizeCategory(
+  value: InterstitialCategory | string | null | undefined
+): InterstitialCategory {
+  const raw = String(value ?? "").trim().toUpperCase();
 
-function asDate(value: unknown): Date | null {
+  if (raw === "ANNOUNCEMENTS") return "ANNOUNCEMENTS";
+  if (raw === "SONG_INTROS") return "SONG_INTROS";
+  if (raw === "GAMES_DANCES") return "GAMES_DANCES";
+  return "REMIX_PROMOS";
+}
+
+function safeDate(value?: string | null) {
   if (!value) return null;
-  if (value instanceof Date) return value;
-  const d = new Date(String(value));
-  return Number.isNaN(d.getTime()) ? null : d;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
 }
 
-function asString(value: unknown): string | null {
-  if (value == null) return null;
-  const s = String(value).trim();
-  return s.length ? s : null;
+function diffMinutes(start: Date, end: Date) {
+  return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 60000));
 }
 
-function asNumber(value: unknown, fallback = 0): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "") {
-    const n = Number(value);
-    if (Number.isFinite(n)) return n;
-  }
-  return fallback;
+function minutesSince(date: Date, now: Date) {
+  return Math.max(0, Math.floor((now.getTime() - date.getTime()) / 60000));
 }
 
-function truthy(value: unknown, fallback = false): boolean {
-  if (typeof value === "boolean") return value;
-  if (value == null) return fallback;
-  if (typeof value === "number") return value !== 0;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (["true", "1", "yes", "y", "enabled", "active"].includes(normalized)) {
-      return true;
-    }
-    if (["false", "0", "no", "n", "disabled", "inactive"].includes(normalized)) {
-      return false;
-    }
-  }
-  return fallback;
+function eventTime(event: {
+  playedAt?: Date | null;
+  updatedAt?: Date | null;
+}) {
+  return event.playedAt ?? event.updatedAt ?? null;
 }
 
-function minutesSince(date: Date | null, now: Date): number {
-  if (!date) return Number.POSITIVE_INFINITY;
-  return Math.floor((now.getTime() - date.getTime()) / 60000);
-}
-
-function getElapsedSessionMinutes(
-  now: Date,
-  sessionStartedAt?: string | null
-): { elapsedMinutes: number; startedAt: string | null } {
-  const parsed = asDate(sessionStartedAt);
-
-  if (parsed) {
-    const elapsed = Math.max(
-      0,
-      Math.floor((now.getTime() - parsed.getTime()) / 60000)
-    );
-
-    return {
-      elapsedMinutes: elapsed % SESSION_CYCLE_MINUTES,
-      startedAt: parsed.toISOString(),
-    };
-  }
-
-  const midnight = new Date(now);
-  midnight.setHours(0, 0, 0, 0);
-
-  const minutesIntoDay = Math.floor((now.getTime() - midnight.getTime()) / 60000);
-
-  return {
-    elapsedMinutes: minutesIntoDay % SESSION_CYCLE_MINUTES,
-    startedAt: null,
-  };
-}
-
-function getDayKey(now: Date): string {
-  return ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][now.getDay()];
-}
-
-function getMinuteOfDay(now: Date): number {
-  return now.getHours() * 60 + now.getMinutes();
-}
-
-function normalizeDayList(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.map((v) => String(v).toUpperCase().slice(0, 3));
-  }
-
-  if (typeof value === "string" && value.trim()) {
-    return value
-      .split(",")
-      .map((v) => v.trim().toUpperCase().slice(0, 3))
-      .filter(Boolean);
-  }
-
-  return [];
-}
-
-function matchesLocation(record: any, location: string): boolean {
-  const directCandidates = [
-    record?.location,
-    record?.locationSlug,
-    record?.locationId,
-    record?.slug,
-    record?.code,
-  ]
-    .map(asString)
-    .filter(Boolean) as string[];
-
-  if (directCandidates.includes(location)) return true;
-
-  const nestedCandidates = [
-    record?.profile?.slug,
-    record?.profile?.code,
-    record?.profile?.id,
-    record?.boothProfile?.slug,
-    record?.boothProfile?.code,
-    record?.locationProfile?.slug,
-    record?.locationProfile?.code,
-  ]
-    .map(asString)
-    .filter(Boolean) as string[];
-
-  return nestedCandidates.includes(location);
-}
-
-function isScheduleEnabled(schedule: any): boolean {
-  const enabled = [
-    schedule?.enabled,
-    schedule?.isEnabled,
-    schedule?.active,
-    schedule?.isActive,
-  ];
-
-  return enabled.some((v) => v != null) ? enabled.some((v) => truthy(v)) : true;
-}
-
-function isAssetEnabled(asset: any): boolean {
-  const enabled = [asset?.enabled, asset?.isEnabled, asset?.active, asset?.isActive];
-  return enabled.some((v) => v != null) ? enabled.some((v) => truthy(v)) : true;
-}
-
-function getScheduleCategory(schedule: any): string | null {
-  return asString(schedule?.category ?? schedule?.group ?? schedule?.type);
-}
-
-function getAssetCategory(asset: any): string | null {
-  return asString(asset?.category ?? asset?.group ?? asset?.type);
-}
-
-function scheduleMinuteWindow(schedule: any): { start: number; end: number } {
-  const start = asNumber(
-    schedule?.startMinuteOfDay ??
-      schedule?.windowStartMinute ??
-      schedule?.startMinutes ??
-      schedule?.startMinute ??
-      0,
-    0
-  );
-
-  const end = asNumber(
-    schedule?.endMinuteOfDay ??
-      schedule?.windowEndMinute ??
-      schedule?.endMinutes ??
-      schedule?.endMinute ??
-      1439,
-    1439
-  );
-
-  return { start, end };
-}
-
-function scheduleSessionWindow(schedule: any): { start: number; end: number } {
-  const start = asNumber(
-    schedule?.minSessionMinute ??
-      schedule?.sessionStartMinute ??
-      schedule?.startSessionMinute ??
-      0,
-    0
-  );
-
-  const end = asNumber(
-    schedule?.maxSessionMinute ??
-      schedule?.sessionEndMinute ??
-      schedule?.endSessionMinute ??
-      SESSION_CYCLE_MINUTES,
-    SESSION_CYCLE_MINUTES
-  );
-
-  return { start, end };
-}
-
-function getScheduleCooldown(schedule: any): number {
-  return asNumber(
-    schedule?.cooldownMinutes ??
-      schedule?.cooldownMin ??
-      schedule?.categoryCooldownMinutes ??
-      0,
-    0
-  );
-}
-
-function getAssetCooldown(asset: any): number {
-  return asNumber(asset?.cooldownMinutes ?? asset?.cooldownMin ?? 0, 0);
-}
-
-function getSchedulePromptTitle(schedule: any): string | null {
-  return asString(schedule?.promptTitle ?? schedule?.title ?? schedule?.name);
-}
-
-function getSchedulePromptBody(schedule: any): string | null {
-  return asString(
-    schedule?.promptBody ?? schedule?.body ?? schedule?.description ?? null
-  );
-}
-
-function getAssetTitle(asset: any): string {
-  return (
-    asString(asset?.title ?? asset?.name ?? asset?.label ?? asset?.filename) ??
-    "Interstitial Asset"
-  );
-}
-
-function getAssetBody(asset: any): string | null {
-  return asString(asset?.body ?? asset?.description ?? asset?.promptBody ?? null);
-}
-
-function getAssetPreviewUrl(asset: any): string | null {
-  return asString(
-    asset?.previewUrl ??
-      asset?.gifUrl ??
-      asset?.previewGifUrl ??
-      asset?.imageUrl ??
-      asset?.thumbnailUrl ??
-      null
-  );
-}
-
-function getAssetPlayFilename(asset: any): string | null {
-  return asString(
-    asset?.playFilename ??
-      asset?.filename ??
-      asset?.audioFilename ??
-      asset?.assetFilename ??
-      asset?.fileName ??
-      null
-  );
-}
-
-function eventStatus(event: any): string | null {
-  return asString(event?.status);
-}
-
-function eventCreatedAt(event: any): Date | null {
-  return asDate(event?.createdAt ?? event?.playedAt ?? event?.updatedAt);
-}
-
-function isInDayWindow(schedule: any, now: Date): boolean {
-  const days = normalizeDayList(
-    schedule?.daysOfWeek ?? schedule?.days ?? schedule?.weekdays ?? null
-  );
-
-  if (!days.length) return true;
-
-  return days.includes(getDayKey(now));
-}
-
-function isInMinuteWindow(schedule: any, now: Date): boolean {
-  const { start, end } = scheduleMinuteWindow(schedule);
-  const minuteNow = getMinuteOfDay(now);
-
-  if (start <= end) {
-    return minuteNow >= start && minuteNow <= end;
-  }
-
-  return minuteNow >= start || minuteNow <= end;
-}
-
-function isInSessionWindow(schedule: any, sessionElapsedMinutes: number): boolean {
-  const { start, end } = scheduleSessionWindow(schedule);
-  return sessionElapsedMinutes >= start && sessionElapsedMinutes <= end;
-}
-
-function newestCategoryEvent(
-  events: any[],
-  category: string,
-  statuses: string[]
-): any | null {
-  const filtered = events
-    .filter((event) => {
-      const sameCategory = asString(event?.category) === category;
-      const status = eventStatus(event);
-      return sameCategory && status && statuses.includes(status);
-    })
-    .sort((a, b) => {
-      const aTime = eventCreatedAt(a)?.getTime() ?? 0;
-      const bTime = eventCreatedAt(b)?.getTime() ?? 0;
-      return bTime - aTime;
-    });
-
-  return filtered[0] ?? null;
-}
-
-function newestAssetEvent(
-  events: any[],
-  assetId: string,
-  statuses: string[]
-): any | null {
-  const filtered = events
-    .filter((event) => {
-      const sameAsset = asString(event?.assetId) === assetId;
-      const status = eventStatus(event);
-      return sameAsset && status && statuses.includes(status);
-    })
-    .sort((a, b) => {
-      const aTime = eventCreatedAt(a)?.getTime() ?? 0;
-      const bTime = eventCreatedAt(b)?.getTime() ?? 0;
-      return bTime - aTime;
-    });
-
-  return filtered[0] ?? null;
-}
-
-export async function getDueInterstitialPrompt({
-  location,
-  sessionStartedAt,
-  now = new Date(),
-}: GetDueInterstitialPromptArgs): Promise<DuePromptResponse> {
-  const session = getElapsedSessionMinutes(now, sessionStartedAt);
-
-  const [rawSchedules, rawAssets, rawEventsUnsorted] = await Promise.all([
-    prisma.interstitialSchedule.findMany({
-      orderBy: [{ updatedAt: "desc" as const }],
-    }) as Promise<any[]>,
-    prisma.interstitialAsset.findMany({
-      orderBy: [{ updatedAt: "desc" as const }],
-    }) as Promise<any[]>,
-    prisma.interstitialEvent.findMany({
-      take: 200,
-    }) as Promise<any[]>,
-  ]);
-
-  const rawEvents = [...rawEventsUnsorted].sort((a, b) => {
-    const aTime = eventCreatedAt(a)?.getTime() ?? 0;
-    const bTime = eventCreatedAt(b)?.getTime() ?? 0;
-    return bTime - aTime;
-  });
-
-
-  const schedules = rawSchedules.filter(
-    (schedule) =>
-      matchesLocation(schedule, location) &&
-      isScheduleEnabled(schedule) &&
-      isInDayWindow(schedule, now) &&
-      isInMinuteWindow(schedule, now) &&
-      isInSessionWindow(schedule, session.elapsedMinutes)
-  );
-
-  const assets = rawAssets.filter(
-    (asset) => matchesLocation(asset, location) && isAssetEnabled(asset)
-  );
-
-  for (const category of CATEGORY_ORDER) {
-    const categorySchedules = schedules
-      .filter((schedule) => getScheduleCategory(schedule) === category)
-      .sort((a, b) => {
-        const aPriority = asNumber(a?.priority ?? a?.sortOrder ?? 0, 0);
-        const bPriority = asNumber(b?.priority ?? b?.sortOrder ?? 0, 0);
-        return bPriority - aPriority;
-      });
-
-    if (!categorySchedules.length) continue;
-
-    for (const schedule of categorySchedules) {
-      const scheduleCooldown = getScheduleCooldown(schedule);
-
-      const lastResolvedCategoryEvent = newestCategoryEvent(rawEvents, category, [
-        "PLAYED",
-        "SKIPPED",
-      ]);
-
-      const lastResolvedAt = eventCreatedAt(lastResolvedCategoryEvent);
-      const categoryMinutesSince = minutesSince(lastResolvedAt, now);
-
-      if (scheduleCooldown > 0 && categoryMinutesSince < scheduleCooldown) {
-        continue;
-      }
-
-      const categoryAssets = assets
-        .filter((asset) => getAssetCategory(asset) === category)
-        .map((asset) => {
-          const assetId = asString(asset?.id) ?? "";
-          const lastPlayedEvent = newestAssetEvent(rawEvents, assetId, ["PLAYED"]);
-          const lastPlayedAtDate = eventCreatedAt(lastPlayedEvent);
-          const cooldownMinutes = getAssetCooldown(asset);
-          const minsSinceLastPlayed = minutesSince(lastPlayedAtDate, now);
-          const cooldownRemainingMinutes =
-            cooldownMinutes > 0 && minsSinceLastPlayed < cooldownMinutes
-              ? cooldownMinutes - minsSinceLastPlayed
-              : 0;
-
-          return {
-            id: assetId,
-            category,
-            title: getAssetTitle(asset),
-            body: getAssetBody(asset),
-            previewUrl: getAssetPreviewUrl(asset),
-            playFilename: getAssetPlayFilename(asset),
-            lastPlayedAt: lastPlayedAtDate?.toISOString() ?? null,
-            cooldownMinutes,
-            cooldownRemainingMinutes,
-          } satisfies PromptAsset;
-        })
-        .filter((asset) => !!asset.id && asset.cooldownRemainingMinutes <= 0);
-
-      if (!categoryAssets.length) {
-        continue;
-      }
-
-      const recentCategoryEvents = rawEvents
-        .filter((event) => asString(event?.category) === category)
-        .slice(0, 12)
-        .map((event) => ({
-          assetId: asString(event?.assetId),
-          category: asString(event?.category),
-          playedAt:
-            eventCreatedAt(event)?.toISOString() ?? new Date(0).toISOString(),
-          status: eventStatus(event),
-        }));
-
-      return {
-        due: true,
-        location,
-        category,
-        scheduleId: asString(schedule?.id),
-        promptTitle: getSchedulePromptTitle(schedule),
-        promptBody: getSchedulePromptBody(schedule),
-        session: {
-          cycleMinutes: SESSION_CYCLE_MINUTES,
-          elapsedMinutes: session.elapsedMinutes,
-          startedAt: session.startedAt,
-        },
-        eligibleAssets: categoryAssets.sort((a, b) => {
-          const aLast = a.lastPlayedAt ? new Date(a.lastPlayedAt).getTime() : 0;
-          const bLast = b.lastPlayedAt ? new Date(b.lastPlayedAt).getTime() : 0;
-          return aLast - bLast;
-        }),
-        lastPlayedTimestamps: recentCategoryEvents,
-      };
-    }
-  }
-
+function buildBaseResult(
+  location: string,
+  startedAt: Date | null,
+  now: Date
+): DueInterstitialPromptResult {
   return {
     due: false,
     location,
@@ -506,10 +83,218 @@ export async function getDueInterstitialPrompt({
     promptBody: null,
     session: {
       cycleMinutes: SESSION_CYCLE_MINUTES,
-      elapsedMinutes: session.elapsedMinutes,
-      startedAt: session.startedAt,
+      elapsedMinutes: startedAt ? diffMinutes(startedAt, now) : 0,
+      startedAt: startedAt ? startedAt.toISOString() : null,
     },
     eligibleAssets: [],
-    lastPlayedTimestamps: [],
+  };
+}
+
+export async function getDueInterstitialPrompt({
+  location,
+  sessionStartedAt,
+  now = new Date(),
+}: GetDueInterstitialPromptArgs): Promise<DueInterstitialPromptResult> {
+  const startedAt = safeDate(sessionStartedAt);
+  const base = buildBaseResult(location, startedAt, now);
+
+  const rawLocation = String(location ?? "").trim();
+  if (!rawLocation) {
+    return base;
+  }
+
+  const locationRow = await prisma.location.findFirst({
+    where: {
+      OR: [{ id: rawLocation }, { slug: rawLocation }],
+    },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+    },
+  });
+
+  if (!locationRow) {
+    return base;
+  }
+
+  const elapsedMinutes = startedAt ? diffMinutes(startedAt, now) : 0;
+
+  const activeWindows = await prisma.interstitialSchedule.findMany({
+    where: {
+      locationId: locationRow.id,
+      active: true,
+      startMinute: { lte: elapsedMinutes },
+      endMinute: { gte: elapsedMinutes },
+    },
+    orderBy: [{ sortOrder: "asc" }, { startMinute: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      category: true,
+      label: true,
+      promptTitle: true,
+      promptBody: true,
+      startMinute: true,
+      endMinute: true,
+      sortOrder: true,
+      cooldownMinutes: true,
+      required: true,
+      active: true,
+    },
+  });
+
+  if (!activeWindows.length) {
+    return {
+      ...base,
+      location: locationRow.slug || rawLocation,
+      session: {
+        ...base.session,
+        elapsedMinutes,
+      },
+    };
+  }
+
+  const allEvents = await prisma.interstitialEvent.findMany({
+    where: {
+      locationId: locationRow.id,
+    },
+  });
+
+  const sessionEvents = startedAt
+    ? allEvents.filter((event) => {
+        const t = eventTime(event);
+        return t ? t.getTime() >= startedAt.getTime() : false;
+      })
+    : allEvents;
+
+  for (const schedule of activeWindows) {
+    const category = normalizeCategory(schedule.category);
+
+    const eligibleRows = await prisma.interstitialAsset.findMany({
+      where: {
+        locationId: locationRow.id,
+        active: true,
+        category,
+        manualOnly: false,
+      },
+      orderBy: [{ priority: "desc" }, { randomWeight: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        fileUrl: true,
+        previewGifUrl: true,
+        notes: true,
+      },
+    });
+
+    if (!eligibleRows.length) {
+      continue;
+    }
+
+    const existingResolution = sessionEvents
+      .filter(
+        (event) =>
+          event.scheduleId === schedule.id &&
+          (event.status === "PLAYED" || event.status === "SKIPPED")
+      )
+      .sort((a, b) => {
+        const aTime = eventTime(a)?.getTime() ?? 0;
+        const bTime = eventTime(b)?.getTime() ?? 0;
+        return bTime - aTime;
+      })[0];
+
+    if (existingResolution) {
+      continue;
+    }
+
+    const latestSchedulePlay = allEvents
+      .filter(
+        (event) => event.scheduleId === schedule.id && event.status === "PLAYED"
+      )
+      .sort((a, b) => {
+        const aTime = eventTime(a)?.getTime() ?? 0;
+        const bTime = eventTime(b)?.getTime() ?? 0;
+        return bTime - aTime;
+      })[0];
+
+    const scheduleCooldownMinutes = Math.max(0, schedule.cooldownMinutes ?? 0);
+
+    if (latestSchedulePlay && scheduleCooldownMinutes > 0) {
+      const lastTime = eventTime(latestSchedulePlay);
+      if (lastTime) {
+        const sinceLastSchedulePlay = minutesSince(lastTime, now);
+        if (sinceLastSchedulePlay < scheduleCooldownMinutes) {
+          continue;
+        }
+      }
+    }
+
+    const lastPlayedByAssetId = new Map<string, Date>();
+
+    for (const row of eligibleRows) {
+      const latestAssetPlay = allEvents
+        .filter(
+          (event) => event.assetId === row.id && event.status === "PLAYED"
+        )
+        .sort((a, b) => {
+          const aTime = eventTime(a)?.getTime() ?? 0;
+          const bTime = eventTime(b)?.getTime() ?? 0;
+          return bTime - aTime;
+        })[0];
+
+      const playedAt = latestAssetPlay ? eventTime(latestAssetPlay) : null;
+      if (playedAt) {
+        lastPlayedByAssetId.set(row.id, playedAt);
+      }
+    }
+
+    const eligibleAssets: BoothInterstitialAsset[] = eligibleRows.map((row) => {
+      const lastPlayedAtDate = lastPlayedByAssetId.get(row.id) ?? null;
+      const cooldownMinutes = scheduleCooldownMinutes;
+      const cooldownRemainingMinutes =
+        lastPlayedAtDate && cooldownMinutes > 0
+          ? Math.max(0, cooldownMinutes - minutesSince(lastPlayedAtDate, now))
+          : 0;
+
+      return {
+        id: row.id,
+        category,
+        title: row.name,
+        body: row.notes ?? null,
+        previewUrl: row.previewGifUrl ?? null,
+        playFilename: row.fileUrl ?? null,
+        lastPlayedAt: lastPlayedAtDate ? lastPlayedAtDate.toISOString() : null,
+        cooldownMinutes,
+        cooldownRemainingMinutes,
+      };
+    });
+
+    return {
+      due: true,
+      location: locationRow.slug || rawLocation,
+      category,
+      scheduleId: schedule.id,
+      promptTitle:
+        schedule.promptTitle?.trim() ||
+        schedule.label?.trim() ||
+        `Time to play ${category.replaceAll("_", " ")}`,
+      promptBody: schedule.promptBody?.trim() || null,
+      session: {
+        cycleMinutes: SESSION_CYCLE_MINUTES,
+        elapsedMinutes,
+        startedAt: startedAt ? startedAt.toISOString() : null,
+      },
+      eligibleAssets,
+    };
+  }
+
+  return {
+    ...base,
+    location: locationRow.slug || rawLocation,
+    session: {
+      ...base.session,
+      elapsedMinutes,
+    },
   };
 }

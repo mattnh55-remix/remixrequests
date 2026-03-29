@@ -75,7 +75,7 @@ function getArtwork(item: QueueItem) {
 }
 
 function getCountdownLabel(endsAtIso?: string | null, active?: boolean) {
-  if (!active || !endsAtIso) return "Verify to start your 4-hour session";
+  if (!active || !endsAtIso) return "Verify to Vote!";
   const endsAt = new Date(endsAtIso).getTime();
   const diff = endsAt - Date.now();
   if (!Number.isFinite(diff) || diff <= 0) return "Session expired";
@@ -294,7 +294,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   const [rulesData, setRulesData] = useState<SessionRes | null>(null);
   const [queueData, setQueueData] = useState<QueueRes>({ playNow: [], upNext: [] });
   const [loading, setLoading] = useState(true);
-  const [sessionCountdown, setSessionCountdown] = useState("Verify to start your 4-hour session");
+  const [sessionCountdown, setSessionCountdown] = useState("Verify to Vote!");
   const [identityId, setIdentityId] = useState("");
   const [email, setEmail] = useState("");
   const [verified, setVerified] = useState(false);
@@ -497,7 +497,7 @@ const displayedBalance = verified
       localStorage.setItem("rr_email", trimmed);
     } catch {}
     sfx.playSuccess();
-    setMsg("Email saved. Voting is ready once your 4-hour session is active.");
+    setMsg("Email saved. Voting is ready once your session is active.");
   };
 
   async function doVote(requestId: string, dir: "up" | "down") {
@@ -579,7 +579,7 @@ if (/session has expired/i.test(nextMsg)) {
             <div className="rrHudValue">{displayedBalance}</div>
             <div className="rrPointsActions">
               <button className="rrBtn" style={{ width: "100%" }} onClick={() => (verified ? goToBuy("boost") : goToVerify())}>
-                {verified ? "Add Points" : "Start 4-Hour Session"}
+                {verified ? "Add Points" : "Add Points"}
               </button>
             </div>
           </div>

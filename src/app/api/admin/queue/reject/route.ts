@@ -4,6 +4,12 @@ import { isAdminFromCookie } from "@/lib/adminAuth";
 import { getRulesForLocation } from "@/lib/rules";
 import { removeRequestFromTop10 } from "@/lib/top10";
 
+const REFUND_WINDOW_MINUTES = 60;
+
+function minutesSince(from: Date, to: Date) {
+  return (to.getTime() - from.getTime()) / 60000;
+}
+
 export async function POST(req: Request) {
   if (!isAdminFromCookie(req.headers.get("cookie"))) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -18,66 +24,95 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Missing requestId" }, { status: 400 });
     }
 
-    await prisma.$transaction(async (tx) => {
-      const now = new Date();
+    const now = new Date();
 
-      const r = await tx.request.findUnique({
-        where: { id: requestId },
-        include: {
-          location: { select: { slug: true } },
-          queueItem: true,
-        },
-      });
+    const r = await prisma.request.findUnique({
+      where: { id: requestId },
+      include: {
+        location: { select: { slug: true } },
+        queueItem: true,
+      },
+    });
 
-      if (!r) throw new Error("NOT_FOUND");
-      if (r.status === "REJECTED") throw new Error("ALREADY_REJECTED");
-      if (r.status === "PLAYED") throw new Error("CANNOT_REJECT_PLAYED");
+    if (!r) {
+      return NextResponse.json({ ok: false, error: "Request not found" }, { status: 404 });
+    }
 
-      const { rules } = await getRulesForLocation(r.location.slug);
-      const refund = r.type === "PLAY_NOW" ? rules.costPlayNow : rules.costRequest;
+    if (r.status === "PLAYED") {
+      return NextResponse.json({ ok: false, error: "CANNOT_REJECT_PLAYED" }, { status: 400 });
+    }
 
-      await tx.request.update({
-        where: { id: requestId },
-        data: {
-          status: "REJECTED",
-          rejectedAt: now,
-          rejectReason: reason,
-        },
-      });
+    const { rules } = await getRulesForLocation(r.location.slug);
+    const refundAmount = r.type === "PLAY_NOW" ? rules.costPlayNow : rules.costRequest;
 
-      if (r.queueItem) {
-        await tx.queueItem.update({
-          where: { id: r.queueItem.id },
+    const refundWindowOpen =
+      minutesSince(r.createdAt, now) <= REFUND_WINDOW_MINUTES;
+
+    const refundEligible = refundAmount > 0 && refundWindowOpen;
+
+    // Short idempotency key for the refund ledger row.
+    // Keeps repeated reject clicks or retries from double-crediting the user.
+    const refundReason = `RJRF:${r.id}`;
+
+    // Main reject/update work in a short transaction only.
+    if (r.status !== "REJECTED") {
+      await prisma.$transaction(async (tx) => {
+        await tx.request.update({
+          where: { id: requestId },
           data: {
-            status: "SKIPPED",
-            completedAt: now,
+            status: "REJECTED",
+            rejectedAt: now,
+            rejectReason: reason,
           },
         });
 
-        await tx.playbackEvent.create({
-          data: {
-            locationId: r.locationId,
-            queueItemId: r.queueItem.id,
-            type: "SKIPPED",
-            metadata: {
-              requestId: r.id,
-              songId: r.songId,
-              reason,
-              source: "admin_reject",
+        if (r.queueItem) {
+          await tx.queueItem.update({
+            where: { id: r.queueItem.id },
+            data: {
+              status: "SKIPPED",
+              completedAt: now,
             },
-          },
-        });
-      }
+          });
 
-      await removeRequestFromTop10(tx, {
-        locationId: r.locationId,
-        sessionId: r.sessionId,
-        songId: r.songId,
-        bucket: r.top10Bucket,
+          await tx.playbackEvent.create({
+            data: {
+              locationId: r.locationId,
+              queueItemId: r.queueItem.id,
+              type: "SKIPPED",
+              metadata: {
+                requestId: r.id,
+                songId: r.songId,
+                reason,
+                source: "admin_reject",
+              },
+            },
+          });
+        }
+
+        await removeRequestFromTop10(tx, {
+          locationId: r.locationId,
+          sessionId: r.sessionId,
+          songId: r.songId,
+          bucket: r.top10Bucket,
+        });
+      });
+    }
+
+    let refunded = false;
+
+    if (refundEligible) {
+      const existingRefund = await prisma.creditLedger.findFirst({
+        where: {
+          locationId: r.locationId,
+          emailHash: r.emailHash,
+          reason: refundReason,
+        },
+        select: { id: true },
       });
 
-      if (refund > 0) {
-        const activeSession = await tx.session.findFirst({
+      if (!existingRefund) {
+        const activeSession = await prisma.session.findFirst({
           where: {
             locationId: r.locationId,
             endsAt: { gt: now },
@@ -86,28 +121,27 @@ export async function POST(req: Request) {
           orderBy: { createdAt: "desc" },
         });
 
-        await tx.creditLedger.create({
+        await prisma.creditLedger.create({
           data: {
             locationId: r.locationId,
             emailHash: r.emailHash,
-            delta: refund,
-            reason: "ADMIN_REJECT_REFUND",
+            delta: refundAmount,
+            reason: refundReason,
             expiresAt: activeSession?.endsAt ?? null,
           },
         });
+
+        refunded = true;
       }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      refunded,
+      refundEligible,
+      refundWindowMinutes: REFUND_WINDOW_MINUTES,
     });
-
-    return NextResponse.json({ ok: true });
-  } catch (error: any) {
-    if (error.message === "NOT_FOUND") {
-      return NextResponse.json({ ok: false, error: "Request not found" }, { status: 404 });
-    }
-
-    if (["ALREADY_REJECTED", "CANNOT_REJECT_PLAYED"].includes(error.message)) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
-    }
-
+  } catch (error) {
     console.error("Rejection Error:", error);
     return NextResponse.json({ ok: false, error: "Internal Server Error" }, { status: 500 });
   }
