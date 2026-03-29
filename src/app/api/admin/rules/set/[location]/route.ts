@@ -1,5 +1,3 @@
-// src/app/api/admin/rules/set/[location]/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
@@ -43,6 +41,7 @@ export async function POST(req: Request, { params }: { params: { location: strin
       minSecondsBetweenActions: int(body.minSecondsBetweenActions, rules.minSecondsBetweenActions),
       maxArtistInQueue: int(body.maxArtistInQueue, rules.maxArtistInQueue),
       maxActiveRequestsPerUser: int(body.maxActiveRequestsPerUser, rules.maxActiveRequestsPerUser),
+      maxOnDeck: int((body as any).maxOnDeck, (rules as any).maxOnDeck ?? 0),
       enforceArtistCooldown: bool(body.enforceArtistCooldown, rules.enforceArtistCooldown),
       enforceSongCooldown: bool(body.enforceSongCooldown, rules.enforceSongCooldown),
       artistCooldownMinutes: int(body.artistCooldownMinutes, rules.artistCooldownMinutes),
@@ -55,6 +54,7 @@ export async function POST(req: Request, { params }: { params: { location: strin
       msgSongCooldown: str(body.msgSongCooldown, rules.msgSongCooldown),
       msgArtistAlreadyQueued: str(body.msgArtistAlreadyQueued, rules.msgArtistAlreadyQueued),
       msgNoCredits: str(body.msgNoCredits, rules.msgNoCredits),
+      msgQueueFull: str((body as any).msgQueueFull, (rules as any).msgQueueFull ?? "The queue is currently full. Please check back in a bit."),
       top10Enabled: bool(body.top10Enabled, rules.top10Enabled),
       top10Timezone: str(body.top10Timezone, rules.top10Timezone),
       top10AdultCutoffHour: int(body.top10AdultCutoffHour, rules.top10AdultCutoffHour),

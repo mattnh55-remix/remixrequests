@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 import { getRulesForLocation } from "@/lib/rules";
 import { removeRequestFromTop10 } from "@/lib/top10";
+import { sendRequestRejectedSms } from "@/lib/request-status-sms";
 
 const REFUND_WINDOW_MINUTES = 60;
 
@@ -45,16 +46,10 @@ export async function POST(req: Request) {
     const { rules } = await getRulesForLocation(r.location.slug);
     const refundAmount = r.type === "PLAY_NOW" ? rules.costPlayNow : rules.costRequest;
 
-    const refundWindowOpen =
-      minutesSince(r.createdAt, now) <= REFUND_WINDOW_MINUTES;
-
+    const refundWindowOpen = minutesSince(r.createdAt, now) <= REFUND_WINDOW_MINUTES;
     const refundEligible = refundAmount > 0 && refundWindowOpen;
-
-    // Short idempotency key for the refund ledger row.
-    // Keeps repeated reject clicks or retries from double-crediting the user.
     const refundReason = `RJRF:${r.id}`;
 
-    // Main reject/update work in a short transaction only.
     if (r.status !== "REJECTED") {
       await prisma.$transaction(async (tx) => {
         await tx.request.update({
@@ -135,11 +130,20 @@ export async function POST(req: Request) {
       }
     }
 
+    const smsResult = await sendRequestRejectedSms({
+      locationId: r.locationId,
+      emailHash: r.emailHash,
+      reason,
+      refunded,
+    });
+
     return NextResponse.json({
       ok: true,
       refunded,
       refundEligible,
       refundWindowMinutes: REFUND_WINDOW_MINUTES,
+      texted: Boolean(smsResult?.ok),
+      smsSkipped: Boolean((smsResult as any)?.skipped),
     });
   } catch (error) {
     console.error("Rejection Error:", error);

@@ -1,3 +1,5 @@
+// /src/app/api/public/request/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
@@ -20,9 +22,6 @@ function buildArtistQueueMessage(template: string, artist: string) {
     ? String(template).replace(/\$artist/g, safeArtist)
     : `${safeArtist} is already queued up on the request list!`;
 }
-
-const ACTIVE_REQUEST_STATUSES = ["PENDING", "ACCEPTED", "APPROVED"] as const;
-const ACTIVE_QUEUE_ITEM_STATUSES = ["QUEUED", "LOADED", "PLAYING", "HELD"] as const;
 
 export async function POST(req: Request) {
   try {
@@ -77,24 +76,7 @@ export async function POST(req: Request) {
     const alreadyQueuedMsg = rules.msgAlreadyRequested || "That song is already on the list already.";
     const artistQueueTemplate =
       rules.msgArtistAlreadyQueued || "Sorry, $artist is already queued up on the request list!";
-    const queueFullMessage =
-      (rules as any).msgQueueFull || "The queue is currently full. Please check back in a bit.";
     const top10Bucket = getTop10BucketAt(now, rules as any);
-
-    const maxOnDeck = Math.max(0, Number((rules as any).maxOnDeck ?? 0));
-    if (maxOnDeck > 0) {
-      const activeQueueCount = await prisma.queueItem.count({
-        where: {
-          locationId: loc.id,
-          sessionId: session.id,
-          status: { in: [...ACTIVE_QUEUE_ITEM_STATUSES] },
-        },
-      });
-
-      if (activeQueueCount >= maxOnDeck) {
-        return jsonFail(queueFullMessage, 400);
-      }
-    }
 
     const activeQueueLimit = Math.max(0, Number((rules as any).maxActiveRequestsPerUser ?? 0));
     if (activeQueueLimit > 0) {
@@ -103,7 +85,7 @@ export async function POST(req: Request) {
           locationId: loc.id,
           sessionId: session.id,
           emailHash,
-          status: { in: [...ACTIVE_REQUEST_STATUSES] },
+          status: "APPROVED",
         },
       });
 
@@ -120,7 +102,7 @@ export async function POST(req: Request) {
         locationId: loc.id,
         sessionId: session.id,
         songId: song.id,
-        status: { in: [...ACTIVE_REQUEST_STATUSES] },
+        status: "APPROVED",
       },
       select: { id: true },
     });
@@ -135,7 +117,7 @@ export async function POST(req: Request) {
         where: {
           locationId: loc.id,
           sessionId: session.id,
-          status: { in: [...ACTIVE_REQUEST_STATUSES] },
+          status: "APPROVED",
           song: { artistKey: song.artistKey },
         },
       });
@@ -201,7 +183,7 @@ export async function POST(req: Request) {
             songId: song.id,
             emailHash,
             type: isPlayNow ? "PLAY_NOW" : "NEXT",
-            status: "PENDING",
+            status: "APPROVED",
             top10Bucket,
           },
         });
@@ -218,6 +200,76 @@ export async function POST(req: Request) {
       }
     );
 
+    const queuedItems = await prisma.queueItem.findMany({
+      where: {
+        locationId: loc.id,
+        sessionId: session.id,
+        status: { in: ["PLAYING", "LOADED", "QUEUED"] },
+      },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        status: true,
+        position: true,
+        createdAt: true,
+      },
+    });
+
+    const resolvePublicInsertIndex = () => {
+      if (!isPlayNow) return queuedItems.length;
+
+      const loadedIndex = queuedItems.findIndex((item) => item.status === "LOADED");
+      if (loadedIndex >= 0) return loadedIndex + 1;
+
+      const playingIndex = queuedItems.findIndex((item) => item.status === "PLAYING");
+      if (playingIndex >= 0) return playingIndex + 1;
+
+      return 0;
+    };
+
+    const insertIndex = resolvePublicInsertIndex();
+
+    const queueItem = await prisma.queueItem.create({
+      data: {
+        requestId: core.reqRow.id,
+        locationId: loc.id,
+        sessionId: session.id,
+        status: "QUEUED",
+        position: queuedItems.length + 1,
+        sourceType: "REQUEST",
+        introAssigned: false,
+      },
+    });
+
+    const orderedIds = [
+      ...queuedItems.slice(0, insertIndex).map((item) => item.id),
+      queueItem.id,
+      ...queuedItems.slice(insertIndex).map((item) => item.id),
+    ];
+
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        prisma.queueItem.update({
+          where: { id },
+          data: { position: index + 1 },
+        })
+      )
+    );
+
+    await prisma.playbackEvent.create({
+      data: {
+        locationId: loc.id,
+        queueItemId: queueItem.id,
+        type: "QUEUED",
+        metadata: {
+          requestId: core.reqRow.id,
+          songId: song.id,
+          action,
+          type: isPlayNow ? "PLAY_NOW" : "NEXT",
+        },
+      },
+    });
+
     await prisma.$transaction(async (tx) => {
       await bumpTop10Request(tx, {
         locationId: loc.id,
@@ -230,8 +282,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       requestId: core.reqRow.id,
-      queueItemId: null,
-      pending: true,
+      queueItemId: queueItem.id,
       balance: core.balanceAfter,
       top10Bucket,
       sessionExpiresAt,

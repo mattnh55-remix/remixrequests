@@ -79,6 +79,7 @@ type RulesState = {
   minSecondsBetweenActions?: number;
   maxArtistInQueue?: number;
   maxActiveRequestsPerUser?: number;
+  maxOnDeck?: number;
   msgExplicit?: string;
   msgTooManyActiveRequests?: string;
   msgAlreadyRequested?: string;
@@ -86,6 +87,7 @@ type RulesState = {
   msgSongCooldown?: string;
   msgArtistAlreadyQueued?: string;
   msgNoCredits?: string;
+  msgQueueFull?: string;
   logoUrl?: string;
   packTier1PriceCents?: number;
   packTier2PriceCents?: number;
@@ -1130,6 +1132,7 @@ useEffect(() => {
                     <Field label="Min seconds between actions" value={rules.minSecondsBetweenActions || 0} onChange={(v) => patchRules({ minSecondsBetweenActions: v })} />
                     <Field label="Max same artist in queue" value={rules.maxArtistInQueue || 0} onChange={(v) => patchRules({ maxArtistInQueue: v })} />
                     <Field label="Max active requests per user" value={rules.maxActiveRequestsPerUser || 0} onChange={(v) => patchRules({ maxActiveRequestsPerUser: v })} />
+                    <Field label="Max On Deck songs" value={(rules as any).maxOnDeck || 0} onChange={(v) => patchRules({ maxOnDeck: v } as any)} />
                   </div>
                 </SubPanel>
 
@@ -1143,6 +1146,7 @@ useEffect(() => {
                     <TextField label="Song cooldown message" value={rules.msgSongCooldown || ""} onChange={(v) => patchRules({ msgSongCooldown: v })} />
                     <TextField label="Artist already queued message" value={rules.msgArtistAlreadyQueued || ""} onChange={(v) => patchRules({ msgArtistAlreadyQueued: v })} />
                     <TextField label="Not enough credits message" value={rules.msgNoCredits || ""} onChange={(v) => patchRules({ msgNoCredits: v })} />
+                    <TextField label="Queue full message" value={(rules as any).msgQueueFull || ""} onChange={(v) => patchRules({ msgQueueFull: v } as any)} />
                   </div>
                 </SubPanel>
 

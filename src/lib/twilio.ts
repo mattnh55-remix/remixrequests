@@ -16,13 +16,11 @@ export function getTwilioClient() {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
 
-  // Log presence only (never log secrets)
   if (!sid || !token) {
     console.error("TWILIO_ENV_MISSING", {
       hasAccountSid: Boolean(sid),
       hasAuthToken: Boolean(token),
       hasFrom: Boolean(process.env.TWILIO_FROM),
-      // helpful to confirm runtime environment
       vercelEnv: process.env.VERCEL_ENV,
       vercelUrl: process.env.VERCEL_URL,
     });
@@ -33,4 +31,15 @@ export function getTwilioClient() {
 
   _client = Twilio(sid, token);
   return _client;
+}
+
+export async function sendSms(to: string, body: string) {
+  const client = getTwilioClient();
+  const from = getTwilioFrom();
+
+  return client.messages.create({
+    to,
+    from,
+    body: String(body || "").trim(),
+  });
 }

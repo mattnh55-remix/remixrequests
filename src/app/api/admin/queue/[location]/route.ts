@@ -1,10 +1,7 @@
-// src/app/api/admin/queue/[location]/route.ts
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
 import { getOrCreateCurrentSession } from "@/lib/validators";
-import { getQueue } from "@/lib/queue";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 
 function skaterLabel(emailHash: string) {
@@ -23,19 +20,34 @@ export async function GET(req: Request, { params }: { params: { location: string
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  const { loc } = await getRulesForLocation(params.location);
+  const { loc, rules } = await getRulesForLocation(params.location);
   const session = await getOrCreateCurrentSession(loc.id, 4);
-  const q = await getQueue(loc.id, session.id);
 
-  const all = [...q.playNow, ...q.main];
-  const requestIds = all.map(r => r.id);
-  const hashes = Array.from(new Set(all.map(r => r.emailHash)));
+  const all = await prisma.request.findMany({
+    where: {
+      locationId: loc.id,
+      sessionId: session.id,
+      status: "PENDING",
+    },
+    orderBy: [{ createdAt: "asc" }],
+    include: {
+      song: {
+        select: {
+          id: true,
+          title: true,
+          artist: true,
+        },
+      },
+    },
+  });
 
-  // Votes: counts by requestId & value
+  const requestIds = all.map((r) => r.id);
+  const hashes = Array.from(new Set(all.map((r) => r.emailHash)));
+
   const voteCounts = await prisma.vote.groupBy({
     by: ["requestId", "value"],
     where: { requestId: { in: requestIds } },
-    _count: { _all: true }
+    _count: { _all: true },
   });
   const upByReq = new Map<string, number>();
   const downByReq = new Map<string, number>();
@@ -45,18 +57,16 @@ export async function GET(req: Request, { params }: { params: { location: string
     if (v.value === -1) downByReq.set(v.requestId, n);
   }
 
-  // Identity verification for label
   const identities = await prisma.identity.findMany({
     where: { locationId: loc.id, emailHash: { in: hashes } },
-    select: { emailHash: true, smsVerifiedAt: true }
+    select: { emailHash: true, smsVerifiedAt: true },
   });
-  const verifiedByHash = new Map<string, boolean>(identities.map(i => [i.emailHash, !!i.smsVerifiedAt]));
+  const verifiedByHash = new Map<string, boolean>(identities.map((i) => [i.emailHash, !!i.smsVerifiedAt]));
 
-  // Redemption code per hash from ledger reason "redeem:CODE"
   const redeems = await prisma.creditLedger.findMany({
     where: { locationId: loc.id, emailHash: { in: hashes }, reason: { startsWith: "redeem:" } },
     select: { emailHash: true, reason: true, createdAt: true },
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: "desc" },
   });
   const redeemByHash = new Map<string, string>();
   for (const r of redeems) {
@@ -65,6 +75,14 @@ export async function GET(req: Request, { params }: { params: { location: string
       if (code) redeemByHash.set(r.emailHash, code);
     }
   }
+
+  const onDeckCount = await prisma.queueItem.count({
+    where: {
+      locationId: loc.id,
+      sessionId: session.id,
+      status: { in: ["QUEUED", "LOADED", "PLAYING", "HELD"] },
+    },
+  });
 
   function mapReq(r: any) {
     const verified = verifiedByHash.get(r.emailHash) ?? false;
@@ -77,21 +95,23 @@ export async function GET(req: Request, { params }: { params: { location: string
       songId: r.songId,
       title: r.song.title,
       artist: r.song.artist,
-      score: r.score,
+      score: (upByReq.get(r.id) ?? 0) - (downByReq.get(r.id) ?? 0),
       type: r.type,
-
+      status: r.status,
       boosted,
       requestedByLabel,
       upvotes: upByReq.get(r.id) ?? 0,
       downvotes: downByReq.get(r.id) ?? 0,
-      redemptionCode: redeemByHash.get(r.emailHash) ?? null
+      redemptionCode: redeemByHash.get(r.emailHash) ?? null,
     };
   }
 
   return NextResponse.json({
     ok: true,
     sessionId: session.id,
-    playNow: q.playNow.map(mapReq),
-    upNext: q.main.map(mapReq)
+    maxOnDeck: Number((rules as any).maxOnDeck ?? 0),
+    onDeckCount,
+    playNow: all.filter((r) => r.type === "PLAY_NOW").map(mapReq),
+    upNext: all.filter((r) => r.type !== "PLAY_NOW").map(mapReq),
   });
 }
