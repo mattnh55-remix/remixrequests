@@ -11,7 +11,6 @@ import BoothInterstitialRuntime from "./BoothInterstitialRuntime";
 import SessionTimerPanel from "./SessionTimerPanel";
 import BoothNotesPanel from "./BoothNotesPanel";
 import {
-  enrichQueueWithRequests,
   isInterstitial,
   normalizeQueue,
   queueSummary,
@@ -229,7 +228,11 @@ function saveSessionClock(location: string, clock: BoothSessionClock) {
 
 function getAssetFilename(asset: InterstitialPadItem | DueInterstitialPromptOption) {
   if ("filePath" in asset || "fileUrl" in asset) {
-    return String((asset as InterstitialPadItem).filePath ?? (asset as InterstitialPadItem).fileUrl ?? "").trim();
+    return String(
+      (asset as InterstitialPadItem).filePath ??
+        (asset as InterstitialPadItem).fileUrl ??
+        ""
+    ).trim();
   }
   return "";
 }
@@ -250,11 +253,11 @@ export default function BoothLayout({ location }: { location: string }) {
   });
 
   const [sessionClock, setSessionClock] = useState<BoothSessionClock>(() =>
-    createNewSessionClock(),
+    createNewSessionClock()
   );
   const [tick, setTick] = useState(0);
-  const [playingInterstitial, setPlayingInterstitial] = useState<ActiveInterstitialPlayback | null>(null);
-  const [queueNotice, setQueueNotice] = useState<string>("");
+  const [playingInterstitial, setPlayingInterstitial] =
+    useState<ActiveInterstitialPlayback | null>(null);
 
   useEffect(() => {
     const clock = loadSessionClock(location);
@@ -265,12 +268,6 @@ export default function BoothLayout({ location }: { location: string }) {
     const id = window.setInterval(() => setTick((x) => x + 1), 1000);
     return () => window.clearInterval(id);
   }, []);
-
-  useEffect(() => {
-    if (!queueNotice) return;
-    const t = window.setTimeout(() => setQueueNotice(""), 2600);
-    return () => window.clearTimeout(t);
-  }, [queueNotice]);
 
   useEffect(() => {
     if (!playingInterstitial) return;
@@ -306,10 +303,7 @@ export default function BoothLayout({ location }: { location: string }) {
       ? requestPayload.upNext
       : [];
 
-    const queue = enrichQueueWithRequests(
-      normalizeQueue(queuePayload),
-      [...playNowRequests, ...upNextRequests]
-    );
+    const queue = normalizeQueue(queuePayload);
 
     const pendingShoutouts: ShoutoutItem[] = Array.isArray(shoutPayload?.pending)
       ? shoutPayload.pending
@@ -318,25 +312,41 @@ export default function BoothLayout({ location }: { location: string }) {
       ? shoutPayload.approved
       : [];
 
-    const target =
-      queue.find((item) => !isInterstitial(item) && item.requestId && item.status !== "PLAYED") ||
-      queue.find((item) => !isInterstitial(item) && item.status !== "PLAYED") ||
-      null;
+    const requestDecisionQueue = [...playNowRequests, ...upNextRequests];
 
-    const runtimePreview: RuntimePreview | null = target
-      ? {
-          action: "PLAY_QUEUE_ITEM",
-          reason: "DJ_DECISION_QUEUE",
-          targetQueueItemId: target.id,
-          targetTitle: target.title ?? null,
-          targetArtist: target.artist ?? null,
-          clusterId: target.clusterId ?? null,
-        }
-      : { action: "NO_ACTION", reason: "NO_REQUESTS_WAITING" };
+    let runtimePreview: RuntimePreview | null = null;
+
+    if (requestDecisionQueue.length > 0) {
+      const target = requestDecisionQueue[0];
+      runtimePreview = {
+        action: "PLAY_QUEUE_ITEM",
+        reason: "DJ_DECISION_QUEUE",
+        targetQueueItemId: target?.id ?? null,
+        targetTitle: target?.title ?? null,
+        targetArtist: target?.artist ?? null,
+        clusterId: null,
+      };
+    } else if (queue.length > 0) {
+      const target =
+        queue.find((item) => item.status === "LOADED") ||
+        queue.find((item) => item.status === "QUEUED") ||
+        null;
+
+      runtimePreview = {
+        action: target ? "PLAY_QUEUE_ITEM" : "NO_ACTION",
+        reason: target ? "DIRECT_PLAY" : "NO_PLAYABLE_QUEUE_ITEM",
+        targetQueueItemId: target?.id ?? null,
+        targetTitle: target?.title ?? null,
+        targetArtist: target?.artist ?? null,
+        clusterId: target?.clusterId ?? null,
+      };
+    } else {
+      runtimePreview = { action: "NO_ACTION", reason: "NO_PLAYABLE_QUEUE_ITEM" };
+    }
 
     setState((prev) => ({
       ...prev,
-      queue,
+      queue: requestDecisionQueue as any,
       runtimePreview,
       playNowRequests,
       upNextRequests,
@@ -353,12 +363,13 @@ export default function BoothLayout({ location }: { location: string }) {
     return () => window.clearInterval(id);
   }, [location]);
 
-  const summary = useMemo(() => queueSummary(state.queue), [state.queue]);
-
-  const decisionQueue = useMemo(
+  const summary = useMemo(
     () =>
-      state.queue.filter(
-        (item) => !isInterstitial(item) && !!item.requestId && item.status !== "PLAYED"
+      queueSummary(
+        state.queue.map((item: any) => ({
+          ...item,
+          sourceType: "REQUEST",
+        }))
       ),
     [state.queue]
   );
@@ -381,35 +392,34 @@ export default function BoothLayout({ location }: { location: string }) {
     return payload;
   }
 
-  async function handlePlayed(requestId: string) {
-    const result = await postJson(`/api/admin/queue/played`, { requestId });
-    if (!result.ok || !result.data?.ok) {
-      setQueueNotice(String(result.data?.error || "Could not mark request as played."));
+  async function markRequestPlayed(requestId: string) {
+    const actionResult = await postJson(`/api/admin/queue/played`, { requestId });
+    if (!actionResult.ok) {
+      console.error("Request played failed", { requestId, response: actionResult.data });
       await load();
-      return;
+      return actionResult.data;
     }
-    setQueueNotice("Request marked played.");
+
     await materializeRuntimeAndMaybePlay();
     await load();
+    return actionResult.data;
   }
 
-  async function handleReject(requestId: string) {
-    const reason = window.prompt("Reject reason?", "Rejected from booth")?.trim();
-    if (!reason) return;
-
-    const result = await postJson(`/api/admin/queue/reject`, { requestId, reason });
-    if (!result.ok || !result.data?.ok) {
-      setQueueNotice(String(result.data?.error || "Could not reject request."));
+  async function rejectRequest(requestId: string, reason: string) {
+    const actionResult = await postJson(`/api/admin/queue/reject`, { requestId, reason });
+    if (!actionResult.ok) {
+      console.error("Request reject failed", { requestId, response: actionResult.data });
       await load();
-      return;
+      return actionResult.data;
     }
-    setQueueNotice("Request rejected and point refunded.");
+
     await load();
+    return actionResult.data;
   }
 
   async function handlePlayInterstitialAsset(
     asset: InterstitialPadItem | DueInterstitialPromptOption,
-    categoryOverride?: string,
+    categoryOverride?: string
   ) {
     const filename = getAssetFilename(asset);
 
@@ -431,7 +441,9 @@ export default function BoothLayout({ location }: { location: string }) {
       assetId: "assetId" in asset ? asset.assetId : asset.id,
       assetName: asset.name,
       category:
-        categoryOverride || ("category" in asset ? String((asset as any).category || "MANUAL_ONLY") : "MANUAL_ONLY"),
+        categoryOverride || ("category" in asset
+          ? String(categoryOverride || (asset as any).category || "MANUAL_ONLY")
+          : "MANUAL_ONLY"),
       startedAtIso: now.toISOString(),
       endsAtIso: ends.toISOString(),
     });
@@ -450,8 +462,7 @@ export default function BoothLayout({ location }: { location: string }) {
           <div className="rrEyebrow">REMIXREQUESTS • LIVE BOOTH</div>
           <div className="rrTitle">PERFORMANCE CONSOLE</div>
           <div className="rrSub">
-            Gunmetal booth surface for live request decisions, runtime insertions,
-            scheduled interstitial prompts, and shoutouts.
+            Gunmetal booth surface for live request decisions, runtime insertions, scheduled interstitial prompts, and shoutouts.
           </div>
         </div>
 
@@ -483,9 +494,7 @@ export default function BoothLayout({ location }: { location: string }) {
             <div className="statBox">
               <span>UPDATED</span>
               <strong>
-                {state.lastUpdated
-                  ? new Date(state.lastUpdated).toLocaleTimeString()
-                  : "—"}
+                {state.lastUpdated ? new Date(state.lastUpdated).toLocaleTimeString() : "—"}
               </strong>
             </div>
 
@@ -501,7 +510,7 @@ export default function BoothLayout({ location }: { location: string }) {
         </div>
       </div>
 
-      <div className="rrBooth__grid rrBooth__grid--decision">
+      <div className="rrBooth__grid">
         <section className="boothPanel boothPanel--primary rrQueueStage">
           <div className="panelHead panelHead--tight">
             <div>
@@ -519,15 +528,14 @@ export default function BoothLayout({ location }: { location: string }) {
             <SearchAddPanel location={location} onAdded={load} />
           </div>
 
-          {queueNotice ? <div className="rrQueueNotice">{queueNotice}</div> : null}
-
-          <div className="rrQueueStage__content rrQueueStage__content--decision">
+          <div className="rrQueueStage__content">
             <div className="rrQueueStage__stack">
-              <div className="rrQueueStage__queueShell rrQueueStage__queueShell--decision">
+              <div className="rrQueueStage__queueShell">
                 <QueueList
-                  items={decisionQueue}
-                  onPlayed={handlePlayed}
-                  onReject={handleReject}
+                  items={state.queue as any}
+                  mode={mode}
+                  onPlayed={markRequestPlayed}
+                  onReject={rejectRequest}
                 />
               </div>
             </div>
@@ -556,7 +564,10 @@ export default function BoothLayout({ location }: { location: string }) {
             activePlayback={playingInterstitial}
             optionHistoryMap={{}}
             onPlayAsset={async (asset) => {
-              await handlePlayInterstitialAsset(asset, "category" in asset ? asset.category : "MANUAL_ONLY");
+              await handlePlayInterstitialAsset(
+                asset,
+                "category" in asset ? asset.category : "MANUAL_ONLY"
+              );
             }}
             onStopPlayback={async () => {
               const result = await triggerLocalBridgeStop();
@@ -647,6 +658,18 @@ export default function BoothLayout({ location }: { location: string }) {
           display: flex;
           align-items: center;
           justify-content: center;
+        }
+
+        .rrTopbarCenter .boothPanel,
+        .rrTopbarCenter > div {
+          width: 100%;
+          max-width: 470px;
+        }
+
+        .rrTopbarCenter .rrSessionHero,
+        .rrTopbarCenter [class*="Session"],
+        .rrTopbarCenter > * {
+          min-width: 0;
         }
 
         .rrTopbarRight {
@@ -745,11 +768,6 @@ export default function BoothLayout({ location }: { location: string }) {
           min-width: 0;
         }
 
-        .boothStack--right > .boothPanel,
-        .boothStack--right > .boothPanel--compact {
-          min-height: 0;
-        }
-
         .panelHead,
         .boothPanelHeader {
           display: flex;
@@ -814,10 +832,6 @@ export default function BoothLayout({ location }: { location: string }) {
           min-height: 520px;
         }
 
-        .rrQueueStage__content--decision {
-          min-height: 320px;
-        }
-
         .rrQueueStage__stack {
           display: grid;
           gap: 6px;
@@ -827,49 +841,38 @@ export default function BoothLayout({ location }: { location: string }) {
           min-height: 240px;
         }
 
-        .rrQueueStage__queueShell--decision {
-          min-height: 340px;
+        .rrInterstitialPromptModal {
+          position: absolute;
+          left: 10px;
+          right: 10px;
+          top: 96px;
+          z-index: 20;
+          pointer-events: auto;
+          animation: rrPromptDissolve 240ms ease-out;
         }
 
-        .rrQueueNotice {
-          margin-bottom: 8px;
-          border-radius: 4px;
-          border: 1px solid rgba(89, 203, 255, 0.2);
-          background: rgba(89, 203, 255, 0.08);
-          padding: 8px 10px;
-          font-size: 12px;
-          font-weight: 800;
-          color: #d8f1ff;
+        .rrBoothNotes {
+          display: grid;
+          gap: 8px;
         }
 
-        .rrInterstitialPromptModal { position: absolute; left: 10px; right: 10px; top: 96px; z-index: 20; pointer-events: auto; animation: rrPromptDissolve 240ms ease-out; }
-        .rrInterstitialPromptModal__pulse { position: absolute; inset: -10px; border-radius: 18px; background: radial-gradient(circle at center, rgba(73, 174, 255, 0.12), transparent 66%); filter: blur(20px); animation: rrPromptBreath 1.4s ease-in-out infinite; }
-        .rrInterstitialPromptModal__card { position: relative; overflow: hidden; border-radius: 14px; border: 1px solid rgba(107, 187, 255, 0.28); background: linear-gradient(180deg, rgba(13, 23, 39, 0.96), rgba(8, 13, 23, 0.98)), radial-gradient(circle at top, rgba(79, 176, 255, 0.10), transparent 42%); padding: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 24px 44px rgba(3, 8, 16, 0.54); }
-        .rrInterstitialPromptModal__head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
-        .rrInterstitialPromptModal__eyebrow { font-size: 10px; font-weight: 1000; letter-spacing: 2px; text-transform: uppercase; color: rgba(173, 214, 255, 0.82); }
-        .rrInterstitialPromptModal__title { margin-top: 4px; font-size: 24px; line-height: 1; font-weight: 1000; color: #f7fbff; }
-        .rrInterstitialPromptModal__sub { margin-top: 6px; font-size: 12px; line-height: 1.4; color: rgba(225, 236, 250, 0.76); max-width: 720px; }
-        .rrInterstitialPromptModal__meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
-        .rrPromptChip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); font-size: 10px; font-weight: 1000; letter-spacing: 1px; text-transform: uppercase; color: rgba(241, 246, 255, 0.88); }
-        .rrPromptChip--gold { border-color: rgba(255, 214, 117, 0.36); color: #ffeab0; }
-        .rrInterstitialPromptModal__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-        .rrPromptTile { appearance: none; overflow: hidden; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); background: linear-gradient(180deg, rgba(26, 35, 49, 0.98), rgba(10, 15, 25, 0.98)); padding: 0; color: inherit; cursor: pointer; text-align: left; transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
-        .rrPromptTile:hover { transform: translateY(-1px); border-color: rgba(94, 190, 255, 0.26); box-shadow: 0 12px 24px rgba(0,0,0,0.2); }
-        .rrPromptTile--active { border-color: rgba(255, 214, 117, 0.4); }
-        .rrPromptTile__media { position: relative; height: 118px; overflow: hidden; background: linear-gradient(135deg, rgba(64, 140, 202, 0.94), rgba(116, 214, 255, 0.78)); }
-        .rrPromptTile__gif { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .rrPromptTile__fallback { width: 100%; height: 100%; display: grid; place-items: center; padding: 10px; text-align: center; font-size: 16px; line-height: 1.02; font-weight: 1000; color: #fff3a6; text-transform: uppercase; }
-        .rrPromptTile__shine { position: absolute; inset: 0; background: linear-gradient(120deg, transparent 10%, rgba(255,255,255,0.08) 50%, transparent 90%); mix-blend-mode: screen; }
-        .rrPromptTile__body { display: grid; gap: 5px; padding: 10px 11px 12px; }
-        .rrPromptTile__topline { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-        .rrPromptTile__label, .rrPromptTile__duration { font-size: 10px; font-weight: 1000; letter-spacing: 1px; color: rgba(218, 230, 248, 0.74); text-transform: uppercase; }
-        .rrPromptTile__title { font-size: 15px; line-height: 1.04; font-weight: 1000; color: #f8fbff; }
-        .rrPromptTile__last { font-size: 11px; color: rgba(209, 222, 242, 0.74); }
+        .rrBoothNotes__textarea {
+          min-height: 130px;
+          padding-top: 10px;
+          resize: vertical;
+        }
 
-        .rrBoothNotes { display: grid; gap: 8px; }
-        .rrBoothNotes__textarea { min-height: 130px; padding-top: 10px; resize: vertical; }
-        .rrBoothNotes__footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-        .rrBoothNotes__saved { font-size: 11px; color: rgba(214, 226, 244, 0.72); }
+        .rrBoothNotes__footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .rrBoothNotes__saved {
+          font-size: 11px;
+          color: rgba(214, 226, 244, 0.72);
+        }
 
         .gunmetalInput {
           width: 100%;
@@ -877,12 +880,18 @@ export default function BoothLayout({ location }: { location: string }) {
           padding: 0 11px;
           border-radius: 4px;
           border: 1px solid rgba(123, 156, 196, 0.32);
-          background: linear-gradient(180deg, rgba(8, 16, 30, 0.94), rgba(7, 13, 24, 0.98));
+          background: linear-gradient(
+            180deg,
+            rgba(8, 16, 30, 0.94),
+            rgba(7, 13, 24, 0.98)
+          );
           color: #f4f7fd;
           font-size: 13px;
           font-weight: 700;
           outline: none;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(12, 26, 48, 0.34);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            0 0 0 1px rgba(12, 26, 48, 0.34);
         }
 
         .gunmetalBtn {
@@ -899,9 +908,8 @@ export default function BoothLayout({ location }: { location: string }) {
           background: linear-gradient(180deg, #4a5467 0%, #2d3441 52%, #232935 100%);
         }
 
-        .gunmetalBtn:disabled {
-          cursor: not-allowed;
-          opacity: 0.56;
+        .gunmetalBtn--primary {
+          background: linear-gradient(180deg, #3d7ec0 0%, #245694 52%, #1c4479 100%);
         }
 
         .queueListShell {
@@ -909,10 +917,6 @@ export default function BoothLayout({ location }: { location: string }) {
           border: 1px solid rgba(255,255,255,0.08);
           background: rgba(255,255,255,0.015);
           overflow: hidden;
-        }
-
-        .queueListShell--decision {
-          background: linear-gradient(180deg, rgba(12, 20, 34, 0.9), rgba(8, 13, 23, 0.96));
         }
 
         .queueListHeader {
@@ -942,11 +946,6 @@ export default function BoothLayout({ location }: { location: string }) {
           gap: 0;
         }
 
-        .queueListScroller--decision {
-          gap: 10px;
-          padding: 12px;
-        }
-
         .emptyBox {
           padding: 14px 12px;
           font-size: 13px;
@@ -955,80 +954,125 @@ export default function BoothLayout({ location }: { location: string }) {
 
         .queueRow {
           display: grid;
-          grid-template-columns: 34px minmax(0, 1fr) auto;
+          grid-template-columns: 24px minmax(0, 1fr) auto;
           align-items: center;
           gap: 10px;
-          padding: 9px 10px;
+          padding: 12px 12px;
           border-top: 1px solid rgba(255,255,255,0.06);
           background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
         }
 
-        .queueRow:first-child { border-top: 0; }
-        .queueRow--request { box-shadow: inset 3px 0 0 rgba(255, 116, 116, 0.9); }
-        .queueRow--boosted { box-shadow: inset 3px 0 0 rgba(255, 171, 52, 0.95); }
-        .queueRow--interstitial { box-shadow: inset 3px 0 0 rgba(83, 191, 255, 0.92); }
-
-        .queueRow--decision {
-          grid-template-columns: 22px minmax(0, 1fr) auto;
-          gap: 14px;
-          padding: 12px 14px;
-          border: 1px solid rgba(95, 125, 164, 0.18);
-          border-radius: 6px;
-          background: linear-gradient(180deg, rgba(9, 20, 37, 0.98), rgba(7, 13, 24, 0.98));
+        .queueRow:first-child {
+          border-top: 0;
         }
 
-        .queueRow--decision:first-child { border-top: 1px solid rgba(95, 125, 164, 0.18); }
-
-        .queueDragHandle {
-          display: grid;
-          gap: 3px;
-          align-content: center;
-          justify-items: center;
-          opacity: 0.72;
+        .queueRow--request {
+          box-shadow: inset 3px 0 0 rgba(255, 116, 116, 0.9);
         }
 
-        .queueDragHandle span {
-          width: 10px;
-          height: 2px;
-          border-radius: 999px;
-          background: rgba(183, 203, 229, 0.72);
+        .queueRow--boosted {
+          box-shadow: inset 3px 0 0 rgba(255, 171, 52, 0.95);
         }
 
-        .queueText { min-width: 0; }
-        .queueTitleLine, .queueTitleLine--interstitial { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
-        .queueTitle, .queueTitle--interstitial { font-size: 15px; font-weight: 1000; color: #fbfdff; font-style: italic; }
-        .queueMeta, .queueMeta--interstitial { margin-top: 4px; font-size: 12px; color: rgba(223, 233, 248, 0.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .queueMetaStrong { color: #f5f9ff; }
-        .queueMetaMinor, .interstitialContext { color: rgba(183, 203, 229, 0.72); }
-        .queueMeta--stacked { font-size: 13px; white-space: nowrap; }
-        .queueMeta--scoreline { font-size: 12px; color: rgba(195, 213, 239, 0.78); }
+        .queueDrag {
+          width: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: rgba(185, 204, 228, 0.62);
+          font-size: 22px;
+          line-height: 1;
+          cursor: grab;
+          user-select: none;
+        }
 
-        .queueActions { display: flex; justify-content: flex-end; }
-        .queueActions--decision { align-self: center; }
-        .boothActionRail { display: inline-flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-        .boothActionRail--decision { gap: 8px; }
+        .queueText {
+          min-width: 0;
+        }
 
-        .statusPill--boost { border-color: rgba(255, 184, 66, 0.28); background: rgba(255, 184, 66, 0.12); color: #ffd98a; }
-        .statusPill--alert, .statusPill--red { border-color: rgba(255, 118, 118, 0.28); background: rgba(255, 118, 118, 0.12); color: #ffb6b6; }
-        .statusPill--gold { border-color: rgba(255, 198, 90, 0.24); background: rgba(255, 198, 90, 0.10); color: #ffd88a; }
-        .statusPill--pink { border-color: rgba(238, 121, 255, 0.24); background: rgba(238, 121, 255, 0.10); color: #f0b2ff; }
-        .statusPill--cyan { border-color: rgba(89, 203, 255, 0.28); background: rgba(89, 203, 255, 0.10); color: #aee9ff; }
+        .queueTitleLine {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px;
+          min-width: 0;
+        }
 
-        .gunmetalBtn--play, .gunmetalBtn--primary {
+        .queueNumber {
+          font-size: 14px;
+          font-weight: 1000;
+          color: #f7fbff;
+        }
+
+        .queueTitle {
+          font-size: 18px;
+          font-weight: 1000;
+          color: #fbfdff;
+          font-style: italic;
+        }
+
+        .queueMeta {
+          margin-top: 4px;
+          font-size: 12px;
+          color: rgba(223, 233, 248, 0.8);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .queueMetaStrong {
+          color: #f5f9ff;
+        }
+
+        .queueMetaMinor {
+          color: rgba(183, 203, 229, 0.72);
+        }
+
+        .queueActions {
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .boothActionRail {
+          display: inline-flex;
+          gap: 6px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+
+        .statusPill--boost {
+          border-color: rgba(255, 184, 66, 0.28);
+          background: rgba(255, 184, 66, 0.12);
+          color: #ffd98a;
+        }
+
+        .statusPill--alert,
+        .statusPill--red {
+          border-color: rgba(255, 118, 118, 0.28);
+          background: rgba(255, 118, 118, 0.12);
+          color: #ffb6b6;
+        }
+
+        .queueActionBtn {
+          appearance: none;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          cursor: pointer;
+          min-height: 28px;
+          padding: 0 13px;
+          border-radius: 12px;
+          font-size: 10px;
+          font-weight: 1000;
+          letter-spacing: 0.2px;
+          color: #f1f5fb;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+        }
+
+        .queueActionBtn--play {
           background: linear-gradient(180deg, #4a93df 0%, #2f6eb5 52%, #275a95 100%);
         }
 
-        .gunmetalBtn--skip {
+        .queueActionBtn--reject {
           background: linear-gradient(180deg, #bb6776 0%, #9b4755 52%, #813944 100%);
-        }
-
-        .queueDecisionBtn {
-          min-width: 72px;
-          min-height: 36px;
-          padding: 0 14px;
-          border-radius: 12px;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
-          font-size: 13px;
         }
 
         @keyframes rrPromptDissolve {
@@ -1036,31 +1080,49 @@ export default function BoothLayout({ location }: { location: string }) {
           100% { opacity: 1; transform: translateY(0) scale(1); }
         }
 
-        @keyframes rrPromptBreath {
-          0%, 100% { opacity: 0.66; transform: scale(0.985); }
-          50% { opacity: 1; transform: scale(1.015); }
-        }
-
         @media (max-width: 1480px) {
-          .rrBooth__topbar { grid-template-columns: 1fr; }
-          .rrTopbarRight { justify-content: flex-start; }
-          .rrBooth__grid { grid-template-columns: 1.7fr 1fr 1fr; }
-          .rrInterstitialPromptModal__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+          .rrBooth__topbar {
+            grid-template-columns: 1fr;
+          }
+
+          .rrTopbarRight {
+            justify-content: flex-start;
+          }
+
+          .rrBooth__grid {
+            grid-template-columns: 1.7fr 1fr 1fr;
+          }
         }
 
         @media (max-width: 1200px) {
-          .rrBooth__grid { grid-template-columns: 1fr; }
-          .rrInterstitialPromptModal { position: relative; inset: auto; margin-top: 8px; }
-          .rrInterstitialPromptModal__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .rrBooth__grid {
+            grid-template-columns: 1fr;
+          }
+
+          .rrInterstitialPromptModal {
+            position: relative;
+            inset: auto;
+            margin-top: 8px;
+          }
         }
 
         @media (max-width: 760px) {
-          .rrTitle { font-size: 24px; }
-          .rrInterstitialPromptModal__head { flex-direction: column; }
-          .rrInterstitialPromptModal__grid { grid-template-columns: 1fr; }
-          .queueRow--decision { grid-template-columns: 1fr; }
-          .queueDragHandle { display: none; }
-          .queueActions--decision { justify-content: flex-start; }
+          .rrTitle {
+            font-size: 24px;
+          }
+
+          .queueRow {
+            grid-template-columns: 1fr;
+            align-items: start;
+          }
+
+          .queueDrag {
+            display: none;
+          }
+
+          .queueActions {
+            justify-content: flex-start;
+          }
         }
       `}</style>
     </div>
