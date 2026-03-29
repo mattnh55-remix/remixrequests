@@ -269,8 +269,8 @@ model Ruleset {
 
   maxActiveRequestsPerUser Int    @default(2)
   msgTooManyActiveRequests String @default("You already have songs waiting in the queue.")
-  maxOnDeck    Int    @default(10)
-  msgQueueFull String @default("The queue is currently full. Please check back in a bit.")
+  maxOnDeck    		   Int    @default(10)
+  msgQueueFull 		   String @default("The queue is currently full. Please check back in a bit.")
   enableVoting             Boolean @default(true)
   msgExplicit              String  @default("Sorry — this song isn’t available here.")
   msgAlreadyRequested      String  @default("You’ve already made a request this session.")
