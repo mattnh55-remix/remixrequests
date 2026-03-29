@@ -1,102 +1,82 @@
 "use client";
 
-import BoothActionButtons from "./BoothActionButtons";
-import InterstitialRow from "./InterstitialRow";
 import StatusBadge from "./StatusBadge";
-import {
-  getAllowedActions,
-  getStatusTone,
-  isBoostedLike,
-  isInterstitial,
-  isRequestLike,
-} from "./booth-utils";
-import type { BoothActionName, BoothMode, QueueLikeItem } from "./types";
+import { isBoostedLike, isInterstitial, isRequestLike } from "./booth-utils";
+import type { QueueLikeItem } from "./types";
 
 type QueueItemRowProps = {
   item: QueueLikeItem;
-  mode?: BoothMode;
-  busyAction?: BoothActionName | null;
-  onLoad?: (queueItemId: string) => void | Promise<void>;
-  onPlay?: (queueItemId: string) => void | Promise<void>;
-  onPause?: (queueItemId: string) => void | Promise<void>;
-  onSkip?: (queueItemId: string) => void | Promise<void>;
-  onDone?: (queueItemId: string) => void | Promise<void>;
+  busy?: "played" | "reject" | null;
+  onPlayed?: (requestId: string) => void | Promise<void>;
+  onReject?: (requestId: string) => void | Promise<void>;
 };
 
-export default function QueueItemRow({
-  item,
-  busyAction,
-  onLoad,
-  onPlay,
-  onPause,
-  onSkip,
-  onDone,
-}: QueueItemRowProps) {
+export default function QueueItemRow({ item, busy, onPlayed, onReject }: QueueItemRowProps) {
   const isSystem = isInterstitial(item);
   const isHouse = item.sourceType === "HOUSE";
   const isRequest = isRequestLike(item) && !isSystem && !isHouse;
   const isBoosted = isBoostedLike(item) && !isSystem;
-  const actions = getAllowedActions(item);
+  const requestId = String(item.requestId || "").trim();
+  const canAct = Boolean(requestId);
 
-  function handleAction(action: BoothActionName) {
-    if (action === "load") return void onLoad?.(item.id);
-    if (action === "play") return void onPlay?.(item.id);
-    if (action === "pause") return void onPause?.(item.id);
-    if (action === "skip") return void onSkip?.(item.id);
-    if (action === "done") return void onDone?.(item.id);
-  }
-
-  if (isSystem) {
-    return (
-      <InterstitialRow
-        item={item}
-        busyAction={busyAction}
-        onLoad={onLoad}
-        onPlay={onPlay}
-        onPause={onPause}
-        onSkip={onSkip}
-        onDone={onDone}
-      />
-    );
-  }
+  if (isSystem) return null;
 
   return (
     <div
-      className={`queueRow queueRow--dense ${isRequest ? "queueRow--request" : ""} ${isBoosted ? "queueRow--boosted" : ""}`}
+      className={`queueRow queueRow--decision ${isRequest ? "queueRow--request" : ""} ${isBoosted ? "queueRow--boosted" : ""}`}
+      draggable={false}
     >
-      <div className="queueIndex">{item.position ?? "—"}</div>
+      <div className="queueDragHandle" aria-hidden="true" title="Drag ordering coming next">
+        <span />
+        <span />
+        <span />
+      </div>
 
       <div className="queueText">
         <div className="queueTitleLine">
-          <div className="queueTitle">{item.title || "Untitled"}</div>
+          <div className="queueTitle">{item.position ? `${item.position}. ` : ""}{item.title || "Untitled"}</div>
           {isBoosted ? <StatusBadge label="BOOSTED" tone="boost" /> : null}
           {isRequest ? <StatusBadge label="REQUEST" tone="alert" /> : null}
-          <StatusBadge
-            label={String(item.status || "QUEUED")}
-            tone={getStatusTone(item.status)}
-          />
         </div>
 
-        <div className="queueMeta">
+        <div className="queueMeta queueMeta--stacked">
           <span className="queueMetaStrong">{item.artist || "Unknown artist"}</span>
-          {item.requestedByLabel ? <span> • {item.requestedByLabel}</span> : null}
-          {item.verified ? <span> • VERIFIED</span> : null}
-          {typeof item.upvotes === "number" ? <span> • 👍 {item.upvotes}</span> : null}
-          {typeof item.downvotes === "number" ? <span> • 👎 {item.downvotes}</span> : null}
-          {typeof item.score === "number" ? <span> • Score {item.score}</span> : null}
-          {item.redemptionCode ? (
-            <span className="queueMetaMinor"> • Code {item.redemptionCode}</span>
-          ) : null}
+          {item.requestedByLabel ? <span> • Requested by {item.requestedByLabel}</span> : null}
+        </div>
+
+        <div className="queueMeta queueMeta--scoreline">
+          {typeof item.score === "number" ? <span>Score {item.score}</span> : <span>Score 0</span>}
+          {typeof item.upvotes === "number" ? <span> • 👍 {item.upvotes}</span> : <span> • 👍 0</span>}
+          {typeof item.downvotes === "number" ? <span> • 👎 {item.downvotes}</span> : <span> • 👎 0</span>}
+          {item.redemptionCode ? <span className="queueMetaMinor"> • Code {item.redemptionCode}</span> : null}
         </div>
       </div>
 
-      <div className="queueActions">
-        <BoothActionButtons
-          actions={actions}
-          busyAction={busyAction}
-          onAction={handleAction}
-          compact
-        />
+      <div className="queueActions queueActions--decision">
+        <div className="boothActionRail boothActionRail--decision">
+          <button
+            type="button"
+            className="gunmetalBtn gunmetalBtn--play queueDecisionBtn"
+            disabled={!canAct || !!busy}
+            onClick={() => {
+              if (!requestId) return;
+              void onPlayed?.(requestId);
+            }}
+          >
+            {busy === "played" ? "Working..." : "Played"}
+          </button>
+          <button
+            type="button"
+            className="gunmetalBtn gunmetalBtn--skip queueDecisionBtn"
+            disabled={!canAct || !!busy}
+            onClick={() => {
+              if (!requestId) return;
+              void onReject?.(requestId);
+            }}
+          >
+            {busy === "reject" ? "Working..." : "Reject"}
+          </button>
+        </div>
       </div>
     </div>
   );

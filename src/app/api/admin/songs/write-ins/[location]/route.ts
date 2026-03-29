@@ -5,41 +5,30 @@ import { isAdminFromCookie } from "@/lib/adminAuth";
 import { getRulesForLocation } from "@/lib/rules";
 import { normalizeArtistKey } from "@/lib/security";
 
-type WriteInRecord = {
-  id: string;
-  requestedTitle: string;
-  requestedArtist: string;
-  requestNotes?: string | null;
-  status?: string | null;
-  createdAt?: Date | string | null;
-  matchedSongId?: string | null;
-};
+function safeTrim(value: unknown) {
+  const s = String(value ?? "").trim();
+  return s || "";
+}
+
+function toOptionalString(value: unknown) {
+  const s = safeTrim(value);
+  return s || null;
+}
 
 function buildSongId(title: string, artist: string) {
   const artistPart = artist
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 32) || "artist";
+    .slice(0, 40);
 
   const titlePart = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "song";
+    .slice(0, 60);
 
-  return `${artistPart}-${titlePart}-${Date.now()}`;
-}
-
-async function getWriteInDelegate() {
-  const client = prisma as any;
-  if (client.songWriteIn) {
-    return {
-      modelName: "songWriteIn",
-      api: client.songWriteIn,
-    };
-  }
-  return null;
+  return `${artistPart || "artist"}-${titlePart || "song"}-${Date.now()}`;
 }
 
 export async function GET(
@@ -51,48 +40,60 @@ export async function GET(
   }
 
   const { loc } = await getRulesForLocation(params.location);
-  const delegate = await getWriteInDelegate();
 
-  if (!delegate) {
-    return NextResponse.json({
-      ok: true,
-      items: [],
-      diagnostics: {
-        adapterReady: false,
-        message:
-          "SongWriteIn model not present yet. The Write-Ins tab UI is live and ready for the dedicated model phase.",
-      },
-    });
-  }
-
-  const rows: WriteInRecord[] = await delegate.api.findMany({
+  const items = await prisma.songWriteIn.findMany({
     where: {
       locationId: loc.id,
-      OR: [
-        { status: null },
-        { status: "PENDING" },
-        { status: "pending" },
-      ],
+      status: {
+        in: ["PENDING", "MATCHED"],
+      },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }],
+    include: {
+      matchedSong: {
+        select: {
+          id: true,
+          songId: true,
+          title: true,
+          artist: true,
+        },
+      },
+      identity: {
+        select: {
+          id: true,
+          emailHash: true,
+        },
+      },
+      session: {
+        select: {
+          id: true,
+          profile: true,
+          startedAt: true,
+          endsAt: true,
+        },
+      },
+    },
   });
 
   return NextResponse.json({
     ok: true,
-    items: rows.map((row) => ({
-      id: row.id,
-      title: row.requestedTitle,
-      artist: row.requestedArtist,
-      notes: row.requestNotes || null,
-      status: row.status || "PENDING",
-      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
-      matchedSongId: row.matchedSongId || null,
+    items: items.map((item) => ({
+      id: item.id,
+      title: item.requestedTitle,
+      artist: item.requestedArtist,
+      notes: item.requestNotes,
+      adminNotes: item.adminNotes,
+      requestedByLabel: item.requestedByLabel,
+      status: item.status,
+      createdAt: item.createdAt,
+      reviewedAt: item.reviewedAt,
+      sessionId: item.sessionId,
+      identityId: item.identityId,
+      matchedSongId: item.matchedSong?.songId || null,
+      matchedSongDbId: item.matchedSongId,
+      matchedSongTitle: item.matchedSong?.title || null,
+      matchedSongArtist: item.matchedSong?.artist || null,
     })),
-    diagnostics: {
-      adapterReady: true,
-      sourceModel: delegate.modelName,
-      message: "Dedicated SongWriteIn model detected.",
-    },
   });
 }
 
@@ -105,73 +106,160 @@ export async function POST(
   }
 
   const { loc } = await getRulesForLocation(params.location);
-  const delegate = await getWriteInDelegate();
-  if (!delegate) {
-    return NextResponse.json({ ok: false, error: "SongWriteIn model not present yet." }, { status: 400 });
-  }
-
   const body = await req.json();
-  const action = String(body?.action || "");
-  const writeInId = String(body?.writeInId || "").trim();
+
+  const action = safeTrim(body?.action);
+  const writeInId = safeTrim(body?.writeInId);
+  const adminNotes = toOptionalString(body?.adminNotes);
 
   if (!writeInId) {
-    return NextResponse.json({ ok: false, error: "Missing write-in ID." }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "Missing write-in ID." },
+      { status: 400 }
+    );
   }
 
-  const item: WriteInRecord | null = await delegate.api.findFirst({
-    where: { id: writeInId, locationId: loc.id },
+  const writeIn = await prisma.songWriteIn.findFirst({
+    where: {
+      id: writeInId,
+      locationId: loc.id,
+    },
   });
 
-  if (!item) {
-    return NextResponse.json({ ok: false, error: "Write-in not found." }, { status: 404 });
+  if (!writeIn) {
+    return NextResponse.json(
+      { ok: false, error: "Write-in not found for this location." },
+      { status: 404 }
+    );
   }
 
   if (action === "reject") {
-    await delegate.api.update({
-      where: { id: writeInId },
-      data: { status: "REJECTED" },
+    await prisma.songWriteIn.update({
+      where: { id: writeIn.id },
+      data: {
+        status: "REJECTED",
+        adminNotes,
+        reviewedAt: new Date(),
+        rejectedAt: new Date(),
+      },
     });
 
     return NextResponse.json({ ok: true, message: "✅ Write-in rejected." });
   }
 
+  if (action === "mark-unavailable") {
+    await prisma.songWriteIn.update({
+      where: { id: writeIn.id },
+      data: {
+        status: "UNAVAILABLE",
+        adminNotes,
+        reviewedAt: new Date(),
+        unavailableAt: new Date(),
+      },
+    });
+
+    return NextResponse.json({ ok: true, message: "✅ Write-in marked unavailable." });
+  }
+
   if (action === "match-existing") {
-    const songId = String(body?.songId || "").trim();
-    if (!songId) {
-      return NextResponse.json({ ok: false, error: "Enter an existing songId to match." }, { status: 400 });
+    const catalogSongId = safeTrim(body?.songId);
+
+    if (!catalogSongId) {
+      return NextResponse.json(
+        { ok: false, error: "Enter an existing songId to match." },
+        { status: 400 }
+      );
     }
 
     const song = await prisma.song.findFirst({
-      where: { locationId: loc.id, songId },
-      select: { songId: true },
+      where: {
+        locationId: loc.id,
+        songId: catalogSongId,
+      },
+      select: {
+        id: true,
+        songId: true,
+        title: true,
+        artist: true,
+      },
     });
 
     if (!song) {
-      return NextResponse.json({ ok: false, error: "No song matched that songId for this location." }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: "No catalog song matched that songId." },
+        { status: 404 }
+      );
     }
 
-    await delegate.api.update({
-      where: { id: writeInId },
-      data: { status: "APPROVED", matchedSongId: song.songId },
+    await prisma.songWriteIn.update({
+      where: { id: writeIn.id },
+      data: {
+        status: "MATCHED",
+        matchedSongId: song.id,
+        adminNotes,
+        reviewedAt: new Date(),
+      },
     });
 
-    return NextResponse.json({ ok: true, message: `✅ Write-in matched to ${song.songId}.` });
+    return NextResponse.json({
+      ok: true,
+      message: `✅ Write-in matched to ${song.songId}.`,
+    });
   }
 
   if (action === "promote-to-catalog") {
-    const title = String(item.requestedTitle || "").trim();
-    const artist = String(item.requestedArtist || "").trim();
-    if (!title || !artist) {
-      return NextResponse.json({ ok: false, error: "Write-in is missing title or artist." }, { status: 400 });
+    const requestedTitle = safeTrim(writeIn.requestedTitle);
+    const requestedArtist = safeTrim(writeIn.requestedArtist);
+
+    if (!requestedTitle || !requestedArtist) {
+      return NextResponse.json(
+        { ok: false, error: "Write-in is missing title or artist." },
+        { status: 400 }
+      );
     }
 
-    const created = await prisma.song.create({
+    const existing = await prisma.song.findFirst({
+      where: {
+        locationId: loc.id,
+        title: {
+          equals: requestedTitle,
+          mode: "insensitive",
+        },
+        artist: {
+          equals: requestedArtist,
+          mode: "insensitive",
+        },
+      },
+      select: {
+        id: true,
+        songId: true,
+      },
+    });
+
+    if (existing) {
+      await prisma.songWriteIn.update({
+        where: { id: writeIn.id },
+        data: {
+          status: "MATCHED",
+          matchedSongId: existing.id,
+          adminNotes,
+          reviewedAt: new Date(),
+        },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        message: `✅ Matching catalog song already existed. Linked to ${existing.songId}.`,
+      });
+    }
+
+    const createdSong = await prisma.song.create({
       data: {
         locationId: loc.id,
-        songId: buildSongId(title, artist),
-        title,
-        artist,
-        artistKey: normalizeArtistKey(artist),
+        songId: buildSongId(requestedTitle, requestedArtist),
+        title: requestedTitle,
+        artist: requestedArtist,
+        artistKey: normalizeArtistKey(requestedArtist),
         active: true,
         explicit: false,
         genre: null,
@@ -179,18 +267,48 @@ export async function POST(
         songWeight: 10,
         featureBoost: 0,
         preferredAudience: "both",
-        notes: item.requestNotes ? `Promoted from write-in: ${item.requestNotes}` : "Promoted from write-in",
+        notes: writeIn.requestNotes
+          ? `Promoted from write-in. ${writeIn.requestNotes}`
+          : "Promoted from write-in.",
       },
-      select: { songId: true },
+      select: {
+        id: true,
+        songId: true,
+      },
     });
 
-    await delegate.api.update({
-      where: { id: writeInId },
-      data: { status: "APPROVED", matchedSongId: created.songId },
+    await prisma.songWriteIn.update({
+      where: { id: writeIn.id },
+      data: {
+        status: "APPROVED",
+        matchedSongId: createdSong.id,
+        adminNotes,
+        reviewedAt: new Date(),
+      },
     });
 
-    return NextResponse.json({ ok: true, message: `✅ Write-in promoted to catalog as ${created.songId}.` });
+    return NextResponse.json({
+      ok: true,
+      message: `✅ Write-in promoted to catalog as ${createdSong.songId}.`,
+    });
   }
 
-  return NextResponse.json({ ok: false, error: "Unsupported write-in action." }, { status: 400 });
+  if (action === "mark-fulfilled") {
+    await prisma.songWriteIn.update({
+      where: { id: writeIn.id },
+      data: {
+        status: "FULFILLED",
+        adminNotes,
+        reviewedAt: new Date(),
+        fulfilledAt: new Date(),
+      },
+    });
+
+    return NextResponse.json({ ok: true, message: "✅ Write-in marked fulfilled." });
+  }
+
+  return NextResponse.json(
+    { ok: false, error: "Unsupported write-in action." },
+    { status: 400 }
+  );
 }

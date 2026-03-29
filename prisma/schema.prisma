@@ -26,6 +26,7 @@ model Location {
   interstitialSchedules  InterstitialSchedule[]
   interstitialEvents     InterstitialEvent[]
   boothNotes             BoothNote[]
+  songWriteIns           SongWriteIn[]
 
   CreditLedger CreditLedger[]
   PlayHistory  PlayHistory[]
@@ -67,8 +68,9 @@ model Song {
 
   createdAt    DateTime     @default(now())
   Request      Request[]
-  PlayHistory  PlayHistory[]
-  top10Entries Top10Entry[]
+  PlayHistory     PlayHistory[]
+  top10Entries    Top10Entry[]
+  matchedWriteIns SongWriteIn[] @relation("MatchedSongWriteIns")
 
   @@index([locationId])
   @@index([artistKey])
@@ -89,6 +91,7 @@ model Session {
 
   requests           Request[]
   votes              Vote[]
+  songWriteIns       SongWriteIn[]
   top10Entries       Top10Entry[]
   queueItems         QueueItem[]
   interstitialEvents InterstitialEvent[]
@@ -197,6 +200,43 @@ model PlayHistory {
   @@index([locationId, playedAt])
   @@index([locationId, artistKey, playedAt])
   @@index([locationId, songId, playedAt])
+}
+
+
+model SongWriteIn {
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  sessionId String?
+  session   Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  identityId String?
+  identity   Identity? @relation(fields: [identityId], references: [id], onDelete: SetNull)
+
+  requestedArtist String
+  requestedTitle  String
+  requestNotes    String?
+  requestedByLabel String?
+
+  status WriteInStatus @default(PENDING)
+
+  matchedSongId String?
+  matchedSong   Song? @relation("MatchedSongWriteIns", fields: [matchedSongId], references: [id], onDelete: SetNull)
+
+  adminNotes   String?
+  reviewedAt   DateTime?
+  fulfilledAt  DateTime?
+  rejectedAt   DateTime?
+  unavailableAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([locationId, status, createdAt])
+  @@index([locationId, sessionId, status])
+  @@index([locationId, identityId, createdAt])
+  @@index([matchedSongId])
 }
 
 model Ruleset {
@@ -447,6 +487,8 @@ model Identity {
   mailchimpStatus String?
   mailchimpError  String?
 
+  songWriteIns SongWriteIn[]
+
   welcomeGrantedSessionId String?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
@@ -635,6 +677,15 @@ enum RequestStatus {
 enum Top10Bucket {
   GENERAL
   ADULT
+}
+
+enum WriteInStatus {
+  PENDING
+  MATCHED
+  APPROVED
+  FULFILLED
+  REJECTED
+  UNAVAILABLE
 }
 
 enum QueueItemStatus {
