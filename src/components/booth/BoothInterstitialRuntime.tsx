@@ -1,9 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import InterstitialPromptModal, {
-  BoothInterstitialAsset,
-} from "@/components/booth/InterstitialPromptModal";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import type { BoothInterstitialAsset } from "@/components/booth/InterstitialPromptModal";
 
 type DuePromptPayload = {
   due: boolean;
@@ -23,28 +21,20 @@ type DuePromptPayload = {
 type Props = {
   location: string;
   sessionStartedAt?: string | null;
-  bridgeBaseUrl?: string;
   pollMs?: number;
-
   onPromptOpen?: (payload: DuePromptPayload) => void;
   onPromptResolved?: () => void;
 };
 
-const DEFAULT_BRIDGE_BASE_URL = "http://127.0.0.1:8787";
 const DEFAULT_POLL_MS = 15000;
 
 export default function BoothInterstitialRuntime({
   location,
   sessionStartedAt,
-  bridgeBaseUrl = DEFAULT_BRIDGE_BASE_URL,
   pollMs = DEFAULT_POLL_MS,
   onPromptOpen,
-  onPromptResolved,
 }: Props) {
-  const [busy, setBusy] = useState(false);
-  const [payload, setPayload] = useState<DuePromptPayload | null>(null);
-  const [open, setOpen] = useState(false);
-  const skipLockRef = useRef(false);
+  const openedScheduleIdRef = useRef<string | null>(null);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -57,119 +47,59 @@ export default function BoothInterstitialRuntime({
       queryString ? `?${queryString}` : ""
     }`;
 
-    const res = await fetch(url, { method: "GET", cache: "no-store" });
-    if (!res.ok) throw new Error("Failed to load due interstitial prompt.");
+    const res = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      throw new Error("Failed to load due interstitial prompt.");
+    }
 
     const data = (await res.json()) as DuePromptPayload;
 
-    if (data.due) {
-      setPayload(data);
-      setOpen(true);
-      onPromptOpen?.(data);
+    if (!data?.due) {
+      openedScheduleIdRef.current = null;
+      return;
     }
+
+    const nextScheduleId = data.scheduleId ?? "__due_without_schedule__";
+
+    if (openedScheduleIdRef.current === nextScheduleId) {
+      return;
+    }
+
+    openedScheduleIdRef.current = nextScheduleId;
+    onPromptOpen?.(data);
   }, [location, queryString, onPromptOpen]);
+
+  useEffect(() => {
+    openedScheduleIdRef.current = null;
+  }, [location, sessionStartedAt]);
 
   useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
       try {
-        if (!cancelled && !busy && !open) {
+        if (!cancelled) {
           await fetchDuePrompt();
         }
-      } catch (e) {
-        console.error("[BoothInterstitialRuntime]", e);
+      } catch (error) {
+        console.error("[BoothInterstitialRuntime]", error);
       }
     };
 
-    run();
-    const timer = setInterval(run, pollMs);
+    void run();
+    const timer = window.setInterval(() => {
+      void run();
+    }, pollMs);
 
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      window.clearInterval(timer);
     };
-  }, [busy, open, fetchDuePrompt, pollMs]);
+  }, [fetchDuePrompt, pollMs]);
 
-  const handlePlay = useCallback(
-    async (asset: BoothInterstitialAsset) => {
-      if (!payload?.category || !asset.playFilename) return;
-
-      setBusy(true);
-
-      try {
-        await fetch(`${bridgeBaseUrl}/play`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filename: asset.playFilename }),
-        });
-
-        await fetch("/api/booth/interstitial-event", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location,
-            category: payload.category,
-            scheduleId: payload.scheduleId,
-            assetId: asset.id,
-            status: "PLAYED",
-          }),
-        });
-
-        setOpen(false);
-        setPayload(null);
-        onPromptResolved?.();
-      } finally {
-        setBusy(false);
-      }
-    },
-    [bridgeBaseUrl, location, payload, onPromptResolved]
-  );
-
-  const handleSkip = useCallback(
-    async (reason: string) => {
-      if (!payload?.category) return;
-      if (skipLockRef.current) return;
-
-      skipLockRef.current = true;
-      setBusy(true);
-
-      try {
-        await fetch("/api/booth/interstitial-event", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location,
-            category: payload.category,
-            scheduleId: payload.scheduleId,
-            status: "SKIPPED",
-            reason,
-          }),
-        });
-
-        setOpen(false);
-        setPayload(null);
-        onPromptResolved?.();
-      } finally {
-        skipLockRef.current = false;
-        setBusy(false);
-      }
-    },
-    [location, payload, onPromptResolved]
-  );
-
-  if (!payload) return null;
-
-  return (
-    <InterstitialPromptModal
-      open={open}
-      busy={busy}
-      category={payload.category}
-      promptTitle={payload.promptTitle}
-      promptBody={payload.promptBody}
-      assets={payload.eligibleAssets}
-      onPlay={handlePlay}
-      onSkip={handleSkip}
-    />
-  );
+  return null;
 }

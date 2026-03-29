@@ -528,7 +528,7 @@ function resetSessionClock() {
 }
 
 const handlePromptOpen = (payload: any) => {
-  if (promptResolving) return;
+  if (promptResolving || promptState.open) return;
 
   setLatchedWarning(warningLevel);
   setPromptLatched(true);
