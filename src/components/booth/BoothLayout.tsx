@@ -9,6 +9,7 @@ import InterstitialPad from "./InterstitialPad";
 import BoothInterstitialRuntime from "./BoothInterstitialRuntime";
 import SessionTimerPanel from "./SessionTimerPanel";
 import BoothNotesPanel from "./BoothNotesPanel";
+import InterstitialPromptModal from "./InterstitialPromptModal";
 import {
   isInterstitial,
   normalizeQueue,
@@ -255,6 +256,7 @@ export default function BoothLayout({ location }: { location: string }) {
     createNewSessionClock()
   );
   const [tick, setTick] = useState(0);
+  const [promptResolving, setPromptResolving] = useState(false);
   const [playingInterstitial, setPlayingInterstitial] =
     useState<ActiveInterstitialPlayback | null>(null);
 
@@ -262,6 +264,22 @@ export default function BoothLayout({ location }: { location: string }) {
     const clock = loadSessionClock(location);
     setSessionClock(clock);
   }, [location]);
+
+  const [promptState, setPromptState] = useState<{
+  open: boolean;
+  scheduleId: string | null;
+  category: string | null;
+  promptTitle: string | null;
+  promptBody: string | null;
+  assets: any[];
+}>({
+  open: false,
+  scheduleId: null,
+  category: null,
+  promptTitle: null,
+  promptBody: null,
+  assets: [],
+});
 
   useEffect(() => {
     const id = window.setInterval(() => setTick((x) => x + 1), 1000);
@@ -295,6 +313,7 @@ const [latchedWarning, setLatchedWarning] = useState<
 const [promptLatched, setPromptLatched] = useState(false);
 const [cycleSuppressed, setCycleSuppressed] = useState(false);
 
+
   async function load() {
     const [queueRes, requestRes, shoutRes] = await Promise.all([
       fetch(`/api/booth/queue/${location}`, { cache: "no-store" }),
@@ -302,15 +321,6 @@ const [cycleSuppressed, setCycleSuppressed] = useState(false);
       fetch(`/api/admin/shoutouts/${location}`, { cache: "no-store" }),
     ]);
 
-function resetSessionClock() {
-  const next = createNewSessionClock();
-  setSessionClock(next);
-  saveSessionClock(location, next);
-
-  setCycleSuppressed(false);
-  setPromptLatched(false);
-  setLatchedWarning("normal");
-}
     const queuePayload = queueRes.ok ? await safeJson(queueRes) : null;
     const requestPayload = requestRes.ok ? await safeJson(requestRes) : null;
     const shoutPayload = shoutRes.ok ? await safeJson(shoutRes) : null;
@@ -484,21 +494,55 @@ function resetSessionClock() {
     });
   }
 
-  function resetSessionClock() {
-    const next = createNewSessionClock();
-    setSessionClock(next);
-    saveSessionClock(location, next);
-  }
+  
+function resetSessionClock() {
+  const next = createNewSessionClock();
+  setSessionClock(next);
+  saveSessionClock(location, next);
 
-      const handlePromptOpen = () => {
+  setCycleSuppressed(false);
+  setPromptLatched(false);
+  setLatchedWarning("normal");
+
+  setPromptState({
+    open: false,
+    scheduleId: null,
+    category: null,
+    promptTitle: null,
+    promptBody: null,
+    assets: [],
+  });
+}
+
+const handlePromptOpen = (payload: any) => {
+  if (promptResolving) return;
+
   setLatchedWarning(warningLevel);
   setPromptLatched(true);
+
+  setPromptState({
+    open: true,
+    scheduleId: payload?.scheduleId ?? null,
+    category: payload?.category ?? null,
+    promptTitle: payload?.promptTitle ?? null,
+    promptBody: payload?.promptBody ?? null,
+    assets: payload?.eligibleAssets ?? [],
+  });
 };
 
 const handlePromptResolved = () => {
   setPromptLatched(false);
   setCycleSuppressed(true);
   setLatchedWarning("normal");
+
+  setPromptState({
+    open: false,
+    scheduleId: null,
+    category: null,
+    promptTitle: null,
+    promptBody: null,
+    assets: [],
+  });
 };
 
   return (
@@ -648,8 +692,77 @@ const handlePromptResolved = () => {
           />
 
           <BoothNotesPanel storageKey={`rr.booth.notes:${location}`} />
+
+
+
+<InterstitialPromptModal
+  open={promptState.open}
+  category={promptState.category}
+  promptTitle={promptState.promptTitle}
+  promptBody={promptState.promptBody}
+  assets={promptState.assets}
+  busy={promptResolving}
+  onPlay={async (asset) => {
+    try {
+      setPromptResolving(true);
+
+await handlePlayInterstitialAsset(
+  {
+    id: asset.id,
+    name: asset.title,
+    category: asset.category,
+    durationSec: null,
+    fileUrl: asset.playFilename,
+    previewGifUrl: asset.previewUrl,
+    iconLabel: null,
+    notes: asset.body,
+    active: true,
+  },
+  asset.category
+);
+
+      await postJson(`/api/booth/interstitial-event/play`, {
+        location,
+        scheduleId: promptState.scheduleId,
+        assetId: asset.id,
+        status: "PLAYED",
+        playedAt: new Date().toISOString(),
+        sessionStartedAt: sessionClock.startedAtIso,
+      });
+
+      handlePromptResolved();
+    } finally {
+      setPromptResolving(false);
+    }
+  }}
+  onSkip={async (reason) => {
+    try {
+      setPromptResolving(true);
+
+      const result = await postJson(`/api/booth/interstitial-event/skip`, {
+        location,
+        scheduleId: promptState.scheduleId,
+        category: promptState.category,
+        reason,
+        status: "SKIPPED",
+        playedAt: new Date().toISOString(),
+        sessionStartedAt: sessionClock.startedAtIso,
+      });
+
+      if (!result.ok) {
+        throw new Error("Skip failed");
+      }
+
+      handlePromptResolved();
+    } finally {
+      setPromptResolving(false);
+    }
+  }}
+/>
         </div>
+
       </div>
+
 
       <style jsx global>{`
 

@@ -26,7 +26,7 @@ type Props = {
   bridgeBaseUrl?: string;
   pollMs?: number;
 
-  onPromptOpen?: () => void;
+  onPromptOpen?: (payload: DuePromptPayload) => void;
   onPromptResolved?: () => void;
 };
 
@@ -65,7 +65,7 @@ export default function BoothInterstitialRuntime({
     if (data.due) {
       setPayload(data);
       setOpen(true);
-      onPromptOpen?.();
+      onPromptOpen?.(data);
     }
   }, [location, queryString, onPromptOpen]);
 
