@@ -228,18 +228,17 @@ export default function InterstitialPad({
           <div className="rrFolderTabsWrap">
             <div className="rrFolderTabs">
               {(visibleTabs.length ? visibleTabs : TAB_ORDER).map((tab) => {
-                const count = groupedAssets[tab]?.length ?? 0;
                 const active = tab === activeTab;
 
                 return (
-<button
-  key={tab}
-  type="button"
-  className={`rrFolderTab ${active ? "rrFolderTab--active" : ""}`}
-  onClick={() => setActiveTab(tab)}
->
-  <span className="rrFolderTab__text">{TAB_LABELS[tab]}</span>
-</button>
+                  <button
+                    key={tab}
+                    type="button"
+                    className={`rrFolderTab ${active ? "rrFolderTab--active" : ""}`}
+                    onClick={() => setActiveTab(tab)}
+                  >
+                    <span className="rrFolderTab__text">{TAB_LABELS[tab]}</span>
+                  </button>
                 );
               })}
             </div>
@@ -261,7 +260,6 @@ export default function InterstitialPad({
                     const durationLabel = formatDuration(asset.durationSec);
                     const isBusy = asset.id === busyAssetId;
                     const isPlaying = asset.id === activeAssetId;
-                    const historyText = optionHistoryMap?.[asset.id] ?? "Tap to fire";
 
                     return (
                       <button
@@ -270,6 +268,7 @@ export default function InterstitialPad({
                         className={`rrPadTile ${isPlaying ? "rrPadTile--playing" : ""}`}
                         onClick={() => void handlePlay(asset)}
                         disabled={isBusy || stopping}
+                        title={asset.name}
                       >
                         <div className="rrPadTile__media">
                           {asset.previewGifUrl ? (
@@ -285,28 +284,18 @@ export default function InterstitialPad({
                           )}
 
                           {isPlaying ? (
-                            <div className="rrPadTile__liveOverlay">
-                              <div className="rrPadTile__liveText">INTERSTITIAL LIVE</div>
-                            </div>
+                            <div className="rrPadTile__liveBadge">LIVE</div>
                           ) : null}
                         </div>
 
-                        <div className="rrPadTile__body">
-                          <div className="rrPadTile__topline">
-                            <span className="rrPadTile__category">
-                              {TAB_LABELS[normalizeTab(asset.category)]}
-                            </span>
-                            {durationLabel ? (
-                              <span className="rrPadTile__duration">{durationLabel}</span>
-                            ) : null}
+                        <div className="rrPadTile__meta">
+                          <div className="rrPadTile__title" title={asset.name}>
+                            {asset.name}
                           </div>
 
-                          <div className="rrPadTile__title">{asset.name}</div>
-                          <div className="rrPadTile__history">{historyText}</div>
-
-                          <div className="rrPadTile__footer">
-                            <span className="rrPadTile__cta">
-                              {isBusy ? "Starting..." : isPlaying ? "Playing" : "Play"}
+                          <div className="rrPadTile__durationRow">
+                            <span className="rrPadTile__duration">
+                              {isBusy ? "Starting..." : durationLabel || "—"}
                             </span>
                           </div>
                         </div>
@@ -386,43 +375,47 @@ export default function InterstitialPad({
           gap: 0;
         }
 
-.rrFolderTabs {
-  display: flex;
-  gap: 2px;
-  align-items: flex-end;
-  overflow: hidden;
-  padding-bottom: 0;
-}
+        .rrFolderTabs {
+          display: flex;
+          gap: 2px;
+          align-items: flex-end;
+          overflow: hidden;
+          padding-bottom: 0;
+        }
 
-.rrFolderTab {
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.12);
-  border-bottom: none;
-  background: linear-gradient(180deg, rgba(35, 44, 58, 0.98), rgba(18, 23, 33, 0.98));
-  color: rgba(221, 232, 246, 0.78);
-  min-height: 34px;
-  padding: 0 7px;
-  border-radius: 8px 8px 0 0;
-  display: inline-flex;
-  gap: 0px;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  white-space: nowrap;
-  position: relative;
-  top: 1px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
-  flex: 1 1 0;
-  min-width: 0;
-}
+        .rrFolderTab {
+          appearance: none;
+          border: 1px solid rgba(255,255,255,0.12);
+          border-bottom: none;
+          background: linear-gradient(180deg, rgba(35, 44, 58, 0.98), rgba(18, 23, 33, 0.98));
+          color: rgba(221, 232, 246, 0.78);
+          min-height: 34px;
+          padding: 0 7px;
+          border-radius: 8px 8px 0 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          white-space: nowrap;
+          position: relative;
+          top: 1px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+          flex: 1 1 0;
+          min-width: 0;
+        }
 
-.rrFolderTab__text {
-  font-size: 9px;
-  font-weight: 1000;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  line-height: 1;
-}
+        .rrFolderTab--active {
+          background: linear-gradient(180deg, rgba(52, 65, 86, 0.98), rgba(23, 31, 45, 0.98));
+          color: #f3f8ff;
+        }
+
+        .rrFolderTab__text {
+          font-size: 9px;
+          font-weight: 1000;
+          letter-spacing: 0.4px;
+          text-transform: uppercase;
+          line-height: 1;
+        }
 
         .rrFolderTray {
           border: 1px solid rgba(106, 189, 255, 0.18);
@@ -452,15 +445,15 @@ export default function InterstitialPad({
 
         .rrPadGrid {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
         }
 
         .rrPadTile {
           appearance: none;
           text-align: left;
           overflow: hidden;
-          border-radius: 12px;
+          border-radius: 10px;
           border: 1px solid rgba(255,255,255,0.1);
           background:
             linear-gradient(180deg, rgba(23, 31, 45, 0.98), rgba(10, 15, 25, 0.98));
@@ -468,7 +461,7 @@ export default function InterstitialPad({
           cursor: pointer;
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,0.06),
-            0 10px 22px rgba(0,0,0,0.18);
+            0 8px 18px rgba(0,0,0,0.18);
           transition:
             transform 120ms ease,
             border-color 120ms ease,
@@ -485,12 +478,12 @@ export default function InterstitialPad({
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,0.08),
             0 0 0 1px rgba(255, 214, 117, 0.14),
-            0 12px 28px rgba(58, 40, 9, 0.24);
+            0 10px 22px rgba(58, 40, 9, 0.24);
         }
 
         .rrPadTile__media {
           position: relative;
-          height: 132px;
+          aspect-ratio: 1 / 1;
           overflow: hidden;
           background:
             linear-gradient(135deg, rgba(58, 128, 190, 0.92), rgba(113, 201, 255, 0.76));
@@ -508,84 +501,60 @@ export default function InterstitialPad({
           height: 100%;
           display: grid;
           place-items: center;
-          padding: 12px;
+          padding: 10px;
           text-align: center;
-          font-size: 16px;
+          font-size: 13px;
           font-weight: 1000;
           line-height: 1.05;
-          letter-spacing: 0.6px;
+          letter-spacing: 0.5px;
           color: #fff3a6;
           text-transform: uppercase;
         }
 
-        .rrPadTile__liveOverlay {
+        .rrPadTile__liveBadge {
           position: absolute;
-          inset: 0;
-          display: grid;
-          place-items: center;
-          background:
-            linear-gradient(180deg, rgba(255, 203, 77, 0.10), rgba(255, 203, 77, 0.18)),
-            radial-gradient(circle at center, rgba(255,255,255,0.06), transparent 60%);
-          backdrop-filter: blur(1px);
-        }
-
-        .rrPadTile__liveText {
-          padding: 6px 10px;
+          right: 6px;
+          top: 6px;
+          padding: 3px 6px;
           border-radius: 999px;
           border: 1px solid rgba(255, 228, 157, 0.42);
-          background: rgba(13, 18, 27, 0.72);
+          background: rgba(13, 18, 27, 0.8);
           color: #fff0b2;
-          font-size: 11px;
+          font-size: 9px;
           font-weight: 1000;
-          letter-spacing: 1.6px;
+          letter-spacing: 1px;
           animation: rrPadPulse 1.1s ease-in-out infinite;
         }
 
-        .rrPadTile__body {
+        .rrPadTile__meta {
           display: grid;
-          gap: 6px;
-          padding: 11px 12px 12px;
-        }
-
-        .rrPadTile__topline {
-          display: flex;
-          justify-content: space-between;
-          gap: 8px;
-          align-items: center;
-        }
-
-        .rrPadTile__category,
-        .rrPadTile__duration {
-          font-size: 10px;
-          font-weight: 1000;
-          letter-spacing: 1px;
-          text-transform: uppercase;
-          color: rgba(216, 228, 245, 0.74);
+          gap: 4px;
+          padding: 7px 8px 8px;
         }
 
         .rrPadTile__title {
-          font-size: 17px;
-          line-height: 1.02;
-          font-weight: 1000;
-          color: #f8fbff;
-        }
-
-        .rrPadTile__history {
           font-size: 11px;
-          color: rgba(210, 222, 241, 0.72);
+          line-height: 1.15;
+          font-weight: 900;
+          color: #f8fbff;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
-        .rrPadTile__footer {
+        .rrPadTile__durationRow {
           display: flex;
           justify-content: flex-end;
+          align-items: center;
+          min-height: 14px;
         }
 
-        .rrPadTile__cta {
-          font-size: 11px;
+        .rrPadTile__duration {
+          font-size: 10px;
           font-weight: 1000;
-          letter-spacing: 1.2px;
+          letter-spacing: 0.8px;
           text-transform: uppercase;
-          color: #9ad9ff;
+          color: rgba(216, 228, 245, 0.78);
         }
 
         @keyframes rrPadPulse {
@@ -594,6 +563,12 @@ export default function InterstitialPad({
         }
 
         @media (max-width: 1280px) {
+          .rrPadGrid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 760px) {
           .rrPadGrid {
             grid-template-columns: 1fr;
           }

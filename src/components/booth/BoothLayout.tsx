@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import EnginePanel from "./EnginePanel";
 import QueueList from "./QueueList";
 import ShoutoutPanel from "./ShoutoutPanel";
 import SearchAddPanel from "./SearchAddPanel";
@@ -599,16 +598,6 @@ const handlePromptResolved = () => {
         </section>
 
         <div className="boothStack">
-          <EnginePanel
-            preview={state.runtimePreview}
-            mode={mode}
-            onMaterialize={async () => {
-              const result = await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
-              await load();
-              return result.data;
-            }}
-          />
-
           <InterstitialPad
             location={location}
             activeAssetId={playingInterstitial?.assetId ?? null}
