@@ -8,6 +8,7 @@ type EventPayload = {
   assetId?: string | null;
   status: "PLAYED" | "SKIPPED";
   reason?: string | null;
+  playedAt?: string;
 };
 
 function badRequest(message: string) {
@@ -30,15 +31,36 @@ export async function POST(req: NextRequest) {
       return badRequest("assetId is required for PLAYED");
     }
 
+    // OPTIONAL: resolve locationId properly (recommended)
+    const locationRow = await prisma.location.findFirst({
+      where: {
+        OR: [{ id: body.location }, { slug: body.location }],
+      },
+      select: { id: true },
+    });
+
+    if (!locationRow) {
+      return badRequest("Invalid location");
+    }
+
+    const now = new Date();
+    const playedAt = body.playedAt ? new Date(body.playedAt) : now;
+
     const created = await prisma.interstitialEvent.create({
       data: {
-        locationId: body.location as any,
+        locationId: locationRow.id,
+
         category: body.category as any,
         scheduleId: body.scheduleId ?? null,
         assetId: body.assetId ?? null,
         status: body.status as any,
-        reason: body.reason?.trim() || null,
-      } as any,
+
+        // ✅ NEW MAPPING (this is the fix)
+        operatorNote: body.reason?.trim() || null,
+
+        playedAt: body.status === "PLAYED" ? playedAt : null,
+        skippedAt: body.status === "SKIPPED" ? now : null,
+      },
     });
 
     return NextResponse.json({
