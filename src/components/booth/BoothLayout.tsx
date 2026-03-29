@@ -612,6 +612,74 @@ export default function BoothLayout({ location }: { location: string }) {
       </div>
 
       <style jsx global>{`
+
+/* =========================
+   SESSION TIMER (RESTORED HERO)
+   ========================= */
+
+.rrSessionHero {
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(77, 107, 143, 0.35);
+  background:
+    linear-gradient(180deg, rgba(25, 32, 48, 0.95), rgba(10, 14, 24, 0.95));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 -1px 0 rgba(0,0,0,0.4),
+    0 10px 24px rgba(0,0,0,0.25);
+}
+
+.rrSessionHero__eyebrow {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.6px;
+  opacity: 0.7;
+}
+
+.rrSessionHero__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rrSessionHero__time {
+  font-size: 26px;
+  font-weight: 1000;
+  letter-spacing: -0.5px;
+}
+
+.rrSessionHero__reset {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(180deg, #3d7ec0 0%, #245694 52%, #1c4479 100%);
+  color: #f1f5fb;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 1000;
+  cursor: pointer;
+}
+
+.rrSessionHero__sub {
+  font-size: 11px;
+  color: rgba(220,230,245,0.7);
+}
+
+.rrSessionHero__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+
+.rrSessionHero__barFill {
+  height: 100%;
+  background: linear-gradient(90deg, #4a93df, #2ec1ea);
+  box-shadow: 0 0 10px rgba(46,193,234,0.5);
+}
+
         .rrBooth {
           min-height: 100vh;
           padding: 6px 8px 10px;
