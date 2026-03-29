@@ -742,14 +742,15 @@ await handlePlayInterstitialAsset(
   asset.category
 );
 
-      await postJson(`/api/booth/interstitial-event/play`, {
-        location,
-        scheduleId: promptState.scheduleId,
-        assetId: asset.id,
-        status: "PLAYED",
-        playedAt: new Date().toISOString(),
-        sessionStartedAt: sessionClock.startedAtIso,
-      });
+await postJson(`/api/booth/interstitial-event`, {
+  location,
+  scheduleId: promptState.scheduleId,
+  assetId: asset.id,
+  category: asset.category,
+  status: "PLAYED",
+  playedAt: new Date().toISOString(),
+  sessionStartedAt: sessionClock.startedAtIso,
+});
 
       handlePromptResolved();
     } finally {
@@ -760,15 +761,15 @@ await handlePlayInterstitialAsset(
     try {
       setPromptResolving(true);
 
-      const result = await postJson(`/api/booth/interstitial-event/skip`, {
-        location,
-        scheduleId: promptState.scheduleId,
-        category: promptState.category,
-        reason,
-        status: "SKIPPED",
-        playedAt: new Date().toISOString(),
-        sessionStartedAt: sessionClock.startedAtIso,
-      });
+const result = await postJson(`/api/booth/interstitial-event`, {
+  location,
+  scheduleId: promptState.scheduleId,
+  category: promptState.category,
+  reason,
+  status: "SKIPPED",
+  playedAt: new Date().toISOString(),
+  sessionStartedAt: sessionClock.startedAtIso,
+});
 
       if (!result.ok) {
         throw new Error("Skip failed");
