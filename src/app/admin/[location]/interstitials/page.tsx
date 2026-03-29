@@ -118,6 +118,38 @@ export default async function AdminInterstitialsPage({
           </div>
         </header>
 
+        <nav className="rrAdminNav rrAdminPanel" aria-label="Admin sections">
+          <a href={`/admin/${location.slug}`} className="rrAdminNav__link">
+            Dashboard
+          </a>
+          <a href={`/admin/${location.slug}?tab=songs`} className="rrAdminNav__link">
+            Songs
+          </a>
+          <a href={`/admin/${location.slug}?tab=requestSettings`} className="rrAdminNav__link">
+            Request Settings
+          </a>
+          <a href={`/admin/${location.slug}?tab=top10`} className="rrAdminNav__link">
+            Top 10
+          </a>
+          <a href={`/admin/${location.slug}?tab=users`} className="rrAdminNav__link">
+            Users & Points
+          </a>
+          <a href={`/admin/${location.slug}?tab=shoutoutSettings`} className="rrAdminNav__link">
+            Shoutout Settings
+          </a>
+          <a href={`/booth/${location.slug}`} className="rrAdminNav__link">
+            DJ Booth
+          </a>
+          <a
+            href={`/admin/${location.slug}/interstitials`}
+            className="rrAdminNav__link rrAdminNav__link--active"
+            aria-current="page"
+          >
+            Interstitials
+          </a>
+        </nav>
+
+
         {searchParams?.scheduleStatus === "saved" ? (
           <AlertBanner
             tone="success"
@@ -329,6 +361,54 @@ export default async function AdminInterstitialsPage({
           grid-template-columns: 1fr 1fr;
           gap: 10px;
         }
+
+
+        .rrAdminNav {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          align-items: center;
+          padding-top: 10px;
+          padding-bottom: 10px;
+        }
+
+        .rrAdminNav__link {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 34px;
+          padding: 0 14px;
+          border-radius: 999px;
+          border: 1px solid rgba(118, 150, 194, 0.28);
+          background:
+            linear-gradient(180deg, rgba(29, 40, 60, 0.94), rgba(14, 20, 33, 0.96));
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            0 8px 18px rgba(0, 0, 0, 0.18);
+          color: #f2f6ff;
+          text-decoration: none;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: 0.2px;
+          white-space: nowrap;
+          transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+        }
+
+        .rrAdminNav__link:hover {
+          border-color: rgba(140, 178, 230, 0.44);
+          transform: translateY(-1px);
+        }
+
+        .rrAdminNav__link--active {
+          border-color: rgba(88, 170, 255, 0.58);
+          background:
+            linear-gradient(180deg, rgba(74, 134, 214, 0.95), rgba(37, 79, 143, 0.98));
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.14),
+            0 0 0 1px rgba(84, 157, 255, 0.18),
+            0 10px 22px rgba(20, 49, 92, 0.36);
+        }
+
 
         .rrAdminPanel,
         .rrAdminTopbar {

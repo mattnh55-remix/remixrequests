@@ -16,6 +16,7 @@ import {
 import AdminGunmetalTheme from "../../../components/ui/admin/AdminGunmetalTheme";
 import SongManagementPanel from "@/components/admin/SongManagementPanel";
 import { SHOUTOUT_PRODUCTS } from "@/lib/shoutoutProducts";
+import { useSearchParams } from "next/navigation";
 
 type TabKey = "dashboard" | "songs" | "requestSettings" | "top10" | "users" | "shoutoutSettings";
 
@@ -371,7 +372,10 @@ function queueBuckets(items: RequestItem[]) {
 }
 
 export default function AdminPage({ params }: { params: { location: string } }) {
-  const location = params.location;
+   const location = params.location;
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+
   const [pin, setPin] = useState("");
   const [authed, setAuthed] = useState(false);
   const [tab, setTab] = useState<TabKey>("dashboard");
@@ -925,6 +929,24 @@ await Promise.all([
   }, [location]);
 
   useEffect(() => {
+    const allowedTabs: TabKey[] = [
+      "dashboard",
+      "songs",
+      "requestSettings",
+      "top10",
+      "users",
+      "shoutoutSettings",
+    ];
+
+    if (requestedTab && allowedTabs.includes(requestedTab as TabKey)) {
+      setTab(requestedTab as TabKey);
+      return;
+    }
+
+    setTab("dashboard");
+  }, [requestedTab, location]);
+
+  useEffect(() => {
     setPlaceholders(loadSavedPlaceholders(location));
   }, [location]);
 
@@ -1002,7 +1024,11 @@ useEffect(() => {
 <a href={`/booth/${location}`} className="admTab admTabLink">
   DJ BOOTH
 </a>
-</div>
+
+ <a href={`/admin/${location}/interstitials`} className="admTab admTabLink">
+    INTERSTITIALS
+  </a></div>
+
 
         {msg ? <div className="admNotice">{msg}</div> : null}
 
