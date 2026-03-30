@@ -98,6 +98,24 @@ export async function POST(req: Request) {
       }
     }
 
+const maxRequestsPerSession = Math.max(0, Number(rules.maxRequestsPerSession ?? 0));
+if (maxRequestsPerSession > 0) {
+  const totalRequestsThisSession = await prisma.request.count({
+    where: {
+      locationId: loc.id,
+      sessionId: session.id,
+      emailHash,
+    },
+  });
+
+  if (totalRequestsThisSession >= maxRequestsPerSession) {
+    return jsonFail(
+      (rules as any).msgTooManyRequestsPerSession || "You’ve reached your request limit for this session.",
+      400
+    );
+  }
+}
+
     const activeQueueLimit = Math.max(0, Number((rules as any).maxActiveRequestsPerUser ?? 0));
     if (activeQueueLimit > 0) {
       const activeCount = await prisma.request.count({
