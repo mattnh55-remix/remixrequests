@@ -632,102 +632,107 @@ export default function BoothLayout({ location }: { location: string }) {
           </div>
 
           <div className="rrQueueStage__content">
-            <div className="rrQueueStage__stack">
-              <div className="rrRequestPanelWrap">
-                <RequestPanel
-                  playNow={state.playNowRequests}
-                  upNext={state.upNextRequests}
-                  mode={mode}
-                  onAccept={acceptRequest}
-                  onReject={rejectRequest}
-                />
+  <div className="rrQueueStage__stack">
+    <div className="rrRequestPanelWrap">
+      <RequestPanel
+        playNow={state.playNowRequests}
+        upNext={state.upNextRequests}
+        mode={mode}
+        onAccept={acceptRequest}
+        onReject={rejectRequest}
+      />
+    </div>
 
-                <InterstitialPromptModal
-                  open={promptState.open}
-                  category={promptState.category}
-                  promptTitle={promptState.promptTitle}
-                  promptBody={promptState.promptBody}
-                  assets={promptState.assets}
-                  busy={promptResolving}
-                  onPlay={async (asset) => {
-                    try {
-                      setPromptResolving(true);
+    <div className="rrQueueStage__queueShell">
+      <QueueList
+        items={state.queue as any}
+        mode={mode}
+        onPlayed={markRequestPlayed}
+        onReject={rejectRequest}
+      />
+    </div>
+  </div>
 
-                      await handlePlayInterstitialAsset(
-                        {
-                          id: asset.id,
-                          name: asset.title,
-                          category: asset.category,
-                          durationSec: null,
-                          fileUrl: asset.playFilename,
-                          previewGifUrl: asset.previewUrl,
-                          iconLabel: null,
-                          notes: asset.body,
-                          active: true,
-                        },
-                        asset.category
-                      );
+  <BoothInterstitialRuntime
+    location={location}
+    sessionStartedAt={sessionClock.startedAtIso}
+    onPromptOpen={handlePromptOpen}
+    onPromptResolved={handlePromptResolved}
+  />
 
-                      await postJson(`/api/booth/interstitial-event`, {
-                        location,
-                        scheduleId: promptState.scheduleId,
-                        assetId: asset.id,
-                        category: asset.category,
-                        status: "PLAYED",
-                        playedAt: new Date().toISOString(),
-                        sessionStartedAt: sessionClock.startedAtIso,
-                      });
+  {promptState.open ? (
+    <div className="rrQueueStage__modalOverlay">
+      <InterstitialPromptModal
+        open={promptState.open}
+        category={promptState.category}
+        promptTitle={promptState.promptTitle}
+        promptBody={promptState.promptBody}
+        assets={promptState.assets}
+        busy={promptResolving}
+        onPlay={async (asset) => {
+          try {
+            setPromptResolving(true);
 
-                      handlePromptResolved();
-                    } finally {
-                      setPromptResolving(false);
-                    }
-                  }}
-                  onSkip={async (reason) => {
-                    try {
-                      setPromptResolving(true);
+            await handlePlayInterstitialAsset(
+              {
+                id: asset.id,
+                name: asset.title,
+                category: asset.category,
+                durationSec: null,
+                fileUrl: asset.playFilename,
+                previewGifUrl: asset.previewUrl,
+                iconLabel: null,
+                notes: asset.body,
+                active: true,
+              },
+              asset.category
+            );
 
-                      const result = await postJson(`/api/booth/interstitial-event`, {
-                        location,
-                        scheduleId: promptState.scheduleId,
-                        category: promptState.category,
-                        reason,
-                        status: "SKIPPED",
-                        playedAt: new Date().toISOString(),
-                        sessionStartedAt: sessionClock.startedAtIso,
-                      });
+            await postJson(`/api/booth/interstitial-event`, {
+              location,
+              scheduleId: promptState.scheduleId,
+              assetId: asset.id,
+              category: asset.category,
+              status: "PLAYED",
+              playedAt: new Date().toISOString(),
+              sessionStartedAt: sessionClock.startedAtIso,
+            });
 
-                      if (!result.ok) {
-                        throw new Error("Skip failed");
-                      }
+            handlePromptResolved();
+          } finally {
+            setPromptResolving(false);
+          }
+        }}
+        onSkip={async (reason) => {
+          try {
+            setPromptResolving(true);
 
-                      handlePromptResolved();
-                    } finally {
-                      setPromptResolving(false);
-                    }
-                  }}
-                />
-              </div>
+            const result = await postJson(`/api/booth/interstitial-event`, {
+              location,
+              scheduleId: promptState.scheduleId,
+              category: promptState.category,
+              reason,
+              status: "SKIPPED",
+              playedAt: new Date().toISOString(),
+              sessionStartedAt: sessionClock.startedAtIso,
+            });
 
-              <div className="rrQueueStage__queueShell">
-                <QueueList
-                  items={state.queue as any}
-                  mode={mode}
-                  onPlayed={markRequestPlayed}
-                  onReject={rejectRequest}
-                />
-              </div>
-            </div>
+            if (!result.ok) {
+              throw new Error(
+                result?.data?.error || JSON.stringify(result?.data) || "Skip failed"
+              );
+            }
 
-            <BoothInterstitialRuntime
-              location={location}
-              sessionStartedAt={sessionClock.startedAtIso}
-              onPromptOpen={handlePromptOpen}
-              onPromptResolved={handlePromptResolved}
-            />
-          </div>
-        </section>
-
+            handlePromptResolved();
+          } finally {
+            setPromptResolving(false);
+          }
+        }}
+      />
+    </div>
+  ) : null}
+</div>
+</section>
         <div className="boothStack">
           <InterstitialPad
             location={location}
@@ -1063,10 +1068,19 @@ export default function BoothLayout({ location }: { location: string }) {
           margin-bottom: 8px;
         }
 
-        .rrQueueStage__content {
-          position: relative;
-          min-height: 520px;
-        }
+.rrQueueStage__content {
+  position: relative;
+  min-height: 520px;
+}
+
+.rrQueueStage__modalOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
 
         .rrQueueStage__stack {
           display: grid;

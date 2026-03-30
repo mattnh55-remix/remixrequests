@@ -274,6 +274,7 @@ export default function InterstitialPromptModal({
           z-index: 121;
           width: 100%;
           height: 100%;
+	  max-height: none;
           overflow: auto;
           border-radius: 24px;
           border: 1px solid rgba(120, 170, 220, 0.13);
