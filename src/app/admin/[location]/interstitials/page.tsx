@@ -417,7 +417,11 @@ const time =
                 : "rrTableRow--played"
             }`}
           >
-            <div>{time ? new Date(time).toLocaleTimeString() : "—"}</div>
+            <div>
+  {time 
+    ? new Date(time).toLocaleTimeString('en-US', { timeZone: 'America/New_York' }) 
+    : "—"}
+</div>
 
             <div>
               {String(event.category || "—").replaceAll("_", " ")}
