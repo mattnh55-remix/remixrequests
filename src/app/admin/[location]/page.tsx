@@ -106,6 +106,14 @@ type RulesState = {
   filterBlockMessage?: string;
 };
 
+type MessageRulesState = {
+  enabled: boolean;
+  maxFromNameChars: number;
+  maxMessageChars: number;
+  maxPendingPerIdentity: number;
+  filterBlockMessage: string;
+};
+
 type SessionUser = {
   emailHash: string;
   label: string;
@@ -402,6 +410,8 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   const [blockedCount, setBlockedCount] = useState(0);
 
   const [rules, setRules] = useState<RulesState | null>(null);
+  const [messageRules, setMessageRules] = useState<MessageRulesState | null>(null);
+  const [messageRulesDirty, setMessageRulesDirty] = useState(false);
   const [placeholders, setPlaceholders] = useState<PlaceholderMessage[]>(DEFAULT_PLACEHOLDERS);
   const [users, setUsers] = useState<SessionUser[]>([]);
   const [recentUsers, setRecentUsers] = useState<RecentUserItem[]>([]);
@@ -434,6 +444,7 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   const [selectedCode, setSelectedCode] = useState<RedemptionCode | null>(null);
   const [selectedCodeUses, setSelectedCodeUses] = useState<RedemptionCodeUseItem[]>([]);
   const [editOpen, setEditOpen] = useState(false);
+  
   const [editBusy, setEditBusy] = useState(false);
   const [editMessageId, setEditMessageId] = useState("");
   const [editFromName, setEditFromName] = useState("");
@@ -579,6 +590,57 @@ async function login(e?: FormEvent) {
     setTop10SettingsMsg("");
     setShoutoutSettingsMsg("");
   }
+
+  async function loadMessageRules(force = false) {
+  if (messageRulesDirty && !force) return messageRules;
+
+  try {
+    const res = await fetch(`/api/admin/shoutout-rules/${location}`, { cache: "no-store" });
+    if (res.status === 401) {
+      setAuthed(false);
+      return null;
+    }
+
+    const data: any = await safeJson(res);
+    if (data?.rules) {
+      setMessageRules(data.rules as MessageRulesState);
+      return data.rules as MessageRulesState;
+    }
+  } catch {}
+
+  return null;
+}
+
+async function saveMessageRules() {
+  if (!messageRules) return false;
+
+  try {
+    const res = await fetch(`/api/admin/shoutout-rules/${location}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(messageRules),
+    });
+
+    const data: any = await safeJson(res);
+    if (!data?.ok || !data?.rules) {
+      setShoutoutSettingsMsg(String(data?.error || "Could not save shout-out rules."));
+      return false;
+    }
+
+    setMessageRules(data.rules as MessageRulesState);
+    setMessageRulesDirty(false);
+    return true;
+  } catch {
+    setShoutoutSettingsMsg("Could not save shout-out rules.");
+    return false;
+  }
+}
+
+function patchMessageRules(patch: Partial<MessageRulesState>) {
+  setMessageRules((curr) => (curr ? { ...curr, ...patch } : curr));
+  setMessageRulesDirty(true);
+  setShoutoutSettingsMsg("");
+}
 
   async function loadUsers() {
     try {
@@ -914,11 +976,27 @@ setMsg(data?.delta === 0 ? "✅ Balance already matched target." : "✅ User bal
     }
   }
 
-  async function saveShoutoutSettings() {
-    setShoutoutSettingsMsg("");
-    const ok = await saveRules("✅ Shout-out settings saved.");
-    setShoutoutSettingsMsg(ok ? "✅ Shout-out settings saved." : "Could not save shout-out settings.");
+async function saveShoutoutSettings() {
+  setShoutoutSettingsMsg("");
+
+  let tvOk = true;
+  if (rulesDirty) {
+    tvOk = await saveRules("✅ TV settings saved.");
   }
+
+  let messageOk = true;
+  if (messageRulesDirty) {
+    messageOk = await saveMessageRules();
+  }
+
+  if (tvOk && messageOk) {
+    setShoutoutSettingsMsg("✅ Shout-out settings saved.");
+  } else if (!messageOk) {
+    setShoutoutSettingsMsg("Could not save shout-out rules.");
+  } else {
+    setShoutoutSettingsMsg("Could not save TV rotation settings.");
+  }
+}
 
   const effectiveTop10CutoffHour = Number(rules?.top10AdultCutoffHour ?? 21);
   const effectiveTop10CutoffMinute = Number(rules?.top10AdultCutoffMinute ?? 0);
@@ -928,6 +1006,7 @@ setMsg(data?.delta === 0 ? "✅ Balance already matched target." : "✅ User bal
   async function loadAll() {
     const isEditingRulesTab = tab === "requestSettings" || tab === "top10" || tab === "shoutoutSettings";
     if (!isEditingRulesTab || !rulesDirty) await loadRules();
+    if (tab !== "shoutoutSettings" || !messageRulesDirty) await loadMessageRules();
     if (!authed) return;
     const nextRequests = await loadRequests();
     const nextPendingMessages = await loadMessages();
@@ -985,7 +1064,7 @@ useEffect(() => {
   }, tab === "requestSettings" || tab === "top10" || tab === "shoutoutSettings" ? 6000 : 3000);
 
   return () => clearInterval(id);
-}, [authed, location, top10BucketView, tab, rulesDirty]);
+}, [authed, location, top10BucketView, tab, rulesDirty, messageRulesDirty]);
 
   if (!authed) {
     return (
@@ -1695,7 +1774,7 @@ useEffect(() => {
 
         <CodeUsesModal open={codeUsesOpen} code={selectedCode} items={selectedCodeUses} loading={codeUsesLoading} onClose={() => { setCodeUsesOpen(false); setSelectedCode(null); setSelectedCodeUses([]); }} />
 
-{tab === "shoutoutSettings" && rules && (
+{tab === "shoutoutSettings" && rules && messageRules && (
   <div className="admGridSettings">
     <div className="admSectionStack">
       <Panel title="Shout-out settings" sub="Controls for shout-out availability, message limits, moderation responses, and TV rotation.">
@@ -1705,8 +1784,8 @@ useEffect(() => {
               <div className="admFieldStack">
                 <Toggle
                   label="Enable shout-outs"
-                  checked={Boolean(rules.enabled ?? true)}
-                  onChange={(v) => patchRules({ enabled: v })}
+                  checked={Boolean(messageRules.enabled)}
+onChange={(v) => patchMessageRules({ enabled: v })}
                 />
                 <div className="admFieldHelp">
                   Master switch for the shout-out system. Turn this off to block all new shout-out submissions.
@@ -1716,10 +1795,10 @@ useEffect(() => {
               <div className="admFieldStack">
                 <Field
                   label="Max active shout-outs per user"
-                  value={rules.maxPendingPerIdentity || 3}
-                  onChange={(v) =>
-                    patchRules({ maxPendingPerIdentity: Math.max(1, Number(v) || 3) })
-                  }
+                  value={messageRules.maxPendingPerIdentity || 3}
+onChange={(v) =>
+  patchMessageRules({ maxPendingPerIdentity: Math.max(1, Number(v) || 3) })
+}
                 />
                 <div className="admFieldHelp">
                   Maximum number of pending, approved, or active shout-outs one guest can have in the current session.
@@ -1729,10 +1808,10 @@ useEffect(() => {
               <div className="admFieldStack">
                 <Field
                   label="Max from-name characters"
-                  value={rules.maxFromNameChars || 24}
-                  onChange={(v) =>
-                    patchRules({ maxFromNameChars: Math.max(1, Number(v) || 24) })
-                  }
+                  value={messageRules.maxFromNameChars || 24}
+onChange={(v) =>
+  patchMessageRules({ maxFromNameChars: Math.max(1, Number(v) || 24) })
+}
                 />
                 <div className="admFieldHelp">
                   Maximum length for the sender name shown on the public shout-out card.
@@ -1742,10 +1821,10 @@ useEffect(() => {
               <div className="admFieldStack">
                 <Field
                   label="Max message characters"
-                  value={rules.maxMessageChars || 80}
-                  onChange={(v) =>
-                    patchRules({ maxMessageChars: Math.max(1, Number(v) || 80) })
-                  }
+                  value={messageRules.maxMessageChars || 80}
+onChange={(v) =>
+  patchMessageRules({ maxMessageChars: Math.max(1, Number(v) || 80) })
+}
                 />
                 <div className="admFieldHelp">
                   Maximum length for the shout-out message body before automatic validation blocks submission.
@@ -1758,8 +1837,8 @@ useEffect(() => {
             <div className="admFieldStack">
               <TextField
                 label="Blocked shout-out message"
-                value={rules.filterBlockMessage || ""}
-                onChange={(v) => patchRules({ filterBlockMessage: v })}
+                value={messageRules.filterBlockMessage || ""}
+onChange={(v) => patchMessageRules({ filterBlockMessage: v })}
               />
               <div className="admFieldHelp">
                 This message is shown to the customer when automatic moderation blocks a shout-out before staff review.
@@ -1786,10 +1865,10 @@ useEffect(() => {
 
           <SubPanel title="Live runtime notes" sub="Current assumptions from the live shout-out flow.">
             <div className="admFieldStack">
-              <div className="admSubCopy">Shout-outs enabled: <b>{Boolean(rules.enabled ?? true) ? "Yes" : "No"}</b></div>
-              <div className="admSubCopy">Max pending per user: <b>{Number(rules.maxPendingPerIdentity || 3)}</b></div>
-              <div className="admSubCopy">From-name limit: <b>{Number(rules.maxFromNameChars || 24)} characters</b></div>
-              <div className="admSubCopy">Message limit: <b>{Number(rules.maxMessageChars || 80)} characters</b></div>
+              <div className="admSubCopy">Shout-outs enabled: <b>{messageRules.enabled ? "Yes" : "No"}</b></div>
+<div className="admSubCopy">Max pending per user: <b>{Number(messageRules.maxPendingPerIdentity || 3)}</b></div>
+<div className="admSubCopy">From-name limit: <b>{Number(messageRules.maxFromNameChars || 24)} characters</b></div>
+<div className="admSubCopy">Message limit: <b>{Number(messageRules.maxMessageChars || 80)} characters</b></div>
               <div className="admSubCopy">Rotation speed: <b>{effectiveShoutoutSlideSeconds} seconds</b></div>
               <div className="admSubCopy">Weighted rotation: <b>Enabled in live shout-out feed</b></div>
               <div className="admSubCopy">Placeholder storage: <b>Browser-local for now</b></div>
