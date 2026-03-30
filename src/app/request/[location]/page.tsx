@@ -2114,7 +2114,7 @@ export default function RequestPage({ params }: { params: { location: string } }
 <PublicBottomCommandBar
   location={location}
   activeView="request"
-  points={balance ?? 0}
+  points={bal.balance ?? 0}
 />
     </PublicTheme>
   );
