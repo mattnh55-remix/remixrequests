@@ -483,16 +483,6 @@ const queuePanel = isPortraitLayout ? (
               />
             </div>
 
-            <svg
-              className="remixTvBubbleTail"
-              viewBox="0 0 44 28"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M5 5 C15 7, 24 12, 34 24 C25 22, 15 21, 7 17 C5 13, 4 9, 5 5 Z"
-                className="remixTvBubbleTailPath"
-              />
-            </svg>
           </div>
         </section>
 
@@ -787,20 +777,6 @@ const queuePanel = isPortraitLayout ? (
           min-height: 0;
         }
 
-        .remixTvBubbleTail {
-          position: absolute;
-          right: 12px;
-          bottom: -8px;
-          width: 42px;
-          height: 26px;
-          pointer-events: none;
-          z-index: 1;
-        }
-
-        .remixTvBubble--gold .remixTvBubbleTailPath { fill: #e1dc92; }
-        .remixTvBubble--cyan .remixTvBubbleTailPath { fill: #a9ddf5; }
-        .remixTvBubble--pink .remixTvBubbleTailPath { fill: #f6aadf; }
-
         .remixTvBubbleLayout {
           display: grid;
           gap: 18px;
@@ -837,7 +813,7 @@ const queuePanel = isPortraitLayout ? (
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          padding: 0 8px 24px 2px;
+          padding: 0 8px 32px 2px;
         }
 
         .remixTvBubbleText--imageShort {
@@ -867,21 +843,24 @@ const queuePanel = isPortraitLayout ? (
           line-height: 1.03;
         }
 
-        .remixTvBubbleFrom {
-          margin-top: 18px;
-          padding-bottom: 6px;
-          color: rgba(255,255,255,0.88);
-          font-size: clamp(20px, 2vw, 38px);
-          line-height: 1.04;
-          font-weight: 1000;
-          font-style: italic;
-          white-space: normal;
-          overflow: visible;
-          text-overflow: unset;
-          overflow-wrap: anywhere;
-          word-break: break-word;
-          max-width: 100%;
-        }
+.remixTvBubbleFrom {
+  margin-top: 18px;
+  padding-bottom: 20px; /* ⬅️ increase this */
+  color: rgba(255,255,255,0.82); /* slightly softer */
+  font-size: clamp(20px, 2vw, 38px);
+  line-height: 1.04;
+  font-weight: 1000;
+  font-style: italic;
+
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
+
+  transform: translateY(-6px); /* ⬅️ nudges it up visually */
+}
 
         .remixTvBubbleLayout--side .remixTvBubbleFrom,
         .remixTvBubbleLayout--stacked .remixTvBubbleFrom {
