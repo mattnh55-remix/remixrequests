@@ -241,7 +241,6 @@ if (maxRequestsPerSession > 0) {
     await prisma.$transaction(async (tx) => {
       await bumpTop10Request(tx, {
         locationId: loc.id,
-        sessionId: session.id,
         bucket: top10Bucket,
         song,
       });

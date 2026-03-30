@@ -132,7 +132,6 @@ export async function POST(req: Request) {
           if (item.request.top10Bucket) {
             await removeRequestFromTop10(tx, {
               locationId: item.request.locationId,
-              sessionId: item.request.sessionId,
               songId: item.request.songId,
               bucket: item.request.top10Bucket,
             });

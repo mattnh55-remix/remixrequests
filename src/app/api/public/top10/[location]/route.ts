@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
-import { getOrCreateCurrentSession } from "@/lib/validators";
 import {
   getTop10BucketAt,
   getTop10DisplayLabel,
@@ -11,16 +10,17 @@ import {
 
 export async function GET(req: Request, { params }: { params: { location: string } }) {
   const { loc, rules } = await getRulesForLocation(params.location);
-  const session = await getOrCreateCurrentSession(loc.id, 4);
   const { searchParams } = new URL(req.url);
 
-  const explicitBucket = normalizeTop10Bucket(searchParams.get("bucket"));
+  const explicitBucket =
+    normalizeTop10Bucket(searchParams.get("display")) ||
+    normalizeTop10Bucket(searchParams.get("bucket"));
+
   const bucket = explicitBucket || getTop10BucketAt(new Date(), rules as any);
 
   const items = await prisma.top10Entry.findMany({
     where: {
       locationId: loc.id,
-      sessionId: session.id,
       bucket,
     },
     orderBy: [{ score: "desc" }, { lastActivityAt: "desc" }, { createdAt: "asc" }],
@@ -28,13 +28,12 @@ export async function GET(req: Request, { params }: { params: { location: string
   });
 
   const queueCount = await prisma.request.count({
-    where: { locationId: loc.id, sessionId: session.id, status: "APPROVED" },
+    where: { locationId: loc.id, status: "APPROVED" },
   });
 
   return NextResponse.json({
     ok: true,
     location: { slug: loc.slug, name: loc.name },
-    sessionId: session.id,
     bucket,
     boardTitle: getTop10Title(bucket),
     displayLabel: getTop10DisplayLabel(bucket),

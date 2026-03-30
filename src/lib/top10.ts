@@ -69,9 +69,8 @@ type SongSnapshot = {
 };
 
 type Top10Where = {
-  locationId_sessionId_bucket_songId: {
+  locationId_bucket_songId: {
     locationId: string;
-    sessionId: string;
     bucket: Top10Bucket;
     songId: string;
   };
@@ -79,14 +78,12 @@ type Top10Where = {
 
 function uniqueWhere(input: {
   locationId: string;
-  sessionId: string;
   bucket: Top10Bucket;
   songId: string;
 }): Top10Where {
   return {
-    locationId_sessionId_bucket_songId: {
+    locationId_bucket_songId: {
       locationId: input.locationId,
-      sessionId: input.sessionId,
       bucket: input.bucket,
       songId: input.songId,
     },
@@ -97,14 +94,12 @@ export async function bumpTop10Request(
   tx: Prisma.TransactionClient,
   input: {
     locationId: string;
-    sessionId: string;
     bucket: Top10Bucket;
     song: SongSnapshot;
   }
 ) {
   const where = uniqueWhere({
     locationId: input.locationId,
-    sessionId: input.sessionId,
     bucket: input.bucket,
     songId: input.song.id,
   });
@@ -113,7 +108,6 @@ export async function bumpTop10Request(
     where,
     create: {
       locationId: input.locationId,
-      sessionId: input.sessionId,
       bucket: input.bucket,
       songId: input.song.id,
       title: input.song.title,
@@ -170,7 +164,6 @@ export async function bumpTop10VoteForRequest(
 
   const where = uniqueWhere({
     locationId: reqRow.locationId,
-    sessionId: reqRow.sessionId,
     bucket: reqRow.top10Bucket,
     songId: reqRow.songId,
   });
@@ -181,7 +174,6 @@ export async function bumpTop10VoteForRequest(
     where,
     create: {
       locationId: reqRow.locationId,
-      sessionId: reqRow.sessionId,
       bucket: reqRow.top10Bucket,
       songId: reqRow.songId,
       title: reqRow.song.title,
@@ -225,7 +217,6 @@ export async function removeRequestFromTop10(
   tx: Prisma.TransactionClient,
   input: {
     locationId: string;
-    sessionId: string;
     songId: string;
     bucket?: Top10Bucket | null;
   }
@@ -235,7 +226,6 @@ export async function removeRequestFromTop10(
   const existing = await tx.top10Entry.findUnique({
     where: uniqueWhere({
       locationId: input.locationId,
-      sessionId: input.sessionId,
       bucket: input.bucket,
       songId: input.songId,
     }),

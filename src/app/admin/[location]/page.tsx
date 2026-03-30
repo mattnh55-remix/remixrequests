@@ -755,7 +755,7 @@ setMsg(data?.delta === 0 ? "✅ Balance already matched target." : "✅ User bal
   async function loadTop10(bucketOverride?: Top10Bucket | "AUTO") {
     try {
       const bucket = bucketOverride ?? top10BucketView;
-      const query = bucket && bucket !== "AUTO" ? `?bucket=${bucket}` : "";
+      const query = bucket && bucket !== "AUTO" ? `?display=${bucket}` : "";
       const res = await fetch(`/api/admin/top10/${location}${query}`, { cache: "no-store" });
       const data = (await res.json()) as Top10Response;
       setTop10(Array.isArray(data.items) ? data.items : []);
@@ -1602,7 +1602,6 @@ useEffect(() => {
                 <div className="admActionRow">
                   <Pill>{top10BoardTitle}</Pill>
                   {top10ActiveBucket ? <Pill>Bucket {top10ActiveBucket}</Pill> : null}
-                  {top10SessionId ? <Pill>Session {top10SessionId.slice(-6)}</Pill> : null}
                   {top10UpdatedAt ? <Pill>Updated {new Date(top10UpdatedAt).toLocaleTimeString()}</Pill> : null}
                 </div>
                 <div className="admActionRow">
