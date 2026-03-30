@@ -1828,25 +1828,7 @@ export default function RequestPage({ params }: { params: { location: string } }
         </div>
       </div>
 
-      <div className="rrFooterBar">
-        <div className="rrFooterInner">
-          <button
-            className="rrBtn rrFooterCta"
-            onClick={() => {
-              sfx.playTap();
-              window.location.href = `/queue/${encodeURIComponent(location)}`;
-            }}
-          >
-            View Queue & Voting
-          </button>
-
-          <button className="rrBtnGhost" onClick={() => openBuy("boost")}>
-            {sessionActive && verified && identityId ? "Get Points" : "Claim Points"}
-          </button>
-        </div>
-      </div>
-
-      {toastOpen && msg ? (
+        {toastOpen && msg ? (
         <div className="rrToast">
           <div className="rrToastInner">
             <div className="rrToastText">{msg}</div>
@@ -2114,7 +2096,7 @@ export default function RequestPage({ params }: { params: { location: string } }
 <PublicBottomCommandBar
   location={location}
   activeView="request"
-  points={bal.balance ?? 0}
+  points={balanceValue}
 />
     </PublicTheme>
   );

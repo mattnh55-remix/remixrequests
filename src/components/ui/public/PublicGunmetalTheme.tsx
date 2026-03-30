@@ -1027,25 +1027,24 @@ export default function PublicGunmetalTheme() {
         color: #dfe8fb;
       }
 
-      .rrFooterBar {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 40;
-        padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
-        background: linear-gradient(180deg, rgba(5, 8, 13, 0.04), rgba(5, 8, 13, 0.92));
-        backdrop-filter: blur(12px);
-      }
+.rrFooterBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 150px;
+  z-index: 79;
+  padding: 0 12px;
+  pointer-events: none;
+}
 
-      .rrFooterInner {
-        width: min(var(--rr-max), calc(100vw - 10px));
-        margin: 0 auto;
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 8px;
-        align-items: center;
-      }
+.rrFooterInner {
+  max-width: 860px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  pointer-events: auto;
+}
 
       .rrFooterCta {
         width: 100%;

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import confetti from "canvas-confetti";
 import PublicTheme from "../../../components/ui/public/PublicTheme";
 import { SHOUTOUT_PRODUCTS, type ShoutoutProductKey } from "@/lib/shoutoutProducts";
+import PublicBottomCommandBar from "@/components/public/PublicBottomCommandBar";
 
 const REMIX_LOGO_URL =
   "https://skateremix.com/wp-content/uploads/2026/03/Remix_Globe_Logo_350px.png";
@@ -939,7 +940,9 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
               setShowComposer(true);
             }}
           >
-            {!verified || !identityId ? "Claim Points to Send" : `Use ${selectedProduct.creditsCost}pts for ${selectedProduct.title}`}
+            {!verified || !identityId
+  ? "Claim Points to Send"
+  : "Send Shout-Out"}
           </button>
 
           <button
@@ -956,6 +959,12 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           </button>
         </div>
       </div>
+
+<PublicBottomCommandBar
+  location={location}
+  activeView="shoutouts"
+  points={heroBalance}
+/>
 
       {toastVisible && msg ? (
         <div

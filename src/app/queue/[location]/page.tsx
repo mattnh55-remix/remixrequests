@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 import PublicTheme from "../../../components/ui/public/PublicTheme";
+import PublicBottomCommandBar from "@/components/public/PublicBottomCommandBar";
 
 const REMIX_LOGO_URL =
   "https://skateremix.com/wp-content/uploads/2026/03/Remix_Globe_Logo_350px.png";
@@ -704,6 +705,11 @@ if (/session has expired/i.test(nextMsg)) {
           </div>
         </div>
       </div>
+<PublicBottomCommandBar
+  location={location}
+  activeView="queue"
+  points={displayedBalance}
+/>
     </PublicTheme>
   );
 }
