@@ -1,3 +1,5 @@
+// src/app/admin/[location]/interstitials/page.tsx
+
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { saveBoothNote } from "./actions";

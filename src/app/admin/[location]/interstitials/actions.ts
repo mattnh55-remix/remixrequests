@@ -1,3 +1,5 @@
+// src/app/admin/[location]/interstitials/actions.ts
+
 "use server";
 
 import { Prisma, InterstitialCategory, InterstitialScheduleMode, SessionProfile } from "@prisma/client";

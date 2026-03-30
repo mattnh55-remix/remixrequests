@@ -259,9 +259,36 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
           gap: 8px;
         }
 
-        .searchAddInput {
-          width: 100%;
-        }
+.searchAddInput {
+  width: 100%;
+
+  /* NEW: make it pop */
+  background: linear-gradient(180deg, #1b2a3a 0%, #16202c 100%);
+  border: 1px solid rgba(80, 140, 255, 0.35);
+border-left: 3px solid rgba(80,140,255,0.6);
+padding-left: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    0 0 0 rgba(80,140,255,0);
+
+  transition: all 0.18s ease;
+}
+
+/* hover */
+.searchAddInput:hover {
+  border-color: rgba(80, 140, 255, 0.55);
+}
+
+/* focus = THIS is where it comes alive */
+.searchAddInput:focus {
+  border-color: rgba(80, 140, 255, 0.9);
+
+  box-shadow:
+    0 0 0 2px rgba(80,140,255,0.15),
+    0 0 12px rgba(80,140,255,0.25);
+
+  background: linear-gradient(180deg, #1f3347 0%, #182433 100%);
+}
 
         .searchAddHint {
           border-radius: 4px;
