@@ -1108,6 +1108,105 @@ export default async function AdminInterstitialsPage({
           margin-bottom: 12px;
         }
 
+.rrAssetList {
+  display: grid;
+  gap: 8px;
+}
+
+.rrAssetCard {
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+    linear-gradient(180deg, rgba(25, 31, 44, 0.92), rgba(14, 19, 31, 0.92));
+  padding: 10px;
+}
+
+.rrAssetCard--editing {
+  border-color: rgba(77, 186, 255, 0.42);
+  box-shadow: 0 0 0 1px rgba(77, 186, 255, 0.14);
+}
+
+.rrAssetHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.rrAssetTitleLine {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.rrAssetTitle {
+  font-size: 15px;
+  font-weight: 1000;
+  line-height: 1.1;
+}
+
+.rrAssetSub {
+  margin-top: 5px;
+  color: rgba(213, 224, 244, 0.76);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.rrAssetMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+  margin-top: 10px;
+}
+
+.rrAssetMetaCell {
+  padding: 7px 9px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rrAssetMetaCell:last-child {
+  border-right: none;
+}
+
+.rrAssetMetaCell span {
+  display: block;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  opacity: 0.66;
+  margin-bottom: 4px;
+}
+
+.rrAssetMetaCell strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 1000;
+}
+
+.rrAssetProfiles {
+  margin-top: 9px;
+  color: rgba(216, 227, 246, 0.72);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.rrAssetProfiles strong {
+  color: rgba(245, 249, 255, 0.92);
+}
+
+.rrAssetActions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
         .rrTable {
           display: grid;
           gap: 6px;
@@ -1185,6 +1284,18 @@ export default async function AdminInterstitialsPage({
           .rrLogToolbar {
             grid-template-columns: 1fr 1fr;
           }
+.rrAssetActions {
+  justify-content: flex-start;
+}
+
+.rrAssetMetaGrid {
+  grid-template-columns: 1fr 1fr;
+}
+
+.rrAssetMetaCell:nth-child(2n) {
+  border-right: none;
+}
+
 
           .rrTableHead,
           .rrTableRow {
@@ -1204,6 +1315,23 @@ export default async function AdminInterstitialsPage({
           .rrLogToolbar {
             grid-template-columns: 1fr;
           }
+
+.rrAssetHeader {
+  grid-template-columns: 1fr;
+}
+
+.rrAssetMetaGrid {
+  grid-template-columns: 1fr;
+}
+
+.rrAssetMetaCell {
+  border-right: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rrAssetMetaCell:last-child {
+  border-bottom: none;
+}
 
           .rrTableHead {
             display: none;
