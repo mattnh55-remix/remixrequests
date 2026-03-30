@@ -652,16 +652,6 @@ if (/session has expired/i.test(nextMsg)) {
 
       <div className="rrSectionStack">
         <div className="rrPanel">
-          <div className="rrPanelHead">
-            <div>
-              <div className="rrPanelTitle">Live Queue</div>
-              <div className="rrPanelSub">Vote to push songs higher in the queue.</div>
-            </div>
-            <div className="rrPanelActions">
-              <span className="rrStatusPill rrStatusPill--live">{mergedQueue.length} items</span>
-              <button className="rrBtnGhost" onClick={goToRequests}>Open Requests</button>
-            </div>
-          </div>
           <div className="rrPanelBody rrPanelBodyGrid">
             {loading ? (
               <div className="rrEmpty">Loading queue…</div>
