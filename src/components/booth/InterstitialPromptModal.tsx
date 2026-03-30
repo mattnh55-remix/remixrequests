@@ -109,7 +109,7 @@ export default function InterstitialPromptModal({
 
         <div className="rrPromptModal__dialog">
           <div className="rrPromptModal__header">
-            <div className="rrPromptModal__pill">Interstitial Due</div>
+            <div className="rrPromptModal__pill">Interstitial Due</div> <div className="rrPromptModal__category">{categoryLabel(category)}</div>
 
             <div className="rrPromptModal__headerRow">
               <div className="rrPromptModal__headerMain">
@@ -187,9 +187,7 @@ export default function InterstitialPromptModal({
             <div className="rrPromptModal__sidecard">
               <div className="rrPromptModal__sectionLabel">Skip Prompt</div>
 
-              <h3 className="rrPromptModal__sideTitle">Skip with reason</h3>
-
-              <p className="rrPromptModal__sideText">
+               <p className="rrPromptModal__sideText">
                 Skipping requires a reason and will create a SKIPPED event for admin
                 review later.
               </p>
@@ -220,7 +218,7 @@ export default function InterstitialPromptModal({
                     );
                   }
                 }}
-                className="rrPromptModal__skipBtn"
+                className="gunmetalBtn gunmetalBtn--primary gunmetalBtn--mini"
               >
                 {busy ? "Working..." : "Skip Interstitial"}
               </button>
