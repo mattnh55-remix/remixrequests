@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 import PublicTheme from "../../../components/ui/public/PublicTheme";
+import confetti from "canvas-confetti";
 
 const REMIX_LOGO_URL =
   "https://skateremix.com/wp-content/uploads/2026/03/Remix_Globe_Logo_350px.png";
@@ -794,17 +795,24 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [buyBusy, setBuyBusy] = useState(false);
   const [writeInBusy, setWriteInBusy] = useState(false);
   const [pendingAction, setPendingAction] = useState<null | {
-  type: "request" | "boost" | "write-in";
-  song?: Song;
-  sourceEl?: HTMLElement | null;
+    type: "request" | "boost" | "write-in";
+    song?: Song;
+    sourceEl?: HTMLElement | null;
   }>(null);
   const [pendingActionToast, setPendingActionToast] = useState(false);
+  const [rewardFlash, setRewardFlash] = useState<null | {
+    key: number;
+    eyebrow?: string;
+    title: string;
+    subtitle?: string;
+  }>(null);
 
   const queueTargetRef = useRef<HTMLButtonElement | null>(null);
   const flyTimerRef = useRef<number | null>(null);
   const tileSuccessTimerRef = useRef<number | null>(null);
   const queuePulseTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+  const rewardFlashTimerRef = useRef<number | null>(null);
   const flyKeyRef = useRef(0);
   const prevUserRequestIdsRef = useRef<Set<string>>(new Set());
 
@@ -874,38 +882,40 @@ export default function RequestPage({ params }: { params: { location: string } }
       if (tileSuccessTimerRef.current != null) window.clearTimeout(tileSuccessTimerRef.current);
       if (queuePulseTimerRef.current != null) window.clearTimeout(queuePulseTimerRef.current);
       if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
+      if (rewardFlashTimerRef.current != null) window.clearTimeout(rewardFlashTimerRef.current);
     };
   }, []);
-useEffect(() => {
-  if (!msg) {
-    setToastOpen(false);
+
+  useEffect(() => {
+    if (!msg) {
+      setToastOpen(false);
+      if (toastTimerRef.current != null) {
+        window.clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+      return;
+    }
+
+    setToastOpen(true);
+
     if (toastTimerRef.current != null) {
       window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = null;
     }
-    return;
-  }
 
-  setToastOpen(true);
+    if (pendingActionToast) {
+      return;
+    }
 
-  if (toastTimerRef.current != null) {
-    window.clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = null;
-  }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastOpen(false);
+      window.setTimeout(() => setMsg(""), 220);
+    }, 3400);
 
-  if (pendingActionToast) {
-    return;
-  }
-
-  toastTimerRef.current = window.setTimeout(() => {
-    setToastOpen(false);
-    window.setTimeout(() => setMsg(""), 220);
-  }, 3400);
-
-  return () => {
-    if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
-  };
-}, [msg, pendingActionToast]);
+    return () => {
+      if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
+    };
+  }, [msg, pendingActionToast]);
 
   useEffect(() => {
     try {
@@ -1062,6 +1072,62 @@ useEffect(() => {
     window.setTimeout(() => setMsg(""), 220);
   }
 
+  function fireRewardConfetti() {
+    confetti({
+      particleCount: 40,
+      spread: 62,
+      startVelocity: 30,
+      ticks: 100,
+      gravity: 0.95,
+      scalar: 0.92,
+      origin: { x: 0.5, y: 0.58 },
+      colors: ["#6ee7f9", "#d946ef", "#ffffff", "#9d4edd"],
+    });
+
+    window.setTimeout(() => {
+      confetti({
+        particleCount: 26,
+        angle: 60,
+        spread: 50,
+        startVelocity: 24,
+        ticks: 90,
+        gravity: 1,
+        scalar: 0.82,
+        origin: { x: 0.34, y: 0.6 },
+        colors: ["#6ee7f9", "#ffffff", "#d946ef"],
+      });
+
+      confetti({
+        particleCount: 26,
+        angle: 120,
+        spread: 50,
+        startVelocity: 24,
+        ticks: 90,
+        gravity: 1,
+        scalar: 0.82,
+        origin: { x: 0.66, y: 0.6 },
+        colors: ["#6ee7f9", "#ffffff", "#d946ef"],
+      });
+    }, 110);
+  }
+
+  function showRewardFlash(title: string, subtitle?: string, eyebrow = "REWARD UNLOCKED") {
+    setRewardFlash({
+      key: Date.now(),
+      eyebrow,
+      title,
+      subtitle,
+    });
+
+    if (rewardFlashTimerRef.current != null) {
+      window.clearTimeout(rewardFlashTimerRef.current);
+    }
+
+    rewardFlashTimerRef.current = window.setTimeout(() => {
+      setRewardFlash(null);
+    }, 1850);
+  }
+
   function openBuy(reason: typeof buyReason) {
     if (!sessionActive || !verified || !identityId) {
       setBuyReason(reason);
@@ -1130,9 +1196,25 @@ useEffect(() => {
         return;
       }
 
+      const pointsAdded = Number(data.pointsAdded ?? 0);
+
       sfx.playSuccess();
-      setMsg(`Redeemed +${data.pointsAdded ?? ""} points.`);
+      fireRewardConfetti();
       setRedeemCode("");
+      setShowVerify(false);
+      setShowBuy(false);
+
+      showRewardFlash(
+        pointsAdded > 0 ? `+${pointsAdded} POINTS` : "POINTS ADDED",
+        "Code redeemed successfully",
+        "BONUS HIT"
+      );
+
+      setMsg(
+        pointsAdded > 0
+          ? `Redeemed +${pointsAdded} points.`
+          : "Code redeemed successfully."
+      );
 
       const nextBalance = data?.balance ?? null;
       if (typeof nextBalance === "number") bal.applyBalance(nextBalance);
@@ -1256,19 +1338,17 @@ useEffect(() => {
     action: "play_next" | "play_now",
     sourceEl?: HTMLElement | null
   ) {
-if (!sessionActive || !verified || !identityId) {
-  sfx.playTap();
-
-  setPendingAction({
-    type: action === "play_now" ? "boost" : "request",
-    song,
-    sourceEl,
-  });
-
-  setMsg("Claim your points to request songs.");
-  setShowVerify(true);
-  return false;
-}
+    if (!sessionActive || !verified || !identityId) {
+      sfx.playTap();
+      setPendingAction({
+        type: action === "play_now" ? "boost" : "request",
+        song,
+        sourceEl,
+      });
+      setMsg("Claim your points to request songs.");
+      setShowVerify(true);
+      return false;
+    }
 
     const costRequest = Number(rules?.rules?.costRequest ?? 1);
     const costPlayNow = Number(rules?.rules?.costPlayNow ?? 5);
@@ -1331,18 +1411,16 @@ if (!sessionActive || !verified || !identityId) {
       return false;
     }
 
-if (!sessionActive || !verified || !identityId) {
-  sfx.playTap();
-
-  setPendingAction({
-    type: "write-in",
-    sourceEl,
-  });
-
-  setMsg("Claim your points to request songs.");
-  setShowVerify(true);
-  return false;
-}
+    if (!sessionActive || !verified || !identityId) {
+      sfx.playTap();
+      setPendingAction({
+        type: "write-in",
+        sourceEl,
+      });
+      setMsg("Claim your points to request songs.");
+      setShowVerify(true);
+      return false;
+    }
 
     const costRequest = Number(rules?.rules?.costRequest ?? 1);
 
@@ -1778,6 +1856,142 @@ if (!sessionActive || !verified || !identityId) {
         </div>
       ) : null}
 
+      {rewardFlash ? (
+        <div
+          key={rewardFlash.key}
+          style={{
+            position: "fixed",
+            inset: 0,
+            pointerEvents: "none",
+            zIndex: 120,
+            display: "grid",
+            placeItems: "center",
+            padding: 18,
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              minWidth: 260,
+              maxWidth: "min(92vw, 380px)",
+              borderRadius: 28,
+              padding: "22px 24px 20px",
+              textAlign: "center",
+              color: "#fff",
+              overflow: "hidden",
+              border: "1px solid rgba(255,255,255,0.16)",
+              background:
+                "radial-gradient(circle at top, rgba(110,231,249,0.22), rgba(18,24,36,0.98) 42%), linear-gradient(145deg, rgba(34,41,58,0.98), rgba(11,16,26,0.98))",
+              boxShadow:
+                "0 22px 70px rgba(0,0,0,0.48), 0 0 34px rgba(110,231,249,0.14), inset 0 1px 0 rgba(255,255,255,0.08)",
+              animation: "rrRewardPop 1850ms cubic-bezier(.16,.84,.24,1) forwards",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  "linear-gradient(115deg, transparent 16%, rgba(255,255,255,0.18) 29%, transparent 44%)",
+                transform: "translateX(-120%)",
+                animation: "rrRewardSheen 900ms ease 130ms forwards",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                inset: "10px",
+                borderRadius: 22,
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            />
+            <div
+              style={{
+                position: "relative",
+                zIndex: 1,
+                fontSize: 11,
+                letterSpacing: "0.26em",
+                opacity: 0.72,
+                fontWeight: 900,
+              }}
+            >
+              {rewardFlash.eyebrow || "REWARD UNLOCKED"}
+            </div>
+            <div
+              style={{
+                position: "relative",
+                zIndex: 1,
+                fontSize: 36,
+                fontWeight: 1000,
+                lineHeight: 0.96,
+                marginTop: 10,
+                textShadow: "0 0 24px rgba(110,231,249,0.18)",
+              }}
+            >
+              {rewardFlash.title}
+            </div>
+            {rewardFlash.subtitle ? (
+              <div
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                  marginTop: 10,
+                  fontSize: 14,
+                  opacity: 0.9,
+                }}
+              >
+                {rewardFlash.subtitle}
+              </div>
+            ) : null}
+            <div
+              style={{
+                position: "relative",
+                zIndex: 1,
+                margin: "14px auto 0",
+                width: 74,
+                height: 4,
+                borderRadius: 999,
+                background:
+                  "linear-gradient(90deg, rgba(110,231,249,0.0), rgba(110,231,249,0.92), rgba(217,70,239,0.92), rgba(217,70,239,0.0))",
+                boxShadow: "0 0 22px rgba(110,231,249,0.28)",
+              }}
+            />
+          </div>
+
+          <style jsx>{`
+            @keyframes rrRewardPop {
+              0% {
+                transform: scale(0.8) translateY(20px);
+                opacity: 0;
+                filter: blur(6px);
+              }
+              12% {
+                transform: scale(1.04) translateY(0);
+                opacity: 1;
+                filter: blur(0);
+              }
+              82% {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+              }
+              100% {
+                transform: scale(0.97) translateY(-10px);
+                opacity: 0;
+              }
+            }
+
+            @keyframes rrRewardSheen {
+              0% {
+                transform: translateX(-120%);
+              }
+              100% {
+                transform: translateX(120%);
+              }
+            }
+          `}</style>
+        </div>
+      ) : null}
+
       <VerifyDrawer
         open={showVerify}
         location={location}
@@ -1786,53 +2000,53 @@ if (!sessionActive || !verified || !identityId) {
         redeemBusy={redeemBusy}
         onRedeem={redeem}
         onClose={() => setShowVerify(false)}
-   onVerified={({ identityId: nextIdentityId, email: nextEmail }) => {
-  const cleanId = String(nextIdentityId || "").trim();
-  const cleanEmail = String(nextEmail || email || "").trim();
+        onVerified={({ identityId: nextIdentityId, email: nextEmail }) => {
+          const cleanId = String(nextIdentityId || "").trim();
+          const cleanEmail = String(nextEmail || email || "").trim();
 
-  if (cleanId) {
-    setIdentityId(cleanId);
-    setSessionActive(true);
-    setVerified(true);
-    void refreshIdentityState(cleanId);
-  }
+          if (cleanId) {
+            setIdentityId(cleanId);
+            setSessionActive(true);
+            setVerified(true);
+            void refreshIdentityState(cleanId);
+          }
 
-  if (cleanEmail) setEmail(cleanEmail);
+          if (cleanEmail) setEmail(cleanEmail);
 
-  setShowBuy(false);
-  setBuyReason("none");
+          setShowBuy(false);
+          setBuyReason("none");
 
-  if (pendingAction) {
-    const action = pendingAction;
+          if (pendingAction) {
+            const action = pendingAction;
 
-    setPendingAction(null);
-    setPendingActionToast(true);
-    setMsg("Completing your request...");
+            setPendingAction(null);
+            setPendingActionToast(true);
+            setMsg("Completing your request...");
 
-    window.setTimeout(() => {
-      setPendingActionToast(false);
+            window.setTimeout(() => {
+              setPendingActionToast(false);
 
-      if (action.type === "request" && action.song) {
-        void submit(action.song, "play_next", action.sourceEl);
-        return;
-      }
+              if (action.type === "request" && action.song) {
+                void submit(action.song, "play_next", action.sourceEl);
+                return;
+              }
 
-      if (action.type === "boost" && action.song) {
-        void submit(action.song, "play_now", action.sourceEl);
-        return;
-      }
+              if (action.type === "boost" && action.song) {
+                void submit(action.song, "play_now", action.sourceEl);
+                return;
+              }
 
-      if (action.type === "write-in") {
-        void submitWriteIn(action.sourceEl);
-        return;
-      }
+              if (action.type === "write-in") {
+                void submitWriteIn(action.sourceEl);
+                return;
+              }
 
-      setMsg("Verification complete. Your points are ready.");
-    }, 150);
-  } else {
-    setMsg("Verification complete. Your points are ready.");
-  }
-}}
+              setMsg("Verification complete. Your points are ready.");
+            }, 150);
+          } else {
+            setMsg("Verification complete. Your points are ready.");
+          }
+        }}
       />
 
       <BuyCreditsDrawer
