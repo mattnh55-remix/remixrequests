@@ -26,6 +26,18 @@ type Props = {
   onClose?: () => void;
 };
 
+function formatLastPlayed(value: string | null): string {
+  if (!value) return "Last played: never";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Last played: unknown";
+
+  return `Last played: ${date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  })}`;
+}
+
 function categoryLabel(value: string | null): string {
   switch (value) {
     case "ANNOUNCEMENTS":
@@ -96,6 +108,7 @@ export default function InterstitialPromptModal({
 }: Props) {
   const [skipReason, setSkipReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [skipOpen, setSkipOpen] = useState(false);
 
   const canSubmitSkip = useMemo(() => skipReason.trim().length > 0, [skipReason]);
 
@@ -103,39 +116,36 @@ export default function InterstitialPromptModal({
 
   return (
     <>
-      <div className="rrPromptModal">
+  <div className="rrPromptModal">
         <div className="rrPromptModal__backdrop" />
-        <div className="rrPromptModal__glow" />
 
         <div className="rrPromptModal__dialog">
           <div className="rrPromptModal__header">
-            <div className="rrPromptModal__pill">Interstitial Due</div> <div className="rrPromptModal__category">{categoryLabel(category)}</div>
+            <div className="rrPromptModal__metaRow">
+              <div className="rrPromptModal__pill">Interstitial Due</div>
 
-            <div className="rrPromptModal__headerRow">
-              <div className="rrPromptModal__headerMain">
-                <h2 className="rrPromptModal__title">
-                  {promptTitle || categoryLabel(category)}
-                </h2>
-
-                <p className="rrPromptModal__category">{categoryLabel(category)}</p>
-
+              <div className="rrPromptModal__metaInline">
+                <span>{categoryLabel(category).toUpperCase()}</span>
                 {promptBody ? (
-                  <p className="rrPromptModal__body">{promptBody}</p>
+                  <>
+                    <span className="rrPromptModal__bullet">•</span>
+                    <span>{promptBody}</span>
+                  </>
                 ) : null}
               </div>
-
-              <div className="rrPromptModal__notice">
-                Choose an asset or skip with a reason.
-              </div>
             </div>
+
+            <h2 className="rrPromptModal__title rrPromptModal__title--compact">
+              {promptTitle || categoryLabel(category)}
+            </h2>
           </div>
 
-          <div className="rrPromptModal__content">
+          <div className="rrPromptModal__content rrPromptModal__content--compact">
             <div className="rrPromptModal__assetsCol">
               <div className="rrPromptModal__sectionLabel">Selectable assets</div>
 
               <div className="rrPromptModal__assetGrid">
-                {assets.map((asset, index) => (
+                {assets.map((asset) => (
                   <button
                     key={asset.id}
                     type="button"
@@ -152,10 +162,7 @@ export default function InterstitialPromptModal({
                     }}
                     className="rrPromptAsset"
                     title={asset.title}
-                    style={{ animationDelay: `${index * 36}ms` }}
                   >
-                    <div className="rrPromptAsset__shine" />
-
                     <div className="rrPromptAsset__media">
                       {asset.previewUrl ? (
                         <img
@@ -168,13 +175,18 @@ export default function InterstitialPromptModal({
                       )}
                     </div>
 
-                    <div className="rrPromptAsset__metaRow">
-                      <div className="rrPromptAsset__titleText">
-                        {truncateTitle(asset.title)}
+                    <div className="rrPromptAsset__body rrPromptAsset__body--compact">
+                      <div className="rrPromptAsset__titleRow">
+                        <h3 className="rrPromptAsset__title rrPromptAsset__title--compact">
+                          {asset.title}
+                        </h3>
+                        <span className="rrPromptAsset__playTag">Play</span>
                       </div>
 
-                      <div className="rrPromptAsset__duration">
-                        {assetRightMeta(asset)}
+                      <div className="rrPromptAsset__miniMeta">
+                        <span className="rrPromptAsset__miniMetaText">
+                          {formatLastPlayed(asset.lastPlayedAt)}
+                        </span>
                       </div>
                     </div>
                   </button>
@@ -183,48 +195,82 @@ export default function InterstitialPromptModal({
 
               {error ? <div className="rrPromptModal__error">{error}</div> : null}
             </div>
+          </div>
 
-            <div className="rrPromptModal__sidecard">
-              <div className="rrPromptModal__sectionLabel">Skip Prompt</div>
+          <div className="rrPromptModal__footer">
+            <button
+              type="button"
+              className="rrPromptModal__skipGhostBtn"
+              disabled={busy}
+              onClick={() => setSkipOpen(true)}
+            >
+              Skip
+            </button>
+          </div>
+        </div>
 
-               <p className="rrPromptModal__sideText">
+        {skipOpen ? (
+          <div className="rrPromptModal__confirmLayer">
+            <div
+              className="rrPromptModal__confirmBackdrop"
+              onClick={() => {
+                if (busy) return;
+                setSkipOpen(false);
+              }}
+            />
+
+            <div className="rrPromptModal__confirmCard">
+              <div className="rrPromptModal__confirmTitle">Skip interstitial?</div>
+
+              <div className="rrPromptModal__confirmText">
                 Skipping requires a reason and will create a SKIPPED event for admin
                 review later.
-              </p>
+              </div>
 
               <label className="rrPromptModal__field">
                 <span className="rrPromptModal__fieldLabel">Reason</span>
-
                 <textarea
                   value={skipReason}
                   onChange={(e) => setSkipReason(e.target.value)}
-                  placeholder="Example: crowd moment, no clean transition, asset doesn't fit current energy..."
-                  className=".rrPromptModal textarea"
+                  placeholder="Example: crowd moment, no clean transition..."
+                  className="rrPromptModal__textarea rrPromptModal__textarea--compact"
                   disabled={busy}
                 />
               </label>
 
-              <button
-                type="button"
-                disabled={busy || !canSubmitSkip}
-                onClick={async () => {
-                  setError(null);
-                  try {
-                    await onSkip(skipReason.trim());
-                    setSkipReason("");
-                  } catch (err) {
-                    setError(
-                      err instanceof Error ? err.message : "Failed to skip prompt."
-                    );
-                  }
-                }}
-                className="gunmetalBtn gunmetalBtn--primary gunmetalBtn--mini"
-              >
-                {busy ? "Working..." : "Skip Interstitial"}
-              </button>
+              <div className="rrPromptModal__confirmActions">
+                <button
+                  type="button"
+                  className="rrPromptModal__cancelBtn"
+                  disabled={busy}
+                  onClick={() => setSkipOpen(false)}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={busy || !canSubmitSkip}
+                  onClick={async () => {
+                    setError(null);
+                    try {
+                      await onSkip(skipReason.trim());
+                      setSkipReason("");
+                      setSkipOpen(false);
+                    } catch (err) {
+                      setError(
+                        err instanceof Error ? err.message : "Failed to skip prompt."
+                      );
+                    }
+                  }}
+                  className="rrPromptModal__skipBtn"
+                >
+                  {busy ? "Working..." : "Confirm Skip"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
       </div>
 
       <style jsx>{`
