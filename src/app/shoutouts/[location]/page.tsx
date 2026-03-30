@@ -289,6 +289,101 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     );
   }
 
+  function getShoutoutCelebration(product: (typeof SHOUTOUT_PRODUCTS)[number]) {
+    switch (product.key) {
+      case "TEXT_BASIC":
+        return {
+          kicker: "ON AIR",
+          title: "SHOUT-OUT SENT",
+          subtitle: "Your message is heading to the booth for approval.",
+          bursts: [
+            { particleCount: 45, spread: 56, startVelocity: 24, origin: { x: 0.42, y: 0.62 }, scalar: 0.8 },
+            { particleCount: 45, spread: 56, startVelocity: 24, origin: { x: 0.58, y: 0.62 }, scalar: 0.8 },
+          ],
+        };
+      case "TEXT_FEATURED":
+        return {
+          kicker: "SPOTLIGHT",
+          title: "FEATURED SHOUT-OUT",
+          subtitle: "This one is built to stand out on screen.",
+          bursts: [
+            { particleCount: 55, spread: 62, startVelocity: 26, origin: { x: 0.4, y: 0.6 }, scalar: 0.9 },
+            { particleCount: 55, spread: 62, startVelocity: 26, origin: { x: 0.6, y: 0.6 }, scalar: 0.9 },
+          ],
+        };
+      case "TEXT_MARQUEE":
+        return {
+          kicker: "CENTER STAGE",
+          title: "MARQUEE MOMENT",
+          subtitle: "Your message is lined up for a premium spotlight.",
+          bursts: [
+            { particleCount: 65, spread: 68, startVelocity: 28, origin: { x: 0.38, y: 0.58 }, scalar: 0.95 },
+            { particleCount: 65, spread: 68, startVelocity: 28, origin: { x: 0.62, y: 0.58 }, scalar: 0.95 },
+          ],
+        };
+      case "PHOTO_BASIC":
+        return {
+          kicker: "BIG SCREEN",
+          title: "PHOTO SHOUT-OUT",
+          subtitle: "Your photo moment is queued for approval.",
+          bursts: [
+            { particleCount: 60, spread: 64, startVelocity: 26, origin: { x: 0.4, y: 0.6 }, scalar: 0.9 },
+            { particleCount: 60, spread: 64, startVelocity: 26, origin: { x: 0.6, y: 0.6 }, scalar: 0.9 },
+          ],
+        };
+      case "PHOTO_FEATURED":
+        return {
+          kicker: "STAR SHOT",
+          title: "FEATURED PHOTO SENT",
+          subtitle: "A bigger photo moment is on its way to the booth.",
+          bursts: [
+            { particleCount: 70, spread: 70, startVelocity: 30, origin: { x: 0.38, y: 0.58 }, scalar: 1 },
+            { particleCount: 70, spread: 70, startVelocity: 30, origin: { x: 0.62, y: 0.58 }, scalar: 1 },
+          ],
+        };
+      case "PHOTO_MARQUEE":
+        return {
+          kicker: "HEADLINER",
+          title: "PHOTO MARQUEE SENT",
+          subtitle: "Your biggest photo shout-out just hit the approval lane.",
+          bursts: [
+            { particleCount: 84, spread: 76, startVelocity: 32, origin: { x: 0.36, y: 0.56 }, scalar: 1.05 },
+            { particleCount: 84, spread: 76, startVelocity: 32, origin: { x: 0.64, y: 0.56 }, scalar: 1.05 },
+          ],
+        };
+      default:
+        return {
+          kicker: "ON AIR",
+          title: `${product.title.toUpperCase()} SENT`,
+          subtitle: "Your shout-out is heading to the booth for approval.",
+          bursts: [
+            { particleCount: 52, spread: 60, startVelocity: 25, origin: { x: 0.42, y: 0.6 }, scalar: 0.85 },
+            { particleCount: 52, spread: 60, startVelocity: 25, origin: { x: 0.58, y: 0.6 }, scalar: 0.85 },
+          ],
+        };
+    }
+  }
+
+  function celebrateShoutoutSubmission(product: (typeof SHOUTOUT_PRODUCTS)[number]) {
+    const config = getShoutoutCelebration(product);
+    const colors = ["#00e5ff", "#ff3d9a", "#ffffff"];
+
+    config.bursts.forEach((burst, index) => {
+      window.setTimeout(() => {
+        confetti({
+          ...burst,
+          colors,
+          ticks: 180,
+          gravity: 0.95,
+          drift: index % 2 === 0 ? -0.08 : 0.08,
+          disableForReducedMotion: true,
+        });
+      }, index * 90);
+    });
+
+    showRewardFlash(config.title, config.subtitle, config.kicker);
+  }
+
   function persistPendingShoutoutResume(nextProductKey?: ShoutoutProductKey) {
     try {
       sessionStorage.setItem(
@@ -658,6 +753,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           return;
         }
 
+        celebrateShoutoutSubmission(selectedProduct);
         setMsg(data.note || `✅ ${selectedProduct.title} submitted for approval!`);
         setMessageText("");
         setFromName("");
@@ -691,6 +787,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
         return;
       }
 
+      celebrateShoutoutSubmission(selectedProduct);
       setMsg(`✅ ${selectedProduct.title} submitted for approval!`);
       setMessageText("");
       setFromName("");
