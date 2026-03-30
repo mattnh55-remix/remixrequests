@@ -30,6 +30,7 @@ export type QueueLikeItem = {
   score?: number | null;
   redemptionCode?: string | null;
   requestType?: string | null;
+  requestSource?: "CUSTOMER" | "DJ" | null;
   isRequest?: boolean | null;
 };
 
@@ -63,6 +64,7 @@ export type RequestItem = {
   upvotes?: number;
   downvotes?: number;
   redemptionCode?: string | null;
+  createdAt?: string | null;
 };
 
 export type ShoutoutItem = {

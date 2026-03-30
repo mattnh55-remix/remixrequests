@@ -22,7 +22,8 @@ function buildArtistQueueMessage(template: string, artist: string) {
 }
 
 const ACTIVE_REQUEST_STATUSES = ["PENDING", "ACCEPTED", "APPROVED"] as const;
-const ACTIVE_QUEUE_ITEM_STATUSES = ["QUEUED", "LOADED", "PLAYING", "HELD"] as const;
+const CUSTOMER_PENDING_STATUS = "PENDING" as const;
+const ADMIN_EMAIL_HASH = "__booth_admin__";
 
 export async function POST(req: Request) {
   try {
@@ -78,20 +79,21 @@ export async function POST(req: Request) {
     const artistQueueTemplate =
       rules.msgArtistAlreadyQueued || "Sorry, $artist is already queued up on the request list!";
     const queueFullMessage =
-      (rules as any).msgQueueFull || "The queue is currently full. Please check back in a bit.";
+      (rules as any).msgQueueFull || "The request line is full right now. Please check back in a bit.";
     const top10Bucket = getTop10BucketAt(now, rules as any);
 
     const maxOnDeck = Math.max(0, Number((rules as any).maxOnDeck ?? 0));
     if (maxOnDeck > 0) {
-      const activeQueueCount = await prisma.queueItem.count({
+      const incomingPendingCount = await prisma.request.count({
         where: {
           locationId: loc.id,
           sessionId: session.id,
-          status: { in: [...ACTIVE_QUEUE_ITEM_STATUSES] },
+          status: CUSTOMER_PENDING_STATUS,
+          emailHash: { not: ADMIN_EMAIL_HASH },
         },
       });
 
-      if (activeQueueCount >= maxOnDeck) {
+      if (incomingPendingCount >= maxOnDeck) {
         return jsonFail(queueFullMessage, 400);
       }
     }

@@ -1,18 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { isAdminFromCookie } from "@/lib/adminAuth";
 import { getRulesForLocation } from "@/lib/rules";
 import { getOrCreateCurrentSession } from "@/lib/validators";
-import { isAdminFromCookie } from "@/lib/adminAuth";
 
-function skaterLabel(emailHash: string) {
-  const tag = (emailHash || "??????").slice(0, 6).toUpperCase();
-  return `Skater ${tag}`;
-}
-
-function redemptionFromReason(reason?: string | null) {
-  if (!reason) return null;
-  const m = reason.match(/^redeem:(.+)$/i);
-  return m ? m[1] : null;
+function buildRequestedByLabel(emailHash: string) {
+  const last = String(emailHash || "").slice(-6).toUpperCase();
+  return last ? `Skater ${last}` : "Verified skater";
 }
 
 export async function GET(req: Request, { params }: { params: { location: string } }) {
@@ -20,98 +14,90 @@ export async function GET(req: Request, { params }: { params: { location: string
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  const { loc, rules } = await getRulesForLocation(params.location);
-  const session = await getOrCreateCurrentSession(loc.id, 4);
+  try {
+    const { loc, rules } = await getRulesForLocation(params.location);
+    const session = await getOrCreateCurrentSession(loc.id, 4);
 
-  const all = await prisma.request.findMany({
-    where: {
-      locationId: loc.id,
-      sessionId: session.id,
-      status: "PENDING",
-    },
-    orderBy: [{ createdAt: "asc" }],
-    include: {
-      song: {
-        select: {
-          id: true,
-          title: true,
-          artist: true,
+    const pendingRequests = await prisma.request.findMany({
+      where: {
+        locationId: loc.id,
+        sessionId: session.id,
+        status: "PENDING",
+        emailHash: { not: "__booth_admin__" },
+      },
+      orderBy: [{ createdAt: "asc" }],
+      include: {
+        song: {
+          select: {
+            title: true,
+            artist: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  const requestIds = all.map((r) => r.id);
-  const hashes = Array.from(new Set(all.map((r) => r.emailHash)));
+    const voteRows = pendingRequests.length
+      ? await prisma.vote.groupBy({
+          by: ["requestId", "value"],
+          where: {
+            requestId: { in: pendingRequests.map((item) => item.id) },
+            sessionId: session.id,
+          },
+          _count: { _all: true },
+        })
+      : [];
 
-  const voteCounts = await prisma.vote.groupBy({
-    by: ["requestId", "value"],
-    where: { requestId: { in: requestIds } },
-    _count: { _all: true },
-  });
-  const upByReq = new Map<string, number>();
-  const downByReq = new Map<string, number>();
-  for (const v of voteCounts) {
-    const n = v._count._all ?? 0;
-    if (v.value === 1) upByReq.set(v.requestId, n);
-    if (v.value === -1) downByReq.set(v.requestId, n);
-  }
-
-  const identities = await prisma.identity.findMany({
-    where: { locationId: loc.id, emailHash: { in: hashes } },
-    select: { emailHash: true, smsVerifiedAt: true },
-  });
-  const verifiedByHash = new Map<string, boolean>(identities.map((i) => [i.emailHash, !!i.smsVerifiedAt]));
-
-  const redeems = await prisma.creditLedger.findMany({
-    where: { locationId: loc.id, emailHash: { in: hashes }, reason: { startsWith: "redeem:" } },
-    select: { emailHash: true, reason: true, createdAt: true },
-    orderBy: { createdAt: "desc" },
-  });
-  const redeemByHash = new Map<string, string>();
-  for (const r of redeems) {
-    if (!redeemByHash.has(r.emailHash)) {
-      const code = redemptionFromReason(r.reason);
-      if (code) redeemByHash.set(r.emailHash, code);
+    const voteMap = new Map<string, { upvotes: number; downvotes: number; score: number }>();
+    for (const row of voteRows) {
+      const key = String(row.requestId);
+      const current = voteMap.get(key) || { upvotes: 0, downvotes: 0, score: 0 };
+      const count = Number((row as any)._count?._all ?? 0);
+      const value = Number((row as any).value ?? 0);
+      if (value > 0) current.upvotes += count;
+      if (value < 0) current.downvotes += count;
+      current.score += value * count;
+      voteMap.set(key, current);
     }
-  }
 
-  const onDeckCount = await prisma.queueItem.count({
-    where: {
-      locationId: loc.id,
-      sessionId: session.id,
-      status: { in: ["QUEUED", "LOADED", "PLAYING", "HELD"] },
-    },
-  });
+    const normalized = pendingRequests.map((request) => {
+      const votes = voteMap.get(request.id) || { upvotes: 0, downvotes: 0, score: 0 };
+      return {
+        id: request.id,
+        title: request.song?.title || "Untitled",
+        artist: request.song?.artist || "Unknown artist",
+        type: request.type,
+        sortBucket: request.type === "PLAY_NOW" ? "PLAY_NOW" : "UP_NEXT",
+        boosted: request.type === "PLAY_NOW",
+        requestedByLabel: buildRequestedByLabel(request.emailHash),
+        verified: true,
+        upvotes: votes.upvotes,
+        downvotes: votes.downvotes,
+        score: votes.score,
+        redemptionCode: (request as any).redemptionCode ?? null,
+        createdAt: request.createdAt?.toISOString?.() ?? null,
+      };
+    });
 
-  function mapReq(r: any) {
-    const verified = verifiedByHash.get(r.emailHash) ?? false;
-    const requestedByLabel = `${skaterLabel(r.emailHash)}${verified ? " • VERIFIED" : ""}`;
-    const boosted = r.type === "PLAY_NOW";
-
-    return {
-      id: r.id,
-      createdAt: r.createdAt,
-      songId: r.songId,
-      title: r.song.title,
-      artist: r.song.artist,
-      score: (upByReq.get(r.id) ?? 0) - (downByReq.get(r.id) ?? 0),
-      type: r.type,
-      status: r.status,
-      boosted,
-      requestedByLabel,
-      upvotes: upByReq.get(r.id) ?? 0,
-      downvotes: downByReq.get(r.id) ?? 0,
-      redemptionCode: redeemByHash.get(r.emailHash) ?? null,
+    const scoreSortEnabled = Boolean((rules as any).enableVoting);
+    const sortIncoming = (items: typeof normalized) => {
+      return [...items].sort((a, b) => {
+        if (scoreSortEnabled && b.score !== a.score) return Number(b.score ?? 0) - Number(a.score ?? 0);
+        return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+      });
     };
-  }
 
-  return NextResponse.json({
-    ok: true,
-    sessionId: session.id,
-    maxOnDeck: Number((rules as any).maxOnDeck ?? 0),
-    onDeckCount,
-    playNow: all.filter((r) => r.type === "PLAY_NOW").map(mapReq),
-    upNext: all.filter((r) => r.type !== "PLAY_NOW").map(mapReq),
-  });
+    const playNow = sortIncoming(normalized.filter((item) => item.sortBucket === "PLAY_NOW"));
+    const upNext = sortIncoming(normalized.filter((item) => item.sortBucket !== "PLAY_NOW"));
+
+    return NextResponse.json({
+      ok: true,
+      maxOnDeck: Number((rules as any).maxOnDeck ?? 10),
+      incomingCount: normalized.length,
+      playNow,
+      upNext,
+    });
+  } catch (error) {
+    console.error("ADMIN_QUEUE_ROUTE_ERROR", error);
+    return NextResponse.json({ ok: false, error: "Internal Server Error" }, { status: 500 });
+  }
 }

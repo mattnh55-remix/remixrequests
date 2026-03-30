@@ -11,12 +11,7 @@ import BoothInterstitialRuntime from "./BoothInterstitialRuntime";
 import SessionTimerPanel from "./SessionTimerPanel";
 import BoothNotesPanel from "./BoothNotesPanel";
 import InterstitialPromptModal from "./InterstitialPromptModal";
-import {
-  isInterstitial,
-  normalizeQueue,
-  queueSummary,
-  safeJson,
-} from "./booth-utils";
+import { queueSummary, normalizeQueue, safeJson } from "./booth-utils";
 import type {
   ActiveInterstitialPlayback,
   BoothDataState,
@@ -341,37 +336,11 @@ export default function BoothLayout({ location }: { location: string }) {
       ? shoutPayload.approved
       : [];
 
-    const pendingDecisionQueue = [...playNowRequests, ...upNextRequests];
-
-    let runtimePreview: RuntimePreview | null = null;
-
-    if (pendingDecisionQueue.length > 0) {
-      const target = pendingDecisionQueue[0];
-      runtimePreview = {
-        action: "PLAY_QUEUE_ITEM",
-        reason: "DJ_DECISION_QUEUE",
-        targetQueueItemId: target?.id ?? null,
-        targetTitle: target?.title ?? null,
-        targetArtist: target?.artist ?? null,
-        clusterId: null,
-      };
-    } else if (queue.length > 0) {
-      const target =
-        queue.find((item) => item.status === "LOADED") ||
-        queue.find((item) => item.status === "QUEUED") ||
-        null;
-
-      runtimePreview = {
-        action: target ? "PLAY_QUEUE_ITEM" : "NO_ACTION",
-        reason: target ? "DIRECT_PLAY" : "NO_PLAYABLE_QUEUE_ITEM",
-        targetQueueItemId: target?.id ?? null,
-        targetTitle: target?.title ?? null,
-        targetArtist: target?.artist ?? null,
-        clusterId: target?.clusterId ?? null,
-      };
-    } else {
-      runtimePreview = { action: "NO_ACTION", reason: "NO_PLAYABLE_QUEUE_ITEM" };
-    }
+    const runtimePreview: RuntimePreview | null = {
+      mode: "idle",
+      action: "QUEUE_MANUAL_ORDER",
+      reason: "DJ_CONTROLLED_PENDING_QUEUE",
+    };
 
     setState((prev) => ({
       ...prev,
@@ -397,7 +366,7 @@ export default function BoothLayout({ location }: { location: string }) {
       queueSummary(
         state.queue.map((item: any) => ({
           ...item,
-          sourceType: "REQUEST",
+          sourceType: item.sourceType || "REQUEST",
         }))
       ),
     [state.queue]
@@ -564,7 +533,7 @@ export default function BoothLayout({ location }: { location: string }) {
           <div className="rrEyebrow">REMIXREQUESTS • LIVE BOOTH</div>
           <div className="rrTitle">PERFORMANCE CONSOLE</div>
           <div className="rrSub">
-            Gunmetal booth surface for live request decisions, runtime insertions, scheduled
+            Gunmetal booth surface for incoming approvals, pending request order, scheduled
             interstitial prompts, and shoutouts.
           </div>
         </div>
@@ -582,7 +551,7 @@ export default function BoothLayout({ location }: { location: string }) {
         <div className="rrTopbarRight">
           <div className="statBoxes">
             <div className="statBox">
-              <span>QUEUE</span>
+              <span>PENDING</span>
               <strong>{summary.total}</strong>
             </div>
 
@@ -620,7 +589,7 @@ export default function BoothLayout({ location }: { location: string }) {
           <div className="panelHead panelHead--tight">
             <div>
               <div className="panelTitle">Request Queue</div>
-              <div className="panelSub">Pending request approval above, live on-deck queue below.</div>
+              <div className="panelSub">Incoming customer approvals above. DJ-controlled pending queue below.</div>
             </div>
             <div className="panelHeadBadge">
               <span className="statusPill statusPill--playing">LIVE</span>
@@ -632,107 +601,109 @@ export default function BoothLayout({ location }: { location: string }) {
           </div>
 
           <div className="rrQueueStage__content">
-  <div className="rrQueueStage__stack">
-    <div className="rrRequestPanelWrap">
-      <RequestPanel
-        playNow={state.playNowRequests}
-        upNext={state.upNextRequests}
-        mode={mode}
-        onAccept={acceptRequest}
-        onReject={rejectRequest}
-      />
-    </div>
+            <div className="rrQueueStage__stack">
+              <div className="rrRequestPanelWrap">
+                <RequestPanel
+                  playNow={state.playNowRequests}
+                  upNext={state.upNextRequests}
+                  mode={mode}
+                  onAccept={acceptRequest}
+                  onReject={rejectRequest}
+                />
+              </div>
 
-    <div className="rrQueueStage__queueShell">
-      <QueueList
-        items={state.queue as any}
-        mode={mode}
-        onPlayed={markRequestPlayed}
-        onReject={rejectRequest}
-      />
-    </div>
-  </div>
+              <div className="rrQueueStage__queueShell">
+                <QueueList
+                  location={location}
+                  items={state.queue as any}
+                  mode={mode}
+                  onPlayed={markRequestPlayed}
+                  onReject={rejectRequest}
+                  onReordered={load}
+                />
+              </div>
+            </div>
 
-  <BoothInterstitialRuntime
-    location={location}
-    sessionStartedAt={sessionClock.startedAtIso}
-    onPromptOpen={handlePromptOpen}
-    onPromptResolved={handlePromptResolved}
-  />
+            <BoothInterstitialRuntime
+              location={location}
+              sessionStartedAt={sessionClock.startedAtIso}
+              onPromptOpen={handlePromptOpen}
+              onPromptResolved={handlePromptResolved}
+            />
 
-  {promptState.open ? (
-    <div className="rrQueueStage__modalOverlay">
-      <InterstitialPromptModal
-        open={promptState.open}
-        category={promptState.category}
-        promptTitle={promptState.promptTitle}
-        promptBody={promptState.promptBody}
-        assets={promptState.assets}
-        busy={promptResolving}
-        onPlay={async (asset) => {
-          try {
-            setPromptResolving(true);
+            {promptState.open ? (
+              <div className="rrQueueStage__modalOverlay">
+                <InterstitialPromptModal
+                  open={promptState.open}
+                  category={promptState.category}
+                  promptTitle={promptState.promptTitle}
+                  promptBody={promptState.promptBody}
+                  assets={promptState.assets}
+                  busy={promptResolving}
+                  onPlay={async (asset) => {
+                    try {
+                      setPromptResolving(true);
 
-            await handlePlayInterstitialAsset(
-              {
-                id: asset.id,
-                name: asset.title,
-                category: asset.category,
-                durationSec: null,
-                fileUrl: asset.playFilename,
-                previewGifUrl: asset.previewUrl,
-                iconLabel: null,
-                notes: asset.body,
-                active: true,
-              },
-              asset.category
-            );
+                      await handlePlayInterstitialAsset(
+                        {
+                          id: asset.id,
+                          name: asset.title,
+                          category: asset.category,
+                          durationSec: null,
+                          fileUrl: asset.playFilename,
+                          previewGifUrl: asset.previewUrl,
+                          iconLabel: null,
+                          notes: asset.body,
+                          active: true,
+                        },
+                        asset.category
+                      );
 
-            await postJson(`/api/booth/interstitial-event`, {
-              location,
-              scheduleId: promptState.scheduleId,
-              assetId: asset.id,
-              category: asset.category,
-              status: "PLAYED",
-              playedAt: new Date().toISOString(),
-              sessionStartedAt: sessionClock.startedAtIso,
-            });
+                      await postJson(`/api/booth/interstitial-event`, {
+                        location,
+                        scheduleId: promptState.scheduleId,
+                        assetId: asset.id,
+                        category: asset.category,
+                        status: "PLAYED",
+                        playedAt: new Date().toISOString(),
+                        sessionStartedAt: sessionClock.startedAtIso,
+                      });
 
-            handlePromptResolved();
-          } finally {
-            setPromptResolving(false);
-          }
-        }}
-        onSkip={async (reason) => {
-          try {
-            setPromptResolving(true);
+                      handlePromptResolved();
+                    } finally {
+                      setPromptResolving(false);
+                    }
+                  }}
+                  onSkip={async (reason) => {
+                    try {
+                      setPromptResolving(true);
 
-            const result = await postJson(`/api/booth/interstitial-event`, {
-              location,
-              scheduleId: promptState.scheduleId,
-              category: promptState.category,
-              reason,
-              status: "SKIPPED",
-              playedAt: new Date().toISOString(),
-              sessionStartedAt: sessionClock.startedAtIso,
-            });
+                      const result = await postJson(`/api/booth/interstitial-event`, {
+                        location,
+                        scheduleId: promptState.scheduleId,
+                        category: promptState.category,
+                        reason,
+                        status: "SKIPPED",
+                        playedAt: new Date().toISOString(),
+                        sessionStartedAt: sessionClock.startedAtIso,
+                      });
 
-            if (!result.ok) {
-              throw new Error(
-                result?.data?.error || JSON.stringify(result?.data) || "Skip failed"
-              );
-            }
+                      if (!result.ok) {
+                        throw new Error(
+                          result?.data?.error || JSON.stringify(result?.data) || "Skip failed"
+                        );
+                      }
 
-            handlePromptResolved();
-          } finally {
-            setPromptResolving(false);
-          }
-        }}
-      />
-    </div>
-  ) : null}
-</div>
-</section>
+                      handlePromptResolved();
+                    } finally {
+                      setPromptResolving(false);
+                    }
+                  }}
+                />
+              </div>
+            ) : null}
+          </div>
+        </section>
         <div className="boothStack">
           <InterstitialPad
             location={location}
@@ -788,10 +759,6 @@ export default function BoothLayout({ location }: { location: string }) {
       </div>
 
       <style jsx global>{`
-        /* =========================
-           SESSION TIMER (RESTORED HERO)
-           ========================= */
-
         .rrSessionHero {
           display: grid;
           gap: 6px;
@@ -1068,19 +1035,19 @@ export default function BoothLayout({ location }: { location: string }) {
           margin-bottom: 8px;
         }
 
-.rrQueueStage__content {
-  position: relative;
-  min-height: 520px;
-}
+        .rrQueueStage__content {
+          position: relative;
+          min-height: 520px;
+        }
 
-.rrQueueStage__modalOverlay {
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: stretch;
-  justify-content: stretch;
-}
+        .rrQueueStage__modalOverlay {
+          position: absolute;
+          inset: 0;
+          z-index: 40;
+          display: flex;
+          align-items: stretch;
+          justify-content: stretch;
+        }
 
         .rrQueueStage__stack {
           display: grid;
@@ -1090,16 +1057,6 @@ export default function BoothLayout({ location }: { location: string }) {
         .rrRequestPanelWrap {
           position: relative;
           isolation: isolate;
-          animation: rrPromptWrapSettle 220ms ease-out;
-        }
-
-        .rrRequestPanelWrap::after {
-          content: "";
-          position: absolute;
-          inset: 0;
-          border-radius: 8px;
-          pointer-events: none;
-          opacity: ${0};
         }
 
         .rrQueueStage__queueShell {
@@ -1205,7 +1162,7 @@ export default function BoothLayout({ location }: { location: string }) {
 
         .queueRow {
           display: grid;
-          grid-template-columns: 24px minmax(0, 1fr) auto;
+          grid-template-columns: 20px 54px minmax(0, 1fr) auto auto;
           align-items: center;
           gap: 10px;
           padding: 12px 12px;
@@ -1231,7 +1188,7 @@ export default function BoothLayout({ location }: { location: string }) {
           align-items: center;
           justify-content: center;
           color: rgba(185, 204, 228, 0.62);
-          font-size: 22px;
+          font-size: 16px;
           line-height: 1;
           cursor: grab;
           user-select: none;
@@ -1260,6 +1217,10 @@ export default function BoothLayout({ location }: { location: string }) {
           font-weight: 1000;
           color: #fbfdff;
           font-style: italic;
+          min-width: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .queueMeta {
@@ -1326,15 +1287,6 @@ export default function BoothLayout({ location }: { location: string }) {
           background: linear-gradient(180deg, #bb6776 0%, #9b4755 52%, #813944 100%);
         }
 
-        @keyframes rrPromptWrapSettle {
-          0% {
-            transform: translateY(0);
-          }
-          100% {
-            transform: translateY(0);
-          }
-        }
-
         @media (max-width: 1480px) {
           .rrBooth__topbar {
             grid-template-columns: 1fr;
@@ -1355,6 +1307,18 @@ export default function BoothLayout({ location }: { location: string }) {
           }
         }
 
+        @media (max-width: 900px) {
+          .queueRow {
+            grid-template-columns: 20px 54px minmax(0, 1fr);
+            align-items: start;
+          }
+
+          .queueActions,
+          .queueVoteRail {
+            grid-column: 2 / span 2;
+          }
+        }
+
         @media (max-width: 760px) {
           .rrTitle {
             font-size: 24px;
@@ -1362,11 +1326,16 @@ export default function BoothLayout({ location }: { location: string }) {
 
           .queueRow {
             grid-template-columns: 1fr;
-            align-items: start;
           }
 
-          .queueDrag {
+          .queueDrag,
+          .queueArtworkWrap {
             display: none;
+          }
+
+          .queueActions,
+          .queueVoteRail {
+            grid-column: auto;
           }
 
           .queueActions {

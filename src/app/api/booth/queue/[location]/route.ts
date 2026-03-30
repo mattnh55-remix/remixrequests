@@ -1,51 +1,26 @@
-// /src/app/api/booth/queue/[location]/route.ts
-
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
 import { getOrCreateCurrentSession } from "@/lib/validators";
-import { isAdminFromCookie } from "@/lib/adminAuth";
-import { getRuntimeProgress } from "@/lib/booth/queue-runtime";
 
-function toIso(value: Date | null | undefined) {
-  return value ? value.toISOString() : null;
+const ACTIVE_QUEUE_ITEM_STATUSES = ["QUEUED", "LOADED", "PLAYING", "HELD"] as const;
+
+function buildRequestedByLabel(emailHash: string) {
+  if (emailHash === "__booth_admin__") return "DJ Added";
+  const last = String(emailHash || "").slice(-6).toUpperCase();
+  return last ? `Skater ${last}` : "Verified skater";
 }
 
-function parseInterstitialAssetId(clusterId: string | null | undefined) {
-  if (!clusterId) return null;
-
-  const prefix = "interstitial:";
-  if (!clusterId.startsWith(prefix)) return null;
-
-  const assetId = clusterId.slice(prefix.length).trim();
-  return assetId || null;
-}
-
-export async function GET(
-  req: Request,
-  { params }: { params: { location: string } }
-) {
-  if (!isAdminFromCookie(req.headers.get("cookie"))) {
-    return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
-  }
-
+export async function GET(_: Request, { params }: { params: { location: string } }) {
   try {
-    const locationSlug = String(params.location || "").trim();
-    if (!locationSlug) {
-      return NextResponse.json({ ok: false, error: "Missing location." }, { status: 400 });
-    }
-
-    const { loc } = await getRulesForLocation(locationSlug);
+    const { loc } = await getRulesForLocation(params.location);
     const session = await getOrCreateCurrentSession(loc.id, 4);
 
-    const items = await prisma.queueItem.findMany({
+    const queueItems = await prisma.queueItem.findMany({
       where: {
         locationId: loc.id,
         sessionId: session.id,
-        status: {
-  in: ["QUEUED", "LOADED", "PLAYING", "HELD"],
-},
+        status: { in: [...ACTIVE_QUEUE_ITEM_STATUSES] },
       },
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
       include: {
@@ -53,12 +28,9 @@ export async function GET(
           include: {
             song: {
               select: {
-                id: true,
                 title: true,
                 artist: true,
                 artworkUrl: true,
-                explicit: true,
-                durationSec: true,
               },
             },
           },
@@ -66,91 +38,62 @@ export async function GET(
       },
     });
 
-    const assetIds = Array.from(
-      new Set(
-        items
-          .map((item) => parseInterstitialAssetId(item.clusterId))
-          .filter((value): value is string => Boolean(value))
-      )
-    );
-
-    const assets = assetIds.length
-      ? await prisma.interstitialAsset.findMany({
+    const requestIds = queueItems.map((item) => item.requestId).filter(Boolean) as string[];
+    const voteRows = requestIds.length
+      ? await prisma.vote.groupBy({
+          by: ["requestId", "value"],
           where: {
-            locationId: loc.id,
-            id: { in: assetIds },
+            requestId: { in: requestIds },
+            sessionId: session.id,
           },
-          select: {
-            id: true,
-            name: true,
-            category: true,
-            fileUrl: true,
-            durationSec: true,
-          },
+          _count: { _all: true },
         })
       : [];
 
-    const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
-    const now = new Date();
+    const voteMap = new Map<string, { upvotes: number; downvotes: number; score: number }>();
+    for (const row of voteRows) {
+      const key = String(row.requestId);
+      const current = voteMap.get(key) || { upvotes: 0, downvotes: 0, score: 0 };
+      const count = Number((row as any)._count?._all ?? 0);
+      const value = Number((row as any).value ?? 0);
+      if (value > 0) current.upvotes += count;
+      if (value < 0) current.downvotes += count;
+      current.score += value * count;
+      voteMap.set(key, current);
+    }
 
-    return NextResponse.json({
-      ok: true,
-      sessionId: session.id,
-      items: items.map((item) => {
-        const assetId = parseInterstitialAssetId(item.clusterId);
-        const asset = assetId ? assetMap.get(assetId) ?? null : null;
+    const items = queueItems.map((item) => {
+      const votes = voteMap.get(String(item.requestId)) || { upvotes: 0, downvotes: 0, score: 0 };
+      const request = item.request;
+      const isDjAdded = request?.emailHash === "__booth_admin__" || item.sourceType === "HOUSE";
 
-        const durationSec = item.durationSec ?? null;
-
-        const runtime = getRuntimeProgress({
-          now,
-          playingAt: item.playingAt,
-          durationSec,
-          expectedEndAt: item.expectedEndAt,
-        });
-
-        const title =
-          item.sourceType === "INTERSTITIAL"
-            ? asset?.name ?? "Interstitial"
-            : item.request?.song?.title ?? null;
-
-        const artist =
-          item.sourceType === "INTERSTITIAL"
-            ? asset?.category?.replaceAll("_", " ") ?? "System insert"
-            : item.request?.song?.artist ?? null;
-
-        return {
-          id: item.id,
-          requestId: item.requestId,
-          position: item.position,
-          status: item.status,
-          sourceType: item.sourceType,
-          itemType: item.sourceType === "INTERSTITIAL" ? "INTERSTITIAL" : "SONG",
-          introAssigned: item.introAssigned,
-          clusterId: item.clusterId,
-          loadedAt: toIso(item.loadedAt),
-          playingAt: toIso(item.playingAt),
-          startedAt: runtime.startedAt,
-          expectedEndAt: runtime.expectedEndAt,
-          completedAt: toIso(item.completedAt),
-          createdAt: toIso(item.createdAt),
-          durationSec,
-          elapsedSec: runtime.elapsedSec,
-          remainingSec: runtime.remainingSec,
-          progressPercent: runtime.progressPercent,
-          isEndingSoon: runtime.isEndingSoon,
-          title,
-          artist,
-          artworkUrl: item.request?.song?.artworkUrl ?? null,
-          explicit: item.request?.song?.explicit ?? null,
-        };
-      }),
+      return {
+        id: item.id,
+        requestId: item.requestId,
+        title: request?.song?.title || "Untitled",
+        artist: request?.song?.artist || "Unknown artist",
+        artworkUrl: request?.song?.artworkUrl || null,
+        status: item.status,
+        sourceType: item.sourceType,
+        position: item.position,
+        sortOrder: item.position,
+        requestedByLabel: buildRequestedByLabel(request?.emailHash || ""),
+        boosted: request?.type === "PLAY_NOW",
+        verified: !isDjAdded,
+        upvotes: votes.upvotes,
+        downvotes: votes.downvotes,
+        score: votes.score,
+        redemptionCode: (request as any)?.redemptionCode ?? null,
+        requestType: request?.type ?? null,
+        requestSource: isDjAdded ? "DJ" : "CUSTOMER",
+        createdAt: item.createdAt?.toISOString?.() ?? null,
+        isRequest: true,
+      };
     });
+
+    return NextResponse.json({ ok: true, sessionId: session.id, items });
   } catch (error) {
-    console.error("booth queue get error", error);
-    return NextResponse.json(
-      { ok: false, error: "Could not load booth queue." },
-      { status: 500 }
-    );
+    console.error("BOOTH_QUEUE_ROUTE_ERROR", error);
+    return NextResponse.json({ ok: false, error: "Internal Server Error", items: [] }, { status: 500 });
   }
 }

@@ -1,29 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
-import { getRulesForLocation } from "@/lib/rules";
 import { sendRequestAcceptedSms } from "@/lib/request-status-sms";
 
 const ACTIVE_QUEUE_ITEM_STATUSES = ["QUEUED", "LOADED", "PLAYING", "HELD"] as const;
 
-function resolveInsertIndex(
-  activeItems: { id: string; status: string }[],
-  isPlayNow: boolean
-) {
-  if (!isPlayNow) return activeItems.length;
-
-  const loadedIndex = activeItems.findIndex((item) => item.status === "LOADED");
-  if (loadedIndex >= 0) return loadedIndex + 1;
-
-  const playingIndex = activeItems.findIndex((item) => item.status === "PLAYING");
-  if (playingIndex >= 0) return playingIndex + 1;
-
-  return 0;
+function buildRequestedByLabel(emailHash: string) {
+  const last = String(emailHash || "").slice(-6).toUpperCase();
+  return last ? `Skater ${last}` : "Verified skater";
 }
 
 export async function POST(req: Request) {
   if (!isAdminFromCookie(req.headers.get("cookie"))) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ ok: false }, { status: 401 });
   }
 
   try {
@@ -42,10 +31,8 @@ export async function POST(req: Request) {
             id: true,
             title: true,
             artist: true,
-            artistKey: true,
           },
         },
-        location: { select: { slug: true } },
         queueItem: { select: { id: true } },
       },
     });
@@ -54,33 +41,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Request not found" }, { status: 404 });
     }
 
-    if (requestRow.status === "REJECTED") {
-      return NextResponse.json({ ok: false, error: "CANNOT_ACCEPT_REJECTED" }, { status: 400 });
+    if (requestRow.status !== "PENDING") {
+      return NextResponse.json(
+        { ok: false, error: `Cannot accept request in status ${requestRow.status}` },
+        { status: 400 }
+      );
     }
 
-    if (requestRow.status === "PLAYED") {
-      return NextResponse.json({ ok: false, error: "CANNOT_ACCEPT_PLAYED" }, { status: 400 });
+    if (requestRow.queueItem?.id) {
+      return NextResponse.json({ ok: true, requestId, queueItemId: requestRow.queueItem.id, alreadyAccepted: true });
     }
 
-    if (requestRow.queueItem?.id || requestRow.status === "ACCEPTED" || requestRow.status === "APPROVED") {
-      return NextResponse.json({ ok: true, alreadyAccepted: true, requestId: requestRow.id, queueItemId: requestRow.queueItem?.id ?? null });
-    }
-
-    const { rules } = await getRulesForLocation(requestRow.location.slug);
-    const maxOnDeck = Math.max(0, Number((rules as any).maxOnDeck ?? 0));
-    const queueFullMessage =
-      (rules as any).msgQueueFull || "The queue is currently full. Please check back in a bit.";
-
-    const activeQueueCount = await prisma.queueItem.count({
+    const duplicateSong = await prisma.queueItem.findFirst({
       where: {
         locationId: requestRow.locationId,
         sessionId: requestRow.sessionId,
         status: { in: [...ACTIVE_QUEUE_ITEM_STATUSES] },
+        request: {
+          is: {
+            songId: requestRow.songId,
+          },
+        },
       },
+      select: { id: true },
     });
 
-    if (maxOnDeck > 0 && activeQueueCount >= maxOnDeck) {
-      return NextResponse.json({ ok: false, error: queueFullMessage, code: "QUEUE_FULL" }, { status: 400 });
+    if (duplicateSong) {
+      return NextResponse.json(
+        { ok: false, error: "That song is already in the pending queue." },
+        { status: 400 }
+      );
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -91,16 +81,7 @@ export async function POST(req: Request) {
           status: { in: [...ACTIVE_QUEUE_ITEM_STATUSES] },
         },
         orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-        select: { id: true, status: true },
-      });
-
-      const isPlayNow = requestRow.type === "PLAY_NOW";
-      const insertIndex = resolveInsertIndex(activeItems, isPlayNow);
-      const tempPosition = activeItems.length + 1;
-
-      await tx.request.update({
-        where: { id: requestRow.id },
-        data: { status: "ACCEPTED" },
+        select: { id: true },
       });
 
       const queueItem = await tx.queueItem.create({
@@ -109,24 +90,18 @@ export async function POST(req: Request) {
           locationId: requestRow.locationId,
           sessionId: requestRow.sessionId,
           status: "QUEUED",
-          position: tempPosition,
+          position: activeItems.length + 1,
           sourceType: "REQUEST",
           introAssigned: false,
         },
       });
 
-      const orderedIds = [
-        ...activeItems.slice(0, insertIndex).map((item) => item.id),
-        queueItem.id,
-        ...activeItems.slice(insertIndex).map((item) => item.id),
-      ];
-
-      for (let index = 0; index < orderedIds.length; index++) {
-        await tx.queueItem.update({
-          where: { id: orderedIds[index] },
-          data: { position: index + 1 },
-        });
-      }
+      await tx.request.update({
+        where: { id: requestRow.id },
+        data: {
+          status: "APPROVED",
+        },
+      });
 
       await tx.playbackEvent.create({
         data: {
@@ -142,7 +117,7 @@ export async function POST(req: Request) {
         },
       });
 
-      return { queueItemId: queueItem.id, isPlayNow };
+      return { queueItemId: queueItem.id };
     });
 
     const smsResult = await sendRequestAcceptedSms({
@@ -150,13 +125,14 @@ export async function POST(req: Request) {
       emailHash: requestRow.emailHash,
       title: requestRow.song.title,
       artist: requestRow.song.artist,
-      isPlayNow: result.isPlayNow,
+      isPlayNow: requestRow.type === "PLAY_NOW",
     });
 
     return NextResponse.json({
       ok: true,
       requestId: requestRow.id,
       queueItemId: result.queueItemId,
+      requestedByLabel: buildRequestedByLabel(requestRow.emailHash),
       texted: Boolean(smsResult?.ok),
       smsSkipped: Boolean((smsResult as any)?.skipped),
     });
