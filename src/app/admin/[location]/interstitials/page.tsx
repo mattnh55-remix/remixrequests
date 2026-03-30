@@ -353,98 +353,100 @@ export default async function AdminInterstitialsPage({
           />
         </section>
 
-        <section className="rrAdminPanel">
-          <div className="rrPanelHead">
+       <section className="rrAdminPanel">
+  <div className="rrPanelHead">
+    <div>
+      <div className="rrPanelTitle">Interstitial Logs</div>
+      <div className="rrPanelSub">
+        Filter and review booth interstitial activity.
+      </div>
+    </div>
+
+    <span className="rrStatusPill rrStatusPill--cyan">
+      {recentEvents.length} EVENTS
+    </span>
+  </div>
+
+  {/* FILTER BAR */}
+  <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+    <select className="gunmetalSelect" name="status">
+      <option value="">All Status</option>
+      <option value="PLAYED">Played</option>
+      <option value="SKIPPED">Skipped</option>
+    </select>
+
+    <select className="gunmetalSelect" name="category">
+      <option value="">All Categories</option>
+      {CATEGORY_OPTIONS.map((c) => (
+        <option key={c} value={c}>
+          {c.replaceAll("_", " ")}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  {recentEvents.length === 0 ? (
+    <div className="rrEmptyBox">
+      No interstitial activity yet
+    </div>
+  ) : (
+    <div className="rrTable">
+      <div className="rrTableHead">
+        <div>Time</div>
+        <div>Category</div>
+        <div>Status</div>
+        <div>Asset</div>
+        <div>Reason</div>
+      </div>
+
+      {recentEvents.map((event) => {
+        const time =
+          event.skippedAt ??
+          event.playedAt ??
+          event.createdAt;
+
+        const asset = event.assetId ? assetById.get(event.assetId) : null;
+
+        return (
+          <div
+            key={event.id}
+            className={`rrTableRow ${
+              event.status === "SKIPPED"
+                ? "rrTableRow--skipped"
+                : "rrTableRow--played"
+            }`}
+          >
+            <div>{time ? new Date(time).toLocaleTimeString() : "—"}</div>
+
             <div>
-              <div className="rrPanelTitle">Playback & Skip Log</div>
-              <div className="rrPanelSub">
-                Recent interstitial activity for this location. Use this to see what
-                DJs are playing, skipping, or canceling, and which assets are getting ignored.
-              </div>
+              {String(event.category || "—").replaceAll("_", " ")}
             </div>
-            <span className="rrStatusPill rrStatusPill--cyan">
-              {recentEvents.length} EVENTS
-            </span>
-          </div>
 
-          {recentEvents.length === 0 ? (
-            <div className="rrEmptyBox">
-              No interstitial events have been logged yet.
-            </div>
-          ) : (
-            <div className="rrEventLog">
-               {recentEvents.map((event) => {
-                const eventAt =
-                  event.skippedAt ??
-                  event.playedAt ??
-                  event.canceledAt ??
-                  event.plannedAt;
-
-                const toneClass =
+            <div>
+              <span
+                className={`rrChip ${
                   event.status === "PLAYED"
-                    ? "rrChip rrChip--played"
-                    : event.status === "SKIPPED"
-                    ? "rrChip rrChip--skipped"
-                    : event.status === "CANCELED"
-                    ? "rrChip rrChip--canceled"
-                    : "rrChip";
-
-                const asset = event.assetId ? assetById.get(event.assetId) : null;
-                const schedule = event.scheduleId ? scheduleById.get(event.scheduleId) : null;
-
-                const category =
-                  event.category ??
-                  asset?.category ??
-                  schedule?.category ??
-                  "—";
-const eventTitle =
-  asset?.name ||
-  (schedule && "label" in schedule ? (schedule as any).label : null) ||
-  event.assetId ||
-  event.scheduleId ||
-  "Unknown interstitial";
-
-
-                return (
-                  <div key={event.id} className="rrEventRow">
-                    <div className="rrEventMain">
-                      <div className="rrEventTopLine">
-                        <div className="rrEventTitle">{eventTitle}</div>
-                        <span className={toneClass}>{event.status}</span>
-                        <span className="rrChip rrChip--category">
-                          {String(category).replaceAll("_", " ")}
-                        </span>
-                      </div>
-
-                      <div className="rrEventMeta">
-                        <span>
-                          <strong>Time:</strong>{" "}
-                          {eventAt ? new Date(eventAt).toLocaleString() : "—"}
-                        </span>
-                        <span>
-                          <strong>Prompt minute:</strong> {event.promptMinute ?? "—"}
-                        </span>
-                        <span>
-                          <strong>Session:</strong>{" "}
-                          {event.sessionId ? event.sessionId.slice(-8) : "—"}
-                        </span>
-                        <span>
-                          <strong>File:</strong> {asset?.name || "—"}
-                        </span>
-                      </div>
-
-                      {event.operatorNote ? (
-                        <div className="rrEventNote">
-                          <strong>Operator note:</strong> {event.operatorNote}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
+                    ? "rrChip--played"
+                    : "rrChip--skipped"
+                }`}
+              >
+                {event.status}
+              </span>
             </div>
-          )}
-        </section>
+
+            <div>{asset?.name || event.assetId || "—"}</div>
+
+            <div>
+              {event.status === "SKIPPED"
+                ? event.operatorNote || "—"
+                : "—"}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
+</section>
 
       </div>
 
@@ -459,6 +461,45 @@ const eventTitle =
           color: #f2f5fb;
           font-family: Inter, ui-sans-serif, system-ui, sans-serif;
         }
+
+.rrTable {
+  display: grid;
+  gap: 6px;
+}
+
+.rrTableHead,
+.rrTableRow {
+  display: grid;
+  grid-template-columns: 120px 1fr 120px 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.rrTableHead {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  opacity: 0.6;
+  padding: 4px 6px;
+}
+
+.rrTableRow {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)),
+    linear-gradient(180deg, rgba(25,31,44,0.9), rgba(14,19,31,0.9));
+  font-size: 12px;
+}
+
+.rrTableRow--played {
+  border-left: 3px solid rgba(70, 205, 145, 0.6);
+}
+
+.rrTableRow--skipped {
+  border-left: 3px solid rgba(224, 99, 116, 0.7);
+}
 
         .rrAdminInterstitials__shell {
           max-width: 1440px;
