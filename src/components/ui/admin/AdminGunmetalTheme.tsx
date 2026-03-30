@@ -323,6 +323,9 @@ export default function AdminGunmetalTheme() {
         color: var(--adm-text);
         padding: 0 12px;
         outline: none;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
       }
       .admTextarea {
         min-height: 112px;

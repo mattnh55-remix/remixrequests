@@ -205,53 +205,57 @@ export default async function AdminInterstitialsPage({
         ) : null}
 
         <div className="rrAdminGrid2">
-          <section className="rrAdminPanel rrAdminPanel--form">
-            <div className="rrPanelHead">
-              <div>
-                <div className="rrPanelTitle">Create New Asset</div>
-                <div className="rrPanelSub">
-                  These are the booth-playable choices DJs will see inside the
-                  folder tabs and the timed prompt modal.
-                </div>
-              </div>
-              <span className="rrStatusPill rrStatusPill--gold">
-                ASSET LIBRARY
-              </span>
-            </div>
-
-            <InterstitialAssetForm
-              locationId={locationId}
-              categoryOptions={[...CATEGORY_OPTIONS]}
-            />
-          </section>
-
-          <section className="rrAdminPanel rrAdminPanel--form">
-            <div className="rrPanelHead">
-              <div>
-                <div className="rrPanelTitle">
-                  {editingSchedule ? "Edit Session Window" : "Create Session Window"}
-                </div>
-                <div className="rrPanelSub">
-                  These windows decide when the booth should prompt the DJ to
-                  choose one interstitial from the matching category.
-                </div>
-              </div>
-
-              <span className="rrStatusPill rrStatusPill--cyan">
-                {editingSchedule ? "EDIT WINDOW" : "TIMING ENGINE"}
-              </span>
-            </div>
-
-            <InterstitialScheduleForm
-              locationId={locationId}
-              locationSlug={location.slug}
-              categoryOptions={[...CATEGORY_OPTIONS]}
-              initialValues={editingSchedule ?? undefined}
-              submitLabel={editingSchedule ? "Update Window" : "Save Window"}
-              mode={editingSchedule ? "edit" : "create"}
-            />
-          </section>
+  <section className="rrAdminPanel rrAdminPanel--form">
+    <div className="rrPanelHead">
+      <div>
+        <div className="rrPanelTitle">Create New Asset</div>
+        <div className="rrPanelSub">
+          Assets are the actual booth-playable interstitial files DJs can choose from.
+          Create one asset for each playable intro, announcement, promo, or game moment.
+          Category decides which booth tab it appears in, while duration, priority, weight,
+          and visibility settings control how often and where it can be used.
         </div>
+      </div>
+      <span className="rrStatusPill rrStatusPill--gold">
+        ASSET LIBRARY
+      </span>
+    </div>
+
+    <InterstitialAssetForm
+      locationId={locationId}
+      categoryOptions={[...CATEGORY_OPTIONS]}
+    />
+  </section>
+
+  <section className="rrAdminPanel rrAdminPanel--form">
+    <div className="rrPanelHead">
+      <div>
+        <div className="rrPanelTitle">
+          {editingSchedule ? "Edit Session Window" : "Create Session Window"}
+        </div>
+        <div className="rrPanelSub">
+          Session windows decide when the booth should prompt the DJ to play an interstitial.
+          Each window targets one category, runs during a specific minute range in the session,
+          and can be sorted, cooled down, marked active, or made required. Think of this as the
+          timing engine that tells the booth when to ask for the next interstitial moment.
+        </div>
+      </div>
+
+      <span className="rrStatusPill rrStatusPill--cyan">
+        {editingSchedule ? "EDIT WINDOW" : "TIMING ENGINE"}
+      </span>
+    </div>
+
+    <InterstitialScheduleForm
+      locationId={locationId}
+      locationSlug={location.slug}
+      categoryOptions={[...CATEGORY_OPTIONS]}
+      initialValues={editingSchedule ?? undefined}
+      submitLabel={editingSchedule ? "Update Window" : "Save Window"}
+      mode={editingSchedule ? "edit" : "create"}
+    />
+  </section>
+</div>
 
         <section className="rrAdminPanel">
           <div className="rrPanelHead">
@@ -811,10 +815,17 @@ const eventTitle =
           font-size: 13px;
           font-weight: 700;
           outline: none;
+	  appearance: none;
+	  -webkit-appearance: none;
+          -moz-appearance: none;
           box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.04),
             0 0 0 1px rgba(12, 26, 48, 0.34);
         }
+	  .gunmetalSelect option {
+  	  background-color: #0b1220;
+ 	   color: #f4f7fd;
+	}
 
         .gunmetalInput::placeholder {
           color: rgba(197, 211, 235, 0.46);
