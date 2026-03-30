@@ -11,7 +11,6 @@ export async function GET(
   }
 
   const { searchParams } = new URL(req.url);
-
   const status = searchParams.get("status");
   const category = searchParams.get("category");
 
@@ -23,27 +22,26 @@ export async function GET(
   });
 
   if (!locationRow) {
-    return NextResponse.json({ ok: false, error: "Invalid location" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "Invalid location" },
+      { status: 400 }
+    );
   }
 
   const where: any = {
     locationId: locationRow.id,
   };
 
-  if (status) {
-    where.status = status;
-  }
-
-  if (category) {
-    where.category = category;
-  }
+  if (status) where.status = status;
+  if (category) where.category = category;
 
   const events = await prisma.interstitialEvent.findMany({
     where,
     orderBy: [
       { skippedAt: "desc" },
       { playedAt: "desc" },
-      { createdAt: "desc" },
+      { plannedAt: "desc" },
+      { canceledAt: "desc" },
     ],
     take: 200,
     select: {
@@ -55,7 +53,10 @@ export async function GET(
       operatorNote: true,
       playedAt: true,
       skippedAt: true,
-      createdAt: true,
+      plannedAt: true,
+      canceledAt: true,
+      promptMinute: true,
+      sessionId: true,
     },
   });
 

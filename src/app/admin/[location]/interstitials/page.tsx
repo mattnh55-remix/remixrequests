@@ -400,10 +400,11 @@ export default async function AdminInterstitialsPage({
       </div>
 
       {recentEvents.map((event) => {
-        const time =
-          event.skippedAt ??
-          event.playedAt ??
-          event.createdAt;
+const time =
+  event.skippedAt ??
+  event.playedAt ??
+  event.canceledAt ??
+  event.plannedAt;
 
         const asset = event.assetId ? assetById.get(event.assetId) : null;
 
