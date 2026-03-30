@@ -213,18 +213,28 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
         { cache: "no-store" }
       );
       const data = (await res.json()) as BalanceRes;
-      if (data.ok) {
-        const nextBalance = Number(data.balance ?? 0);
-        setBalance(nextBalance);
 
-        if (nextBalance <= 0) {
+      if (!res.ok || !data.ok) {
+        if (res.status === 401 || res.status === 403 || res.status === 404) {
           setSessionActive(false);
           setVerified(false);
           setIdentityId("");
-        } else {
-          setSessionActive(true);
+          setBalance(0);
+
+          try {
+            localStorage.removeItem("rr_identityId");
+          } catch {
+            // ignore
+          }
         }
+        return;
       }
+
+      const nextBalance = Number(data.balance ?? 0);
+      setBalance(nextBalance);
+      setSessionActive(true);
+      setVerified(true);
+      setIdentityId(id);
     } catch {
       // ignore
     }
@@ -563,7 +573,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     openTimerRef.current = window.setTimeout(() => {
       setPressedProductKey(null);
 
-      if (!sessionActive || !verified || !identityId || !email) {
+      if (!sessionActive || !verified || !identityId) {
         setMsg("Claim your intro points to send a shout-out.");
         setShowVerify(true);
         return;
@@ -591,7 +601,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     const cleanFrom = fromName.trim();
     const cleanBody = messageText.trim();
 
-    if (!sessionActive || !verified || !identityId || !email) {
+    if (!sessionActive || !verified || !identityId) {
       setMsg("Claim your intro points to send a shout-out.");
       setShowVerify(true);
       return;
