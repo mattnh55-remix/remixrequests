@@ -1136,209 +1136,241 @@ useEffect(() => {
         )}
 
         {tab === "requestSettings" && rules && (
-          <div className="admGridSettings">
-            <Panel title="Request settings" sub="Pricing, queue behavior, limits, and front-end response copy.">
-              <div className="admSectionStack">
 <SubPanel
   title="Pricing"
   sub="Controls how users spend points and how much revenue each action generates. Higher costs increase revenue but reduce participation — balance carefully."
 >
   <div className="admGrid2">
     <div className="admFieldStack">
+      <Field
+        label="Request cost"
+        value={rules.costRequest}
+        onChange={(v) => patchRules({ costRequest: v })}
+      />
+      <div className="admFieldHelp">
+        Cost to add a song to the queue. Lower = more engagement. Higher = more selective requests.
+      </div>
+    </div>
 
-    <Field
-      label="Request cost"
-      value={rules.costRequest}
-      onChange={(v) => patchRules({ costRequest: v })}
-    />
-    <div className="admFieldHelp">
-      Cost to add a song to the queue. Lower = more engagement. Higher = more selective requests.
-    </div></div>
-<div className="admFieldStack">
-    <Field
-      label="Play Now / Boost cost"
-      value={rules.costPlayNow}
-      onChange={(v) => patchRules({ costPlayNow: v })}
-    />
-    <div className="admFieldHelp">
-      Premium skip-to-front action. This is your biggest monetization lever — higher values increase revenue per user.
-    </div></div>
-<div className="admFieldStack">
-    <Field
-      label="Upvote cost"
-      value={rules.costUpvote}
-      onChange={(v) => patchRules({ costUpvote: v })}
-    />
-    <div className="admFieldHelp">
-      Cost to support a song. Keep low to encourage participation and crowd interaction.
-    </div></div>
-<div className="admFieldStack">
-    <Field
-      label="Downvote cost"
-      value={rules.costDownvote}
-      onChange={(v) => patchRules({ costDownvote: v })}
-    />
-    <div className="admFieldHelp">
-      Cost to push songs down. Usually kept equal to upvote for fairness.
-    </div></div>
-<div className="admFieldStack">
-    <MoneyField
-      label="10 credit package ($)"
-      centsValue={rules.packTier1PriceCents || 500}
-      onChangeCents={(c) => patchRules({ packTier1PriceCents: c })}
-    />
-    <div className="admFieldHelp">
-      Entry-level purchase. Lower price improves conversion rate for first-time users.
-    </div></div>
-<div className="admFieldStack">
-    <MoneyField
-      label="25 credit package ($)"
-      centsValue={rules.packTier2PriceCents || 1000}
-      onChangeCents={(c) => patchRules({ packTier2PriceCents: c })}
-    />
-    <div className="admFieldHelp">
-      Mid-tier option. Should feel like a better value per credit than the starter pack.
-    </div></div>
-<div className="admFieldStack">
+    <div className="admFieldStack">
+      <Field
+        label="Play Now / Boost cost"
+        value={rules.costPlayNow}
+        onChange={(v) => patchRules({ costPlayNow: v })}
+      />
+      <div className="admFieldHelp">
+        Premium skip-to-front action. This is your biggest monetization lever — higher values increase revenue per user.
+      </div>
+    </div>
 
-    <MoneyField
-      label="35 credit package ($)"
-      centsValue={rules.packTier3PriceCents || 1500}
-      onChangeCents={(c) => patchRules({ packTier3PriceCents: c })}
-    />
-    <div className="admFieldHelp">
-      High-value pack. Encourages larger purchases from engaged users.
-    </div></div>
-<div className="admFieldStack">
+    <div className="admFieldStack">
+      <Field
+        label="Upvote cost"
+        value={rules.costUpvote}
+        onChange={(v) => patchRules({ costUpvote: v })}
+      />
+      <div className="admFieldHelp">
+        Cost to support a song. Keep low to encourage participation and crowd interaction.
+      </div>
+    </div>
 
-    <MoneyField
-      label="50 credit package ($)"
-      centsValue={rules.packTier4PriceCents || 2000}
-      onChangeCents={(c) => patchRules({ packTier4PriceCents: c })}
-    />
-    <div className="admFieldHelp">
-      Best value tier. Designed for power users and groups pooling points.
-    </div></div>
+    <div className="admFieldStack">
+      <Field
+        label="Downvote cost"
+        value={rules.costDownvote}
+        onChange={(v) => patchRules({ costDownvote: v })}
+      />
+      <div className="admFieldHelp">
+        Cost to push songs down. Usually kept equal to upvote for fairness.
+      </div>
+    </div>
 
+    <div className="admFieldStack">
+      <MoneyField
+        label="10 credit package ($)"
+        centsValue={rules.packTier1PriceCents || 500}
+        onChangeCents={(c) => patchRules({ packTier1PriceCents: c })}
+      />
+      <div className="admFieldHelp">
+        Entry-level purchase. Lower price improves conversion rate for first-time users.
+      </div>
+    </div>
+
+    <div className="admFieldStack">
+      <MoneyField
+        label="25 credit package ($)"
+        centsValue={rules.packTier2PriceCents || 1000}
+        onChangeCents={(c) => patchRules({ packTier2PriceCents: c })}
+      />
+      <div className="admFieldHelp">
+        Mid-tier option. Should feel like a better value per credit than the starter pack.
+      </div>
+    </div>
+
+    <div className="admFieldStack">
+      <MoneyField
+        label="35 credit package ($)"
+        centsValue={rules.packTier3PriceCents || 1500}
+        onChangeCents={(c) => patchRules({ packTier3PriceCents: c })}
+      />
+      <div className="admFieldHelp">
+        High-value pack. Encourages larger purchases from engaged users.
+      </div>
+    </div>
+
+    <div className="admFieldStack">
+      <MoneyField
+        label="50 credit package ($)"
+        centsValue={rules.packTier4PriceCents || 2000}
+        onChangeCents={(c) => patchRules({ packTier4PriceCents: c })}
+      />
+      <div className="admFieldHelp">
+        Best value tier. Designed for power users and groups pooling points.
+      </div>
+    </div>
+  </div>
 </SubPanel>
+
 <SubPanel
   title="Voting and enforcement"
   sub="Controls how fair, fast, and controlled the queue feels. These rules prevent repeats, spam, and playlist domination."
 >
   <div className="admGrid2">
-
-    <Toggle
-      label="Enable voting"
-      checked={Boolean(rules.enableVoting)}
-      onChange={(v) => patchRules({ enableVoting: v })}
-    />
-    <div className="admFieldHelp">
-      Allows users to influence song order. Disabling creates a DJ-controlled experience.
+    <div className="admFieldStack">
+      <Toggle
+        label="Enable voting"
+        checked={Boolean(rules.enableVoting)}
+        onChange={(v) => patchRules({ enableVoting: v })}
+      />
+      <div className="admFieldHelp">
+        Allows users to influence song order. Disabling creates a DJ-controlled experience.
+      </div>
     </div>
 
-    <Toggle
-      label="Enforce artist cooldown"
-      checked={Boolean(rules.enforceArtistCooldown)}
-      onChange={(v) => patchRules({ enforceArtistCooldown: v })}
-    />
-    <div className="admFieldHelp">
-      Prevents the same artist from playing too frequently. Keeps music variety high.
+    <div className="admFieldStack">
+      <Toggle
+        label="Enforce artist cooldown"
+        checked={Boolean(rules.enforceArtistCooldown)}
+        onChange={(v) => patchRules({ enforceArtistCooldown: v })}
+      />
+      <div className="admFieldHelp">
+        Prevents the same artist from playing too frequently. Keeps music variety high.
+      </div>
     </div>
 
-    <Toggle
-      label="Enforce song cooldown"
-      checked={Boolean(rules.enforceSongCooldown)}
-      onChange={(v) => patchRules({ enforceSongCooldown: v })}
-    />
-    <div className="admFieldHelp">
-      Prevents the same song from being requested repeatedly within a short time window.
+    <div className="admFieldStack">
+      <Toggle
+        label="Enforce song cooldown"
+        checked={Boolean(rules.enforceSongCooldown)}
+        onChange={(v) => patchRules({ enforceSongCooldown: v })}
+      />
+      <div className="admFieldHelp">
+        Prevents the same song from being requested repeatedly within a short time window.
+      </div>
     </div>
 
-    <div />
-
-    <Field
-      label="Artist cooldown minutes"
-      value={rules.artistCooldownMinutes || 0}
-      onChange={(v) => patchRules({ artistCooldownMinutes: v })}
-    />
-    <div className="admFieldHelp">
-      Minimum time before the same artist can appear again. Typical: 10–30 minutes.
+    <div className="admFieldStack">
+      <div className="admFieldHelp">
+        Turn these safeguards on or off depending on how crowd-driven or DJ-controlled you want the session to feel.
+      </div>
     </div>
 
-    <Field
-      label="Song cooldown minutes"
-      value={rules.songCooldownMinutes || 0}
-      onChange={(v) => patchRules({ songCooldownMinutes: v })}
-    />
-    <div className="admFieldHelp">
-      Minimum time before the exact same song can be requested again. Typical: 60–180 minutes.
+    <div className="admFieldStack">
+      <Field
+        label="Artist cooldown minutes"
+        value={rules.artistCooldownMinutes || 0}
+        onChange={(v) => patchRules({ artistCooldownMinutes: v })}
+      />
+      <div className="admFieldHelp">
+        Minimum time before the same artist can appear again. Typical: 10–30 minutes.
+      </div>
     </div>
 
+    <div className="admFieldStack">
+      <Field
+        label="Song cooldown minutes"
+        value={rules.songCooldownMinutes || 0}
+        onChange={(v) => patchRules({ songCooldownMinutes: v })}
+      />
+      <div className="admFieldHelp">
+        Minimum time before the exact same song can be requested again. Typical: 60–180 minutes.
+      </div>
+    </div>
   </div>
 </SubPanel>
+
 <SubPanel
   title="Limits"
   sub="Controls how aggressive or controlled the request system feels during a session. These settings prevent spam, balance fairness, and protect the DJ flow."
 >
   <div className="admGrid2">
-
-    <Field
-      label="Max requests per session"
-      value={rules.maxRequestsPerSession || 0}
-      onChange={(v) => patchRules({ maxRequestsPerSession: v })}
-    />
-    <div className="admFieldHelp">
-      Total number of songs a single user can request during one session. Helps prevent one person from dominating the queue.
+    <div className="admFieldStack">
+      <Field
+        label="Max requests per session"
+        value={rules.maxRequestsPerSession || 0}
+        onChange={(v) => patchRules({ maxRequestsPerSession: v })}
+      />
+      <div className="admFieldHelp">
+        Total number of songs a single user can request during one session. Helps prevent one person from dominating the queue.
+      </div>
     </div>
 
-    <Field
-      label="Max votes per session"
-      value={rules.maxVotesPerSession || 0}
-      onChange={(v) => patchRules({ maxVotesPerSession: v })}
-    />
-    <div className="admFieldHelp">
-      Limits how many upvotes/downvotes a user can spend per session. Keeps voting meaningful and prevents spam tapping.
+    <div className="admFieldStack">
+      <Field
+        label="Max votes per session"
+        value={rules.maxVotesPerSession || 0}
+        onChange={(v) => patchRules({ maxVotesPerSession: v })}
+      />
+      <div className="admFieldHelp">
+        Limits how many upvotes/downvotes a user can spend per session. Keeps voting meaningful and prevents spam tapping.
+      </div>
     </div>
 
-    <Field
-      label="Min seconds between actions"
-      value={rules.minSecondsBetweenActions || 0}
-      onChange={(v) => patchRules({ minSecondsBetweenActions: v })}
-    />
-    <div className="admFieldHelp">
-      Cooldown between any actions (request, vote, boost). Prevents rapid-fire abuse and accidental double taps.
+    <div className="admFieldStack">
+      <Field
+        label="Min seconds between actions"
+        value={rules.minSecondsBetweenActions || 0}
+        onChange={(v) => patchRules({ minSecondsBetweenActions: v })}
+      />
+      <div className="admFieldHelp">
+        Cooldown between any actions (request, vote, boost). Prevents rapid-fire abuse and accidental double taps.
+      </div>
     </div>
 
-    <Field
-      label="Max same artist in queue"
-      value={rules.maxArtistInQueue || 0}
-      onChange={(v) => patchRules({ maxArtistInQueue: v })}
-    />
-    <div className="admFieldHelp">
-      Limits how many songs from the same artist can exist in the queue at once. Keeps variety high and avoids artist stacking.
+    <div className="admFieldStack">
+      <Field
+        label="Max same artist in queue"
+        value={rules.maxArtistInQueue || 0}
+        onChange={(v) => patchRules({ maxArtistInQueue: v })}
+      />
+      <div className="admFieldHelp">
+        Limits how many songs from the same artist can exist in the queue at once. Keeps variety high and avoids artist stacking.
+      </div>
     </div>
 
-    <Field
-      label="Max active requests per user"
-      value={rules.maxActiveRequestsPerUser || 0}
-      onChange={(v) => patchRules({ maxActiveRequestsPerUser: v })}
-    />
-    <div className="admFieldHelp">
-      How many of a user's songs can be sitting in the queue at the same time (not yet played). Prevents queue hoarding.
+    <div className="admFieldStack">
+      <Field
+        label="Max active requests per user"
+        value={rules.maxActiveRequestsPerUser || 0}
+        onChange={(v) => patchRules({ maxActiveRequestsPerUser: v })}
+      />
+      <div className="admFieldHelp">
+        How many of a user's songs can be sitting in the queue at the same time before any of them are played.
+      </div>
     </div>
 
-    <Field
-      label="Max On Deck songs"
-      value={(rules as any).maxOnDeck || 0}
-      onChange={(v) => patchRules({ maxOnDeck: v } as any)}
-    />
-    <div className="admFieldHelp">
-      Maximum number of songs visible in the upcoming queue. Controls how “full” the system feels and how far ahead users can influence playback.
+    <div className="admFieldStack">
+      <Field
+        label="Max On Deck songs"
+        value={(rules as any).maxOnDeck || 0}
+        onChange={(v) => patchRules({ maxOnDeck: v } as any)}
+      />
+      <div className="admFieldHelp">
+        Maximum number of songs visible in the upcoming queue. Controls how full the system feels and how far ahead users can influence playback.
+      </div>
     </div>
-
   </div>
 </SubPanel>
-
                 <SubPanel title="Branding and messages" sub="Logo and front-end message copy.">
                   <div className="admFieldStack">
                     <TextField label="Logo URL" value={rules.logoUrl || ""} onChange={(v) => patchRules({ logoUrl: v })} />
