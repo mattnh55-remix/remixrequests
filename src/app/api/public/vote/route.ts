@@ -91,6 +91,15 @@ if (balance < cost) {
   throw new Error(`NOCREDITS:${rules.msgNoCredits}`);
 }
 
+        await tx.vote.create({
+          data: {
+            requestId: reqRow.id,
+            sessionId: session.id,
+            emailHash,
+            value: val,
+          },
+        });
+
         await tx.creditLedger.create({
           data: {
             locationId: loc.id,
@@ -98,15 +107,6 @@ if (balance < cost) {
             delta: -cost,
             reason: val === 1 ? "UPVOTE" : "DOWNVOTE",
             expiresAt: sessionExpiresAt,
-          },
-        });
-
-        await tx.vote.create({
-          data: {
-            requestId: reqRow.id,
-            sessionId: session.id,
-            emailHash,
-            value: val,
           },
         });
 
