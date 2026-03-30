@@ -1456,7 +1456,12 @@ const queuePanel = (
             grid-template-columns: 1fr;
             grid-template-rows: 1fr;
             height: 100vh;
+
           }
+
+.remixTvBubbleLayout {
+    margin-top: 18px; /* ⬅️ pushes text block down from chip */
+  }
 
           .remixTvShoutoutPanel {
             padding: 12px 12px 14px;
