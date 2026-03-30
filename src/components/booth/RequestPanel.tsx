@@ -16,73 +16,6 @@ type IncomingItem = RequestItem & {
   incomingLane: "PLAY_NOW" | "UP_NEXT";
 };
 
-function VoteRail({ upvotes, downvotes, score }: { upvotes?: number; downvotes?: number; score?: number }) {
-  const safeUp = Number(upvotes ?? 0);
-  const safeDown = Number(downvotes ?? 0);
-  const safeScore = Number(score ?? safeUp - safeDown);
-  const scoreTone = safeScore > 0 ? "requestVoteRail__score--up" : safeScore < 0 ? "requestVoteRail__score--down" : "";
-
-  return (
-    <div className="requestVoteRail" aria-label="Votes">
-      <span className="requestVoteRail__chip">👍 {safeUp}</span>
-      <span className="requestVoteRail__chip">👎 {safeDown}</span>
-      <span className={`requestVoteRail__score ${scoreTone}`}>Score {safeScore}</span>
-    </div>
-  );
-}
-
-function RequestRow({
-  item,
-  index,
-  onAccept,
-  onReject,
-}: {
-  item: IncomingItem;
-  index: number;
-  onAccept?: (requestId: string) => void | Promise<unknown>;
-  onReject?: (requestId: string, reason: string) => void | Promise<unknown>;
-}) {
-  const laneTone = item.incomingLane === "PLAY_NOW" ? "pink" : "cyan";
-
-  return (
-    <div className={`requestRow ${item.boosted ? "requestRow--boosted" : ""}`}>
-      <div className="requestIndex">{index + 1}</div>
-
-      <div className="requestText">
-        <div className="requestTitleLine">
-          <strong>{item.title || "Untitled"}</strong>
-          <StatusBadge label={item.incomingLane === "PLAY_NOW" ? "PLAY NOW" : "UP NEXT"} tone={laneTone} />
-          {item.boosted ? <StatusBadge label="BOOSTED" tone="red" /> : null}
-        </div>
-        <div className="requestMeta">
-          {item.artist || "Unknown artist"}
-          {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
-          {item.verified ? " • VERIFIED" : ""}
-        </div>
-      </div>
-
-      <VoteRail upvotes={item.upvotes} downvotes={item.downvotes} score={item.score} />
-
-      <div className="requestActions">
-        <button
-          type="button"
-          className="gunmetalBtn gunmetalBtn--primary"
-          onClick={() => void onAccept?.(item.id)}
-        >
-          Accept
-        </button>
-        <button
-          type="button"
-          className="gunmetalBtn gunmetalBtn--remove"
-          onClick={() => void onReject?.(item.id, "Rejected from booth")}
-        >
-          Reject
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function RequestPanel({
   playNow,
   upNext,
@@ -100,7 +33,9 @@ export default function RequestPanel({
       const boostDiff = Number(Boolean(b.boosted)) - Number(Boolean(a.boosted));
       if (boostDiff !== 0) return boostDiff;
 
-      const laneDiff = (a.incomingLane === "PLAY_NOW" ? 0 : 1) - (b.incomingLane === "PLAY_NOW" ? 0 : 1);
+      const laneDiff =
+        (a.incomingLane === "PLAY_NOW" ? 0 : 1) -
+        (b.incomingLane === "PLAY_NOW" ? 0 : 1);
       if (laneDiff !== 0) return laneDiff;
 
       const scoreDiff = Number(b.score ?? 0) - Number(a.score ?? 0);
@@ -120,20 +55,70 @@ export default function RequestPanel({
       </div>
 
       <div className="requestSection requestSection--stacked">
-        <div className="listSectionTitle" style={{ marginBottom: 6 }}>
-          Incoming Approval Queue
-        </div>
+        <div className="listSectionTitle requestSectionTitle">Incoming Approval Queue</div>
+
         {incomingItems.length ? (
           <div className="requestListScroller">
-            {incomingItems.map((item, index) => (
-              <RequestRow
-                key={item.id}
-                item={item}
-                index={index}
-                onAccept={onAccept}
-                onReject={onReject}
-              />
-            ))}
+            {incomingItems.map((item, index) => {
+              const safeUp = Number(item.upvotes ?? 0);
+              const safeDown = Number(item.downvotes ?? 0);
+              const safeScore = Number(item.score ?? safeUp - safeDown);
+              const scoreTone =
+                safeScore > 0
+                  ? "requestVoteRail__score--up"
+                  : safeScore < 0
+                    ? "requestVoteRail__score--down"
+                    : "";
+
+              return (
+                <div
+                  key={item.id}
+                  className={`requestRow ${item.boosted ? "requestRow--boosted" : ""}`}
+                >
+                  <div className="requestIndex">{index + 1}</div>
+
+                  <div className="requestText">
+                    <div className="requestTitleLine">
+                      <strong>{item.title || "Untitled"}</strong>
+                      <StatusBadge
+                        label={item.incomingLane === "PLAY_NOW" ? "PLAY NOW" : "UP NEXT"}
+                        tone={item.incomingLane === "PLAY_NOW" ? "pink" : "cyan"}
+                      />
+                      {item.boosted ? <StatusBadge label="BOOSTED" tone="red" /> : null}
+                    </div>
+
+                    <div className="requestMeta">
+                      {item.artist || "Unknown artist"}
+                      {item.requestedByLabel ? ` • ${item.requestedByLabel}` : ""}
+                      {item.verified ? " • VERIFIED" : ""}
+                    </div>
+                  </div>
+
+                  <div className="requestVoteRail" aria-label="Votes">
+                    <span className="requestVoteRail__chip">👍 {safeUp}</span>
+                    <span className="requestVoteRail__chip">👎 {safeDown}</span>
+                    <span className={`requestVoteRail__score ${scoreTone}`}>Score {safeScore}</span>
+                  </div>
+
+                  <div className="requestActions">
+                    <button
+                      type="button"
+                      className="gunmetalBtn gunmetalBtn--primary"
+                      onClick={() => void onAccept?.(item.id)}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      className="gunmetalBtn gunmetalBtn--remove"
+                      onClick={() => void onReject?.(item.id, "Rejected from booth")}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="emptyBox">No incoming requests waiting for approval.</div>
@@ -141,6 +126,10 @@ export default function RequestPanel({
       </div>
 
       <style jsx>{`
+        .requestSectionTitle {
+          margin-bottom: 6px;
+        }
+
         .requestListScroller {
           display: grid;
           gap: 8px;
