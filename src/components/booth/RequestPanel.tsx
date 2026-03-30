@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import StatusBadge from "./StatusBadge";
 import type { BoothMode, RequestItem } from "./types";
 
@@ -9,6 +10,10 @@ type RequestPanelProps = {
   mode?: BoothMode;
   onAccept?: (requestId: string) => void | Promise<unknown>;
   onReject?: (requestId: string, reason: string) => void | Promise<unknown>;
+};
+
+type IncomingItem = RequestItem & {
+  incomingLane: "PLAY_NOW" | "UP_NEXT";
 };
 
 function VoteRail({ upvotes, downvotes, score }: { upvotes?: number; downvotes?: number; score?: number }) {
@@ -29,25 +34,25 @@ function VoteRail({ upvotes, downvotes, score }: { upvotes?: number; downvotes?:
 function RequestRow({
   item,
   index,
-  tone,
   onAccept,
   onReject,
 }: {
-  item: RequestItem;
+  item: IncomingItem;
   index: number;
-  tone: "pink" | "cyan";
   onAccept?: (requestId: string) => void | Promise<unknown>;
   onReject?: (requestId: string, reason: string) => void | Promise<unknown>;
 }) {
+  const laneTone = item.incomingLane === "PLAY_NOW" ? "pink" : "cyan";
+
   return (
-    <div className="requestRow">
+    <div className={`requestRow ${item.boosted ? "requestRow--boosted" : ""}`}>
       <div className="requestIndex">{index + 1}</div>
 
       <div className="requestText">
         <div className="requestTitleLine">
           <strong>{item.title || "Untitled"}</strong>
-          <StatusBadge label={tone === "pink" ? "PLAY NOW" : "UP NEXT"} tone={tone} />
-          {item.boosted ? <StatusBadge label="BOOST" tone="gold" /> : null}
+          <StatusBadge label={item.incomingLane === "PLAY_NOW" ? "PLAY NOW" : "UP NEXT"} tone={laneTone} />
+          {item.boosted ? <StatusBadge label="BOOSTED" tone="red" /> : null}
         </div>
         <div className="requestMeta">
           {item.artist || "Unknown artist"}
@@ -85,6 +90,26 @@ export default function RequestPanel({
   onAccept,
   onReject,
 }: RequestPanelProps) {
+  const incomingItems = useMemo<IncomingItem[]>(() => {
+    const merged: IncomingItem[] = [
+      ...playNow.map((item) => ({ ...item, incomingLane: "PLAY_NOW" as const })),
+      ...upNext.map((item) => ({ ...item, incomingLane: "UP_NEXT" as const })),
+    ];
+
+    return merged.sort((a, b) => {
+      const boostDiff = Number(Boolean(b.boosted)) - Number(Boolean(a.boosted));
+      if (boostDiff !== 0) return boostDiff;
+
+      const laneDiff = (a.incomingLane === "PLAY_NOW" ? 0 : 1) - (b.incomingLane === "PLAY_NOW" ? 0 : 1);
+      if (laneDiff !== 0) return laneDiff;
+
+      const scoreDiff = Number(b.score ?? 0) - Number(a.score ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
+
+      return 0;
+    });
+  }, [playNow, upNext]);
+
   return (
     <section className={`boothPanel ${mode === "performance" ? "boothPanel--compact" : ""}`}>
       <div className="boothPanelHeader">
@@ -94,54 +119,34 @@ export default function RequestPanel({
         </div>
       </div>
 
-      <div className="boothSplit">
-        <div className="requestSection">
-          <div className="listSectionTitle" style={{ marginBottom: 6 }}>
-            Play Now Requests
-          </div>
-          {playNow.length ? (
-            <div className="requestListScroller">
-              {playNow.map((item, index) => (
-                <RequestRow
-                  key={item.id}
-                  item={item}
-                  index={index}
-                  tone="pink"
-                  onAccept={onAccept}
-                  onReject={onReject}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="emptyBox">No incoming Play Now requests.</div>
-          )}
+      <div className="requestSection requestSection--stacked">
+        <div className="listSectionTitle" style={{ marginBottom: 6 }}>
+          Incoming Approval Queue
         </div>
-
-        <div className="requestSection">
-          <div className="listSectionTitle" style={{ marginBottom: 6 }}>
-            Up Next Requests
+        {incomingItems.length ? (
+          <div className="requestListScroller">
+            {incomingItems.map((item, index) => (
+              <RequestRow
+                key={item.id}
+                item={item}
+                index={index}
+                onAccept={onAccept}
+                onReject={onReject}
+              />
+            ))}
           </div>
-          {upNext.length ? (
-            <div className="requestListScroller">
-              {upNext.map((item, index) => (
-                <RequestRow
-                  key={item.id}
-                  item={item}
-                  index={index}
-                  tone="cyan"
-                  onAccept={onAccept}
-                  onReject={onReject}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="emptyBox">No incoming Up Next requests.</div>
-          )}
-        </div>
+        ) : (
+          <div className="emptyBox">No incoming requests waiting for approval.</div>
+        )}
       </div>
 
       <style jsx>{`
         .requestListScroller {
+          display: grid;
+          gap: 8px;
+        }
+
+        .requestSection--stacked {
           display: grid;
           gap: 8px;
         }
@@ -155,6 +160,11 @@ export default function RequestPanel({
           border-radius: 6px;
           border: 1px solid rgba(255, 255, 255, 0.08);
           background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.015));
+        }
+
+        .requestRow--boosted {
+          border-color: rgba(255, 118, 118, 0.24);
+          box-shadow: inset 3px 0 0 rgba(255, 118, 118, 0.9);
         }
 
         .requestIndex {
@@ -243,18 +253,40 @@ export default function RequestPanel({
 
         .requestActions {
           display: inline-flex;
+          align-items: center;
           gap: 6px;
+          flex-wrap: wrap;
           justify-content: flex-end;
         }
 
-        @media (max-width: 1100px) {
+        @media (max-width: 980px) {
           .requestRow {
             grid-template-columns: 34px minmax(0, 1fr);
+            align-items: start;
           }
 
           .requestVoteRail,
           .requestActions {
             grid-column: 2;
+          }
+
+          .requestActions {
+            justify-content: flex-start;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .requestRow {
+            grid-template-columns: 1fr;
+          }
+
+          .requestIndex {
+            display: none;
+          }
+
+          .requestVoteRail,
+          .requestActions {
+            grid-column: auto;
           }
         }
       `}</style>

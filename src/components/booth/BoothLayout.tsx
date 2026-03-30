@@ -602,16 +602,6 @@ export default function BoothLayout({ location }: { location: string }) {
 
           <div className="rrQueueStage__content">
             <div className="rrQueueStage__stack">
-              <div className="rrRequestPanelWrap">
-                <RequestPanel
-                  playNow={state.playNowRequests}
-                  upNext={state.upNextRequests}
-                  mode={mode}
-                  onAccept={acceptRequest}
-                  onReject={rejectRequest}
-                />
-              </div>
-
               <div className="rrQueueStage__queueShell">
                 <QueueList
                   location={location}
@@ -620,6 +610,16 @@ export default function BoothLayout({ location }: { location: string }) {
                   onPlayed={markRequestPlayed}
                   onReject={rejectRequest}
                   onReordered={load}
+                />
+              </div>
+
+              <div className="rrRequestPanelWrap">
+                <RequestPanel
+                  playNow={state.playNowRequests}
+                  upNext={state.upNextRequests}
+                  mode={mode}
+                  onAccept={acceptRequest}
+                  onReject={rejectRequest}
                 />
               </div>
             </div>

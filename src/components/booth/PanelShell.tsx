@@ -12,7 +12,7 @@ export default function PanelShell({
   children: React.ReactNode;
 }) {
   return (
-    <section className="neonPanel boothPanel">
+    <section className="boothPanel">
       <div className="boothPanelHeader">
         <div>
           <div className="boothPanelTitle">{title}</div>
