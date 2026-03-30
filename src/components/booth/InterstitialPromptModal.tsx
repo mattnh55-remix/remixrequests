@@ -209,9 +209,11 @@ export default function InterstitialPromptModal({
           </div>
         </div>
 
-        {skipOpen ? (
+                {skipOpen ? (
           <div className="rrPromptModal__confirmLayer">
-            <div
+            <button
+              type="button"
+              aria-label="Close skip confirmation"
               className="rrPromptModal__confirmBackdrop"
               onClick={() => {
                 if (busy) return;
@@ -223,8 +225,7 @@ export default function InterstitialPromptModal({
               <div className="rrPromptModal__confirmTitle">Skip interstitial?</div>
 
               <div className="rrPromptModal__confirmText">
-                Skipping requires a reason and will create a SKIPPED event for admin
-                review later.
+                Skipping requires a reason and will create a SKIPPED event for admin review later.
               </div>
 
               <label className="rrPromptModal__field">
@@ -235,13 +236,14 @@ export default function InterstitialPromptModal({
                   placeholder="Example: crowd moment, no clean transition..."
                   className="rrPromptModal__textarea rrPromptModal__textarea--compact"
                   disabled={busy}
+                  autoFocus
                 />
               </label>
 
               <div className="rrPromptModal__confirmActions">
                 <button
                   type="button"
-                  className="gunmetalBtn gunmetalBtn--primary gunmetalBtn--mini"
+                  className="gunmetalBtn gunmetalBtn--ghost gunmetalBtn--mini"
                   disabled={busy}
                   onClick={() => setSkipOpen(false)}
                 >
@@ -250,33 +252,27 @@ export default function InterstitialPromptModal({
 
                 <button
                   type="button"
-                  disabled={busy || !canSubmitSkip}
-onClick={async () => {
-  if (busy) return;
-
-  const reason = skipReason.trim();
-  if (!reason) return;
-
-  setError(null);
-
-  try {
-    await onSkip(reason);
-
-    // HARD RESET (this is what was missing)
-    setSkipReason("");
-    setSkipOpen(false);
-
-  } catch (err) {
-    console.error("[Skip Interstitial Error]", err);
-
-    setError(
-      err instanceof Error
-        ? err.message
-        : "Failed to skip prompt."
-    );
-  }
-}}
                   className="gunmetalBtn gunmetalBtn--primary gunmetalBtn--mini"
+                  disabled={busy || !canSubmitSkip}
+                  onClick={async () => {
+                    if (busy) return;
+
+                    const reason = skipReason.trim();
+                    if (!reason) return;
+
+                    setError(null);
+
+                    try {
+                      await onSkip(reason);
+                      setSkipReason("");
+                      setSkipOpen(false);
+                    } catch (err) {
+                      console.error("[Skip Interstitial Error]", err);
+                      setError(
+                        err instanceof Error ? err.message : "Failed to skip prompt."
+                      );
+                    }
+                  }}
                 >
                   {busy ? "Working..." : "Confirm Skip"}
                 </button>
