@@ -99,6 +99,11 @@ type RulesState = {
   top10AdultCutoffHour?: number;
   top10AdultCutoffMinute?: number;
   shoutoutSlideSeconds?: number;
+  enabled?: boolean;
+  maxFromNameChars?: number;
+  maxMessageChars?: number;
+  maxPendingPerIdentity?: number;
+  filterBlockMessage?: string;
 };
 
 type SessionUser = {
@@ -1690,92 +1695,175 @@ useEffect(() => {
 
         <CodeUsesModal open={codeUsesOpen} code={selectedCode} items={selectedCodeUses} loading={codeUsesLoading} onClose={() => { setCodeUsesOpen(false); setSelectedCode(null); setSelectedCodeUses([]); }} />
 
-        {tab === "shoutoutSettings" && rules && (
-          <div className="admGridSettings">
-            <div className="admSectionStack">
-              <Panel title="TV rotation" sub="Controls for shout-out slide playback and feed behavior.">
-                <div className="admSectionStack">
-                  <SubPanel title="Rotation" sub="This controls how long a shout-out stays on the TV before the next slide.">
-                    <Field label="Slide rotation seconds" value={effectiveShoutoutSlideSeconds} onChange={(v) => patchRules({ shoutoutSlideSeconds: Math.max(1, Math.min(120, Number(v) || 10)) })} />
-                  </SubPanel>
-
-                  <SubPanel title="TV behavior" sub="Current runtime assumptions from the live system.">
-                    <div className="admFieldStack">
-                      <div className="admSubCopy">Rotation speed: <b>{effectiveShoutoutSlideSeconds} seconds</b></div>
-                      <div className="admSubCopy">Weighted rotation: <b>Enabled in live shout-out feed</b></div>
-                      <div className="admSubCopy">Placeholder storage: <b>Browser-local for now</b></div>
-                    </div>
-                  </SubPanel>
-
-                  <SubPanel title="Admin recommendation" sub="Operational note.">
-                    <div className="admSubCopy">10 seconds is a strong default. It gives families enough time to read birthday and congratulations messages without making the TV feel slow.</div>
-                  </SubPanel>
-
-                  {shoutoutSettingsMsg ? <div className="admNotice">{shoutoutSettingsMsg}</div> : null}
-                  <div className="admActionRow"><ActionButton onClick={saveShoutoutSettings}>{savingRules ? "Saving..." : "Save shout-out settings"}</ActionButton></div>
-                </div>
-              </Panel>
-
-              <Panel title="Shout out products" sub="Reference only: current live product catalog and rotation weights.">
-                <div className="admRows">
-                  {liveProducts.map((p: any) => (
-                    <div key={p.id} className="admSubPanel">
-                      <div className="admSplitActions">
-                        <div className="admTextWrap">
-                          <div style={{ fontWeight: 1000 }}>{p.title}</div>
-                          <div className="admMuted" style={{ marginTop: 4 }}>{p.description}</div>
-                        </div>
-                        <div style={{ textAlign: "right", minWidth: 110 }}>
-                          <div style={{ fontWeight: 1000 }}>{p.creditsCost} credits</div>
-                          <div className="admMuted">{Math.round(p.durationSec / 60)} min</div>
-                        </div>
-                      </div>
-                      <div className="admActionRow" style={{ marginTop: 10 }}>
-                        <Pill>{p.hasPhoto ? "Photo tier" : "Text only"}</Pill>
-                        <Pill>Weight {p.weight}</Pill>
-                        <Pill variant={p.enabled ? "live" : "warn"}>{p.enabled ? "Live" : "Coming soon"}</Pill>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Panel>
-            </div>
-
-            <Panel title="TV placeholder shout-outs" sub="Browser-local fallback content for the TV page until shared persistence is added.">
-              <div className="admSectionStack">
-                <div className="admSubPanel">
-                  <div className="admSubCopy">These fallback placeholders are stored in browser storage for now. They will appear on the TV page only in the same browser profile until shared backend persistence is added.</div>
-                </div>
-                <div className="admRows">
-                  {placeholders.map((p, idx) => (
-                    <div key={p.id} className="admSubPanel">
-                      <div className="admSubTitleText" style={{ marginBottom: 10 }}>Placeholder {idx + 1}</div>
-                      <Label>Header</Label>
-                      <Input value={p.title} onChange={(e) => updatePlaceholder(idx, { title: e.target.value })} />
-                      <Label style={{ marginTop: 10 }}>Product Label</Label>
-                      <Input value={p.productTitle || ""} onChange={(e) => updatePlaceholder(idx, { productTitle: e.target.value })} />
-                      <Label style={{ marginTop: 10 }}>Message</Label>
-                      <Textarea rows={4} value={p.body} onChange={(e) => updatePlaceholder(idx, { body: e.target.value })} />
-                      <Label style={{ marginTop: 10 }}>From</Label>
-                      <Input value={p.fromName} onChange={(e) => updatePlaceholder(idx, { fromName: e.target.value })} />
-                      <Label style={{ marginTop: 10 }}>Accent</Label>
-                      <select value={p.accent || "cyan"} onChange={(e) => updatePlaceholder(idx, { accent: e.target.value as "gold" | "cyan" | "pink" })} className="admSelect">
-                        <option value="cyan">Cyan</option>
-                        <option value="gold">Gold</option>
-                        <option value="pink">Pink</option>
-                      </select>
-                    </div>
-                  ))}
-                </div>
-                <div className="admActionRow">
-                  <ActionButton onClick={savePlaceholderSettings}>Save placeholder settings</ActionButton>
-                  <ActionButton alt onClick={resetPlaceholderSettings}>Reset defaults</ActionButton>
+{tab === "shoutoutSettings" && rules && (
+  <div className="admGridSettings">
+    <div className="admSectionStack">
+      <Panel title="Shout-out settings" sub="Controls for shout-out availability, message limits, moderation responses, and TV rotation.">
+        <div className="admSectionStack">
+          <SubPanel title="Availability and limits" sub="Core controls for whether shout-outs are live and how much each guest can submit during a session.">
+            <div className="admGrid2">
+              <div className="admFieldStack">
+                <Toggle
+                  label="Enable shout-outs"
+                  checked={Boolean(rules.enabled ?? true)}
+                  onChange={(v) => patchRules({ enabled: v })}
+                />
+                <div className="admFieldHelp">
+                  Master switch for the shout-out system. Turn this off to block all new shout-out submissions.
                 </div>
               </div>
-            </Panel>
-          </div>
-        )}
 
+              <div className="admFieldStack">
+                <Field
+                  label="Max active shout-outs per user"
+                  value={rules.maxPendingPerIdentity || 3}
+                  onChange={(v) =>
+                    patchRules({ maxPendingPerIdentity: Math.max(1, Number(v) || 3) })
+                  }
+                />
+                <div className="admFieldHelp">
+                  Maximum number of pending, approved, or active shout-outs one guest can have in the current session.
+                </div>
+              </div>
+
+              <div className="admFieldStack">
+                <Field
+                  label="Max from-name characters"
+                  value={rules.maxFromNameChars || 24}
+                  onChange={(v) =>
+                    patchRules({ maxFromNameChars: Math.max(1, Number(v) || 24) })
+                  }
+                />
+                <div className="admFieldHelp">
+                  Maximum length for the sender name shown on the public shout-out card.
+                </div>
+              </div>
+
+              <div className="admFieldStack">
+                <Field
+                  label="Max message characters"
+                  value={rules.maxMessageChars || 80}
+                  onChange={(v) =>
+                    patchRules({ maxMessageChars: Math.max(1, Number(v) || 80) })
+                  }
+                />
+                <div className="admFieldHelp">
+                  Maximum length for the shout-out message body before automatic validation blocks submission.
+                </div>
+              </div>
+            </div>
+          </SubPanel>
+
+          <SubPanel title="Moderation response" sub="Customer-facing copy used when the automatic filter blocks a shout-out.">
+            <div className="admFieldStack">
+              <TextField
+                label="Blocked shout-out message"
+                value={rules.filterBlockMessage || ""}
+                onChange={(v) => patchRules({ filterBlockMessage: v })}
+              />
+              <div className="admFieldHelp">
+                This message is shown to the customer when automatic moderation blocks a shout-out before staff review.
+              </div>
+            </div>
+          </SubPanel>
+
+          <SubPanel title="TV rotation" sub="Controls how long approved shout-outs stay on the TV before the next slide appears.">
+            <div className="admFieldStack">
+              <Field
+                label="Slide rotation seconds"
+                value={effectiveShoutoutSlideSeconds}
+                onChange={(v) =>
+                  patchRules({
+                    shoutoutSlideSeconds: Math.max(1, Math.min(120, Number(v) || 10)),
+                  })
+                }
+              />
+              <div className="admFieldHelp">
+                10 seconds is a strong default. It gives families enough time to read birthday and congratulations messages without making the TV feel slow.
+              </div>
+            </div>
+          </SubPanel>
+
+          <SubPanel title="Live runtime notes" sub="Current assumptions from the live shout-out flow.">
+            <div className="admFieldStack">
+              <div className="admSubCopy">Shout-outs enabled: <b>{Boolean(rules.enabled ?? true) ? "Yes" : "No"}</b></div>
+              <div className="admSubCopy">Max pending per user: <b>{Number(rules.maxPendingPerIdentity || 3)}</b></div>
+              <div className="admSubCopy">From-name limit: <b>{Number(rules.maxFromNameChars || 24)} characters</b></div>
+              <div className="admSubCopy">Message limit: <b>{Number(rules.maxMessageChars || 80)} characters</b></div>
+              <div className="admSubCopy">Rotation speed: <b>{effectiveShoutoutSlideSeconds} seconds</b></div>
+              <div className="admSubCopy">Weighted rotation: <b>Enabled in live shout-out feed</b></div>
+              <div className="admSubCopy">Placeholder storage: <b>Browser-local for now</b></div>
+            </div>
+          </SubPanel>
+
+          {shoutoutSettingsMsg ? <div className="admNotice">{shoutoutSettingsMsg}</div> : null}
+          <div className="admActionRow">
+            <ActionButton onClick={saveShoutoutSettings}>
+              {savingRules ? "Saving..." : "Save shout-out settings"}
+            </ActionButton>
+          </div>
+        </div>
+      </Panel>
+
+      <Panel title="Shout out products" sub="Reference only: current live product catalog and rotation weights.">
+        <div className="admRows">
+          {liveProducts.map((p: any) => (
+            <div key={p.id} className="admSubPanel">
+              <div className="admSplitActions">
+                <div className="admTextWrap">
+                  <div style={{ fontWeight: 1000 }}>{p.title}</div>
+                  <div className="admMuted" style={{ marginTop: 4 }}>{p.description}</div>
+                </div>
+                <div style={{ textAlign: "right", minWidth: 110 }}>
+                  <div style={{ fontWeight: 1000 }}>{p.creditsCost} credits</div>
+                  <div className="admMuted">{Math.round(p.durationSec / 60)} min</div>
+                </div>
+              </div>
+              <div className="admActionRow" style={{ marginTop: 10 }}>
+                <Pill>{p.hasPhoto ? "Photo tier" : "Text only"}</Pill>
+                <Pill>Weight {p.weight}</Pill>
+                <Pill variant={p.enabled ? "live" : "warn"}>{p.enabled ? "Live" : "Coming soon"}</Pill>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    </div>
+
+    <Panel title="TV placeholder shout-outs" sub="Browser-local fallback content for the TV page until shared persistence is added.">
+      <div className="admSectionStack">
+        <div className="admSubPanel">
+          <div className="admSubCopy">These fallback placeholders are stored in browser storage for now. They will appear on the TV page only in the same browser profile until shared backend persistence is added.</div>
+        </div>
+        <div className="admRows">
+          {placeholders.map((p, idx) => (
+            <div key={p.id} className="admSubPanel">
+              <div className="admSubTitleText" style={{ marginBottom: 10 }}>Placeholder {idx + 1}</div>
+              <Label>Header</Label>
+              <Input value={p.title} onChange={(e) => updatePlaceholder(idx, { title: e.target.value })} />
+              <Label style={{ marginTop: 10 }}>Product Label</Label>
+              <Input value={p.productTitle || ""} onChange={(e) => updatePlaceholder(idx, { productTitle: e.target.value })} />
+              <Label style={{ marginTop: 10 }}>Message</Label>
+              <Textarea rows={4} value={p.body} onChange={(e) => updatePlaceholder(idx, { body: e.target.value })} />
+              <Label style={{ marginTop: 10 }}>From</Label>
+              <Input value={p.fromName} onChange={(e) => updatePlaceholder(idx, { fromName: e.target.value })} />
+              <Label style={{ marginTop: 10 }}>Accent</Label>
+              <select value={p.accent || "cyan"} onChange={(e) => updatePlaceholder(idx, { accent: e.target.value as "gold" | "cyan" | "pink" })} className="admSelect">
+                <option value="cyan">Cyan</option>
+                <option value="gold">Gold</option>
+                <option value="pink">Pink</option>
+              </select>
+            </div>
+          ))}
+        </div>
+        <div className="admActionRow">
+          <ActionButton onClick={savePlaceholderSettings}>Save placeholder settings</ActionButton>
+          <ActionButton alt onClick={resetPlaceholderSettings}>Reset defaults</ActionButton>
+        </div>
+      </div>
+    </Panel>
+  </div>
+)}
         {editOpen ? (
           <div className="admOverlay">
             <div className="admModalCard" style={{ width: "min(680px, 96vw)" }}>
