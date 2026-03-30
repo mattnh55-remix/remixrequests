@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 import PublicTheme from "../../../components/ui/public/PublicTheme";
+import PublicBottomCommandBar from "@/components/public/PublicBottomCommandBar";
 import confetti from "canvas-confetti";
 
 const REMIX_LOGO_URL =
@@ -2110,6 +2111,11 @@ export default function RequestPage({ params }: { params: { location: string } }
           `}</style>
         </div>
       ) : null}
+<PublicBottomCommandBar
+  location={location}
+  activeView="request"
+  points={balance ?? 0}
+/>
     </PublicTheme>
   );
 }
