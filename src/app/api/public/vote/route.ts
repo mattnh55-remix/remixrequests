@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
 import {
-  getCreditBalance,
   getEmailHashSpendableState,
   getOrCreateCurrentSession,
   secondsSinceLastAction,
@@ -78,10 +77,19 @@ export async function POST(req: Request) {
           throw new Error("LIMIT:Vote limit reached.");
         }
 
-        const balance = await getCreditBalance(loc.id, emailHash, new Date());
-        if (balance < cost) {
-          throw new Error(`NOCREDITS:${rules.msgNoCredits}`);
-        }
+const agg = await tx.creditLedger.aggregate({
+  where: {
+    locationId: loc.id,
+    emailHash,
+    expiresAt: { gt: new Date() },
+  },
+  _sum: { delta: true },
+});
+
+const balance = Math.max(0, Number(agg._sum.delta ?? 0));
+if (balance < cost) {
+  throw new Error(`NOCREDITS:${rules.msgNoCredits}`);
+}
 
         await tx.creditLedger.create({
           data: {
