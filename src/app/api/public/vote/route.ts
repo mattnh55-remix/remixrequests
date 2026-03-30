@@ -17,19 +17,18 @@ function jsonFail(message: string, status = 400) {
 }
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const locationSlug = String(body.location || "");
-  const requestId = String(body.requestId || "");
-  const vote = String(body.vote || "up");
-  const email = String(body.email || "");
+const identityId = String(body.identityId || "");
+if (!locationSlug || !requestId || !identityId) {
+  return jsonFail("Missing fields.", 400);
+}
 
-  if (!locationSlug || !requestId || !email) return jsonFail("Missing fields.", 400);
+const identity = await prisma.identity.findFirst({
+  where: { id: identityId, locationId: loc.id },
+});
 
-  const { loc, rules } = await getRulesForLocation(locationSlug);
-  if (!rules.enableVoting) return jsonFail("Voting disabled.", 400);
+if (!identity) return jsonFail("Identity not found.", 404);
 
-  const session = await getOrCreateCurrentSession(loc.id, 4);
-  const emailHash = hashEmail(email);
+const emailHash = identity.emailHash;
 
   const guestState = await getEmailHashSpendableState(loc.id, emailHash);
   if (!guestState?.identity?.smsVerifiedAt) {
