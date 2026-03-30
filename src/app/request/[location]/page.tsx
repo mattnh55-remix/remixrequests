@@ -793,6 +793,12 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [flyAnim, setFlyAnim] = useState<FlyAnim | null>(null);
   const [buyBusy, setBuyBusy] = useState(false);
   const [writeInBusy, setWriteInBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<null | {
+  type: "request" | "boost" | "write-in";
+  song?: Song;
+  sourceEl?: HTMLElement | null;
+  }>(null);
+  const [pendingActionToast, setPendingActionToast] = useState(false);
 
   const queueTargetRef = useRef<HTMLButtonElement | null>(null);
   const flyTimerRef = useRef<number | null>(null);
@@ -870,28 +876,36 @@ export default function RequestPage({ params }: { params: { location: string } }
       if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
     };
   }, []);
-
-  useEffect(() => {
-    if (!msg) {
-      setToastOpen(false);
-      if (toastTimerRef.current != null) {
-        window.clearTimeout(toastTimerRef.current);
-        toastTimerRef.current = null;
-      }
-      return;
+useEffect(() => {
+  if (!msg) {
+    setToastOpen(false);
+    if (toastTimerRef.current != null) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
     }
+    return;
+  }
 
-    setToastOpen(true);
+  setToastOpen(true);
+
+  if (toastTimerRef.current != null) {
+    window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = null;
+  }
+
+  if (pendingActionToast) {
+    return;
+  }
+
+  toastTimerRef.current = window.setTimeout(() => {
+    setToastOpen(false);
+    window.setTimeout(() => setMsg(""), 220);
+  }, 3400);
+
+  return () => {
     if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = window.setTimeout(() => {
-      setToastOpen(false);
-      window.setTimeout(() => setMsg(""), 220);
-    }, 3400);
-
-    return () => {
-      if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
-    };
-  }, [msg]);
+  };
+}, [msg, pendingActionToast]);
 
   useEffect(() => {
     try {
@@ -1242,12 +1256,19 @@ export default function RequestPage({ params }: { params: { location: string } }
     action: "play_next" | "play_now",
     sourceEl?: HTMLElement | null
   ) {
-    if (!sessionActive || !verified || !identityId) {
-      sfx.playTap();
-      setMsg("Claim your points to request songs.");
-      setShowVerify(true);
-      return false;
-    }
+if (!sessionActive || !verified || !identityId) {
+  sfx.playTap();
+
+  setPendingAction({
+    type: action === "play_now" ? "boost" : "request",
+    song,
+    sourceEl,
+  });
+
+  setMsg("Claim your points to request songs.");
+  setShowVerify(true);
+  return false;
+}
 
     const costRequest = Number(rules?.rules?.costRequest ?? 1);
     const costPlayNow = Number(rules?.rules?.costPlayNow ?? 5);
@@ -1310,12 +1331,18 @@ export default function RequestPage({ params }: { params: { location: string } }
       return false;
     }
 
-    if (!sessionActive || !verified || !identityId) {
-      sfx.playTap();
-      setMsg("Claim your points to request songs.");
-      setShowVerify(true);
-      return false;
-    }
+if (!sessionActive || !verified || !identityId) {
+  sfx.playTap();
+
+  setPendingAction({
+    type: "write-in",
+    sourceEl,
+  });
+
+  setMsg("Claim your points to request songs.");
+  setShowVerify(true);
+  return false;
+}
 
     const costRequest = Number(rules?.rules?.costRequest ?? 1);
 
@@ -1759,24 +1786,53 @@ export default function RequestPage({ params }: { params: { location: string } }
         redeemBusy={redeemBusy}
         onRedeem={redeem}
         onClose={() => setShowVerify(false)}
-        onVerified={({ identityId: nextIdentityId, email: nextEmail }) => {
-          const cleanId = String(nextIdentityId || "").trim();
-          const cleanEmail = String(nextEmail || email || "").trim();
+   onVerified={({ identityId: nextIdentityId, email: nextEmail }) => {
+  const cleanId = String(nextIdentityId || "").trim();
+  const cleanEmail = String(nextEmail || email || "").trim();
 
-          if (cleanId) {
-            setIdentityId(cleanId);
-            setSessionActive(true);
-            setVerified(true);
-            void refreshIdentityState(cleanId);
-          }
+  if (cleanId) {
+    setIdentityId(cleanId);
+    setSessionActive(true);
+    setVerified(true);
+    void refreshIdentityState(cleanId);
+  }
 
-          if (cleanEmail) setEmail(cleanEmail);
+  if (cleanEmail) setEmail(cleanEmail);
 
-          setMsg("Verification complete. Your points are ready.");
-          if (buyReason !== "none") {
-            setShowBuy(true);
-          }
-        }}
+  setShowBuy(false);
+  setBuyReason("none");
+
+  if (pendingAction) {
+    const action = pendingAction;
+
+    setPendingAction(null);
+    setPendingActionToast(true);
+    setMsg("Completing your request...");
+
+    window.setTimeout(() => {
+      setPendingActionToast(false);
+
+      if (action.type === "request" && action.song) {
+        void submit(action.song, "play_next", action.sourceEl);
+        return;
+      }
+
+      if (action.type === "boost" && action.song) {
+        void submit(action.song, "play_now", action.sourceEl);
+        return;
+      }
+
+      if (action.type === "write-in") {
+        void submitWriteIn(action.sourceEl);
+        return;
+      }
+
+      setMsg("Verification complete. Your points are ready.");
+    }, 150);
+  } else {
+    setMsg("Verification complete. Your points are ready.");
+  }
+}}
       />
 
       <BuyCreditsDrawer
