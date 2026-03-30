@@ -459,8 +459,15 @@ useEffect(() => {
     }
   }, [identityId]);
 
-  const playNow = useMemo(() => queueData.playNow || [], [queueData.playNow]);
-  const upNext = useMemo(() => queueData.upNext || [], [queueData.upNext]);
+const mergedQueue = useMemo(() => {
+  const play = queueData.playNow || [];
+  const next = queueData.upNext || [];
+
+  return [
+    ...play.map((item) => ({ ...item, __lane: "playNow" })),
+    ...next.map((item) => ({ ...item, __lane: "upNext" })),
+  ];
+}, [queueData.playNow, queueData.upNext]);
   const votingOn = Boolean(rulesData?.rules?.enableVoting);
   const upvoteCost = Number(rulesData?.rules?.costUpvote ?? 1);
   const downvoteCost = Number(rulesData?.rules?.costDownvote ?? 1);
@@ -639,7 +646,7 @@ if (/session has expired/i.test(nextMsg)) {
       <div className="rrNoticeCard">
         <div className="rrNoticeTitle">How to use this board</div>
         <div className="rrNoticeText">
-          Tap thumbs up or thumbs down beside songs in the live queue. Boosted songs and the play now lane stay closest to the front.
+          Tap thumbs up or thumbs down beside songs in the live queue. Boosted songs stay closest to the front.
         </div>
       </div>
 
@@ -647,64 +654,33 @@ if (/session has expired/i.test(nextMsg)) {
         <div className="rrPanel">
           <div className="rrPanelHead">
             <div>
-              <div className="rrPanelTitle">Play Now Lane</div>
-              <div className="rrPanelSub">Highest-priority requests and anything pushed toward the front.</div>
-            </div>
-            <span className="rrStatusPill rrStatusPill--live">{playNow.length} items</span>
-          </div>
-          <div className="rrPanelBody rrPanelBodyGrid">
-            {loading ? (
-              <div className="rrEmpty">Loading queue…</div>
-            ) : playNow.length ? (
-              playNow.map((item, idx) => (
-<QueueRow
-  key={String(item.id || item.requestId || idx)}
-  item={item}
-  rank={idx + 1}
-  emphasis
-  laneLabel={idx === 0 ? "live lane" : undefined}
-  enableVoting={votingOn}
-  canVote={canVote}
-  costUpvote={upvoteCost}
-  costDownvote={downvoteCost}
-  busyVoteId={busyVoteId}
-  onVote={doVote}
-  defaultAlbumArtUrl={defaultAlbumArtUrl}
-/>
-              ))
-            ) : (
-              <div className="rrEmpty">No boosted requests right now.</div>
-            )}
-          </div>
-        </div>
-
-        <div className="rrPanel">
-          <div className="rrPanelHead">
-            <div>
-              <div className="rrPanelTitle">Up Next</div>
-              <div className="rrPanelSub">The live queue your votes can influence right now.</div>
+              <div className="rrPanelTitle">Live Queue</div>
+              <div className="rrPanelSub">Vote to push songs higher in the queue.</div>
             </div>
             <div className="rrPanelActions">
+              <span className="rrStatusPill rrStatusPill--live">{mergedQueue.length} items</span>
               <button className="rrBtnGhost" onClick={goToRequests}>Open Requests</button>
             </div>
           </div>
           <div className="rrPanelBody rrPanelBodyGrid">
             {loading ? (
               <div className="rrEmpty">Loading queue…</div>
-            ) : upNext.length ? (
-              upNext.map((item, idx) => (
-<QueueRow
-  key={String(item.id || item.requestId || idx)}
-  item={item}
-  rank={idx + 1}
-  enableVoting={votingOn}
-  canVote={canVote}
-  costUpvote={upvoteCost}
-  costDownvote={downvoteCost}
-  busyVoteId={busyVoteId}
-  onVote={doVote}
-  defaultAlbumArtUrl={defaultAlbumArtUrl}
-/>
+            ) : mergedQueue.length ? (
+              mergedQueue.map((item, idx) => (
+                <QueueRow
+                  key={String(item.id || item.requestId || idx)}
+                  item={item}
+                  rank={idx + 1}
+                  emphasis={item.__lane === "playNow"}
+                  laneLabel={item.__lane === "playNow" && idx === 0 ? "live lane" : undefined}
+                  enableVoting={votingOn}
+                  canVote={canVote}
+                  costUpvote={upvoteCost}
+                  costDownvote={downvoteCost}
+                  busyVoteId={busyVoteId}
+                  onVote={doVote}
+                  defaultAlbumArtUrl={defaultAlbumArtUrl}
+                />
               ))
             ) : (
               <div className="rrEmpty">Nothing queued yet. Be the first to request a song.</div>
@@ -712,6 +688,7 @@ if (/session has expired/i.test(nextMsg)) {
           </div>
         </div>
       </div>
+
 <PublicBottomCommandBar
   location={location}
   activeView="queue"
