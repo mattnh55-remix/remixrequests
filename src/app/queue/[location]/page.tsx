@@ -394,9 +394,9 @@ if (!data.sessionActive) {
     storageKey: `rr_lastBalance:${location}:${identityId || "anon"}`,
   });
 
-  async function loadQueueAndSession() {
-    setLoading(true);
-    try {
+async function loadQueueAndSession(showLoader = false) {
+  if (showLoader) setLoading(true);
+  try {
       const sessionUrl = identityId
         ? `/api/public/session/${location}?identityId=${encodeURIComponent(identityId)}`
         : `/api/public/session/${location}`;
@@ -428,14 +428,14 @@ if (identityId && !sessionActive) {
       setRulesData(null);
       setQueueData({ playNow: [], upNext: [] });
       setMsg("Could not load queue.");
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
+} finally {
+  if (mountedRef.current && showLoader) setLoading(false);
+}
   }
 
-  useEffect(() => {
-    void loadQueueAndSession();
-  }, [location, identityId]);
+useEffect(() => {
+  void loadQueueAndSession(true);
+}, [location, identityId]);
 
   useEffect(() => {
     const queueId = window.setInterval(() => {
