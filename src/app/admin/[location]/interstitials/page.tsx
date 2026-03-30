@@ -1,12 +1,18 @@
-// src/app/admin/[location]/interstitials/page.tsx
-
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { saveBoothNote } from "./actions";
+import {
+  archiveInterstitialLogs,
+  restoreArchivedInterstitialLogs,
+  saveBoothNote,
+} from "./actions";
 import { InterstitialAssetForm } from "@/components/admin/interstitials/interstitial-asset-form";
 import { InterstitialAssetsTable } from "@/components/admin/interstitials/interstitial-assets-table";
 import { InterstitialScheduleForm } from "@/components/admin/interstitials/interstitial-schedule-form";
 import { InterstitialSchedulesTable } from "@/components/admin/interstitials/interstitial-schedules-table";
+import type {
+  InterstitialCategory,
+  InterstitialEventStatus,
+} from "@prisma/client";
 
 const CATEGORY_OPTIONS = [
   "ANNOUNCEMENTS",
@@ -14,6 +20,72 @@ const CATEGORY_OPTIONS = [
   "GAMES_DANCES",
   "REMIX_PROMOS",
 ] as const;
+
+const STATUS_OPTIONS = ["PLAYED", "SKIPPED", "CANCELED", "PLANNED"] as const;
+
+function isCategory(value?: string | null): value is InterstitialCategory {
+  if (!value) return false;
+
+  return (
+    value === "ANNOUNCEMENTS" ||
+    value === "SONG_INTROS" ||
+    value === "GAMES_DANCES" ||
+    value === "REMIX_PROMOS"
+  );
+}
+
+function isStatus(value?: string | null): value is InterstitialEventStatus {
+  return !!value && STATUS_OPTIONS.includes(value as InterstitialEventStatus);
+}
+
+function categoryLabel(value?: string | null) {
+  switch (value) {
+    case "ANNOUNCEMENTS":
+      return "Announcements";
+    case "SONG_INTROS":
+      return "Song Intros";
+    case "GAMES_DANCES":
+      return "Games & Dances";
+    case "REMIX_PROMOS":
+      return "Remix Promos";
+    default:
+      return value || "—";
+  }
+}
+
+function eventTime(event: {
+  skippedAt?: Date | null;
+  playedAt?: Date | null;
+  canceledAt?: Date | null;
+  plannedAt?: Date | null;
+}) {
+  return event.skippedAt ?? event.playedAt ?? event.canceledAt ?? event.plannedAt ?? null;
+}
+
+function formatVenueDateTime(value: Date | null, timeZone: string) {
+  if (!value) return "—";
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(value);
+}
+
+function formatVenueTime(value: Date | null, timeZone: string) {
+  if (!value) return "—";
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(value);
+}
 
 function AlertBanner({
   tone = "info",
@@ -45,6 +117,11 @@ export default async function AdminInterstitialsPage({
     assetMessage?: string;
     noteStatus?: string;
     noteMessage?: string;
+    logStatus?: string;
+    logMessage?: string;
+    status?: string;
+    category?: string;
+    showArchived?: string;
   };
 }) {
   const locationSlug = params.location;
@@ -64,29 +141,61 @@ export default async function AdminInterstitialsPage({
 
   const locationId = location.id;
   const editingScheduleId = searchParams?.editSchedule?.trim() || null;
+  const selectedStatus = isStatus(searchParams?.status) ? searchParams?.status : "";
+  const selectedCategory = isCategory(searchParams?.category) ? searchParams?.category : "";
+  const showArchived = searchParams?.showArchived === "1";
 
-  const [assets, scheduleWindows, boothNote, recentEvents] = await Promise.all([
-    prisma.interstitialAsset.findMany({
-      where: { locationId },
-      orderBy: [{ active: "desc" }, { priority: "desc" }, { createdAt: "asc" }],
-    }),
-    prisma.interstitialSchedule.findMany({
-      where: { locationId },
-      orderBy: [{ active: "desc" }, { startMinute: "asc" }, { sortOrder: "asc" }],
-    }),
-    prisma.boothNote.findUnique({
-      where: { locationId },
-    }),
-    prisma.interstitialEvent.findMany({
-      where: { locationId },
-      orderBy: [
-        { skippedAt: "desc" },
-        { playedAt: "desc" },
-        { plannedAt: "desc" },
-      ],
-      take: 100,
-    }),
-  ]);
+  const activeLogsWhere: any = {
+    locationId,
+    archivedAt: null,
+  };
+
+  if (selectedStatus) activeLogsWhere.status = selectedStatus;
+  if (selectedCategory) activeLogsWhere.category = selectedCategory;
+
+  const [assets, scheduleWindows, boothNote, rules, recentEvents, archivedEvents] =
+    await Promise.all([
+      prisma.interstitialAsset.findMany({
+        where: { locationId },
+        orderBy: [{ active: "desc" }, { priority: "desc" }, { createdAt: "asc" }],
+      }),
+      prisma.interstitialSchedule.findMany({
+        where: { locationId },
+        orderBy: [{ active: "desc" }, { startMinute: "asc" }, { sortOrder: "asc" }],
+      }),
+      prisma.boothNote.findUnique({
+        where: { locationId },
+      }),
+      prisma.ruleset.findUnique({
+        where: { locationId },
+        select: { top10Timezone: true },
+      }),
+      prisma.interstitialEvent.findMany({
+        where: activeLogsWhere,
+        orderBy: [
+          { skippedAt: "desc" },
+          { playedAt: "desc" },
+          { plannedAt: "desc" },
+          { canceledAt: "desc" },
+        ],
+        take: 200,
+      }),
+      showArchived
+        ? prisma.interstitialEvent.findMany({
+            where: {
+              locationId,
+              archivedAt: { not: null },
+            },
+            orderBy: [
+              { archivedAt: "desc" },
+              { skippedAt: "desc" },
+              { playedAt: "desc" },
+              { plannedAt: "desc" },
+            ],
+            take: 200,
+          })
+        : Promise.resolve([]),
+    ]);
 
   const editingSchedule =
     editingScheduleId != null
@@ -96,6 +205,7 @@ export default async function AdminInterstitialsPage({
   const isEditingMissing = !!editingScheduleId && !editingSchedule;
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
   const scheduleById = new Map(scheduleWindows.map((schedule) => [schedule.id, schedule]));
+  const venueTimeZone = rules?.top10Timezone || "America/New_York";
 
   return (
     <div className="rrAdminInterstitials">
@@ -162,7 +272,6 @@ export default async function AdminInterstitialsPage({
           </a>
         </nav>
 
-
         {searchParams?.scheduleStatus === "saved" ? (
           <AlertBanner
             tone="success"
@@ -198,6 +307,14 @@ export default async function AdminInterstitialsPage({
           />
         ) : null}
 
+        {searchParams?.logStatus === "saved" ? (
+          <AlertBanner
+            tone="success"
+            title="Log update complete"
+            message={searchParams?.logMessage ?? "Interstitial logs updated."}
+          />
+        ) : null}
+
         {isEditingMissing ? (
           <AlertBanner
             tone="error"
@@ -207,57 +324,54 @@ export default async function AdminInterstitialsPage({
         ) : null}
 
         <div className="rrAdminGrid2">
-  <section className="rrAdminPanel rrAdminPanel--form">
-    <div className="rrPanelHead">
-      <div>
-        <div className="rrPanelTitle">Create New Asset</div>
-        <div className="rrPanelSub">
-          Assets are the actual booth-playable interstitial files DJs can choose from.
-          Create one asset for each playable intro, announcement, promo, or game moment.
-          Category decides which booth tab it appears in, while duration, priority, weight,
-          and visibility settings control how often and where it can be used.
+          <section className="rrAdminPanel rrAdminPanel--form">
+            <div className="rrPanelHead">
+              <div>
+                <div className="rrPanelTitle">Create New Asset</div>
+                <div className="rrPanelSub">
+                  Assets are the actual booth-playable interstitial files DJs can choose from.
+                  Create one asset for each playable intro, announcement, promo, or game moment.
+                  Category decides which booth tab it appears in, while duration, priority, weight,
+                  and visibility settings control how often and where it can be used.
+                </div>
+              </div>
+              <span className="rrStatusPill rrStatusPill--gold">ASSET LIBRARY</span>
+            </div>
+
+            <InterstitialAssetForm
+              locationId={locationId}
+              categoryOptions={[...CATEGORY_OPTIONS]}
+            />
+          </section>
+
+          <section className="rrAdminPanel rrAdminPanel--form">
+            <div className="rrPanelHead">
+              <div>
+                <div className="rrPanelTitle">
+                  {editingSchedule ? "Edit Session Window" : "Create Session Window"}
+                </div>
+                <div className="rrPanelSub">
+                  Session windows decide when the booth should prompt the DJ to play an interstitial.
+                  Each window targets one category, runs during a specific minute range in the session,
+                  and can be sorted, cooled down, marked active, or made required.
+                </div>
+              </div>
+
+              <span className="rrStatusPill rrStatusPill--cyan">
+                {editingSchedule ? "EDIT WINDOW" : "TIMING ENGINE"}
+              </span>
+            </div>
+
+            <InterstitialScheduleForm
+              locationId={locationId}
+              locationSlug={location.slug}
+              categoryOptions={[...CATEGORY_OPTIONS]}
+              initialValues={editingSchedule ?? undefined}
+              submitLabel={editingSchedule ? "Update Window" : "Save Window"}
+              mode={editingSchedule ? "edit" : "create"}
+            />
+          </section>
         </div>
-      </div>
-      <span className="rrStatusPill rrStatusPill--gold">
-        ASSET LIBRARY
-      </span>
-    </div>
-
-    <InterstitialAssetForm
-      locationId={locationId}
-      categoryOptions={[...CATEGORY_OPTIONS]}
-    />
-  </section>
-
-  <section className="rrAdminPanel rrAdminPanel--form">
-    <div className="rrPanelHead">
-      <div>
-        <div className="rrPanelTitle">
-          {editingSchedule ? "Edit Session Window" : "Create Session Window"}
-        </div>
-        <div className="rrPanelSub">
-          Session windows decide when the booth should prompt the DJ to play an interstitial.
-          Each window targets one category, runs during a specific minute range in the session,
-          and can be sorted, cooled down, marked active, or made required. Think of this as the
-          timing engine that tells the booth when to ask for the next interstitial moment.
-        </div>
-      </div>
-
-      <span className="rrStatusPill rrStatusPill--cyan">
-        {editingSchedule ? "EDIT WINDOW" : "TIMING ENGINE"}
-      </span>
-    </div>
-
-    <InterstitialScheduleForm
-      locationId={locationId}
-      locationSlug={location.slug}
-      categoryOptions={[...CATEGORY_OPTIONS]}
-      initialValues={editingSchedule ?? undefined}
-      submitLabel={editingSchedule ? "Update Window" : "Save Window"}
-      mode={editingSchedule ? "edit" : "create"}
-    />
-  </section>
-</div>
 
         <section className="rrAdminPanel">
           <div className="rrPanelHead">
@@ -353,106 +467,215 @@ export default async function AdminInterstitialsPage({
           />
         </section>
 
-       <section className="rrAdminPanel">
-  <div className="rrPanelHead">
-    <div>
-      <div className="rrPanelTitle">Interstitial Logs</div>
-      <div className="rrPanelSub">
-        Filter and review booth interstitial activity.
-      </div>
-    </div>
-
-    <span className="rrStatusPill rrStatusPill--cyan">
-      {recentEvents.length} EVENTS
-    </span>
-  </div>
-
-  {/* FILTER BAR */}
-  <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-    <select className="gunmetalSelect" name="status">
-      <option value="">All Status</option>
-      <option value="PLAYED">Played</option>
-      <option value="SKIPPED">Skipped</option>
-    </select>
-
-    <select className="gunmetalSelect" name="category">
-      <option value="">All Categories</option>
-      {CATEGORY_OPTIONS.map((c) => (
-        <option key={c} value={c}>
-          {c.replaceAll("_", " ")}
-        </option>
-      ))}
-    </select>
-  </div>
-
-  {recentEvents.length === 0 ? (
-    <div className="rrEmptyBox">
-      No interstitial activity yet
-    </div>
-  ) : (
-    <div className="rrTable">
-      <div className="rrTableHead">
-        <div>Time</div>
-        <div>Category</div>
-        <div>Status</div>
-        <div>Asset</div>
-        <div>Reason</div>
-      </div>
-
-      {recentEvents.map((event) => {
-const time =
-  event.skippedAt ??
-  event.playedAt ??
-  event.canceledAt ??
-  event.plannedAt;
-
-        const asset = event.assetId ? assetById.get(event.assetId) : null;
-
-        return (
-          <div
-            key={event.id}
-            className={`rrTableRow ${
-              event.status === "SKIPPED"
-                ? "rrTableRow--skipped"
-                : "rrTableRow--played"
-            }`}
-          >
+        <section className="rrAdminPanel">
+          <div className="rrPanelHead">
             <div>
-  {time 
-    ? new Date(time).toLocaleTimeString('en-US', { timeZone: 'America/New_York' }) 
-    : "—"}
-</div>
-
-            <div>
-              {String(event.category || "—").replaceAll("_", " ")}
+              <div className="rrPanelTitle">Interstitial Logs</div>
+              <div className="rrPanelSub">
+                Working log for current booth activity. Visible logs can be cleared
+                from staff view while still being preserved in a hidden archive.
+              </div>
             </div>
-
-            <div>
-              <span
-                className={`rrChip ${
-                  event.status === "PLAYED"
-                    ? "rrChip--played"
-                    : "rrChip--skipped"
-                }`}
-              >
-                {event.status}
-              </span>
-            </div>
-
-            <div>{asset?.name || event.assetId || "—"}</div>
-
-            <div>
-              {event.status === "SKIPPED"
-                ? event.operatorNote || "—"
-                : "—"}
-            </div>
+            <span className="rrStatusPill rrStatusPill--cyan">
+              {recentEvents.length} ACTIVE
+            </span>
           </div>
-        );
-      })}
-    </div>
-  )}
-</section>
 
+          <div className="rrPanelSub" style={{ marginBottom: 10 }}>
+            Venue time zone: <strong>{venueTimeZone}</strong>
+          </div>
+
+          <form method="GET" className="rrLogToolbar">
+            <select
+              name="status"
+              defaultValue={selectedStatus}
+              className="gunmetalSelect"
+            >
+              <option value="">All Status</option>
+              {STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+
+            <select
+              name="category"
+              defaultValue={selectedCategory}
+              className="gunmetalSelect"
+            >
+              <option value="">All Categories</option>
+              {CATEGORY_OPTIONS.map((category) => (
+                <option key={category} value={category}>
+                  {categoryLabel(category)}
+                </option>
+              ))}
+            </select>
+
+            {showArchived ? <input type="hidden" name="showArchived" value="1" /> : null}
+
+            <button type="submit" className="gunmetalBtn gunmetalBtn--primary">
+              Apply Filters
+            </button>
+
+            <a
+              href={
+                showArchived
+                  ? `/admin/${location.slug}/interstitials`
+                  : `/admin/${location.slug}/interstitials?showArchived=1`
+              }
+              className="gunmetalBtn gunmetalBtn--ghostLink"
+            >
+              {showArchived ? "Hide Archive" : "Owner Archive"}
+            </a>
+          </form>
+
+          <div className="rrToolbarActions">
+            <form action={archiveInterstitialLogs}>
+              <input type="hidden" name="locationId" value={locationId} />
+              <input type="hidden" name="status" value={selectedStatus} />
+              <input type="hidden" name="category" value={selectedCategory} />
+              <input type="hidden" name="showArchived" value={showArchived ? "1" : "0"} />
+              <button type="submit" className="gunmetalBtn gunmetalBtn--warn">
+                Clear Visible Logs
+              </button>
+            </form>
+
+            {showArchived ? (
+              <form action={restoreArchivedInterstitialLogs}>
+                <input type="hidden" name="locationId" value={locationId} />
+                <button type="submit" className="gunmetalBtn">
+                  Restore Archived Logs
+                </button>
+              </form>
+            ) : null}
+          </div>
+
+          {recentEvents.length === 0 ? (
+            <div className="rrEmptyBox">No interstitial activity yet.</div>
+          ) : (
+            <div className="rrTable">
+              <div className="rrTableHead">
+                <div>Time</div>
+                <div>Category</div>
+                <div>Status</div>
+                <div>Asset</div>
+                <div>Reason</div>
+              </div>
+
+              {recentEvents.map((event) => {
+                const at = eventTime(event);
+                const asset = event.assetId ? assetById.get(event.assetId) : null;
+                const schedule = event.scheduleId ? scheduleById.get(event.scheduleId) : null;
+                const category =
+                  event.category ?? asset?.category ?? schedule?.category ?? null;
+
+                const eventTitle =
+                  asset?.name ||
+                  schedule?.label ||
+                  event.assetId ||
+                  event.scheduleId ||
+                  "—";
+
+                return (
+                  <div
+                    key={event.id}
+                    className={`rrTableRow ${
+                      event.status === "SKIPPED"
+                        ? "rrTableRow--skipped"
+                        : event.status === "PLAYED"
+                        ? "rrTableRow--played"
+                        : "rrTableRow--neutral"
+                    }`}
+                  >
+                    <div>{formatVenueTime(at, venueTimeZone)}</div>
+                    <div>{categoryLabel(category)}</div>
+                    <div>
+                      <span
+                        className={`rrChip ${
+                          event.status === "PLAYED"
+                            ? "rrChip--played"
+                            : event.status === "SKIPPED"
+                            ? "rrChip--skipped"
+                            : event.status === "CANCELED"
+                            ? "rrChip--canceled"
+                            : ""
+                        }`}
+                      >
+                        {event.status}
+                      </span>
+                    </div>
+                    <div>{eventTitle}</div>
+                    <div>{event.status === "SKIPPED" ? event.operatorNote || "—" : "—"}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {showArchived ? (
+          <section className="rrAdminPanel">
+            <div className="rrPanelHead">
+              <div>
+                <div className="rrPanelTitle">Archived Interstitial Logs</div>
+                <div className="rrPanelSub">
+                  Quiet archive for owner review. These entries were cleared from the visible working log.
+                </div>
+              </div>
+              <span className="rrStatusPill">{archivedEvents.length} ARCHIVED</span>
+            </div>
+
+            {archivedEvents.length === 0 ? (
+              <div className="rrEmptyBox">No archived logs yet.</div>
+            ) : (
+              <div className="rrArchiveList">
+                {archivedEvents.map((event) => {
+                  const at = eventTime(event);
+                  const asset = event.assetId ? assetById.get(event.assetId) : null;
+                  const schedule = event.scheduleId ? scheduleById.get(event.scheduleId) : null;
+                  const category =
+                    event.category ?? asset?.category ?? schedule?.category ?? null;
+
+                  return (
+                    <div key={event.id} className="rrArchiveRow">
+                      <div className="rrArchiveTopLine">
+                        <div className="rrEventTitle">
+                          {asset?.name || schedule?.label || event.assetId || event.scheduleId || "—"}
+                        </div>
+                        <span className="rrChip">{event.status}</span>
+                        <span className="rrChip rrChip--category">
+                          {categoryLabel(category)}
+                        </span>
+                      </div>
+
+                      <div className="rrEventMeta">
+                        <span>
+                          <strong>Event time:</strong> {formatVenueDateTime(at, venueTimeZone)}
+                        </span>
+                        <span>
+                          <strong>Archived:</strong> {formatVenueDateTime(event.archivedAt ?? null, venueTimeZone)}
+                        </span>
+                        <span>
+                          <strong>Prompt minute:</strong> {event.promptMinute ?? "—"}
+                        </span>
+                        <span>
+                          <strong>Session:</strong> {event.sessionId ? event.sessionId.slice(-8) : "—"}
+                        </span>
+                      </div>
+
+                      {event.operatorNote ? (
+                        <div className="rrEventNote">
+                          <strong>Operator note:</strong> {event.operatorNote}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        ) : null}
       </div>
 
       <style>{`
@@ -467,45 +690,6 @@ const time =
           font-family: Inter, ui-sans-serif, system-ui, sans-serif;
         }
 
-.rrTable {
-  display: grid;
-  gap: 6px;
-}
-
-.rrTableHead,
-.rrTableRow {
-  display: grid;
-  grid-template-columns: 120px 1fr 120px 1fr 1fr;
-  gap: 8px;
-  align-items: center;
-}
-
-.rrTableHead {
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 1px;
-  opacity: 0.6;
-  padding: 4px 6px;
-}
-
-.rrTableRow {
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.08);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)),
-    linear-gradient(180deg, rgba(25,31,44,0.9), rgba(14,19,31,0.9));
-  font-size: 12px;
-}
-
-.rrTableRow--played {
-  border-left: 3px solid rgba(70, 205, 145, 0.6);
-}
-
-.rrTableRow--skipped {
-  border-left: 3px solid rgba(224, 99, 116, 0.7);
-}
-
         .rrAdminInterstitials__shell {
           max-width: 1440px;
           margin: 0 auto;
@@ -518,7 +702,6 @@ const time =
           grid-template-columns: 1fr 1fr;
           gap: 10px;
         }
-
 
         .rrAdminNav {
           display: flex;
@@ -565,76 +748,6 @@ const time =
             0 0 0 1px rgba(84, 157, 255, 0.18),
             0 10px 22px rgba(20, 49, 92, 0.36);
         }
-
-        .rrEventLog {
-          display: grid;
-          gap: 8px;
-        }
-
-        .rrEventRow {
-          border-radius: 5px;
-          border: 1px solid rgba(255, 255, 255, 0.085);
-          background:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
-            linear-gradient(180deg, rgba(25, 31, 44, 0.92), rgba(14, 19, 31, 0.92));
-          padding: 10px;
-        }
-
-        .rrEventMain {
-          min-width: 0;
-        }
-
-        .rrEventTopLine {
-          display: flex;
-          gap: 6px;
-          align-items: center;
-          flex-wrap: wrap;
-        }
-
-        .rrEventTitle {
-          font-size: 14px;
-          font-weight: 1000;
-          line-height: 1.15;
-        }
-
-        .rrEventMeta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-          margin-top: 8px;
-          color: rgba(213, 224, 244, 0.76);
-          font-size: 12px;
-          line-height: 1.35;
-        }
-
-        .rrEventMeta strong {
-          color: rgba(245, 249, 255, 0.92);
-        }
-
-        .rrEventNote {
-          margin-top: 8px;
-          padding-top: 8px;
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
-          color: rgba(230, 237, 249, 0.86);
-          font-size: 12px;
-          line-height: 1.45;
-        }
-
-        .rrChip--played {
-          border-color: rgba(70, 205, 145, 0.35);
-          color: #dff9ec;
-        }
-
-        .rrChip--skipped {
-          border-color: rgba(230, 170, 52, 0.34);
-          color: #ffe4aa;
-        }
-
-        .rrChip--canceled {
-          border-color: rgba(224, 99, 116, 0.34);
-          color: #ffd7dd;
-        }
-
 
         .rrAdminPanel,
         .rrAdminTopbar {
@@ -819,32 +932,9 @@ const time =
           line-height: 1.45;
         }
 
-        .rrControlLabel {
-          display: block;
-          margin-bottom: 6px;
-          font-size: 10px;
-          line-height: 1;
-          font-weight: 1000;
-          letter-spacing: 1.4px;
-          text-transform: uppercase;
-          color: rgba(224, 233, 248, 0.78);
-        }
-
         .rrFormGrid {
           display: grid;
           gap: 10px;
-        }
-
-        .rrFormGrid--triple {
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
-
-        .rrFormGrid--double {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .rrFormGrid--five {
-          grid-template-columns: 0.9fr 0.9fr 0.9fr 1fr 1.2fr;
         }
 
         .gunmetalInput,
@@ -863,40 +953,22 @@ const time =
           font-size: 13px;
           font-weight: 700;
           outline: none;
-	  appearance: none;
-	  -webkit-appearance: none;
+          appearance: none;
+          -webkit-appearance: none;
           -moz-appearance: none;
           box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.04),
             0 0 0 1px rgba(12, 26, 48, 0.34);
         }
-	  .gunmetalSelect option {
-  	  background-color: #0b1220;
- 	   color: #f4f7fd;
-	}
+
+        .gunmetalSelect option {
+          background-color: #0b1220;
+          color: #f4f7fd;
+        }
 
         .gunmetalInput::placeholder {
           color: rgba(197, 211, 235, 0.46);
           font-weight: 600;
-        }
-
-        .gunmetalCheckboxRow {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 8px 10px;
-          border-radius: 4px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(255, 255, 255, 0.02);
-          color: #eef4ff;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        .gunmetalCheckbox {
-          width: 16px;
-          height: 16px;
-          accent-color: #4ea1ff;
         }
 
         .gunmetalBtn,
@@ -941,15 +1013,6 @@ const time =
           );
         }
 
-        .gunmetalBtn--danger {
-          background: linear-gradient(
-            180deg,
-            #8d4450 0%,
-            #713341 52%,
-            #5b2834 100%
-          );
-        }
-
         .gunmetalBtn--ghostLink {
           background: linear-gradient(
             180deg,
@@ -959,44 +1022,13 @@ const time =
           );
         }
 
-        .rrAssetList {
-          display: grid;
-          gap: 8px;
-        }
-
-        .rrAssetCard {
-          border-radius: 5px;
-          border: 1px solid rgba(255, 255, 255, 0.085);
-          background:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
-            linear-gradient(180deg, rgba(25, 31, 44, 0.92), rgba(14, 19, 31, 0.92));
-          padding: 10px;
-        }
-
-        .rrAssetCard--editing {
-          border-color: rgba(77, 186, 255, 0.42);
-          box-shadow: 0 0 0 1px rgba(77, 186, 255, 0.14);
-        }
-
-        .rrAssetHeader {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          gap: 10px;
-          align-items: start;
-        }
-
-        .rrAssetTitleLine {
-          display: flex;
-          gap: 6px;
-          align-items: center;
-          flex-wrap: wrap;
-          min-width: 0;
-        }
-
-        .rrAssetTitle {
-          font-size: 15px;
-          font-weight: 1000;
-          line-height: 1.1;
+        .rrEmptyBox {
+          border: 1px dashed rgba(255, 255, 255, 0.1);
+          border-radius: 4px;
+          padding: 12px;
+          color: rgba(235, 241, 255, 0.7);
+          background: rgba(255, 255, 255, 0.015);
+          font-size: 12px;
         }
 
         .rrChip {
@@ -1013,14 +1045,19 @@ const time =
           white-space: nowrap;
         }
 
-        .rrChip--active {
-          border-color: rgba(46, 193, 234, 0.36);
-          color: #d9f7ff;
+        .rrChip--played {
+          border-color: rgba(70, 205, 145, 0.35);
+          color: #dff9ec;
         }
 
-        .rrChip--inactive {
-          border-color: rgba(255, 255, 255, 0.16);
-          color: rgba(235, 241, 255, 0.72);
+        .rrChip--skipped {
+          border-color: rgba(230, 170, 52, 0.34);
+          color: #ffe4aa;
+        }
+
+        .rrChip--canceled {
+          border-color: rgba(224, 99, 116, 0.34);
+          color: #ffd7dd;
         }
 
         .rrChip--category {
@@ -1028,77 +1065,112 @@ const time =
           color: #f1ddff;
         }
 
-        .rrChip--schedule {
-          border-color: rgba(230, 170, 52, 0.34);
-          color: #ffe4aa;
+        .rrEventTitle {
+          font-size: 14px;
+          font-weight: 1000;
+          line-height: 1.15;
         }
 
-        .rrAssetSub {
-          margin-top: 5px;
+        .rrEventMeta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-top: 8px;
           color: rgba(213, 224, 244, 0.76);
           font-size: 12px;
           line-height: 1.35;
         }
 
-        .rrAssetMetaGrid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 4px;
-          overflow: hidden;
-          background: rgba(255, 255, 255, 0.02);
-          margin-top: 10px;
-        }
-
-        .rrAssetMetaCell {
-          padding: 7px 9px;
-          border-right: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .rrAssetMetaCell:last-child {
-          border-right: none;
-        }
-
-        .rrAssetMetaCell span {
-          display: block;
-          font-size: 9px;
-          text-transform: uppercase;
-          letter-spacing: 1.4px;
-          opacity: 0.66;
-          margin-bottom: 4px;
-        }
-
-        .rrAssetMetaCell strong {
-          display: block;
-          font-size: 12px;
-          font-weight: 1000;
-        }
-
-        .rrAssetProfiles {
-          margin-top: 9px;
-          color: rgba(216, 227, 246, 0.72);
-          font-size: 11px;
-          line-height: 1.4;
-        }
-
-        .rrAssetProfiles strong {
+        .rrEventMeta strong {
           color: rgba(245, 249, 255, 0.92);
         }
 
-        .rrAssetActions {
-          display: flex;
-          gap: 6px;
-          flex-wrap: wrap;
-          justify-content: flex-end;
+        .rrEventNote {
+          margin-top: 8px;
+          padding-top: 8px;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          color: rgba(230, 237, 249, 0.86);
+          font-size: 12px;
+          line-height: 1.45;
         }
 
-        .rrEmptyBox {
-          border: 1px dashed rgba(255, 255, 255, 0.1);
+        .rrLogToolbar {
+          display: grid;
+          grid-template-columns: 220px 220px auto auto;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+
+        .rrToolbarActions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin-bottom: 12px;
+        }
+
+        .rrTable {
+          display: grid;
+          gap: 6px;
+        }
+
+        .rrTableHead,
+        .rrTableRow {
+          display: grid;
+          grid-template-columns: 120px 1fr 120px 1.2fr 1.2fr;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .rrTableHead {
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 1px;
+          opacity: 0.65;
+          padding: 4px 6px;
+          text-transform: uppercase;
+        }
+
+        .rrTableRow {
+          padding: 8px;
           border-radius: 4px;
-          padding: 12px;
-          color: rgba(235, 241, 255, 0.7);
-          background: rgba(255, 255, 255, 0.015);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01)),
+            linear-gradient(180deg, rgba(25, 31, 44, 0.9), rgba(14, 19, 31, 0.9));
           font-size: 12px;
+        }
+
+        .rrTableRow--played {
+          border-left: 3px solid rgba(70, 205, 145, 0.6);
+        }
+
+        .rrTableRow--skipped {
+          border-left: 3px solid rgba(224, 99, 116, 0.7);
+        }
+
+        .rrTableRow--neutral {
+          border-left: 3px solid rgba(125, 156, 206, 0.45);
+        }
+
+        .rrArchiveList {
+          display: grid;
+          gap: 8px;
+        }
+
+        .rrArchiveRow {
+          border-radius: 5px;
+          border: 1px solid rgba(255, 255, 255, 0.085);
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+            linear-gradient(180deg, rgba(25, 31, 44, 0.92), rgba(14, 19, 31, 0.92));
+          padding: 10px;
+        }
+
+        .rrArchiveTopLine {
+          display: flex;
+          gap: 6px;
+          align-items: center;
+          flex-wrap: wrap;
         }
 
         @media (max-width: 1120px) {
@@ -1106,20 +1178,17 @@ const time =
             grid-template-columns: 1fr;
           }
 
-          .rrAdminStatBoxes,
-          .rrAssetActions {
+          .rrAdminStatBoxes {
             justify-content: flex-start;
           }
 
-          .rrFormGrid--triple,
-          .rrFormGrid--double,
-          .rrFormGrid--five,
-          .rrAssetMetaGrid {
+          .rrLogToolbar {
             grid-template-columns: 1fr 1fr;
           }
 
-          .rrAssetMetaCell:nth-child(2n) {
-            border-right: none;
+          .rrTableHead,
+          .rrTableRow {
+            grid-template-columns: 120px 1fr 120px 1fr 1fr;
           }
         }
 
@@ -1128,25 +1197,21 @@ const time =
             font-size: 24px;
           }
 
-          .rrAdminTopbar,
-          .rrAssetHeader {
+          .rrAdminTopbar {
             grid-template-columns: 1fr;
           }
 
-          .rrFormGrid--triple,
-          .rrFormGrid--double,
-          .rrFormGrid--five,
-          .rrAssetMetaGrid {
+          .rrLogToolbar {
             grid-template-columns: 1fr;
           }
 
-          .rrAssetMetaCell {
-            border-right: none;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          .rrTableHead {
+            display: none;
           }
 
-          .rrAssetMetaCell:last-child {
-            border-bottom: none;
+          .rrTableRow {
+            grid-template-columns: 1fr;
+            gap: 6px;
           }
         }
       `}</style>

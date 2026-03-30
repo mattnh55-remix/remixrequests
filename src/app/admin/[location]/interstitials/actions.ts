@@ -1,8 +1,12 @@
-// src/app/admin/[location]/interstitials/actions.ts
-
 "use server";
 
-import { Prisma, InterstitialCategory, InterstitialScheduleMode, SessionProfile } from "@prisma/client";
+import {
+  Prisma,
+  InterstitialCategory,
+  InterstitialScheduleMode,
+  SessionProfile,
+  InterstitialEventStatus,
+} from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -46,6 +50,10 @@ function isInterstitialCategory(value: string): value is InterstitialCategory {
 
 function isInterstitialScheduleMode(value: string): value is InterstitialScheduleMode {
   return Object.values(InterstitialScheduleMode).includes(value as InterstitialScheduleMode);
+}
+
+function isInterstitialEventStatus(value: string): value is InterstitialEventStatus {
+  return Object.values(InterstitialEventStatus).includes(value as InterstitialEventStatus);
 }
 
 function toSessionProfiles(value: FormDataEntryValue | null): SessionProfile[] {
@@ -124,7 +132,6 @@ export async function saveInterstitialAsset(formData: FormData) {
   const priority = toInt(formData.get("priority"), 0);
   const randomWeight = toInt(formData.get("randomWeight"), 100);
 
-  // Kept for transition-safe schema compatibility
   const scheduleModeRaw = toStringValue(formData.get("scheduleMode"), "NONE");
   const intervalMinutes = toNullableInt(formData.get("intervalMinutes"));
 
@@ -385,5 +392,82 @@ export async function saveBoothNote(formData: FormData) {
   redirectToAdmin(location.slug, {
     noteStatus: "saved",
     noteMessage: "Booth notes saved.",
+  });
+}
+
+export async function archiveInterstitialLogs(formData: FormData) {
+  const locationRaw = toStringValue(formData.get("locationId"));
+  const statusRaw = toStringValue(formData.get("status"));
+  const categoryRaw = toStringValue(formData.get("category"));
+  const keepArchiveOpen = toStringValue(formData.get("showArchived")) === "1";
+
+  if (!locationRaw) {
+    throw new Error("Missing locationId.");
+  }
+
+  const location = await resolveLocationId(locationRaw);
+
+  const where: Prisma.InterstitialEventWhereInput = {
+    locationId: location.id,
+    archivedAt: null,
+  };
+
+  if (statusRaw && isInterstitialEventStatus(statusRaw)) {
+    where.status = statusRaw;
+  }
+
+  if (categoryRaw && isInterstitialCategory(categoryRaw)) {
+    where.category = categoryRaw;
+  }
+
+  const result = await prisma.interstitialEvent.updateMany({
+    where,
+    data: {
+      archivedAt: new Date(),
+      archivedBy: "admin",
+    },
+  });
+
+  revalidatePath(`/admin/${location.slug}/interstitials`);
+  redirectToAdmin(location.slug, {
+    logStatus: "saved",
+    logMessage:
+      result.count > 0
+        ? `${result.count} log entr${result.count === 1 ? "y was" : "ies were"} archived.`
+        : "No visible logs matched the current filters.",
+    ...(statusRaw ? { status: statusRaw } : {}),
+    ...(categoryRaw ? { category: categoryRaw } : {}),
+    ...(keepArchiveOpen ? { showArchived: "1" } : {}),
+  });
+}
+
+export async function restoreArchivedInterstitialLogs(formData: FormData) {
+  const locationRaw = toStringValue(formData.get("locationId"));
+
+  if (!locationRaw) {
+    throw new Error("Missing locationId.");
+  }
+
+  const location = await resolveLocationId(locationRaw);
+
+  const result = await prisma.interstitialEvent.updateMany({
+    where: {
+      locationId: location.id,
+      archivedAt: { not: null },
+    },
+    data: {
+      archivedAt: null,
+      archivedBy: null,
+    },
+  });
+
+  revalidatePath(`/admin/${location.slug}/interstitials`);
+  redirectToAdmin(location.slug, {
+    logStatus: "saved",
+    logMessage:
+      result.count > 0
+        ? `${result.count} archived log entr${result.count === 1 ? "y was" : "ies were"} restored.`
+        : "No archived logs were available to restore.",
+    showArchived: "1",
   });
 }

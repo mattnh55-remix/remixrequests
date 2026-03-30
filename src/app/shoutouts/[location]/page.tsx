@@ -3,13 +3,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import confetti from "canvas-confetti";
 import PublicTheme from "../../../components/ui/public/PublicTheme";
 import { SHOUTOUT_PRODUCTS, type ShoutoutProductKey } from "@/lib/shoutoutProducts";
 
-
 const REMIX_LOGO_URL =
   "https://skateremix.com/wp-content/uploads/2026/03/Remix_Globe_Logo_350px.png";
-
 
 type BalanceRes = { ok: boolean; balance?: number; error?: string };
 
@@ -104,6 +103,13 @@ type UploadPhotoRes = {
   note?: string;
 };
 
+type RewardFlash = {
+  key: number;
+  title: string;
+  subtitle?: string;
+  kicker?: string;
+};
+
 const BUY_URL_BY_LOCATION: Record<string, string> = {
   // remixrequests: "https://your-square-link"
 };
@@ -145,7 +151,8 @@ function BrandLogo({ logoUrl }: { logoUrl?: string | null }) {
 
 export default function ShoutoutsPage({ params }: { params: { location: string } }) {
   const location = params.location;
-const [sessionActive, setSessionActive] = useState(true);
+
+  const [sessionActive, setSessionActive] = useState(true);
   const [identityId, setIdentityId] = useState("");
   const [email, setEmail] = useState("");
   const [verified, setVerified] = useState(false);
@@ -161,6 +168,7 @@ const [sessionActive, setSessionActive] = useState(true);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
   const [photoPreviewUnsupported, setPhotoPreviewUnsupported] = useState(false);
   const [usageRightsAccepted, setUsageRightsAccepted] = useState(false);
+  const [rewardFlash, setRewardFlash] = useState<RewardFlash | null>(null);
 
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -171,8 +179,10 @@ const [sessionActive, setSessionActive] = useState(true);
   const [pendingComposerAfterBuy, setPendingComposerAfterBuy] = useState(false);
   const [sessionCountdown, setSessionCountdown] = useState("");
   const [pressedProductKey, setPressedProductKey] = useState<ShoutoutProductKey | null>(null);
+  const [holdToast, setHoldToast] = useState(false);
 
   const openTimerRef = useRef<number | null>(null);
+  const rewardFlashTimerRef = useRef<number | null>(null);
 
   const selectedProduct = useMemo(
     () => SHOUTOUT_PRODUCTS.find((p) => p.key === productKey) || SHOUTOUT_PRODUCTS[0],
@@ -203,21 +213,70 @@ const [sessionActive, setSessionActive] = useState(true);
         { cache: "no-store" }
       );
       const data = (await res.json()) as BalanceRes;
-if (data.ok) {
-  const nextBalance = Number(data.balance ?? 0);
-  setBalance(nextBalance);
+      if (data.ok) {
+        const nextBalance = Number(data.balance ?? 0);
+        setBalance(nextBalance);
 
-  if (nextBalance <= 0) {
-    // likely expired session
-    setSessionActive(false);
-    setVerified(false);
-    setIdentityId("");
-  } else {
-    setSessionActive(true);
-  }
-}    } catch {
+        if (nextBalance <= 0) {
+          setSessionActive(false);
+          setVerified(false);
+          setIdentityId("");
+        } else {
+          setSessionActive(true);
+        }
+      }
+    } catch {
       // ignore
     }
+  }
+
+  function fireConfetti() {
+    confetti({
+      particleCount: 70,
+      spread: 72,
+      startVelocity: 30,
+      origin: { y: 0.58 },
+      colors: ["#00e5ff", "#ff3d9a", "#ffffff"],
+      scalar: 0.9,
+    });
+
+    window.setTimeout(() => {
+      confetti({
+        particleCount: 34,
+        spread: 58,
+        startVelocity: 22,
+        origin: { y: 0.62 },
+        colors: ["#00e5ff", "#ff3d9a"],
+        scalar: 0.8,
+      });
+    }, 120);
+  }
+
+  function showRewardFlash(title: string, subtitle?: string, kicker = "NICE") {
+    setRewardFlash({
+      key: Date.now(),
+      title,
+      subtitle,
+      kicker,
+    });
+
+    if (rewardFlashTimerRef.current != null) {
+      window.clearTimeout(rewardFlashTimerRef.current);
+    }
+
+    rewardFlashTimerRef.current = window.setTimeout(() => {
+      setRewardFlash(null);
+    }, 1800);
+  }
+
+  function celebratePointsAward(points?: number | null, subtitle?: string) {
+    const value = Number(points ?? 0);
+    fireConfetti();
+    showRewardFlash(
+      value > 0 ? `+${value} POINTS` : "POINTS ADDED",
+      subtitle || "Ready to make it big on screen",
+      "JACKPOT"
+    );
   }
 
   function persistPendingShoutoutResume(nextProductKey?: ShoutoutProductKey) {
@@ -262,9 +321,8 @@ if (data.ok) {
 
   useEffect(() => {
     return () => {
-      if (openTimerRef.current) {
-        window.clearTimeout(openTimerRef.current);
-      }
+      if (openTimerRef.current) window.clearTimeout(openTimerRef.current);
+      if (rewardFlashTimerRef.current) window.clearTimeout(rewardFlashTimerRef.current);
     };
   }, []);
 
@@ -274,10 +332,10 @@ if (data.ok) {
       const lsEmail = (localStorage.getItem("rr_email") || "").trim();
       const lsLocation = (localStorage.getItem("rr_location") || "").trim();
 
-if (lsIdentity) {
-  setIdentityId(lsIdentity);
-  void refreshBalance(lsIdentity);
-}
+      if (lsIdentity) {
+        setIdentityId(lsIdentity);
+        void refreshBalance(lsIdentity);
+      }
 
       if (lsEmail) setEmail(lsEmail);
 
@@ -340,17 +398,38 @@ if (lsIdentity) {
         }
 
         const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+        const beforeBalance = balance;
+
         if (lsIdentity) {
           await refreshBalance(lsIdentity);
         }
 
         setPendingComposerAfterBuy(true);
+
+        if (lsIdentity) {
+          const res = await fetch(
+            `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(lsIdentity)}`,
+            { cache: "no-store" }
+          );
+          const data = (await res.json()) as BalanceRes;
+          if (data.ok) {
+            const nextBalance = Number(data.balance ?? 0);
+            setBalance(nextBalance);
+            if (nextBalance > beforeBalance) {
+              setShowBuy(false);
+              celebratePointsAward(nextBalance - beforeBalance, "Points loaded for your shout-out");
+              setMsg("Points added. Finish your shout-out.");
+            }
+          }
+        }
       } catch {
         // ignore
       }
     }
 
     void resumeAfterCheckout();
+    // intentionally on mount/location
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location]);
 
   useEffect(() => {
@@ -360,9 +439,12 @@ if (lsIdentity) {
     }
 
     setToastVisible(true);
+
+    if (holdToast) return;
+
     const id = window.setTimeout(() => setToastVisible(false), 3200);
     return () => window.clearTimeout(id);
-  }, [msg]);
+  }, [msg, holdToast]);
 
   useEffect(() => {
     if (!pendingComposerAfterBuy) return;
@@ -373,7 +455,7 @@ if (lsIdentity) {
       setPendingComposerAfterBuy(false);
       setShowBuy(false);
       setShowComposer(true);
-      setMsg("✅ Points added. Finish your shout-out.");
+      setMsg("Points added. Finish your shout-out.");
     }
   }, [pendingComposerAfterBuy, balance, selectedProduct, canUseSelectedProduct]);
 
@@ -381,6 +463,7 @@ if (lsIdentity) {
     if (!selectedProduct.hasImage) {
       resetComposerMedia();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProduct.hasImage]);
 
   async function redeem(codeInput?: string) {
@@ -415,7 +498,13 @@ if (lsIdentity) {
         return;
       }
 
-      setMsg(`✅ Redeemed +${data.pointsAdded ?? ""} points!`);
+      const pointsAdded = Number(data.pointsAdded ?? 0);
+
+      setShowVerify(false);
+      setShowBuy(false);
+      celebratePointsAward(pointsAdded, "Code redeemed successfully");
+      setMsg(pointsAdded > 0 ? `Redeemed +${pointsAdded} points!` : "Code redeemed successfully.");
+
       const nextBalance = data?.balance ?? null;
       if (typeof nextBalance === "number") setBalance(nextBalance);
       else await refreshBalance();
@@ -474,7 +563,7 @@ if (lsIdentity) {
     openTimerRef.current = window.setTimeout(() => {
       setPressedProductKey(null);
 
-if (!sessionActive || !verified || !identityId || !email) {
+      if (!sessionActive || !verified || !identityId || !email) {
         setMsg("Claim your intro points to send a shout-out.");
         setShowVerify(true);
         return;
@@ -502,7 +591,7 @@ if (!sessionActive || !verified || !identityId || !email) {
     const cleanFrom = fromName.trim();
     const cleanBody = messageText.trim();
 
-if (!sessionActive || !verified || !identityId || !email) {
+    if (!sessionActive || !verified || !identityId || !email) {
       setMsg("Claim your intro points to send a shout-out.");
       setShowVerify(true);
       return;
@@ -619,7 +708,8 @@ if (!sessionActive || !verified || !identityId || !email) {
     canAfford &&
     !busy &&
     (!selectedProduct.hasImage || (!!photoFile && usageRightsAccepted));
-const heroBalance = !sessionActive ? 5 : (!verified && !identityId ? 5 : balance);
+  const heroBalance = !sessionActive ? 5 : !verified && !identityId ? 5 : balance;
+
   const buyUrl = useMemo(() => {
     const fromMap = BUY_URL_BY_LOCATION[location];
     if (fromMap) return fromMap;
@@ -694,8 +784,7 @@ const heroBalance = !sessionActive ? 5 : (!verified && !identityId ? 5 : balance
 
         <div className="rrHeroCard">
           <h1 className="rrTitle">Shout-Outs</h1>
-          <div className="rrTitleSub">
-Get your message up on the big screen!</div>
+          <div className="rrTitleSub">Get your message up on the big screen!</div>
         </div>
 
         <div className="rrPointsCard">
@@ -707,14 +796,15 @@ Get your message up on the big screen!</div>
                 className="rrBtn"
                 style={{ width: "100%" }}
                 onClick={() => {
-if (!sessionActive || !verified || !identityId) {
-  setShowVerify(true);
-  return;
-}
+                  if (!sessionActive || !verified || !identityId) {
+                    setShowVerify(true);
+                    return;
+                  }
                   setShowBuy(true);
                 }}
               >
-{sessionActive && verified && identityId ? "Add Points" : "Claim Points"}              </button>
+                {sessionActive && verified && identityId ? "Add Points" : "Claim Points"}
+              </button>
             </div>
           </div>
         </div>
@@ -724,9 +814,7 @@ if (!sessionActive || !verified || !identityId) {
         <div className="rrPanelHead rrPanelHead--centered">
           <div>
             <div className="rrPanelTitle">Pick Your Shout-Out</div>
-            <div className="rrPanelSub">
-              Choose a format, then add your message!
-            </div>
+            <div className="rrPanelSub">Choose a format, then add your message!</div>
           </div>
         </div>
 
@@ -811,10 +899,11 @@ if (!sessionActive || !verified || !identityId) {
         <div className="rrPanelHead rrPanelHead--centered">
           <div>
             <div className="rrPanelTitle">How It Works</div>
-            <div className="rrPanelSub">Choose your shout out, submit details and send to the booth for approval!</div>
+            <div className="rrPanelSub">
+              Choose your shout out, submit details and send to the booth for approval!
+            </div>
           </div>
         </div>
-
       </div>
 
       <div className="rrFooterBar">
@@ -822,21 +911,31 @@ if (!sessionActive || !verified || !identityId) {
           <button
             className="rrBtn rrFooterCta"
             onClick={() => {
-if (!sessionActive || !verified || !identityId) {
-  setShowVerify(true);
-  return;
-}
+              if (!sessionActive || !verified || !identityId) {
+                setShowVerify(true);
+                return;
+              }
               setShowComposer(true);
             }}
           >
             {!verified || !identityId ? "Claim Points to Send" : `Use ${selectedProduct.creditsCost}pts for ${selectedProduct.title}`}
           </button>
 
-          <button className="rrBtnGhost" onClick={() => setShowBuy(true)}>
+          <button
+            className="rrBtnGhost"
+            onClick={() => {
+              if (!sessionActive || !verified || !identityId) {
+                setShowVerify(true);
+                return;
+              }
+              setShowBuy(true);
+            }}
+          >
             Add Points
           </button>
         </div>
       </div>
+
       {toastVisible && msg ? (
         <div
           className="rrToast"
@@ -870,12 +969,90 @@ if (!sessionActive || !verified || !identityId) {
 
             <button
               className="rrBtnGhost"
-              onClick={() => setMsg("")}
+              onClick={() => {
+                setMsg("");
+                setToastVisible(false);
+                setHoldToast(false);
+              }}
               style={{ minWidth: "110px" }}
             >
               Close
             </button>
           </div>
+        </div>
+      ) : null}
+
+      {rewardFlash ? (
+        <div
+          key={rewardFlash.key}
+          style={{
+            position: "fixed",
+            inset: 0,
+            pointerEvents: "none",
+            zIndex: 160,
+            display: "grid",
+            placeItems: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              minWidth: 260,
+              maxWidth: "min(92vw, 380px)",
+              borderRadius: 26,
+              padding: "22px 24px",
+              textAlign: "center",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.18)",
+              background:
+                "radial-gradient(circle at top, rgba(21,146,162,0.30), rgba(13,18,28,0.97) 54%), linear-gradient(135deg, rgba(52,62,84,0.96), rgba(16,21,31,0.98))",
+              boxShadow:
+                "0 22px 70px rgba(0,0,0,0.52), 0 0 38px rgba(21,146,162,0.16), inset 0 1px 0 rgba(255,255,255,0.08)",
+              animation: "rrRewardPop 1800ms ease forwards",
+            }}
+          >
+            <div style={{ fontSize: 13, letterSpacing: "0.24em", opacity: 0.7, fontWeight: 900 }}>
+              {rewardFlash.kicker || "NICE"}
+            </div>
+            <div style={{ fontSize: 34, fontWeight: 1000, lineHeight: 1, marginTop: 8 }}>
+              {rewardFlash.title}
+            </div>
+            {rewardFlash.subtitle ? (
+              <div style={{ marginTop: 10, fontSize: 14, opacity: 0.88 }}>
+                {rewardFlash.subtitle}
+              </div>
+            ) : null}
+            <div
+              style={{
+                width: 110,
+                height: 3,
+                margin: "14px auto 0",
+                borderRadius: 999,
+                background: "linear-gradient(90deg, rgba(255,61,154,0.15), rgba(255,255,255,0.85), rgba(0,229,255,0.18))",
+              }}
+            />
+          </div>
+
+          <style jsx>{`
+            @keyframes rrRewardPop {
+              0% {
+                transform: scale(0.82) translateY(14px);
+                opacity: 0;
+              }
+              12% {
+                transform: scale(1.04) translateY(0);
+                opacity: 1;
+              }
+              82% {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+              }
+              100% {
+                transform: scale(0.96) translateY(-10px);
+                opacity: 0;
+              }
+            }
+          `}</style>
         </div>
       ) : null}
 
@@ -907,6 +1084,10 @@ if (!sessionActive || !verified || !identityId) {
             }
           } catch {
             // ignore
+          }
+
+          if (payload?.welcomeGranted || Number(payload?.balance ?? 0) > 0) {
+            celebratePointsAward(payload?.balance ?? 5, payload?.note || "Your intro points are ready");
           }
 
           setMsg(payload?.note || "✅ Verified! Your intro points are ready.");
@@ -962,7 +1143,6 @@ if (!sessionActive || !verified || !identityId) {
           void startCheckout(packageKey);
         }}
       />
-
     </PublicTheme>
   );
 }

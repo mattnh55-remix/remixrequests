@@ -453,11 +453,16 @@ model InterstitialEvent {
   operatorNote String?
   metadata     Json?
 
+  archivedAt   DateTime?
+  archivedBy   String?
+
   @@index([locationId, sessionId, plannedAt])
   @@index([locationId, category, playedAt])
   @@index([scheduleId, plannedAt])
   @@index([assetId, playedAt])
+  @@index([locationId, archivedAt, plannedAt])
 }
+
 
 model BoothNote {
   id         String   @id @default(cuid())
