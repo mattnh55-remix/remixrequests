@@ -532,12 +532,19 @@ if (!verified) {
     sfx.playTap();
     setBusyVoteId(requestId);
 
-    try {
-      const res = await fetch(`/api/public/vote`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, requestId, vote: dir, email: email.trim() }),
-      });
+try {
+  const identityId = localStorage.getItem("rr_identityId") || "";
+
+  const res = await fetch(`/api/public/vote`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      location,
+      requestId,
+      vote: dir,
+      identityId,
+    }),
+  });
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data?.ok) {
