@@ -200,7 +200,7 @@ export default function InterstitialPromptModal({
           <div className="rrPromptModal__footer">
             <button
               type="button"
-              className="rrPromptModal__skipGhostBtn"
+              className="gunmetalBtn gunmetalBtn--primary gunmetalBtn--mini"
               disabled={busy}
               onClick={() => setSkipOpen(true)}
             >
@@ -241,7 +241,7 @@ export default function InterstitialPromptModal({
               <div className="rrPromptModal__confirmActions">
                 <button
                   type="button"
-                  className="rrPromptModal__cancelBtn"
+                  className="gunmetalBtn gunmetalBtn--primary gunmetalBtn--mini"
                   disabled={busy}
                   onClick={() => setSkipOpen(false)}
                 >
@@ -251,19 +251,32 @@ export default function InterstitialPromptModal({
                 <button
                   type="button"
                   disabled={busy || !canSubmitSkip}
-                  onClick={async () => {
-                    setError(null);
-                    try {
-                      await onSkip(skipReason.trim());
-                      setSkipReason("");
-                      setSkipOpen(false);
-                    } catch (err) {
-                      setError(
-                        err instanceof Error ? err.message : "Failed to skip prompt."
-                      );
-                    }
-                  }}
-                  className="rrPromptModal__skipBtn"
+onClick={async () => {
+  if (busy) return;
+
+  const reason = skipReason.trim();
+  if (!reason) return;
+
+  setError(null);
+
+  try {
+    await onSkip(reason);
+
+    // HARD RESET (this is what was missing)
+    setSkipReason("");
+    setSkipOpen(false);
+
+  } catch (err) {
+    console.error("[Skip Interstitial Error]", err);
+
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Failed to skip prompt."
+    );
+  }
+}}
+                  className="gunmetalBtn gunmetalBtn--primary gunmetalBtn--mini"
                 >
                   {busy ? "Working..." : "Confirm Skip"}
                 </button>
