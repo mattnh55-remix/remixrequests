@@ -1144,6 +1144,7 @@ useEffect(() => {
   sub="Controls how users spend points and how much revenue each action generates. Higher costs increase revenue but reduce participation — balance carefully."
 >
   <div className="admGrid2">
+    <div className="admFieldStack">
 
     <Field
       label="Request cost"
@@ -1152,8 +1153,8 @@ useEffect(() => {
     />
     <div className="admFieldHelp">
       Cost to add a song to the queue. Lower = more engagement. Higher = more selective requests.
-    </div>
-
+    </div></div>
+<div className="admFieldStack">
     <Field
       label="Play Now / Boost cost"
       value={rules.costPlayNow}
@@ -1161,8 +1162,8 @@ useEffect(() => {
     />
     <div className="admFieldHelp">
       Premium skip-to-front action. This is your biggest monetization lever — higher values increase revenue per user.
-    </div>
-
+    </div></div>
+<div className="admFieldStack">
     <Field
       label="Upvote cost"
       value={rules.costUpvote}
@@ -1170,8 +1171,8 @@ useEffect(() => {
     />
     <div className="admFieldHelp">
       Cost to support a song. Keep low to encourage participation and crowd interaction.
-    </div>
-
+    </div></div>
+<div className="admFieldStack">
     <Field
       label="Downvote cost"
       value={rules.costDownvote}
@@ -1179,8 +1180,8 @@ useEffect(() => {
     />
     <div className="admFieldHelp">
       Cost to push songs down. Usually kept equal to upvote for fairness.
-    </div>
-
+    </div></div>
+<div className="admFieldStack">
     <MoneyField
       label="10 credit package ($)"
       centsValue={rules.packTier1PriceCents || 500}
@@ -1188,8 +1189,8 @@ useEffect(() => {
     />
     <div className="admFieldHelp">
       Entry-level purchase. Lower price improves conversion rate for first-time users.
-    </div>
-
+    </div></div>
+<div className="admFieldStack">
     <MoneyField
       label="25 credit package ($)"
       centsValue={rules.packTier2PriceCents || 1000}
@@ -1197,7 +1198,8 @@ useEffect(() => {
     />
     <div className="admFieldHelp">
       Mid-tier option. Should feel like a better value per credit than the starter pack.
-    </div>
+    </div></div>
+<div className="admFieldStack">
 
     <MoneyField
       label="35 credit package ($)"
@@ -1206,7 +1208,8 @@ useEffect(() => {
     />
     <div className="admFieldHelp">
       High-value pack. Encourages larger purchases from engaged users.
-    </div>
+    </div></div>
+<div className="admFieldStack">
 
     <MoneyField
       label="50 credit package ($)"
@@ -1215,9 +1218,8 @@ useEffect(() => {
     />
     <div className="admFieldHelp">
       Best value tier. Designed for power users and groups pooling points.
-    </div>
+    </div></div>
 
-  </div>
 </SubPanel>
 <SubPanel
   title="Voting and enforcement"
