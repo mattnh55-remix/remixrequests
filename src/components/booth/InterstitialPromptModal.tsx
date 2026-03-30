@@ -391,6 +391,85 @@ export default function InterstitialPromptModal({
           letter-spacing: -0.03em;
           color: #ffffff;
         }
+                  .rrPromptModal__confirmLayer {
+          position: fixed;
+          inset: 0;
+          z-index: 9999;
+          display: grid;
+          place-items: center;
+          pointer-events: auto;
+        }
+
+.rrPromptModal__confirmBackdrop {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(5, 10, 18, 0.62);
+  backdrop-filter: blur(5px);
+  cursor: default;
+}
+  .rrPromptModal__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 18px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+  .rrPromptModal__content--compact {
+  display: block;
+  padding: 12px 18px 4px;
+}
+  .rrPromptModal__metaRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+  .rrPromptModal__metaInline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(208, 218, 235, 0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+  .rrPromptModal__bullet {
+  opacity: 0.5;
+  flex: 0 0 auto;
+}
+        .rrPromptModal__textarea--compact {
+          min-height: 44px;
+          height: 44px;
+          max-height: 44px;
+          resize: none;
+          overflow: auto;
+        }
+        .rrPromptModal__confirmCard {
+          position: relative;
+          z-index: 141;
+          width: min(420px, calc(100% - 32px));
+          border-radius: 14px;
+          border: 1px solid rgba(120, 160, 220, 0.2);
+          background: linear-gradient(
+            180deg,
+            rgba(36, 46, 68, 0.99),
+            rgba(18, 27, 43, 0.99)
+          );
+          box-shadow:
+            0 18px 50px rgba(0, 0, 0, 0.45),
+            inset 0 1px 0 rgba(255, 255, 255, 0.06);
+          padding: 16px;
+        }
 
         .rrPromptModal__category {
           margin: 6px 0 0;
@@ -795,7 +874,8 @@ export default function InterstitialPromptModal({
           }
 
           .rrPromptModal__header {
-            padding: 16px 16px 14px;
+            padding: 12px 18px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
           }
 
           .rrPromptModal__content {
