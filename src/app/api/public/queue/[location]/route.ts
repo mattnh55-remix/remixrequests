@@ -16,11 +16,25 @@ const emailHash = email ? hashEmail(email) : null;
 
   return NextResponse.json({
     sessionId: session.id,
-    playNow: q.playNow.map(r => ({
-      id: r.id, title: r.song.title, artist: r.song.artist, artworkUrl: r.song.artworkUrl, score: r.score, requestedByMe: emailHash && r.emailHash === emailHash
-    })),
-    upNext: q.main.map(r => ({
-      id: r.id, title: r.song.title, artist: r.song.artist, artworkUrl: r.song.artworkUrl, score: r.score, requestedByMe: emailHash && r.emailHash === emailHash
-    }))
+playNow: q.playNow.map(r => ({
+  id: r.id,
+  title: r.song.title,
+  artist: r.song.artist,
+  artworkUrl: r.song.artworkUrl,
+  score: r.score,
+  upvotes: Array.isArray(r.votes) ? r.votes.filter(v => Number(v.value) > 0).length : 0,
+  downvotes: Array.isArray(r.votes) ? r.votes.filter(v => Number(v.value) < 0).length : 0,
+  requestedByMe: emailHash && r.emailHash === emailHash,
+})),
+upNext: q.main.map(r => ({
+  id: r.id,
+  title: r.song.title,
+  artist: r.song.artist,
+  artworkUrl: r.song.artworkUrl,
+  score: r.score,
+  upvotes: Array.isArray(r.votes) ? r.votes.filter(v => Number(v.value) > 0).length : 0,
+  downvotes: Array.isArray(r.votes) ? r.votes.filter(v => Number(v.value) < 0).length : 0,
+  requestedByMe: emailHash && r.emailHash === emailHash,
+}))
   });
 }
