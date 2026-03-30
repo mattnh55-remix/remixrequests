@@ -455,9 +455,8 @@ const queuePanel = isPortraitLayout ? (
 
       <div className={`remixTvWrap ${isPortraitLayout ? "remixTvWrap--portrait" : ""}`}>
         <section className="neonPanel remixTvShoutoutPanel">
-          <div className="remixTvSectionHeader remixTvSectionHeader--withClock">
+          <div className="remixTvSectionHeader">
             <div className="remixTvSectionTitle">{featuredTitle}</div>
-            <div className="remixTvCountdownPill">{timerLabel}</div>
           </div>
 
           <div
@@ -465,7 +464,7 @@ const queuePanel = isPortraitLayout ? (
             className={`remixTvBubble remixTvBubble--${featuredMessage.accent || "cyan"}`}
           >
             <div className="remixTvBubbleTimerRow">
-              <div className="remixTvBubbleTimerDot" />
+              <div className="remixTvBubbleTimerText">{timerLabel}</div>
               <div className="remixTvBubbleTimerTrack">
                 <div
                   className="remixTvBubbleTimerFill"
@@ -483,13 +482,18 @@ const queuePanel = isPortraitLayout ? (
                 fromName={featuredMessage.fromName}
               />
             </div>
-          </div>
 
-          {isPortraitLayout ? (
-            <div className="remixTvPortraitAdWrap">
-              <CtaBlock mode="portrait" qrSrc={qrSrc} variant="shoutout" />
-            </div>
-          ) : null}
+            <svg
+              className="remixTvBubbleTail"
+              viewBox="0 0 44 28"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M5 5 C15 7, 24 12, 34 24 C25 22, 15 21, 7 17 C5 13, 4 9, 5 5 Z"
+                className="remixTvBubbleTailPath"
+              />
+            </svg>
+          </div>
         </section>
 
         <section className="remixTvQueueCol">{queuePanel}</section>
@@ -590,7 +594,7 @@ const queuePanel = isPortraitLayout ? (
 
         .remixTvWrap--portrait {
           grid-template-columns: 1fr;
-          grid-template-rows: minmax(0, 1fr) minmax(0, 0.68fr);
+          grid-template-rows: minmax(0, 1.14fr) minmax(0, 0.86fr);
         }
 
         .remixTvShoutoutPanel,
@@ -606,12 +610,6 @@ const queuePanel = isPortraitLayout ? (
           grid-template-rows: auto 1fr;
           gap: 12px;
           overflow: visible;
-        }
-
-        .remixTvSectionHeader--withClock {
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 16px;
         }
 
         .remixTvQueueCol {
@@ -659,70 +657,71 @@ const queuePanel = isPortraitLayout ? (
           text-overflow: ellipsis;
         }
 
-        .remixTvCountdownPill {
-          flex: 0 0 auto;
-          min-width: 80px;
-          height: 44px;
-          padding: 0 14px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,0.12);
-          background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-          font-size: clamp(20px, 1.2vw, 28px);
-          line-height: 1;
-          font-weight: 1000;
-          font-style: italic;
-          letter-spacing: -0.2px;
-        }
-
         .remixTvBubble {
           position: relative;
           min-height: 0;
           border-radius: 34px 34px 34px 20px;
-          padding: 14px 30px 18px 18px;
+          padding: 14px 26px 18px 28px;
+          background:
+            linear-gradient(180deg, rgba(8, 15, 35, 0.96) 0%, rgba(3, 9, 27, 0.98) 100%),
+            radial-gradient(circle at 12% 10%, rgba(0, 247, 255, 0.06), transparent 34%),
+            radial-gradient(circle at 88% 0%, rgba(255, 57, 212, 0.05), transparent 30%);
+          border: 1px solid rgba(255, 255, 255, 0.08);
           box-shadow:
-            0 10px 24px rgba(0, 0, 0, 0.14),
-            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            inset 0 1px 0 rgba(255, 255, 255, 0.08),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+            0 16px 34px rgba(0, 0, 0, 0.28);
           animation:
             remixTvBubbleIn 420ms cubic-bezier(0.2, 0.9, 0.2, 1),
             remixTvBubbleFloat 7s ease-in-out 420ms infinite;
           transform-origin: 86% 100%;
-          overflow: visible;
+          overflow: hidden;
+          color: rgba(248, 250, 255, 0.96);
         }
 
-        .remixTvBubble--gold {
-          background: linear-gradient(180deg, #e8e39b 0%, #e1dc92 100%);
-          color: #080808;
+        .remixTvBubble::before {
+          content: "";
+          position: absolute;
+          left: 12px;
+          top: 14px;
+          bottom: 14px;
+          width: 3px;
+          border-radius: 999px;
+          opacity: 0.95;
         }
 
-        .remixTvBubble--cyan {
-          background: linear-gradient(180deg, #bde8fb 0%, #a9ddf5 100%);
-          color: #05070c;
+        .remixTvBubble--gold::before {
+          background: linear-gradient(180deg, rgba(255, 233, 145, 0.98), rgba(247, 216, 94, 0.84));
+          box-shadow: 0 0 18px rgba(247, 216, 94, 0.5);
         }
 
-        .remixTvBubble--pink {
-          background: linear-gradient(180deg, #ffc4ee 0%, #f6aadf 100%);
-          color: #160811;
+        .remixTvBubble--cyan::before {
+          background: linear-gradient(180deg, rgba(126, 232, 255, 0.98), rgba(64, 211, 255, 0.84));
+          box-shadow: 0 0 18px rgba(64, 211, 255, 0.5);
+        }
+
+        .remixTvBubble--pink::before {
+          background: linear-gradient(180deg, rgba(255, 194, 240, 0.98), rgba(255, 82, 202, 0.84));
+          box-shadow: 0 0 18px rgba(255, 82, 202, 0.45);
         }
 
         .remixTvBubbleTimerRow {
-          height: 22px;
+          height: 50px;
           display: grid;
-          grid-template-columns: 14px 1fr;
+          grid-template-columns: 82px 1fr;
           align-items: center;
-          gap: 10px;
-          margin-bottom: 16px;
+          gap: 14px;
+          margin-bottom: 12px;
         }
 
-        .remixTvBubbleTimerDot {
-          width: 14px;
-          height: 14px;
-          border-radius: 999px;
-          background: rgba(64, 211, 255, 0.96);
-          box-shadow: 0 0 12px rgba(64, 211, 255, 0.7);
+        .remixTvBubbleTimerText {
+          font-size: clamp(20px, 1.5vw, 28px);
+          line-height: 1;
+          font-weight: 1000;
+          font-style: italic;
+          letter-spacing: -0.2px;
+          text-align: left;
+          white-space: nowrap;
         }
 
         .remixTvBubbleTimerTrack {
@@ -855,7 +854,7 @@ const queuePanel = isPortraitLayout ? (
           word-break: break-word;
           text-wrap: balance;
           overflow-wrap: anywhere;
-          text-shadow: 0 1px 0 rgba(255,255,255,0.08);
+          text-shadow: 0 1px 0 rgba(0,0,0,0.24);
         }
 
         .remixTvBubbleLayout--textOnly .remixTvBubbleBody {
@@ -870,6 +869,7 @@ const queuePanel = isPortraitLayout ? (
 
         .remixTvBubbleFrom {
           margin-top: 14px;
+          color: rgba(255,255,255,0.88);
           font-size: clamp(20px, 2vw, 38px);
           line-height: 1.04;
           font-weight: 1000;
@@ -1351,10 +1351,6 @@ const queuePanel = isPortraitLayout ? (
           grid-template-rows: auto auto 1fr auto;
         }
 
-        .remixTvPortraitAdWrap {
-          display: none;
-        }
-
         .remixTvPortraitTop10Block {
           min-height: 0;
           display: grid;
@@ -1425,37 +1421,24 @@ const queuePanel = isPortraitLayout ? (
           }
 
           .remixTvShoutoutPanel {
-            padding: 10px 10px 12px;
+            padding: 12px 12px 14px;
             gap: 10px;
-            grid-template-rows: auto minmax(0, 1fr) auto;
           }
 
           .remixTvSectionTitle {
-            font-size: clamp(18px, 4.2vw, 30px);
-          }
-
-          .remixTvCountdownPill {
-            min-width: 68px;
-            height: 34px;
-            padding: 0 11px;
-            font-size: clamp(16px, 3.5vw, 22px);
+            font-size: clamp(20px, 4.6vw, 32px);
           }
 
           .remixTvBubble {
-            border-radius: 28px;
-            padding: 10px 12px 14px 12px;
+            border-radius: 28px 28px 28px 18px;
+            padding: 12px 16px 16px 14px;
           }
 
           .remixTvBubbleTimerRow {
-            height: 18px;
-            grid-template-columns: 12px 1fr;
-            gap: 8px;
+            height: 38px;
+            grid-template-columns: 62px 1fr;
+            gap: 10px;
             margin-bottom: 10px;
-          }
-
-          .remixTvBubbleTimerDot {
-            width: 12px;
-            height: 12px;
           }
 
           .remixTvBubbleTimerTrack {
@@ -1511,15 +1494,6 @@ const queuePanel = isPortraitLayout ? (
           .remixTvQueuePanel--portrait {
             padding: 10px;
             gap: 10px;
-          }
-
-          .remixTvPortraitAdWrap {
-            display: block;
-          }
-
-          .remixTvBottomCta--portrait {
-            min-height: 110px;
-            align-content: center;
           }
         }
       `}</style>
@@ -1734,27 +1708,18 @@ function Top10Block({
 function CtaBlock({
   mode,
   qrSrc,
-  variant = "default",
 }: {
   mode: "landscape" | "portrait";
   qrSrc: string;
-  variant?: "default" | "shoutout";
 }) {
   return (
     <div className={`remixTvBottomCta remixTvBottomCta--${mode}`}>
       <div className={`remixTvBottomText remixTvBottomText--${mode}`}>
         {mode === "portrait" ? (
-          variant === "shoutout" ? (
-            <>
-              <span className="remixTvBottomTextLineStrong">Scan to send a shout out</span>
-              <span className="remixTvBottomTextLineMuted">or request a song from your phone</span>
-            </>
-          ) : (
-            <>
-              <span className="remixTvBottomTextLineStrong">Scan to request a song</span>
-              <span className="remixTvBottomTextLineMuted">or send a shout out to the screen</span>
-            </>
-          )
+          <>
+            <span className="remixTvBottomTextLineStrong">Scan to request a song</span>
+            <span className="remixTvBottomTextLineMuted">or send a shout out to the screen</span>
+          </>
         ) : (
           <>
             <div>SCAN TO</div>
