@@ -455,32 +455,41 @@ const queuePanel = isPortraitLayout ? (
 
       <div className={`remixTvWrap ${isPortraitLayout ? "remixTvWrap--portrait" : ""}`}>
         <section className="neonPanel remixTvShoutoutPanel">
-          <div className="remixTvSectionHeader">
+          <div className="remixTvSectionHeader remixTvSectionHeader--withClock">
             <div className="remixTvSectionTitle">{featuredTitle}</div>
-            <div className="remixTvFeatureTimerPill">{timerLabel}</div>
+            <div className="remixTvCountdownPill">{timerLabel}</div>
           </div>
 
           <div
             key={featuredMessage.id}
-            className={`remixTvFeatureCard remixTvFeatureCard--${featuredMessage.accent || "cyan"}`}
+            className={`remixTvBubble remixTvBubble--${featuredMessage.accent || "cyan"}`}
           >
-            <span className="remixTvFeatureAccentChip" aria-hidden="true" />
-
-            <div className="remixTvFeatureProgressTrack">
-              <div
-                className="remixTvFeatureProgressFill"
-                style={{ width: `${progressPct}%` }}
-              >
-                <span className="remixTvFeatureProgressShimmer" />
+            <div className="remixTvBubbleTimerRow">
+              <div className="remixTvBubbleTimerDot" />
+              <div className="remixTvBubbleTimerTrack">
+                <div
+                  className="remixTvBubbleTimerFill"
+                  style={{ width: `${progressPct}%` }}
+                >
+                  <span className="remixTvBubbleTimerShimmer" />
+                </div>
               </div>
             </div>
 
-            <FeatureBubble
-              imageUrl={featuredMessage.imageUrl}
-              body={featuredBody}
-              fromName={featuredMessage.fromName}
-            />
+            <div className="remixTvBubbleInner">
+              <FeatureBubble
+                imageUrl={featuredMessage.imageUrl}
+                body={featuredBody}
+                fromName={featuredMessage.fromName}
+              />
+            </div>
           </div>
+
+          {isPortraitLayout ? (
+            <div className="remixTvPortraitAdWrap">
+              <CtaBlock mode="portrait" qrSrc={qrSrc} variant="shoutout" />
+            </div>
+          ) : null}
         </section>
 
         <section className="remixTvQueueCol">{queuePanel}</section>
@@ -581,7 +590,7 @@ const queuePanel = isPortraitLayout ? (
 
         .remixTvWrap--portrait {
           grid-template-columns: 1fr;
-          grid-template-rows: minmax(0, 1.14fr) minmax(0, 0.86fr);
+          grid-template-rows: minmax(0, 1fr) minmax(0, 0.68fr);
         }
 
         .remixTvShoutoutPanel,
@@ -597,6 +606,12 @@ const queuePanel = isPortraitLayout ? (
           grid-template-rows: auto 1fr;
           gap: 12px;
           overflow: visible;
+        }
+
+        .remixTvSectionHeader--withClock {
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 16px;
         }
 
         .remixTvQueueCol {
@@ -644,110 +659,23 @@ const queuePanel = isPortraitLayout ? (
           text-overflow: ellipsis;
         }
 
-        .remixTvFeatureTimerPill {
+        .remixTvCountdownPill {
           flex: 0 0 auto;
-          min-width: 92px;
-          height: 48px;
-          padding: 0 18px;
-          border-radius: 999px;
+          min-width: 80px;
+          height: 44px;
+          padding: 0 14px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
+          border-radius: 999px;
           border: 1px solid rgba(255,255,255,0.12);
-          background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+          background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
           box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-          font-size: clamp(18px, 1.35vw, 24px);
+          font-size: clamp(20px, 1.2vw, 28px);
+          line-height: 1;
           font-weight: 1000;
-          letter-spacing: 0.2px;
-        }
-
-        .remixTvFeatureCard {
-          --feature-accent: #40d3ff;
-          position: relative;
-          min-height: 0;
-          display: grid;
-          grid-template-rows: auto 1fr;
-          gap: 18px;
-          padding: 18px 18px 20px 18px;
-          border-radius: 28px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background:
-            radial-gradient(circle at 12% 18%, rgba(255,255,255,0.035), transparent 28%),
-            radial-gradient(circle at 78% 12%, rgba(42, 84, 255, 0.09), transparent 34%),
-            linear-gradient(180deg, rgba(10, 16, 31, 0.98), rgba(5, 10, 22, 0.98));
-          box-shadow:
-            inset 0 0 0 1px rgba(255,255,255,0.02),
-            0 14px 38px rgba(0,0,0,0.32);
-          overflow: hidden;
-        }
-
-        .remixTvFeatureCard::before {
-          content: "";
-          position: absolute;
-          inset: 0 auto 0 0;
-          width: 4px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.22), var(--feature-accent));
-          box-shadow: 0 0 18px rgba(64, 211, 255, 0.28);
-        }
-
-        .remixTvFeatureCard--gold { --feature-accent: #f7d85e; }
-        .remixTvFeatureCard--cyan { --feature-accent: #40d3ff; }
-        .remixTvFeatureCard--pink { --feature-accent: #ff6fd8; }
-
-        .remixTvFeatureCard--gold::before,
-        .remixTvFeatureCard--gold .remixTvFeatureAccentChip,
-        .remixTvFeatureCard--gold .remixTvFeatureProgressFill {
-          box-shadow: 0 0 16px rgba(247, 216, 94, 0.28);
-        }
-
-        .remixTvFeatureCard--pink::before,
-        .remixTvFeatureCard--pink .remixTvFeatureAccentChip,
-        .remixTvFeatureCard--pink .remixTvFeatureProgressFill {
-          box-shadow: 0 0 16px rgba(255, 111, 216, 0.28);
-        }
-
-        .remixTvFeatureAccentChip {
-          position: absolute;
-          left: 18px;
-          top: 18px;
-          width: 14px;
-          height: 14px;
-          border-radius: 999px;
-          background: var(--feature-accent);
-          box-shadow:
-            0 0 0 4px rgba(255,255,255,0.04),
-            0 0 16px rgba(64, 211, 255, 0.28);
-        }
-
-        .remixTvFeatureProgressTrack {
-          position: relative;
-          margin-left: 26px;
-          height: 10px;
-          border-radius: 999px;
-          overflow: hidden;
-          background: linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04));
-          box-shadow: inset 0 1px 2px rgba(0,0,0,0.26);
-        }
-
-        .remixTvFeatureProgressFill {
-          position: absolute;
-          inset: 0 auto 0 0;
-          height: 100%;
-          border-radius: 999px;
-          background: linear-gradient(90deg, rgba(255,255,255,0.92), var(--feature-accent));
-          transition: width 1s linear;
-          overflow: hidden;
-          box-shadow: 0 0 14px rgba(64, 211, 255, 0.24);
-        }
-
-        .remixTvFeatureProgressShimmer {
-          position: absolute;
-          inset: 0 auto 0 0;
-          width: 120px;
-          background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.66), rgba(255,255,255,0));
-          filter: blur(2px);
-          animation: remixTvMeterShimmer 2.8s linear infinite;
-          opacity: 0.7;
+          font-style: italic;
+          letter-spacing: -0.2px;
         }
 
         .remixTvBubble {
@@ -781,22 +709,20 @@ const queuePanel = isPortraitLayout ? (
         }
 
         .remixTvBubbleTimerRow {
-          height: 50px;
+          height: 22px;
           display: grid;
-          grid-template-columns: 82px 1fr;
+          grid-template-columns: 14px 1fr;
           align-items: center;
-          gap: 14px;
-          margin-bottom: 12px;
+          gap: 10px;
+          margin-bottom: 16px;
         }
 
-        .remixTvBubbleTimerText {
-          font-size: clamp(20px, 1.5vw, 28px);
-          line-height: 1;
-          font-weight: 1000;
-          font-style: italic;
-          letter-spacing: -0.2px;
-          text-align: left;
-          white-space: nowrap;
+        .remixTvBubbleTimerDot {
+          width: 14px;
+          height: 14px;
+          border-radius: 999px;
+          background: rgba(64, 211, 255, 0.96);
+          box-shadow: 0 0 12px rgba(64, 211, 255, 0.7);
         }
 
         .remixTvBubbleTimerTrack {
@@ -1425,6 +1351,10 @@ const queuePanel = isPortraitLayout ? (
           grid-template-rows: auto auto 1fr auto;
         }
 
+        .remixTvPortraitAdWrap {
+          display: none;
+        }
+
         .remixTvPortraitTop10Block {
           min-height: 0;
           display: grid;
@@ -1495,24 +1425,37 @@ const queuePanel = isPortraitLayout ? (
           }
 
           .remixTvShoutoutPanel {
-            padding: 12px 12px 14px;
+            padding: 10px 10px 12px;
             gap: 10px;
+            grid-template-rows: auto minmax(0, 1fr) auto;
           }
 
           .remixTvSectionTitle {
-            font-size: clamp(20px, 4.6vw, 32px);
+            font-size: clamp(18px, 4.2vw, 30px);
+          }
+
+          .remixTvCountdownPill {
+            min-width: 68px;
+            height: 34px;
+            padding: 0 11px;
+            font-size: clamp(16px, 3.5vw, 22px);
           }
 
           .remixTvBubble {
-            border-radius: 28px 28px 28px 18px;
-            padding: 12px 16px 16px 14px;
+            border-radius: 28px;
+            padding: 10px 12px 14px 12px;
           }
 
           .remixTvBubbleTimerRow {
-            height: 38px;
-            grid-template-columns: 62px 1fr;
-            gap: 10px;
+            height: 18px;
+            grid-template-columns: 12px 1fr;
+            gap: 8px;
             margin-bottom: 10px;
+          }
+
+          .remixTvBubbleTimerDot {
+            width: 12px;
+            height: 12px;
           }
 
           .remixTvBubbleTimerTrack {
@@ -1568,6 +1511,15 @@ const queuePanel = isPortraitLayout ? (
           .remixTvQueuePanel--portrait {
             padding: 10px;
             gap: 10px;
+          }
+
+          .remixTvPortraitAdWrap {
+            display: block;
+          }
+
+          .remixTvBottomCta--portrait {
+            min-height: 110px;
+            align-content: center;
           }
         }
       `}</style>
@@ -1782,18 +1734,27 @@ function Top10Block({
 function CtaBlock({
   mode,
   qrSrc,
+  variant = "default",
 }: {
   mode: "landscape" | "portrait";
   qrSrc: string;
+  variant?: "default" | "shoutout";
 }) {
   return (
     <div className={`remixTvBottomCta remixTvBottomCta--${mode}`}>
       <div className={`remixTvBottomText remixTvBottomText--${mode}`}>
         {mode === "portrait" ? (
-          <>
-            <span className="remixTvBottomTextLineStrong">Scan to request a song</span>
-            <span className="remixTvBottomTextLineMuted">or send a shout out to the screen</span>
-          </>
+          variant === "shoutout" ? (
+            <>
+              <span className="remixTvBottomTextLineStrong">Scan to send a shout out</span>
+              <span className="remixTvBottomTextLineMuted">or request a song from your phone</span>
+            </>
+          ) : (
+            <>
+              <span className="remixTvBottomTextLineStrong">Scan to request a song</span>
+              <span className="remixTvBottomTextLineMuted">or send a shout out to the screen</span>
+            </>
+          )
         ) : (
           <>
             <div>SCAN TO</div>
