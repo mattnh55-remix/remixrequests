@@ -201,7 +201,7 @@ export default function InterstitialPromptModal({
                   value={skipReason}
                   onChange={(e) => setSkipReason(e.target.value)}
                   placeholder="Example: crowd moment, no clean transition, asset doesn't fit current energy..."
-                  className="rrPromptModal__textarea"
+                  className=".rrPromptModal textarea"
                   disabled={busy}
                 />
               </label>
@@ -241,6 +241,13 @@ export default function InterstitialPromptModal({
           pointer-events: auto;
           animation: rrPromptModalIn 220ms ease-out;
         }
+.rrPromptModal textarea {
+  min-height: 44px;
+  max-height: 44px;
+  height: 44px;
+  resize: none;
+  overflow: auto;
+}
 
         .rrPromptModal__backdrop {
           position: absolute;
@@ -272,20 +279,23 @@ export default function InterstitialPromptModal({
         .rrPromptModal__dialog {
           position: relative;
           z-index: 121;
-          width: 100%;
-          height: 100%;
+  	  width: 80%;
+  	  height: 92%;
+	  margin: auto;
+	  border-radius: 12px;
 	  max-height: none;
           overflow: auto;
           border-radius: 24px;
           border: 1px solid rgba(120, 170, 220, 0.13);
-          background: linear-gradient(
-            180deg,
-            rgba(10, 18, 30, 0.82) 0%,
-            rgba(8, 14, 24, 0.88) 100%
-          );
-          box-shadow:
-            0 24px 70px rgba(0, 0, 0, 0.26),
-            inset 0 1px 0 rgba(255, 255, 255, 0.04);
+	background: linear-gradient(
+	  180deg,
+	  rgba(32, 42, 64, 0.96),
+	  rgba(18, 26, 42, 0.96)
+	);
+	border: 1px solid rgba(120, 160, 220, 0.25);
+	box-shadow:
+	  0 20px 60px rgba(0, 0, 0, 0.6),
+	  inset 0 1px 0 rgba(255, 255, 255, 0.08);
           animation: rrPromptDialogIn 220ms ease-out;
         }
 
@@ -723,6 +733,12 @@ export default function InterstitialPromptModal({
           .rrPromptModal__backdrop,
           .rrPromptModal__glow {
             border-radius: 18px;
+.rrPromptModal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 10, 18, 0.75);
+  backdrop-filter: blur(6px);
+}
           }
 
           .rrPromptModal__header {
