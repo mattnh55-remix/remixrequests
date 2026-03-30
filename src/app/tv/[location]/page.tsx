@@ -15,6 +15,10 @@ type QueueItem = {
   wasBoosted?: boolean;
 };
 
+type TvQueueItem = QueueItem & {
+  __lane?: "playNow" | "upNext";
+};
+
 type FeedMessage = {
   id: string;
   title?: string;
@@ -212,69 +216,77 @@ export default function TvPage({ params }: { params: { location: string } }) {
   }, [isPortraitLayout, requestUrl]);
 
   const activePlaceholderMessages =
-  placeholderMessages.length ? placeholderMessages : PLACEHOLDER_MESSAGES;
+    placeholderMessages.length ? placeholderMessages : PLACEHOLDER_MESSAGES;
 
-const slideDurationSec = safeSeconds(shoutoutSlideSeconds, 10);
-const placeholderDurationSec = 20 * 60;
-const placeholderCycleMs = slideDurationSec * 1000;
+  const slideDurationSec = safeSeconds(shoutoutSlideSeconds, 10);
+  const placeholderDurationSec = 20 * 60;
+  const placeholderCycleMs = slideDurationSec * 1000;
 
-const placeholderRotationIndex = Math.floor(
-  Math.max(0, timerNowMs - placeholderEpochMsRef.current) / placeholderCycleMs
-);
+  const placeholderRotationIndex = Math.floor(
+    Math.max(0, timerNowMs - placeholderEpochMsRef.current) / placeholderCycleMs
+  );
 
-const featuredFallback =
-  activePlaceholderMessages[
-    placeholderRotationIndex % activePlaceholderMessages.length
-  ];
+  const featuredFallback =
+    activePlaceholderMessages[
+      placeholderRotationIndex % activePlaceholderMessages.length
+    ];
 
-const featuredMessage = liveMessage || featuredFallback;
-const featuredBody =
-  ("body" in featuredMessage ? featuredMessage.body : undefined) ||
-  ("messageText" in featuredMessage ? featuredMessage.messageText : undefined) ||
-  "";
-const featuredTitle = featuredMessage.title || "REMIX SHOUT OUTS!";
+  const featuredMessage = liveMessage || featuredFallback;
+  const featuredBody =
+    ("body" in featuredMessage ? featuredMessage.body : undefined) ||
+    ("messageText" in featuredMessage ? featuredMessage.messageText : undefined) ||
+    "";
+  const featuredTitle = featuredMessage.title || "REMIX SHOUT OUTS!";
 
-const isPlaceholderMessage = !liveMessage;
+  const isPlaceholderMessage = !liveMessage;
 
-const liveLifetimeDurationSec = safeSeconds(
-  liveMessage?.displayDurationSec,
-  placeholderDurationSec
-);
+  const liveLifetimeDurationSec = safeSeconds(
+    liveMessage?.displayDurationSec,
+    placeholderDurationSec
+  );
 
-const stableLiveStartMs = liveMessage
-  ? new Date(
-      liveMessage.approvedAt || liveMessage.createdAt || Date.now()
-    ).getTime()
-  : 0;
+  const stableLiveStartMs = liveMessage
+    ? new Date(
+        liveMessage.approvedAt || liveMessage.createdAt || Date.now()
+      ).getTime()
+    : 0;
 
-const elapsedMs = isPlaceholderMessage
-  ? Math.max(0, timerNowMs - placeholderEpochMsRef.current)
-  : Math.max(0, timerNowMs - stableLiveStartMs);
+  const elapsedMs = isPlaceholderMessage
+    ? Math.max(0, timerNowMs - placeholderEpochMsRef.current)
+    : Math.max(0, timerNowMs - stableLiveStartMs);
 
-const clampedElapsedMs = isPlaceholderMessage
-  ? Math.min(elapsedMs, placeholderDurationSec * 1000)
-  : Math.min(elapsedMs, liveLifetimeDurationSec * 1000);
+  const clampedElapsedMs = isPlaceholderMessage
+    ? Math.min(elapsedMs, placeholderDurationSec * 1000)
+    : Math.min(elapsedMs, liveLifetimeDurationSec * 1000);
 
-const remainingSec = isPlaceholderMessage
-  ? Math.max(0, placeholderDurationSec - Math.floor(clampedElapsedMs / 1000))
-  : Math.max(0, liveLifetimeDurationSec - Math.floor(clampedElapsedMs / 1000));
+  const remainingSec = isPlaceholderMessage
+    ? Math.max(0, placeholderDurationSec - Math.floor(clampedElapsedMs / 1000))
+    : Math.max(0, liveLifetimeDurationSec - Math.floor(clampedElapsedMs / 1000));
 
-const progressPct = isPlaceholderMessage
-  ? Math.max(0, 100 - (clampedElapsedMs / (placeholderDurationSec * 1000)) * 100)
-  : Math.max(
-      0,
-      100 - (clampedElapsedMs / (liveLifetimeDurationSec * 1000)) * 100
-    );
+  const progressPct = isPlaceholderMessage
+    ? Math.max(0, 100 - (clampedElapsedMs / (placeholderDurationSec * 1000)) * 100)
+    : Math.max(
+        0,
+        100 - (clampedElapsedMs / (liveLifetimeDurationSec * 1000)) * 100
+      );
 
-const timerMinutes = Math.floor(remainingSec / 60);
-const timerSeconds = remainingSec % 60;
-const timerLabel = `${timerMinutes}:${String(timerSeconds).padStart(2, "0")}`;
+  const timerMinutes = Math.floor(remainingSec / 60);
+  const timerSeconds = remainingSec % 60;
+  const timerLabel = `${timerMinutes}:${String(timerSeconds).padStart(2, "0")}`;
 
-const nowPlaying = playNow[0] || upNext[0] || null;
-const queueList = upNext.slice(0, isPortraitLayout ? 6 : 10);
-const topIsBoosted = Boolean(
-  nowPlaying && (nowPlaying.isBoosted || nowPlaying.boosted || nowPlaying.wasBoosted)
-);
+  const mergedQueue = useMemo<TvQueueItem[]>(() => {
+    return [
+      ...playNow.map((item) => ({ ...item, __lane: "playNow" as const })),
+      ...upNext.map((item) => ({ ...item, __lane: "upNext" as const })),
+    ];
+  }, [playNow, upNext]);
+
+  const queueVisibleCount = isPortraitLayout ? 6 : 10;
+  const nowPlaying = mergedQueue[0] || null;
+  const queueList = mergedQueue.slice(1, queueVisibleCount + 1);
+  const topIsBoosted = Boolean(
+    nowPlaying && (nowPlaying.isBoosted || nowPlaying.boosted || nowPlaying.wasBoosted)
+  );
 
   async function tickQueue() {
     try {
@@ -315,11 +327,10 @@ const topIsBoosted = Boolean(
 
     void tickQueue();
     void tickShoutouts();
-    
-    // load default album art
+
     fetch(`/api/public/rules/${location}`)
-      .then(r => r.json())
-      .then(d => {
+      .then((r) => r.json())
+      .then((d) => {
         const url = d?.rules?.defaultAlbumArtUrl || d?.defaultAlbumArtUrl || null;
         if (url) setDefaultAlbumArtUrl(url);
       })
@@ -332,17 +343,15 @@ const topIsBoosted = Boolean(
     const q = window.setInterval(() => void tickQueue(), 3000);
     const s = window.setInterval(() => void tickShoutouts(), 5000);
     const r = window.setInterval(() => {
-      
-    // load default album art
-    fetch(`/api/public/rules/${location}`)
-      .then(r => r.json())
-      .then(d => {
-        const url = d?.rules?.defaultAlbumArtUrl || d?.defaultAlbumArtUrl || null;
-        if (url) setDefaultAlbumArtUrl(url);
-      })
-      .catch(() => {});
+      fetch(`/api/public/rules/${location}`)
+        .then((r) => r.json())
+        .then((d) => {
+          const url = d?.rules?.defaultAlbumArtUrl || d?.defaultAlbumArtUrl || null;
+          if (url) setDefaultAlbumArtUrl(url);
+        })
+        .catch(() => {});
 
-    void loadShoutoutSlideSeconds(location).then((seconds) => {
+      void loadShoutoutSlideSeconds(location).then((seconds) => {
         setShoutoutSlideSeconds(seconds);
       });
 
@@ -388,7 +397,7 @@ const topIsBoosted = Boolean(
   }, []);
 
   useEffect(() => {
-    const topId = playNow[0]?.id ?? null;
+    const topId = mergedQueue[0]?.id ?? null;
     if (!topId) return;
 
     if (prevTopId.current && prevTopId.current !== topId) {
@@ -399,7 +408,7 @@ const topIsBoosted = Boolean(
     }
 
     prevTopId.current = topId;
-  }, [playNow]);
+  }, [mergedQueue]);
 
   useEffect(() => {
     const next = nowPlaying?.artworkUrl || null;
@@ -422,21 +431,21 @@ const topIsBoosted = Boolean(
     }
   }, [nowPlaying?.artworkUrl, artA, artB, showA]);
 
-const portraitSlide = Math.floor(timerNowMs / (slideDurationSec * 1000)) % 2;
+  const portraitSlide = Math.floor(timerNowMs / (slideDurationSec * 1000)) % 2;
 
-const queuePanel = (
-  <LandscapeQueuePanel
-    nowPlaying={nowPlaying}
-    queueList={queueList}
-    topIsBoosted={topIsBoosted}
-    showA={showA}
-    artA={artA}
-    artB={artB}
-    qrSrc={qrSrc}
-    requestUrl={requestUrl}
-    defaultAlbumArtUrl={defaultAlbumArtUrl}
-  />
-);
+  const queuePanel = (
+    <LandscapeQueuePanel
+      nowPlaying={nowPlaying}
+      queueList={queueList}
+      topIsBoosted={topIsBoosted}
+      showA={showA}
+      artA={artA}
+      artB={artB}
+      qrSrc={qrSrc}
+      requestUrl={requestUrl}
+      defaultAlbumArtUrl={defaultAlbumArtUrl}
+    />
+  );
 
   return (
     <div className={`neonRoot remixTvRoot ${boostFlash ? "remixTvFlash" : ""}`}>
@@ -1459,9 +1468,9 @@ const queuePanel = (
 
           }
 
-.remixTvBubbleLayout {
-    margin-top: 18px; /* ⬅️ pushes text block down from chip */
-  }
+          .remixTvBubbleLayout {
+            margin-top: 18px;
+          }
 
           .remixTvShoutoutPanel {
             padding: 12px 12px 14px;
@@ -1597,15 +1606,15 @@ function LandscapeQueuePanel({
         <div className="remixTvSectionTitle">Queued Up</div>
       </div>
 
-<TopCard
-  mode="landscape"
-  nowPlaying={nowPlaying}
-  topIsBoosted={topIsBoosted}
-  showA={showA}
-  artA={artA}
-  artB={artB}
-  defaultAlbumArtUrl={defaultAlbumArtUrl}
->
+      <TopCard
+        mode="landscape"
+        nowPlaying={nowPlaying}
+        topIsBoosted={topIsBoosted}
+        showA={showA}
+        artA={artA}
+        artB={artB}
+        defaultAlbumArtUrl={defaultAlbumArtUrl}
+      >
         <div className="remixTvTagRow">
           <div className="tvTag">REMIX REQUESTS</div>
           <div className="tvTag" style={{ boxShadow: "var(--glowB)" }}>
