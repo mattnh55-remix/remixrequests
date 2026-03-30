@@ -14,9 +14,12 @@ export async function getQueue(locationId: string, sessionId: string) {
     return { ...r, score };
   });
 
-  const playNow = scored
-    .filter(r => r.type === "PLAY_NOW")
-    .sort((a, b) => (b.createdAt.getTime() - a.createdAt.getTime()));
+const playNow = scored
+  .filter(r => r.type === "PLAY_NOW")
+  .sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
 
   const main = scored
     .filter(r => r.type === "NEXT")
