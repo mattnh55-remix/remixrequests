@@ -63,7 +63,7 @@ export default async function AdminInterstitialsPage({
   const locationId = location.id;
   const editingScheduleId = searchParams?.editSchedule?.trim() || null;
 
-  const [assets, scheduleWindows, boothNote] = await Promise.all([
+  const [assets, scheduleWindows, boothNote, recentEvents] = await Promise.all([
     prisma.interstitialAsset.findMany({
       where: { locationId },
       orderBy: [{ active: "desc" }, { priority: "desc" }, { createdAt: "asc" }],
@@ -75,6 +75,15 @@ export default async function AdminInterstitialsPage({
     prisma.boothNote.findUnique({
       where: { locationId },
     }),
+    prisma.interstitialEvent.findMany({
+      where: { locationId },
+      orderBy: [
+        { skippedAt: "desc" },
+        { playedAt: "desc" },
+        { plannedAt: "desc" },
+      ],
+      take: 100,
+    }),
   ]);
 
   const editingSchedule =
@@ -83,6 +92,8 @@ export default async function AdminInterstitialsPage({
       : null;
 
   const isEditingMissing = !!editingScheduleId && !editingSchedule;
+  const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+  const scheduleById = new Map(scheduleWindows.map((schedule) => [schedule.id, schedule]));
 
   return (
     <div className="rrAdminInterstitials">
@@ -335,6 +346,100 @@ export default async function AdminInterstitialsPage({
             categoryOptions={[...CATEGORY_OPTIONS]}
           />
         </section>
+
+        <section className="rrAdminPanel">
+          <div className="rrPanelHead">
+            <div>
+              <div className="rrPanelTitle">Playback & Skip Log</div>
+              <div className="rrPanelSub">
+                Recent interstitial activity for this location. Use this to see what
+                DJs are playing, skipping, or canceling, and which assets are getting ignored.
+              </div>
+            </div>
+            <span className="rrStatusPill rrStatusPill--cyan">
+              {recentEvents.length} EVENTS
+            </span>
+          </div>
+
+          {recentEvents.length === 0 ? (
+            <div className="rrEmptyBox">
+              No interstitial events have been logged yet.
+            </div>
+          ) : (
+            <div className="rrEventLog">
+               {recentEvents.map((event) => {
+                const eventAt =
+                  event.skippedAt ??
+                  event.playedAt ??
+                  event.canceledAt ??
+                  event.plannedAt;
+
+                const toneClass =
+                  event.status === "PLAYED"
+                    ? "rrChip rrChip--played"
+                    : event.status === "SKIPPED"
+                    ? "rrChip rrChip--skipped"
+                    : event.status === "CANCELED"
+                    ? "rrChip rrChip--canceled"
+                    : "rrChip";
+
+                const asset = event.assetId ? assetById.get(event.assetId) : null;
+                const schedule = event.scheduleId ? scheduleById.get(event.scheduleId) : null;
+
+                const category =
+                  event.category ??
+                  asset?.category ??
+                  schedule?.category ??
+                  "—";
+const eventTitle =
+  asset?.name ||
+  (schedule && "label" in schedule ? (schedule as any).label : null) ||
+  event.assetId ||
+  event.scheduleId ||
+  "Unknown interstitial";
+
+
+                return (
+                  <div key={event.id} className="rrEventRow">
+                    <div className="rrEventMain">
+                      <div className="rrEventTopLine">
+                        <div className="rrEventTitle">{eventTitle}</div>
+                        <span className={toneClass}>{event.status}</span>
+                        <span className="rrChip rrChip--category">
+                          {String(category).replaceAll("_", " ")}
+                        </span>
+                      </div>
+
+                      <div className="rrEventMeta">
+                        <span>
+                          <strong>Time:</strong>{" "}
+                          {eventAt ? new Date(eventAt).toLocaleString() : "—"}
+                        </span>
+                        <span>
+                          <strong>Prompt minute:</strong> {event.promptMinute ?? "—"}
+                        </span>
+                        <span>
+                          <strong>Session:</strong>{" "}
+                          {event.sessionId ? event.sessionId.slice(-8) : "—"}
+                        </span>
+                        <span>
+                          <strong>File:</strong> {asset?.name || "—"}
+                        </span>
+                      </div>
+
+                      {event.operatorNote ? (
+                        <div className="rrEventNote">
+                          <strong>Operator note:</strong> {event.operatorNote}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
       </div>
 
       <style>{`
@@ -407,6 +512,75 @@ export default async function AdminInterstitialsPage({
             inset 0 1px 0 rgba(255, 255, 255, 0.14),
             0 0 0 1px rgba(84, 157, 255, 0.18),
             0 10px 22px rgba(20, 49, 92, 0.36);
+        }
+
+        .rrEventLog {
+          display: grid;
+          gap: 8px;
+        }
+
+        .rrEventRow {
+          border-radius: 5px;
+          border: 1px solid rgba(255, 255, 255, 0.085);
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+            linear-gradient(180deg, rgba(25, 31, 44, 0.92), rgba(14, 19, 31, 0.92));
+          padding: 10px;
+        }
+
+        .rrEventMain {
+          min-width: 0;
+        }
+
+        .rrEventTopLine {
+          display: flex;
+          gap: 6px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .rrEventTitle {
+          font-size: 14px;
+          font-weight: 1000;
+          line-height: 1.15;
+        }
+
+        .rrEventMeta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-top: 8px;
+          color: rgba(213, 224, 244, 0.76);
+          font-size: 12px;
+          line-height: 1.35;
+        }
+
+        .rrEventMeta strong {
+          color: rgba(245, 249, 255, 0.92);
+        }
+
+        .rrEventNote {
+          margin-top: 8px;
+          padding-top: 8px;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          color: rgba(230, 237, 249, 0.86);
+          font-size: 12px;
+          line-height: 1.45;
+        }
+
+        .rrChip--played {
+          border-color: rgba(70, 205, 145, 0.35);
+          color: #dff9ec;
+        }
+
+        .rrChip--skipped {
+          border-color: rgba(230, 170, 52, 0.34);
+          color: #ffe4aa;
+        }
+
+        .rrChip--canceled {
+          border-color: rgba(224, 99, 116, 0.34);
+          color: #ffd7dd;
         }
 
 

@@ -16,7 +16,7 @@ import {
 import AdminGunmetalTheme from "../../../components/ui/admin/AdminGunmetalTheme";
 import SongManagementPanel from "@/components/admin/SongManagementPanel";
 import { SHOUTOUT_PRODUCTS } from "@/lib/shoutoutProducts";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type TabKey = "dashboard" | "songs" | "requestSettings" | "top10" | "users" | "shoutoutSettings";
 
@@ -372,9 +372,11 @@ function queueBuckets(items: RequestItem[]) {
 }
 
 export default function AdminPage({ params }: { params: { location: string } }) {
-   const location = params.location;
+  const location = params.location;
+  const router = useRouter();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
+  const nextDest = searchParams.get("next");
 
   const [pin, setPin] = useState("");
   const [authed, setAuthed] = useState(false);
@@ -469,17 +471,27 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     prevMessageIdsRef.current = messageIds;
   }
 
-  async function login(e?: FormEvent) {
-    if (e) e.preventDefault();
-    setMsg("");
-    const res = await fetch("/api/admin/login", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ pin }),
-    });
-    if (!res.ok) return setMsg("Wrong PIN.");
-    setAuthed(true);
+async function login(e?: FormEvent) {
+  if (e) e.preventDefault();
+  setMsg("");
+
+  const res = await fetch("/api/admin/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ pin }),
+  });
+
+  if (!res.ok) return setMsg("Wrong PIN.");
+
+  setAuthed(true);
+
+  if (nextDest && nextDest.startsWith("/")) {
+    router.push(nextDest);
+    return;
   }
+
+  router.push(`/admin/${location}`);
+}
 
   async function loadRequests() {
     try {

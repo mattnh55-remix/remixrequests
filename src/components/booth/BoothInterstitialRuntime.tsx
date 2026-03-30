@@ -38,7 +38,11 @@ export default function BoothInterstitialRuntime({
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
-    if (sessionStartedAt) params.set("sessionStartedAt", sessionStartedAt);
+
+    if (sessionStartedAt) {
+      params.set("sessionStartedAt", sessionStartedAt);
+    }
+
     return params.toString();
   }, [sessionStartedAt]);
 
@@ -91,6 +95,7 @@ export default function BoothInterstitialRuntime({
     };
 
     void run();
+
     const timer = window.setInterval(() => {
       void run();
     }, pollMs);

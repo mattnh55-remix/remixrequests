@@ -26,18 +26,6 @@ type Props = {
   onClose?: () => void;
 };
 
-function formatLastPlayed(value: string | null): string {
-  if (!value) return "Last played: never";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Last played: unknown";
-
-  return `Last played: ${date.toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  })}`;
-}
-
 function categoryLabel(value: string | null): string {
   switch (value) {
     case "ANNOUNCEMENTS":
@@ -53,11 +41,47 @@ function categoryLabel(value: string | null): string {
   }
 }
 
-function formatDurationFromFilenameFallback(asset: BoothInterstitialAsset): string | null {
-  if (asset.cooldownMinutes > 0 && asset.cooldownRemainingMinutes > 0) {
-    return `Cooling ${asset.cooldownRemainingMinutes}m`;
+function truncateTitle(value: string, max = 24): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 1).trimEnd()}…`;
+}
+
+function filenameToDurationLabel(filename: string | null): string | null {
+  if (!filename) return null;
+
+  const lowered = filename.toLowerCase();
+
+  const mmss = lowered.match(/(\d{1,2})[:m](\d{2})/);
+  if (mmss) {
+    const minutes = Number(mmss[1]);
+    const seconds = Number(mmss[2]);
+    if (!Number.isNaN(minutes) && !Number.isNaN(seconds)) {
+      return `${minutes}:${String(seconds).padStart(2, "0")}`;
+    }
   }
+
+  const secMatch = lowered.match(/(\d{1,3})\s*s(?:ec|econd)?s?/);
+  if (secMatch) {
+    const total = Number(secMatch[1]);
+    if (!Number.isNaN(total)) {
+      const minutes = Math.floor(total / 60);
+      const seconds = total % 60;
+      return `${minutes}:${String(seconds).padStart(2, "0")}`;
+    }
+  }
+
   return null;
+}
+
+function assetRightMeta(asset: BoothInterstitialAsset): string {
+  const duration = filenameToDurationLabel(asset.playFilename);
+  if (duration) return duration;
+
+  if (asset.cooldownMinutes > 0 && asset.cooldownRemainingMinutes > 0) {
+    return `${asset.cooldownRemainingMinutes}m`;
+  }
+
+  return "Play";
 }
 
 export default function InterstitialPromptModal({
@@ -93,9 +117,7 @@ export default function InterstitialPromptModal({
                   {promptTitle || categoryLabel(category)}
                 </h2>
 
-                <p className="rrPromptModal__category">
-                  {categoryLabel(category)}
-                </p>
+                <p className="rrPromptModal__category">{categoryLabel(category)}</p>
 
                 {promptBody ? (
                   <p className="rrPromptModal__body">{promptBody}</p>
@@ -110,12 +132,10 @@ export default function InterstitialPromptModal({
 
           <div className="rrPromptModal__content">
             <div className="rrPromptModal__assetsCol">
-              <div className="rrPromptModal__sectionLabel">
-                Selectable GIF tiles
-              </div>
+              <div className="rrPromptModal__sectionLabel">Selectable assets</div>
 
               <div className="rrPromptModal__assetGrid">
-                {assets.map((asset) => (
+                {assets.map((asset, index) => (
                   <button
                     key={asset.id}
                     type="button"
@@ -132,7 +152,10 @@ export default function InterstitialPromptModal({
                     }}
                     className="rrPromptAsset"
                     title={asset.title}
+                    style={{ animationDelay: `${index * 36}ms` }}
                   >
+                    <div className="rrPromptAsset__shine" />
+
                     <div className="rrPromptAsset__media">
                       {asset.previewUrl ? (
                         <img
@@ -141,41 +164,24 @@ export default function InterstitialPromptModal({
                           className="rrPromptAsset__image"
                         />
                       ) : (
-                        <div className="rrPromptAsset__noPreview">
-                          No Preview
-                        </div>
+                        <div className="rrPromptAsset__noPreview">No Preview</div>
                       )}
                     </div>
 
-                    <div className="rrPromptAsset__body">
-                      <div className="rrPromptAsset__topRow">
-                        <h3 className="rrPromptAsset__title">{asset.title}</h3>
-                        <span className="rrPromptAsset__playTag">Play</span>
+                    <div className="rrPromptAsset__metaRow">
+                      <div className="rrPromptAsset__titleText">
+                        {truncateTitle(asset.title)}
                       </div>
 
-                      {asset.body ? (
-                        <p className="rrPromptAsset__text">{asset.body}</p>
-                      ) : null}
-
-                      <div className="rrPromptAsset__bottomRow">
-                        <div className="rrPromptAsset__meta">
-                          {formatLastPlayed(asset.lastPlayedAt)}
-                        </div>
-
-                        <div className="rrPromptAsset__fileTag">
-                          {asset.playFilename ||
-                            formatDurationFromFilenameFallback(asset) ||
-                            "No file"}
-                        </div>
+                      <div className="rrPromptAsset__duration">
+                        {assetRightMeta(asset)}
                       </div>
                     </div>
                   </button>
                 ))}
               </div>
 
-              {error ? (
-                <div className="rrPromptModal__error">{error}</div>
-              ) : null}
+              {error ? <div className="rrPromptModal__error">{error}</div> : null}
             </div>
 
             <div className="rrPromptModal__sidecard">
@@ -225,68 +231,86 @@ export default function InterstitialPromptModal({
 
       <style jsx>{`
         .rrPromptModal {
-          position: fixed;
+          position: absolute;
           inset: 0;
           z-index: 120;
           display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 22px;
+          align-items: stretch;
+          justify-content: stretch;
+          padding: 10px;
+          pointer-events: auto;
+          animation: rrPromptModalIn 220ms ease-out;
         }
 
         .rrPromptModal__backdrop {
           position: absolute;
           inset: 0;
-          background: rgba(0, 0, 0, 0.8);
-          backdrop-filter: blur(4px);
+          border-radius: 24px;
+          background: rgba(4, 8, 14, 0.26);
+          backdrop-filter: blur(1.5px);
         }
 
         .rrPromptModal__glow {
           position: absolute;
           inset: 0;
-          background: radial-gradient(
-            circle at center,
-            rgba(255, 255, 255, 0.07),
-            transparent 55%
-          );
-          animation: rrPromptPulse 1.8s ease-in-out infinite;
+          border-radius: 24px;
+          background:
+            radial-gradient(
+              circle at 50% 14%,
+              rgba(80, 170, 255, 0.1),
+              transparent 48%
+            ),
+            radial-gradient(
+              circle at 18% 28%,
+              rgba(0, 229, 255, 0.04),
+              transparent 30%
+            );
+          animation: rrPromptPulse 2s ease-in-out infinite;
           pointer-events: none;
         }
 
         .rrPromptModal__dialog {
           position: relative;
           z-index: 121;
-          width: min(1280px, 94vw);
-          max-height: min(90vh, 940px);
+          width: 100%;
+          height: 100%;
           overflow: auto;
-          border-radius: 28px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(18, 22, 29, 0.96);
-          box-shadow: 0 30px 120px rgba(0, 0, 0, 0.55);
+          border-radius: 24px;
+          border: 1px solid rgba(120, 170, 220, 0.13);
+          background: linear-gradient(
+            180deg,
+            rgba(10, 18, 30, 0.82) 0%,
+            rgba(8, 14, 24, 0.88) 100%
+          );
+          box-shadow:
+            0 24px 70px rgba(0, 0, 0, 0.26),
+            inset 0 1px 0 rgba(255, 255, 255, 0.04);
+          animation: rrPromptDialogIn 220ms ease-out;
         }
 
         .rrPromptModal__header {
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 22px 28px 20px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          padding: 18px 20px 16px;
         }
 
         .rrPromptModal__pill {
           display: inline-flex;
           border-radius: 999px;
-          border: 1px solid rgba(34, 211, 238, 0.25);
-          background: rgba(34, 211, 238, 0.1);
-          padding: 7px 12px;
-          font-size: 11px;
-          font-weight: 800;
+          border: 1px solid rgba(34, 211, 238, 0.22);
+          background: rgba(34, 211, 238, 0.08);
+          padding: 6px 11px;
+          font-size: 10px;
+          font-weight: 900;
           letter-spacing: 0.24em;
           text-transform: uppercase;
           color: #b7f3ff;
+          box-shadow: 0 0 16px rgba(34, 211, 238, 0.08);
         }
 
         .rrPromptModal__headerRow {
-          margin-top: 14px;
+          margin-top: 12px;
           display: flex;
-          gap: 18px;
+          gap: 16px;
           align-items: flex-end;
           justify-content: space-between;
         }
@@ -297,7 +321,7 @@ export default function InterstitialPromptModal({
 
         .rrPromptModal__title {
           margin: 0;
-          font-size: 36px;
+          font-size: 28px;
           line-height: 1;
           font-weight: 1000;
           letter-spacing: -0.03em;
@@ -305,37 +329,43 @@ export default function InterstitialPromptModal({
         }
 
         .rrPromptModal__category {
-          margin: 8px 0 0;
-          font-size: 12px;
+          margin: 6px 0 0;
+          font-size: 11px;
           font-weight: 800;
           letter-spacing: 0.18em;
           text-transform: uppercase;
-          color: rgba(255, 255, 255, 0.45);
+          color: rgba(255, 255, 255, 0.44);
         }
 
         .rrPromptModal__body {
-          margin: 14px 0 0;
-          max-width: 820px;
+          margin: 10px 0 0;
+          max-width: 760px;
           font-size: 14px;
-          line-height: 1.65;
+          line-height: 1.55;
           color: rgba(255, 255, 255, 0.72);
         }
 
         .rrPromptModal__notice {
           flex: 0 0 auto;
-          border-radius: 18px;
-          border: 1px solid rgba(252, 211, 77, 0.2);
-          background: rgba(252, 211, 77, 0.1);
-          padding: 14px 16px;
-          font-size: 14px;
-          color: #fde8b1;
+          border-radius: 16px;
+          border: 1px solid rgba(252, 211, 77, 0.18);
+          background: linear-gradient(
+            180deg,
+            rgba(252, 211, 77, 0.1),
+            rgba(252, 211, 77, 0.05)
+          );
+          padding: 11px 13px;
+          font-size: 13px;
+          color: #f6e2a5;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
 
         .rrPromptModal__content {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 340px;
-          gap: 24px;
-          padding: 24px 28px 28px;
+          grid-template-columns: minmax(0, 1fr) 300px;
+          gap: 18px;
+          padding: 18px 20px 20px;
+          min-height: calc(100% - 118px);
         }
 
         .rrPromptModal__assetsCol {
@@ -343,39 +373,74 @@ export default function InterstitialPromptModal({
         }
 
         .rrPromptModal__sectionLabel {
-          margin-bottom: 12px;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.18em;
+          margin-bottom: 10px;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.2em;
           text-transform: uppercase;
           color: rgba(255, 255, 255, 0.45);
         }
 
         .rrPromptModal__assetGrid {
-          display: grid;
-          gap: 14px;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          align-content: flex-start;
         }
 
         .rrPromptAsset {
+          position: relative;
           appearance: none;
+          width: 132px;
           overflow: hidden;
-          border-radius: 24px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(255, 255, 255, 0.04);
+          border-radius: 16px;
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.045),
+            rgba(255, 255, 255, 0.025)
+          );
           text-align: left;
           cursor: pointer;
           transition:
-            transform 120ms ease,
-            border-color 120ms ease,
-            background 120ms ease;
+            transform 140ms ease,
+            border-color 140ms ease,
+            background 140ms ease,
+            box-shadow 140ms ease,
+            filter 140ms ease;
           color: #fff;
+          padding: 0;
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            0 4px 12px rgba(0, 0, 0, 0.14);
+          animation: rrTileIn 240ms ease-out both;
         }
 
         .rrPromptAsset:hover {
-          transform: translateY(-2px);
-          border-color: rgba(103, 232, 249, 0.35);
-          background: rgba(255, 255, 255, 0.06);
+          transform: translateY(-3px) scale(1.015);
+          border-color: rgba(103, 232, 249, 0.34);
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.07),
+            rgba(255, 255, 255, 0.035)
+          );
+          box-shadow:
+            0 14px 28px rgba(0, 0, 0, 0.24),
+            0 0 0 1px rgba(103, 232, 249, 0.06),
+            0 0 18px rgba(103, 232, 249, 0.08);
+          filter: saturate(1.03);
+        }
+
+        .rrPromptAsset:active {
+          transform: translateY(-1px) scale(0.995);
+        }
+
+        .rrPromptAsset:focus-visible {
+          outline: none;
+          border-color: rgba(103, 232, 249, 0.42);
+          box-shadow:
+            0 0 0 2px rgba(103, 232, 249, 0.14),
+            0 12px 24px rgba(0, 0, 0, 0.22);
         }
 
         .rrPromptAsset:disabled {
@@ -383,10 +448,33 @@ export default function InterstitialPromptModal({
           opacity: 0.6;
         }
 
+        .rrPromptAsset__shine {
+          position: absolute;
+          inset: -40% auto auto -85%;
+          width: 70%;
+          height: 180%;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.13),
+            transparent
+          );
+          transform: rotate(18deg);
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 140ms ease;
+        }
+
+        .rrPromptAsset:hover .rrPromptAsset__shine {
+          opacity: 1;
+          animation: rrTileShine 720ms ease;
+        }
+
         .rrPromptAsset__media {
-          aspect-ratio: 16 / 9;
+          width: 100%;
+          height: 74px;
           overflow: hidden;
-          background: rgba(0, 0, 0, 0.3);
+          background: rgba(0, 0, 0, 0.26);
         }
 
         .rrPromptAsset__image {
@@ -394,11 +482,12 @@ export default function InterstitialPromptModal({
           width: 100%;
           height: 100%;
           object-fit: cover;
-          transition: transform 300ms ease;
+          transition: transform 260ms ease, filter 260ms ease;
         }
 
         .rrPromptAsset:hover .rrPromptAsset__image {
-          transform: scale(1.02);
+          transform: scale(1.045);
+          filter: brightness(1.04) contrast(1.04);
         }
 
         .rrPromptAsset__noPreview {
@@ -407,145 +496,109 @@ export default function InterstitialPromptModal({
           height: 100%;
           align-items: center;
           justify-content: center;
-          font-size: 13px;
-          font-weight: 700;
-          letter-spacing: 0.18em;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.16em;
           text-transform: uppercase;
           color: rgba(255, 255, 255, 0.35);
         }
 
-        .rrPromptAsset__body {
-          padding: 15px;
-        }
-
-        .rrPromptAsset__topRow {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 10px;
-        }
-
-        .rrPromptAsset__title {
-          margin: 0;
-          font-size: 17px;
-          line-height: 1.2;
-          font-weight: 900;
-          color: #fff;
-        }
-
-        .rrPromptAsset__playTag {
-          flex: 0 0 auto;
-          border-radius: 999px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(255, 255, 255, 0.05);
-          padding: 5px 10px;
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
-          color: #b7f3ff;
-        }
-
-        .rrPromptAsset__text {
-          margin: 10px 0 0;
-          font-size: 13px;
-          line-height: 1.5;
-          color: rgba(255, 255, 255, 0.68);
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .rrPromptAsset__bottomRow {
-          margin-top: 14px;
+        .rrPromptAsset__metaRow {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 10px;
+          gap: 8px;
+          padding: 9px 10px 10px;
         }
 
-        .rrPromptAsset__meta {
-          font-size: 11px;
-          font-weight: 700;
-          color: rgba(255, 255, 255, 0.45);
-        }
-
-        .rrPromptAsset__fileTag {
-          border-radius: 999px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(0, 0, 0, 0.2);
-          padding: 5px 10px;
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
-          color: rgba(255, 255, 255, 0.55);
-          max-width: 160px;
-          white-space: nowrap;
+        .rrPromptAsset__titleText {
+          min-width: 0;
+          flex: 1 1 auto;
           overflow: hidden;
+          white-space: nowrap;
           text-overflow: ellipsis;
+          font-size: 11px;
+          line-height: 1.2;
+          font-weight: 900;
+          color: rgba(255, 255, 255, 0.95);
+        }
+
+        .rrPromptAsset__duration {
+          flex: 0 0 auto;
+          font-size: 10px;
+          line-height: 1;
+          font-weight: 900;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: rgba(183, 243, 255, 0.8);
         }
 
         .rrPromptModal__error {
-          margin-top: 16px;
-          border-radius: 18px;
+          margin-top: 14px;
+          border-radius: 14px;
           border: 1px solid rgba(251, 113, 133, 0.2);
           background: rgba(251, 113, 133, 0.1);
-          padding: 14px 16px;
-          font-size: 14px;
+          padding: 12px 14px;
+          font-size: 13px;
           color: #ffd7df;
         }
 
         .rrPromptModal__sidecard {
-          border-radius: 24px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(255, 255, 255, 0.03);
-          padding: 18px;
+          border-radius: 20px;
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.045),
+            rgba(255, 255, 255, 0.025)
+          );
+          padding: 16px;
+          align-self: start;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
 
         .rrPromptModal__sideTitle {
-          margin: 12px 0 0;
-          font-size: 28px;
-          line-height: 1.05;
+          margin: 10px 0 0;
+          font-size: 24px;
+          line-height: 1.02;
           font-weight: 1000;
           letter-spacing: -0.02em;
           color: #fff;
         }
 
         .rrPromptModal__sideText {
-          margin: 12px 0 0;
-          font-size: 14px;
-          line-height: 1.65;
+          margin: 10px 0 0;
+          font-size: 13px;
+          line-height: 1.55;
           color: rgba(255, 255, 255, 0.68);
         }
 
         .rrPromptModal__field {
           display: block;
-          margin-top: 18px;
+          margin-top: 16px;
         }
 
         .rrPromptModal__fieldLabel {
           display: block;
-          margin-bottom: 8px;
-          font-size: 11px;
-          font-weight: 800;
+          margin-bottom: 7px;
+          font-size: 10px;
+          font-weight: 900;
           letter-spacing: 0.18em;
           text-transform: uppercase;
           color: rgba(255, 255, 255, 0.45);
         }
 
         .rrPromptModal__textarea {
-          min-height: 140px;
+          min-height: 118px;
           width: 100%;
           resize: vertical;
-          border-radius: 18px;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          background: rgba(0, 0, 0, 0.25);
-          padding: 14px 15px;
+          border-radius: 16px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(0, 0, 0, 0.2);
+          padding: 12px 13px;
           font-size: 14px;
           color: #fff;
           outline: none;
+          transition: border-color 120ms ease, box-shadow 120ms ease;
         }
 
         .rrPromptModal__textarea::placeholder {
@@ -553,27 +606,43 @@ export default function InterstitialPromptModal({
         }
 
         .rrPromptModal__textarea:focus {
-          border-color: rgba(103, 232, 249, 0.35);
+          border-color: rgba(103, 232, 249, 0.32);
+          box-shadow: 0 0 0 2px rgba(103, 232, 249, 0.08);
         }
 
         .rrPromptModal__skipBtn {
           width: 100%;
-          margin-top: 16px;
-          border-radius: 18px;
+          margin-top: 14px;
+          border-radius: 16px;
           border: 1px solid rgba(252, 211, 77, 0.22);
-          background: rgba(252, 211, 77, 0.12);
-          padding: 14px 16px;
-          font-size: 13px;
+          background: linear-gradient(
+            180deg,
+            rgba(252, 211, 77, 0.14),
+            rgba(252, 211, 77, 0.1)
+          );
+          padding: 13px 14px;
+          font-size: 12px;
           font-weight: 1000;
           letter-spacing: 0.16em;
           text-transform: uppercase;
           color: #fde8b1;
           cursor: pointer;
-          transition: background 120ms ease, opacity 120ms ease;
+          transition:
+            background 120ms ease,
+            opacity 120ms ease,
+            transform 120ms ease,
+            box-shadow 120ms ease;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
 
         .rrPromptModal__skipBtn:hover:not(:disabled) {
-          background: rgba(252, 211, 77, 0.16);
+          background: linear-gradient(
+            180deg,
+            rgba(252, 211, 77, 0.18),
+            rgba(252, 211, 77, 0.13)
+          );
+          transform: translateY(-1px);
+          box-shadow: 0 10px 20px rgba(0, 0, 0, 0.16);
         }
 
         .rrPromptModal__skipBtn:disabled {
@@ -584,10 +653,50 @@ export default function InterstitialPromptModal({
         @keyframes rrPromptPulse {
           0%,
           100% {
-            opacity: 0.6;
+            opacity: 0.58;
           }
           50% {
             opacity: 1;
+          }
+        }
+
+        @keyframes rrPromptModalIn {
+          0% {
+            opacity: 0;
+          }
+          100% {
+            opacity: 1;
+          }
+        }
+
+        @keyframes rrPromptDialogIn {
+          0% {
+            opacity: 0;
+            transform: translateY(-10px) scale(0.988);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes rrTileIn {
+          0% {
+            opacity: 0;
+            transform: translateY(-6px) scale(0.985);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes rrTileShine {
+          0% {
+            transform: translateX(0) rotate(18deg);
+          }
+          100% {
+            transform: translateX(230%) rotate(18deg);
           }
         }
 
@@ -596,28 +705,31 @@ export default function InterstitialPromptModal({
             grid-template-columns: 1fr;
           }
 
-          .rrPromptModal__assetGrid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+          .rrPromptModal__sidecard {
+            max-width: 380px;
           }
         }
 
         @media (max-width: 760px) {
           .rrPromptModal {
-            padding: 12px;
+            padding: 8px;
           }
 
           .rrPromptModal__dialog {
-            width: 100%;
-            max-height: 94vh;
-            border-radius: 20px;
+            border-radius: 18px;
+          }
+
+          .rrPromptModal__backdrop,
+          .rrPromptModal__glow {
+            border-radius: 18px;
           }
 
           .rrPromptModal__header {
-            padding: 18px 18px 16px;
+            padding: 16px 16px 14px;
           }
 
           .rrPromptModal__content {
-            padding: 18px;
+            padding: 16px;
           }
 
           .rrPromptModal__headerRow {
@@ -626,11 +738,18 @@ export default function InterstitialPromptModal({
           }
 
           .rrPromptModal__title {
-            font-size: 28px;
+            font-size: 24px;
           }
 
-          .rrPromptModal__assetGrid {
-            grid-template-columns: 1fr;
+          .rrPromptAsset {
+            width: calc(50% - 6px);
+            min-width: 124px;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .rrPromptAsset {
+            width: 100%;
           }
         }
       `}</style>
