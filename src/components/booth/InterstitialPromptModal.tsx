@@ -9,6 +9,7 @@ export type BoothInterstitialAsset = {
   body: string | null;
   previewUrl: string | null;
   playFilename: string | null;
+  durationSec: number | null;
   lastPlayedAt: string | null;
   cooldownMinutes: number;
   cooldownRemainingMinutes: number;
@@ -27,15 +28,29 @@ type Props = {
 };
 
 function formatLastPlayed(value: string | null): string {
-  if (!value) return "Last played: never";
+  if (!value) return "LP: never";
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Last played: unknown";
+  if (Number.isNaN(date.getTime())) return "LP: unknown";
 
-  return `Last played: ${date.toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  })}`;
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+
+  const hh = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+
+  return `LP: ${mm}/${dd} ${hh}:${min}`;
+}
+
+function formatDuration(durationSec: number | null | undefined): string {
+  const n = Number(durationSec ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return "";
+
+  if (n < 60) return `${n}s`;
+
+  const m = Math.floor(n / 60);
+  const s = n % 60;
+  return s ? `${m}m ${s}s` : `${m}m`;
 }
 
 function categoryLabel(value: string | null): string {
@@ -176,19 +191,16 @@ export default function InterstitialPromptModal({
                     </div>
 
                     <div className="rrPromptAsset__body rrPromptAsset__body--compact">
-                      <div className="rrPromptAsset__titleRow">
-                        <h3 className="rrPromptAsset__title rrPromptAsset__title--compact">
-                          {asset.title}
-                        </h3>
-                        <span className="rrPromptAsset__playTag">Play</span>
-                      </div>
+  <div className="rrPromptAsset__metaRow">
+    <span className="rrPromptAsset__lastPlayed">
+      {formatLastPlayed(asset.lastPlayedAt)}
+    </span>
 
-                      <div className="rrPromptAsset__miniMeta">
-                        <span className="rrPromptAsset__miniMetaText">
-                          {formatLastPlayed(asset.lastPlayedAt)}
-                        </span>
-                      </div>
-                    </div>
+    <span className="rrPromptAsset__duration">
+      {formatDuration(asset.durationSec)}
+    </span>
+  </div>
+</div>
                   </button>
                 ))}
               </div>
@@ -665,6 +677,27 @@ export default function InterstitialPromptModal({
           font-weight: 900;
           color: rgba(255, 255, 255, 0.95);
         }
+
+        .rrPromptAsset__body--compact {
+  padding: 6px 8px 8px;
+}
+
+.rrPromptAsset__metaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 16px;
+}
+
+.rrPromptAsset__lastPlayed {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(220, 230, 245, 0.56);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
         .rrPromptAsset__duration {
           flex: 0 0 auto;

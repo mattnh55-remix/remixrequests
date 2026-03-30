@@ -13,6 +13,7 @@ type BoothInterstitialAsset = {
   title: string;
   body: string | null;
   previewUrl: string | null;
+  durationSec: number | null;
   playFilename: string | null;
   lastPlayedAt: string | null;
   cooldownMinutes: number;
@@ -129,18 +130,18 @@ export async function getDueInterstitialPrompt({
     },
     orderBy: [{ sortOrder: "asc" }, { startMinute: "asc" }, { id: "asc" }],
     select: {
-      id: true,
-      category: true,
-      label: true,
-      promptTitle: true,
-      promptBody: true,
-      startMinute: true,
-      endMinute: true,
-      sortOrder: true,
-      cooldownMinutes: true,
-      required: true,
-      active: true,
-    },
+  id: true,
+  category: true,
+  label: true,
+  promptTitle: true,
+  promptBody: true,
+  startMinute: true,
+  endMinute: true,
+  sortOrder: true,
+  cooldownMinutes: true,
+  required: true,
+  active: true,
+},
   });
 
   if (!activeWindows.length) {
@@ -182,6 +183,7 @@ export async function getDueInterstitialPrompt({
         id: true,
         name: true,
         category: true,
+        durationSec: true,
         fileUrl: true,
         previewGifUrl: true,
         notes: true,
@@ -262,6 +264,7 @@ export async function getDueInterstitialPrompt({
         category,
         title: row.name,
         body: row.notes ?? null,
+        durationSec: row.durationSec ?? null,
         previewUrl: row.previewGifUrl ?? null,
         playFilename: row.fileUrl ?? null,
         lastPlayedAt: lastPlayedAtDate ? lastPlayedAtDate.toISOString() : null,
