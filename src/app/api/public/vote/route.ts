@@ -9,7 +9,6 @@ import {
   getOrCreateCurrentSession,
   secondsSinceLastAction,
 } from "@/lib/validators";
-import { hashEmail } from "@/lib/security";
 import { bumpTop10VoteForRequest } from "@/lib/top10";
 
 function jsonFail(message: string, status = 400) {
@@ -17,18 +16,29 @@ function jsonFail(message: string, status = 400) {
 }
 
 export async function POST(req: Request) {
-const identityId = String(body.identityId || "");
-if (!locationSlug || !requestId || !identityId) {
-  return jsonFail("Missing fields.", 400);
-}
+  const body = await req.json();
+  const locationSlug = String(body.location || "");
+  const requestId = String(body.requestId || "");
+  const vote = String(body.vote || "up");
+  const identityId = String(body.identityId || "");
 
-const identity = await prisma.identity.findFirst({
-  where: { id: identityId, locationId: loc.id },
-});
+  if (!locationSlug || !requestId || !identityId) {
+    return jsonFail("Missing fields.", 400);
+  }
 
-if (!identity) return jsonFail("Identity not found.", 404);
+  const { loc, rules } = await getRulesForLocation(locationSlug);
+  if (!rules.enableVoting) return jsonFail("Voting disabled.", 400);
 
-const emailHash = identity.emailHash;
+  const session = await getOrCreateCurrentSession(loc.id, 4);
+
+  const identity = await prisma.identity.findFirst({
+    where: { id: identityId, locationId: loc.id },
+    select: { id: true, emailHash: true },
+  });
+
+  if (!identity) return jsonFail("Identity not found.", 404);
+
+  const emailHash = identity.emailHash;
 
   const guestState = await getEmailHashSpendableState(loc.id, emailHash);
   if (!guestState?.identity?.smsVerifiedAt) {
@@ -49,14 +59,21 @@ const emailHash = identity.emailHash;
   const cost = val === 1 ? rules.costUpvote : rules.costDownvote;
 
   const reqRow = await prisma.request.findFirst({
-    where: { id: requestId, locationId: loc.id, sessionId: session.id, status: "APPROVED" },
+    where: {
+      id: requestId,
+      locationId: loc.id,
+      sessionId: session.id,
+      status: "APPROVED",
+    },
   });
   if (!reqRow) return jsonFail("Request not found.", 404);
 
   try {
     await prisma.$transaction(
       async (tx) => {
-        const countVotes = await tx.vote.count({ where: { sessionId: session.id, emailHash } });
+        const countVotes = await tx.vote.count({
+          where: { sessionId: session.id, emailHash },
+        });
         if (countVotes >= rules.maxVotesPerSession) {
           throw new Error("LIMIT:Vote limit reached.");
         }
@@ -75,19 +92,29 @@ const emailHash = identity.emailHash;
             expiresAt: sessionExpiresAt,
           },
         });
+
         await tx.vote.create({
-          data: { requestId: reqRow.id, sessionId: session.id, emailHash, value: val },
+          data: {
+            requestId: reqRow.id,
+            sessionId: session.id,
+            emailHash,
+            value: val,
+          },
         });
-        await bumpTop10VoteForRequest(tx, { requestId: reqRow.id, value: val });
+
+        await bumpTop10VoteForRequest(tx, {
+          requestId: reqRow.id,
+          value: val,
+        });
       },
       { isolationLevel: "Serializable" }
     );
 
-    return NextResponse.json({ ok: true, sessionExpiresAt: sessionExpiresAt });
+    return NextResponse.json({ ok: true, sessionExpiresAt });
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg.startsWith("LIMIT:")) return jsonFail(msg.slice("LIMIT:".length), 400);
     if (msg.startsWith("NOCREDITS:")) return jsonFail(msg.slice("NOCREDITS:".length), 400);
-    return jsonFail("Could not submit vote.", 400);
+    return jsonFail(msg || "Could not submit vote.", 400);
   }
 }
