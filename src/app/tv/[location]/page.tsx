@@ -661,7 +661,7 @@ const queuePanel = isPortraitLayout ? (
           position: relative;
           min-height: 0;
           border-radius: 34px 34px 34px 20px;
-          padding: 14px 26px 18px 28px;
+          padding: 14px 26px 30px 28px;
           background:
             linear-gradient(180deg, rgba(8, 15, 35, 0.96) 0%, rgba(3, 9, 27, 0.98) 100%),
             radial-gradient(circle at 12% 10%, rgba(0, 247, 255, 0.06), transparent 34%),
@@ -837,7 +837,7 @@ const queuePanel = isPortraitLayout ? (
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          padding: 0 8px 2px 2px;
+          padding: 0 8px 24px 2px;
         }
 
         .remixTvBubbleText--imageShort {
@@ -868,7 +868,8 @@ const queuePanel = isPortraitLayout ? (
         }
 
         .remixTvBubbleFrom {
-          margin-top: 14px;
+          margin-top: 18px;
+          padding-bottom: 6px;
           color: rgba(255,255,255,0.88);
           font-size: clamp(20px, 2vw, 38px);
           line-height: 1.04;
