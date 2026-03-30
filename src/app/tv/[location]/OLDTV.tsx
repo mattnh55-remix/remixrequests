@@ -483,16 +483,6 @@ const queuePanel = isPortraitLayout ? (
               />
             </div>
 
-            <svg
-              className="remixTvBubbleTail"
-              viewBox="0 0 44 28"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M5 5 C15 7, 24 12, 34 24 C25 22, 15 21, 7 17 C5 13, 4 9, 5 5 Z"
-                className="remixTvBubbleTailPath"
-              />
-            </svg>
           </div>
         </section>
 
@@ -661,30 +651,48 @@ const queuePanel = isPortraitLayout ? (
           position: relative;
           min-height: 0;
           border-radius: 34px 34px 34px 20px;
-          padding: 14px 30px 18px 18px;
+          padding: 14px 26px 30px 28px;
+          background:
+            linear-gradient(180deg, rgba(8, 15, 35, 0.96) 0%, rgba(3, 9, 27, 0.98) 100%),
+            radial-gradient(circle at 12% 10%, rgba(0, 247, 255, 0.06), transparent 34%),
+            radial-gradient(circle at 88% 0%, rgba(255, 57, 212, 0.05), transparent 30%);
+          border: 1px solid rgba(255, 255, 255, 0.08);
           box-shadow:
-            0 10px 24px rgba(0, 0, 0, 0.14),
-            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            inset 0 1px 0 rgba(255, 255, 255, 0.08),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+            0 16px 34px rgba(0, 0, 0, 0.28);
           animation:
             remixTvBubbleIn 420ms cubic-bezier(0.2, 0.9, 0.2, 1),
             remixTvBubbleFloat 7s ease-in-out 420ms infinite;
           transform-origin: 86% 100%;
-          overflow: visible;
+          overflow: hidden;
+          color: rgba(248, 250, 255, 0.96);
         }
 
-        .remixTvBubble--gold {
-          background: linear-gradient(180deg, #e8e39b 0%, #e1dc92 100%);
-          color: #080808;
+        .remixTvBubble::before {
+          content: "";
+          position: absolute;
+          left: 12px;
+          top: 14px;
+          bottom: 14px;
+          width: 3px;
+          border-radius: 999px;
+          opacity: 0.95;
         }
 
-        .remixTvBubble--cyan {
-          background: linear-gradient(180deg, #bde8fb 0%, #a9ddf5 100%);
-          color: #05070c;
+        .remixTvBubble--gold::before {
+          background: linear-gradient(180deg, rgba(255, 233, 145, 0.98), rgba(247, 216, 94, 0.84));
+          box-shadow: 0 0 18px rgba(247, 216, 94, 0.5);
         }
 
-        .remixTvBubble--pink {
-          background: linear-gradient(180deg, #ffc4ee 0%, #f6aadf 100%);
-          color: #160811;
+        .remixTvBubble--cyan::before {
+          background: linear-gradient(180deg, rgba(126, 232, 255, 0.98), rgba(64, 211, 255, 0.84));
+          box-shadow: 0 0 18px rgba(64, 211, 255, 0.5);
+        }
+
+        .remixTvBubble--pink::before {
+          background: linear-gradient(180deg, rgba(255, 194, 240, 0.98), rgba(255, 82, 202, 0.84));
+          box-shadow: 0 0 18px rgba(255, 82, 202, 0.45);
         }
 
         .remixTvBubbleTimerRow {
@@ -769,20 +777,6 @@ const queuePanel = isPortraitLayout ? (
           min-height: 0;
         }
 
-        .remixTvBubbleTail {
-          position: absolute;
-          right: 12px;
-          bottom: -8px;
-          width: 42px;
-          height: 26px;
-          pointer-events: none;
-          z-index: 1;
-        }
-
-        .remixTvBubble--gold .remixTvBubbleTailPath { fill: #e1dc92; }
-        .remixTvBubble--cyan .remixTvBubbleTailPath { fill: #a9ddf5; }
-        .remixTvBubble--pink .remixTvBubbleTailPath { fill: #f6aadf; }
-
         .remixTvBubbleLayout {
           display: grid;
           gap: 18px;
@@ -819,7 +813,7 @@ const queuePanel = isPortraitLayout ? (
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          padding: 0 8px 2px 2px;
+          padding: 0 8px 32px 2px;
         }
 
         .remixTvBubbleText--imageShort {
@@ -836,7 +830,7 @@ const queuePanel = isPortraitLayout ? (
           word-break: break-word;
           text-wrap: balance;
           overflow-wrap: anywhere;
-          text-shadow: 0 1px 0 rgba(255,255,255,0.08);
+          text-shadow: 0 1px 0 rgba(0,0,0,0.24);
         }
 
         .remixTvBubbleLayout--textOnly .remixTvBubbleBody {
@@ -849,19 +843,24 @@ const queuePanel = isPortraitLayout ? (
           line-height: 1.03;
         }
 
-        .remixTvBubbleFrom {
-          margin-top: 14px;
-          font-size: clamp(20px, 2vw, 38px);
-          line-height: 1.04;
-          font-weight: 1000;
-          font-style: italic;
-          white-space: normal;
-          overflow: visible;
-          text-overflow: unset;
-          overflow-wrap: anywhere;
-          word-break: break-word;
-          max-width: 100%;
-        }
+.remixTvBubbleFrom {
+  margin-top: 18px;
+  padding-bottom: 20px; /* ⬅️ increase this */
+  color: rgba(255,255,255,0.82); /* slightly softer */
+  font-size: clamp(20px, 2vw, 38px);
+  line-height: 1.04;
+  font-weight: 1000;
+  font-style: italic;
+
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
+
+  transform: translateY(-6px); /* ⬅️ nudges it up visually */
+}
 
         .remixTvBubbleLayout--side .remixTvBubbleFrom,
         .remixTvBubbleLayout--stacked .remixTvBubbleFrom {

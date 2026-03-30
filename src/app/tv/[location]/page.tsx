@@ -422,18 +422,9 @@ const topIsBoosted = Boolean(
     }
   }, [nowPlaying?.artworkUrl, artA, artB, showA]);
 
-const queuePanel = isPortraitLayout ? (
-  <PortraitQueuePanel
-    nowPlaying={nowPlaying}
-    queueList={queueList}
-    topIsBoosted={topIsBoosted}
-    showA={showA}
-    artA={artA}
-    artB={artB}
-    qrSrc={qrSrc}
-    defaultAlbumArtUrl={defaultAlbumArtUrl}
-  />
-) : (
+const portraitSlide = Math.floor(timerNowMs / (slideDurationSec * 1000)) % 2;
+
+const queuePanel = (
   <LandscapeQueuePanel
     nowPlaying={nowPlaying}
     queueList={queueList}
@@ -454,39 +445,66 @@ const queuePanel = isPortraitLayout ? (
       <div className="remixTvOrb remixTvOrbC" />
 
       <div className={`remixTvWrap ${isPortraitLayout ? "remixTvWrap--portrait" : ""}`}>
-        <section className="neonPanel remixTvShoutoutPanel">
-          <div className="remixTvSectionHeader">
-            <div className="remixTvSectionTitle">{featuredTitle}</div>
-          </div>
+        {isPortraitLayout ? (
+          portraitSlide === 0 ? (
+            <PortraitShoutoutSlide
+              featuredTitle={featuredTitle}
+              featuredAccent={featuredMessage.accent || "cyan"}
+              featuredImageUrl={featuredMessage.imageUrl}
+              featuredBody={featuredBody}
+              featuredFromName={featuredMessage.fromName}
+              timerLabel={timerLabel}
+              progressPct={progressPct}
+              qrSrc={qrSrc}
+            />
+          ) : (
+            <PortraitQueueSlide
+              nowPlaying={nowPlaying}
+              queueList={queueList}
+              topIsBoosted={topIsBoosted}
+              showA={showA}
+              artA={artA}
+              artB={artB}
+              qrSrc={qrSrc}
+              defaultAlbumArtUrl={defaultAlbumArtUrl}
+            />
+          )
+        ) : (
+          <>
+            <section className="neonPanel remixTvShoutoutPanel">
+              <div className="remixTvSectionHeader">
+                <div className="remixTvSectionTitle">{featuredTitle}</div>
+              </div>
 
-          <div
-            key={featuredMessage.id}
-            className={`remixTvBubble remixTvBubble--${featuredMessage.accent || "cyan"}`}
-          >
-            <div className="remixTvBubbleTimerRow">
-              <div className="remixTvBubbleTimerText">{timerLabel}</div>
-              <div className="remixTvBubbleTimerTrack">
-                <div
-                  className="remixTvBubbleTimerFill"
-                  style={{ width: `${progressPct}%` }}
-                >
-                  <span className="remixTvBubbleTimerShimmer" />
+              <div
+                key={featuredMessage.id}
+                className={`remixTvBubble remixTvBubble--${featuredMessage.accent || "cyan"}`}
+              >
+                <div className="remixTvBubbleTimerRow">
+                  <div className="remixTvBubbleTimerText">{timerLabel}</div>
+                  <div className="remixTvBubbleTimerTrack">
+                    <div
+                      className="remixTvBubbleTimerFill"
+                      style={{ width: `${progressPct}%` }}
+                    >
+                      <span className="remixTvBubbleTimerShimmer" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="remixTvBubbleInner">
+                  <FeatureBubble
+                    imageUrl={featuredMessage.imageUrl}
+                    body={featuredBody}
+                    fromName={featuredMessage.fromName}
+                  />
                 </div>
               </div>
-            </div>
+            </section>
 
-            <div className="remixTvBubbleInner">
-              <FeatureBubble
-                imageUrl={featuredMessage.imageUrl}
-                body={featuredBody}
-                fromName={featuredMessage.fromName}
-              />
-            </div>
-
-          </div>
-        </section>
-
-        <section className="remixTvQueueCol">{queuePanel}</section>
+            <section className="remixTvQueueCol">{queuePanel}</section>
+          </>
+        )}
       </div>
 
       <style jsx global>{`
@@ -584,7 +602,7 @@ const queuePanel = isPortraitLayout ? (
 
         .remixTvWrap--portrait {
           grid-template-columns: 1fr;
-          grid-template-rows: minmax(0, 1.14fr) minmax(0, 0.86fr);
+          grid-template-rows: 1fr;
         }
 
         .remixTvShoutoutPanel,
@@ -813,7 +831,7 @@ const queuePanel = isPortraitLayout ? (
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          padding: 0 8px 32px 2px;
+          padding: 0 8px 24px 2px;
         }
 
         .remixTvBubbleText--imageShort {
@@ -843,24 +861,22 @@ const queuePanel = isPortraitLayout ? (
           line-height: 1.03;
         }
 
-.remixTvBubbleFrom {
-  margin-top: 18px;
-  padding-bottom: 20px; /* ⬅️ increase this */
-  color: rgba(255,255,255,0.82); /* slightly softer */
-  font-size: clamp(20px, 2vw, 38px);
-  line-height: 1.04;
-  font-weight: 1000;
-  font-style: italic;
-
-  white-space: normal;
-  overflow: visible;
-  text-overflow: unset;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  max-width: 100%;
-
-  transform: translateY(-6px); /* ⬅️ nudges it up visually */
-}
+        .remixTvBubbleFrom {
+          margin-top: 18px;
+          padding-bottom: 20px;
+          color: rgba(255,255,255,0.88);
+          font-size: clamp(20px, 2vw, 38px);
+          line-height: 1.04;
+          font-weight: 1000;
+          font-style: italic;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: unset;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          max-width: 100%;
+          transform: translateY(-6px);
+        }
 
         .remixTvBubbleLayout--side .remixTvBubbleFrom,
         .remixTvBubbleLayout--stacked .remixTvBubbleFrom {
@@ -1261,7 +1277,7 @@ const queuePanel = isPortraitLayout ? (
           gap: 16px;
         }
 
-        .remixTvBottomCta--portrait {
+        .remixTvBottomCta--portrait-slide {
           padding-top: 10px;
           grid-template-columns: 1fr 98px;
           gap: 12px;
@@ -1280,7 +1296,7 @@ const queuePanel = isPortraitLayout ? (
           text-align: center;
         }
 
-        .remixTvBottomText--portrait {
+        .remixTvBottomText--portrait-slide {
           font-size: clamp(14px, 1.5vw, 18px);
           text-align: left;
         }
@@ -1309,7 +1325,7 @@ const queuePanel = isPortraitLayout ? (
           padding: 4px;
         }
 
-        .remixTvBottomQrWrap--portrait {
+        .remixTvBottomQrWrap--portrait-slide {
           width: 98px;
           height: 98px;
           padding: 4px;
@@ -1349,6 +1365,48 @@ const queuePanel = isPortraitLayout ? (
           pointer-events: none;
           z-index: 9999;
           mix-blend-mode: screen;
+        }
+
+        .remixTvPortraitSlide {
+          padding: 14px;
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          gap: 12px;
+          height: 100%;
+          min-height: 0;
+        }
+
+        .remixTvSectionHeader--portraitSlide {
+          padding-top: 2px;
+        }
+
+        .remixTvBubble--portraitSlide {
+          min-height: 0;
+          height: 100%;
+        }
+
+        .remixTvBubbleTimerRow--portraitSlide {
+          grid-template-columns: 64px 1fr;
+          height: 38px;
+          gap: 10px;
+        }
+
+        .remixTvBubbleInner--portraitSlide {
+          height: 100%;
+          min-height: 0;
+        }
+
+        .remixTvPortraitQueueBody {
+          min-height: 0;
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          gap: 12px;
+        }
+
+        .remixTvPortraitQueueListWrap {
+          min-height: 0;
+          display: grid;
+          align-content: start;
         }
 
         @media (max-width: 1400px) and (orientation: landscape) {
@@ -1396,7 +1454,7 @@ const queuePanel = isPortraitLayout ? (
         @media (orientation: portrait) {
           .remixTvWrap {
             grid-template-columns: 1fr;
-            grid-template-rows: minmax(0, 1.14fr) minmax(0, 0.86fr);
+            grid-template-rows: 1fr;
             height: 100vh;
           }
 
@@ -1471,9 +1529,35 @@ const queuePanel = isPortraitLayout ? (
             min-height: 160px;
           }
 
-          .remixTvQueuePanel--portrait {
-            padding: 10px;
+          .remixTvPortraitSlide {
+            padding: 12px;
             gap: 10px;
+          }
+
+          .remixTvBubble--portraitSlide {
+            padding: 12px 14px 14px 14px;
+          }
+
+          .remixTvPortraitQueueBody {
+            gap: 10px;
+          }
+
+          .remixTvBottomCta--portrait-slide {
+            padding-top: 10px;
+            grid-template-columns: 1fr 98px;
+            gap: 12px;
+          }
+
+          .remixTvBottomText--portrait-slide {
+            font-size: clamp(14px, 1.5vw, 18px);
+            text-align: left;
+          }
+
+          .remixTvBottomQrWrap--portrait-slide {
+            width: 98px;
+            height: 98px;
+            padding: 4px;
+            border-radius: 14px;
           }
         }
       `}</style>
@@ -1545,7 +1629,52 @@ function LandscapeQueuePanel({
   );
 }
 
-function PortraitQueuePanel({
+function PortraitShoutoutSlide({
+  featuredTitle,
+  featuredAccent,
+  featuredImageUrl,
+  featuredBody,
+  featuredFromName,
+  timerLabel,
+  progressPct,
+  qrSrc,
+}: {
+  featuredTitle: string;
+  featuredAccent: "gold" | "cyan" | "pink";
+  featuredImageUrl?: string | null;
+  featuredBody: string;
+  featuredFromName: string;
+  timerLabel: string;
+  progressPct: number;
+  qrSrc: string;
+}) {
+  return (
+    <section className="neonPanel remixTvPortraitSlide remixTvPortraitSlide--shoutout">
+      <div className="remixTvSectionHeader remixTvSectionHeader--portraitSlide">
+        <div className="remixTvSectionTitle">{featuredTitle}</div>
+      </div>
+
+      <div className={`remixTvBubble remixTvBubble--${featuredAccent} remixTvBubble--portraitSlide`}>
+        <div className="remixTvBubbleTimerRow remixTvBubbleTimerRow--portraitSlide">
+          <div className="remixTvBubbleTimerText">{timerLabel}</div>
+          <div className="remixTvBubbleTimerTrack">
+            <div className="remixTvBubbleTimerFill" style={{ width: `${progressPct}%` }}>
+              <span className="remixTvBubbleTimerShimmer" />
+            </div>
+          </div>
+        </div>
+
+        <div className="remixTvBubbleInner remixTvBubbleInner--portraitSlide">
+          <FeatureBubble imageUrl={featuredImageUrl} body={featuredBody} fromName={featuredFromName} />
+        </div>
+      </div>
+
+      <CtaBlock mode="portrait-slide" qrSrc={qrSrc} />
+    </section>
+  );
+}
+
+function PortraitQueueSlide({
   nowPlaying,
   queueList,
   topIsBoosted,
@@ -1565,34 +1694,34 @@ function PortraitQueuePanel({
   defaultAlbumArtUrl?: string | null;
 }) {
   return (
-    <div className="neonPanel remixTvQueuePanel remixTvQueuePanel--portrait">
-      <div className="remixTvPortraitCluster">
-        <div className="remixTvSectionHeader remixTvQueueHeader">
-          <div className="remixTvSectionTitle">Queued Up</div>
-        </div>
+    <section className="neonPanel remixTvPortraitSlide remixTvPortraitSlide--queue">
+      <div className="remixTvSectionHeader remixTvQueueHeader remixTvSectionHeader--portraitSlide">
+        <div className="remixTvSectionTitle">Queued Up</div>
+      </div>
 
-<TopCard
-  mode="portrait"
-  nowPlaying={nowPlaying}
-  topIsBoosted={topIsBoosted}
-  showA={showA}
-  artA={artA}
-  artB={artB}
-  defaultAlbumArtUrl={defaultAlbumArtUrl}
->
+      <div className="remixTvPortraitQueueBody">
+        <TopCard
+          mode="portrait"
+          nowPlaying={nowPlaying}
+          topIsBoosted={topIsBoosted}
+          showA={showA}
+          artA={artA}
+          artB={artB}
+          defaultAlbumArtUrl={defaultAlbumArtUrl}
+        >
           <div className="remixTvTopMetaRow">
             <div className="remixTvTopBadge">Top 10 Live</div>
             {topIsBoosted ? <div className="remixTvTopBadge remixTvTopBadge--boosted">Boosted</div> : null}
           </div>
         </TopCard>
 
-        <div className="remixTvPortraitTop10Block">
-          <Top10Block queueList={queueList} mode="portrait" />
+        <div className="remixTvPortraitQueueListWrap">
+          <Top10Block queueList={queueList} mode="portrait-slide" />
         </div>
-
-        <CtaBlock mode="portrait" qrSrc={qrSrc} />
       </div>
-    </div>
+
+      <CtaBlock mode="portrait-slide" qrSrc={qrSrc} />
+    </section>
   );
 }
 
@@ -1606,7 +1735,7 @@ function TopCard({
   children,
   defaultAlbumArtUrl,
 }: {
-  mode: "landscape" | "portrait";
+  mode: "landscape" | "portrait" | "portrait-slide";
   nowPlaying: QueueItem | null;
   topIsBoosted: boolean;
   showA: boolean;
@@ -1647,26 +1776,26 @@ function Top10Block({
   mode,
 }: {
   queueList: QueueItem[];
-  mode: "landscape" | "portrait";
+  mode: "landscape" | "portrait" | "portrait-slide";
 }) {
   return (
     <>
       <div className="remixTvTop10Header">
         <span>Top 10</span>
-        {mode === "portrait" ? (
+        {mode !== "landscape" ? (
           <span className="remixTvTop10HeaderSub">Up next favorites</span>
         ) : null}
       </div>
 
       <div className="remixTvTop10List">
         {queueList.length === 0 ? (
-          <div className={`remixTvEmptyState ${mode === "portrait" ? "remixTvEmptyState--portrait" : ""}`}>
+          <div className={`remixTvEmptyState ${mode !== "landscape" ? "remixTvEmptyState--portrait" : ""}`}>
             No requests yet — scan the QR and start the vibe.
           </div>
         ) : (
           queueList.map((item, index) => (
             <div
-              className={`remixTvTop10Row ${mode === "portrait" ? "remixTvTop10Row--portrait" : ""}`}
+              className={`remixTvTop10Row ${mode !== "landscape" ? "remixTvTop10Row--portrait" : ""}`}
               key={item.id}
             >
               <div className="remixTvTop10Pos">{index + 1}</div>
@@ -1689,16 +1818,16 @@ function CtaBlock({
   mode,
   qrSrc,
 }: {
-  mode: "landscape" | "portrait";
+  mode: "landscape" | "portrait" | "portrait-slide";
   qrSrc: string;
 }) {
   return (
     <div className={`remixTvBottomCta remixTvBottomCta--${mode}`}>
       <div className={`remixTvBottomText remixTvBottomText--${mode}`}>
-        {mode === "portrait" ? (
+        {mode !== "landscape" ? (
           <>
-            <span className="remixTvBottomTextLineStrong">Scan to request a song</span>
-            <span className="remixTvBottomTextLineMuted">or send a shout out to the screen</span>
+            <span className="remixTvBottomTextLineStrong">Scan to request songs</span>
+            <span className="remixTvBottomTextLineMuted">or send a shout out from your phone</span>
           </>
         ) : (
           <>
