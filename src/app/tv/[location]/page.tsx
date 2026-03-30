@@ -6,17 +6,20 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 type QueueItem = {
   id: string;
+  requestId?: string;
+  songId?: string;
   title: string;
   artist: string;
   artworkUrl?: string;
   score: number;
+  upvotes?: number;
+  downvotes?: number;
+  requestedByMe?: boolean;
+  sourceType?: string;
+  priority?: string;
   isBoosted?: boolean;
   boosted?: boolean;
   wasBoosted?: boolean;
-};
-
-type TvQueueItem = QueueItem & {
-  __lane?: "playNow" | "upNext";
 };
 
 type FeedMessage = {
@@ -216,77 +219,69 @@ export default function TvPage({ params }: { params: { location: string } }) {
   }, [isPortraitLayout, requestUrl]);
 
   const activePlaceholderMessages =
-    placeholderMessages.length ? placeholderMessages : PLACEHOLDER_MESSAGES;
+  placeholderMessages.length ? placeholderMessages : PLACEHOLDER_MESSAGES;
 
-  const slideDurationSec = safeSeconds(shoutoutSlideSeconds, 10);
-  const placeholderDurationSec = 20 * 60;
-  const placeholderCycleMs = slideDurationSec * 1000;
+const slideDurationSec = safeSeconds(shoutoutSlideSeconds, 10);
+const placeholderDurationSec = 20 * 60;
+const placeholderCycleMs = slideDurationSec * 1000;
 
-  const placeholderRotationIndex = Math.floor(
-    Math.max(0, timerNowMs - placeholderEpochMsRef.current) / placeholderCycleMs
-  );
+const placeholderRotationIndex = Math.floor(
+  Math.max(0, timerNowMs - placeholderEpochMsRef.current) / placeholderCycleMs
+);
 
-  const featuredFallback =
-    activePlaceholderMessages[
-      placeholderRotationIndex % activePlaceholderMessages.length
-    ];
+const featuredFallback =
+  activePlaceholderMessages[
+    placeholderRotationIndex % activePlaceholderMessages.length
+  ];
 
-  const featuredMessage = liveMessage || featuredFallback;
-  const featuredBody =
-    ("body" in featuredMessage ? featuredMessage.body : undefined) ||
-    ("messageText" in featuredMessage ? featuredMessage.messageText : undefined) ||
-    "";
-  const featuredTitle = featuredMessage.title || "REMIX SHOUT OUTS!";
+const featuredMessage = liveMessage || featuredFallback;
+const featuredBody =
+  ("body" in featuredMessage ? featuredMessage.body : undefined) ||
+  ("messageText" in featuredMessage ? featuredMessage.messageText : undefined) ||
+  "";
+const featuredTitle = featuredMessage.title || "REMIX SHOUT OUTS!";
 
-  const isPlaceholderMessage = !liveMessage;
+const isPlaceholderMessage = !liveMessage;
 
-  const liveLifetimeDurationSec = safeSeconds(
-    liveMessage?.displayDurationSec,
-    placeholderDurationSec
-  );
+const liveLifetimeDurationSec = safeSeconds(
+  liveMessage?.displayDurationSec,
+  placeholderDurationSec
+);
 
-  const stableLiveStartMs = liveMessage
-    ? new Date(
-        liveMessage.approvedAt || liveMessage.createdAt || Date.now()
-      ).getTime()
-    : 0;
+const stableLiveStartMs = liveMessage
+  ? new Date(
+      liveMessage.approvedAt || liveMessage.createdAt || Date.now()
+    ).getTime()
+  : 0;
 
-  const elapsedMs = isPlaceholderMessage
-    ? Math.max(0, timerNowMs - placeholderEpochMsRef.current)
-    : Math.max(0, timerNowMs - stableLiveStartMs);
+const elapsedMs = isPlaceholderMessage
+  ? Math.max(0, timerNowMs - placeholderEpochMsRef.current)
+  : Math.max(0, timerNowMs - stableLiveStartMs);
 
-  const clampedElapsedMs = isPlaceholderMessage
-    ? Math.min(elapsedMs, placeholderDurationSec * 1000)
-    : Math.min(elapsedMs, liveLifetimeDurationSec * 1000);
+const clampedElapsedMs = isPlaceholderMessage
+  ? Math.min(elapsedMs, placeholderDurationSec * 1000)
+  : Math.min(elapsedMs, liveLifetimeDurationSec * 1000);
 
-  const remainingSec = isPlaceholderMessage
-    ? Math.max(0, placeholderDurationSec - Math.floor(clampedElapsedMs / 1000))
-    : Math.max(0, liveLifetimeDurationSec - Math.floor(clampedElapsedMs / 1000));
+const remainingSec = isPlaceholderMessage
+  ? Math.max(0, placeholderDurationSec - Math.floor(clampedElapsedMs / 1000))
+  : Math.max(0, liveLifetimeDurationSec - Math.floor(clampedElapsedMs / 1000));
 
-  const progressPct = isPlaceholderMessage
-    ? Math.max(0, 100 - (clampedElapsedMs / (placeholderDurationSec * 1000)) * 100)
-    : Math.max(
-        0,
-        100 - (clampedElapsedMs / (liveLifetimeDurationSec * 1000)) * 100
-      );
+const progressPct = isPlaceholderMessage
+  ? Math.max(0, 100 - (clampedElapsedMs / (placeholderDurationSec * 1000)) * 100)
+  : Math.max(
+      0,
+      100 - (clampedElapsedMs / (liveLifetimeDurationSec * 1000)) * 100
+    );
 
-  const timerMinutes = Math.floor(remainingSec / 60);
-  const timerSeconds = remainingSec % 60;
-  const timerLabel = `${timerMinutes}:${String(timerSeconds).padStart(2, "0")}`;
+const timerMinutes = Math.floor(remainingSec / 60);
+const timerSeconds = remainingSec % 60;
+const timerLabel = `${timerMinutes}:${String(timerSeconds).padStart(2, "0")}`;
 
-  const mergedQueue = useMemo<TvQueueItem[]>(() => {
-    return [
-      ...playNow.map((item) => ({ ...item, __lane: "playNow" as const })),
-      ...upNext.map((item) => ({ ...item, __lane: "upNext" as const })),
-    ];
-  }, [playNow, upNext]);
-
-  const queueVisibleCount = isPortraitLayout ? 6 : 10;
-  const nowPlaying = mergedQueue[0] || null;
-  const queueList = mergedQueue.slice(1, queueVisibleCount + 1);
-  const topIsBoosted = Boolean(
-    nowPlaying && (nowPlaying.isBoosted || nowPlaying.boosted || nowPlaying.wasBoosted)
-  );
+const nowPlaying = playNow[0] || upNext[0] || null;
+const queueList = upNext.slice(0, isPortraitLayout ? 6 : 10);
+const topIsBoosted = Boolean(
+  nowPlaying && (nowPlaying.isBoosted || nowPlaying.boosted || nowPlaying.wasBoosted)
+);
 
   async function tickQueue() {
     try {
@@ -327,10 +322,11 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
     void tickQueue();
     void tickShoutouts();
-
+    
+    // load default album art
     fetch(`/api/public/rules/${location}`)
-      .then((r) => r.json())
-      .then((d) => {
+      .then(r => r.json())
+      .then(d => {
         const url = d?.rules?.defaultAlbumArtUrl || d?.defaultAlbumArtUrl || null;
         if (url) setDefaultAlbumArtUrl(url);
       })
@@ -343,15 +339,17 @@ export default function TvPage({ params }: { params: { location: string } }) {
     const q = window.setInterval(() => void tickQueue(), 3000);
     const s = window.setInterval(() => void tickShoutouts(), 5000);
     const r = window.setInterval(() => {
-      fetch(`/api/public/rules/${location}`)
-        .then((r) => r.json())
-        .then((d) => {
-          const url = d?.rules?.defaultAlbumArtUrl || d?.defaultAlbumArtUrl || null;
-          if (url) setDefaultAlbumArtUrl(url);
-        })
-        .catch(() => {});
+      
+    // load default album art
+    fetch(`/api/public/rules/${location}`)
+      .then(r => r.json())
+      .then(d => {
+        const url = d?.rules?.defaultAlbumArtUrl || d?.defaultAlbumArtUrl || null;
+        if (url) setDefaultAlbumArtUrl(url);
+      })
+      .catch(() => {});
 
-      void loadShoutoutSlideSeconds(location).then((seconds) => {
+    void loadShoutoutSlideSeconds(location).then((seconds) => {
         setShoutoutSlideSeconds(seconds);
       });
 
@@ -397,7 +395,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
   }, []);
 
   useEffect(() => {
-    const topId = mergedQueue[0]?.id ?? null;
+    const topId = playNow[0]?.id ?? null;
     if (!topId) return;
 
     if (prevTopId.current && prevTopId.current !== topId) {
@@ -408,7 +406,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
     }
 
     prevTopId.current = topId;
-  }, [mergedQueue]);
+  }, [playNow]);
 
   useEffect(() => {
     const next = nowPlaying?.artworkUrl || null;
@@ -431,21 +429,21 @@ export default function TvPage({ params }: { params: { location: string } }) {
     }
   }, [nowPlaying?.artworkUrl, artA, artB, showA]);
 
-  const portraitSlide = Math.floor(timerNowMs / (slideDurationSec * 1000)) % 2;
+const portraitSlide = Math.floor(timerNowMs / (slideDurationSec * 1000)) % 2;
 
-  const queuePanel = (
-    <LandscapeQueuePanel
-      nowPlaying={nowPlaying}
-      queueList={queueList}
-      topIsBoosted={topIsBoosted}
-      showA={showA}
-      artA={artA}
-      artB={artB}
-      qrSrc={qrSrc}
-      requestUrl={requestUrl}
-      defaultAlbumArtUrl={defaultAlbumArtUrl}
-    />
-  );
+const queuePanel = (
+  <LandscapeQueuePanel
+    nowPlaying={nowPlaying}
+    queueList={queueList}
+    topIsBoosted={topIsBoosted}
+    showA={showA}
+    artA={artA}
+    artB={artB}
+    qrSrc={qrSrc}
+    requestUrl={requestUrl}
+    defaultAlbumArtUrl={defaultAlbumArtUrl}
+  />
+);
 
   return (
     <div className={`neonRoot remixTvRoot ${boostFlash ? "remixTvFlash" : ""}`}>
@@ -1174,7 +1172,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
         .remixTvTop10Row {
           display: grid;
-          grid-template-columns: 38px 1fr auto;
+          grid-template-columns: 38px minmax(0, 1fr) auto auto;
           gap: 12px;
           align-items: center;
           padding: 12px 14px;
@@ -1190,7 +1188,7 @@ export default function TvPage({ params }: { params: { location: string } }) {
         }
 
         .remixTvTop10Row--portrait {
-          grid-template-columns: 30px 1fr auto;
+          grid-template-columns: 30px minmax(0, 1fr) auto auto;
           gap: 10px;
           padding: 10px 12px;
           border-radius: 18px;
@@ -1235,30 +1233,75 @@ export default function TvPage({ params }: { params: { location: string } }) {
           text-overflow: ellipsis;
         }
 
+        .remixTvTop10MetaRow {
+          margin-top: 6px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .remixTvTop10VoteRail {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .remixTvTop10VotePill,
+        .remixTvTop10Score {
+          min-width: 38px;
+          height: 38px;
+          padding: 0 12px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          font-size: 14px;
+          font-weight: 1000;
+          line-height: 1;
+          white-space: nowrap;
+        }
+
+        .remixTvTop10VotePill {
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.12);
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+        }
+
+        .remixTvTop10VoteEmoji {
+          font-size: 13px;
+          line-height: 1;
+        }
+
+        .remixTvTop10VoteValue {
+          min-width: 8px;
+          text-align: center;
+        }
+
+
         .remixTvTop10Row--portrait .remixTvTop10Artist {
           font-size: clamp(11px, 1.28vw, 14px);
           margin-top: 3px;
         }
 
         .remixTvTop10Score {
-          min-width: 38px;
-          height: 38px;
-          padding: 0 12px;
-          border-radius: 999px;
-          display: grid;
-          place-items: center;
-          font-size: 14px;
-          font-weight: 1000;
           background: rgba(0,247,255,0.09);
           border: 1px solid rgba(0,247,255,0.24);
           box-shadow: var(--glowA);
         }
 
+        .remixTvTop10Row--portrait .remixTvTop10VotePill,
         .remixTvTop10Row--portrait .remixTvTop10Score {
           min-width: 30px;
           height: 30px;
           padding: 0 10px;
           font-size: 12px;
+          gap: 4px;
+        }
+
+        .remixTvTop10Row--portrait .remixTvTop10VoteEmoji {
+          font-size: 11px;
         }
 
         .remixTvEmptyState {
@@ -1468,9 +1511,9 @@ export default function TvPage({ params }: { params: { location: string } }) {
 
           }
 
-          .remixTvBubbleLayout {
-            margin-top: 18px;
-          }
+.remixTvBubbleLayout {
+    margin-top: 18px; /* ⬅️ pushes text block down from chip */
+  }
 
           .remixTvShoutoutPanel {
             padding: 12px 12px 14px;
@@ -1606,15 +1649,15 @@ function LandscapeQueuePanel({
         <div className="remixTvSectionTitle">Queued Up</div>
       </div>
 
-      <TopCard
-        mode="landscape"
-        nowPlaying={nowPlaying}
-        topIsBoosted={topIsBoosted}
-        showA={showA}
-        artA={artA}
-        artB={artB}
-        defaultAlbumArtUrl={defaultAlbumArtUrl}
-      >
+<TopCard
+  mode="landscape"
+  nowPlaying={nowPlaying}
+  topIsBoosted={topIsBoosted}
+  showA={showA}
+  artA={artA}
+  artB={artB}
+  defaultAlbumArtUrl={defaultAlbumArtUrl}
+>
         <div className="remixTvTagRow">
           <div className="tvTag">REMIX REQUESTS</div>
           <div className="tvTag" style={{ boxShadow: "var(--glowB)" }}>
@@ -1807,21 +1850,39 @@ function Top10Block({
             No requests yet — scan the QR and start the vibe.
           </div>
         ) : (
-          queueList.map((item, index) => (
-            <div
-              className={`remixTvTop10Row ${mode !== "landscape" ? "remixTvTop10Row--portrait" : ""}`}
-              key={item.id}
-            >
-              <div className="remixTvTop10Pos">{index + 1}</div>
+          queueList.map((item, index) => {
+            const upvotes = Number(item.upvotes || 0);
+            const downvotes = Number(item.downvotes || 0);
+            const score = Number(item.score || 0);
 
-              <div className="remixTvTop10Text">
-                <div className="remixTvTop10Song">{item.title}</div>
-                <div className="remixTvTop10Artist">{item.artist}</div>
+            return (
+              <div
+                className={`remixTvTop10Row ${mode !== "landscape" ? "remixTvTop10Row--portrait" : ""}`}
+                key={item.id}
+              >
+                <div className="remixTvTop10Pos">{index + 1}</div>
+
+                <div className="remixTvTop10Text">
+                  <div className="remixTvTop10Song">{item.title}</div>
+                  <div className="remixTvTop10Artist">{item.artist}</div>
+                  <div className="remixTvTop10MetaRow">
+                    <div className="remixTvTop10VoteRail" aria-label="Vote counts">
+                      <div className="remixTvTop10VotePill">
+                        <span className="remixTvTop10VoteEmoji" aria-hidden="true">👎</span>
+                        <span className="remixTvTop10VoteValue">{downvotes}</span>
+                      </div>
+                      <div className="remixTvTop10VotePill">
+                        <span className="remixTvTop10VoteEmoji" aria-hidden="true">👍</span>
+                        <span className="remixTvTop10VoteValue">{upvotes}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="remixTvTop10Score">S {score}</div>
               </div>
-
-              <div className="remixTvTop10Score">{item.score}</div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </>
