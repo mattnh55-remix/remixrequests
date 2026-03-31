@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 import PublicTheme from "../../../components/ui/public/PublicTheme";
 import PublicBottomCommandBar from "@/components/public/PublicBottomCommandBar";
@@ -153,50 +153,6 @@ function formatCountdown(endsAt?: string | null) {
   if (h <= 0 && m <= 2) return "Ending soon";
   return h > 0 ? `Ends in ${h}h ${m}m` : `Ends in ${m}m`;
 }
-
-function useViewportInset(active: boolean) {
-  const [bottomInset, setBottomInset] = useState(0);
-
-  useEffect(() => {
-    if (!active || typeof window === "undefined") return;
-
-    const viewport = window.visualViewport;
-
-    const sync = () => {
-      if (!viewport) {
-        setBottomInset(0);
-        return;
-      }
-
-      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
-      setBottomInset(inset);
-    };
-
-    sync();
-
-    if (viewport) {
-      viewport.addEventListener("resize", sync);
-      viewport.addEventListener("scroll", sync);
-    }
-
-    window.addEventListener("orientationchange", sync);
-
-    return () => {
-      if (viewport) {
-        viewport.removeEventListener("resize", sync);
-        viewport.removeEventListener("scroll", sync);
-      }
-      window.removeEventListener("orientationchange", sync);
-    };
-  }, [active]);
-
-  return bottomInset;
-}
-
-const rrMobileInputStyle: CSSProperties = {
-  fontSize: 16,
-  lineHeight: 1.2,
-};
 
 function AlbumArt({
   src,
@@ -467,7 +423,6 @@ function HoldButton({
   );
 }
 
-
 function VerifyDrawer({
   open,
   location,
@@ -495,8 +450,6 @@ function VerifyDrawer({
   const [emailOptIn, setEmailOptIn] = useState(true);
   const [smsOptIn, setSmsOptIn] = useState(true);
   const [redeemCode, setRedeemCode] = useState("");
-  const drawerRef = useRef<HTMLDivElement | null>(null);
-  const keyboardInset = useViewportInset(open);
 
   useEffect(() => {
     if (!open) {
@@ -507,27 +460,6 @@ function VerifyDrawer({
       setRedeemCode("");
     }
   }, [open]);
-
-  useEffect(() => {
-    if (!open || typeof document === "undefined") return;
-
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    const previousBodyOverflow = document.body.style.overflow;
-
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.body.style.overflow = previousBodyOverflow;
-    };
-  }, [open]);
-
-  function handleFieldFocus() {
-    window.setTimeout(() => {
-      drawerRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }, 120);
-  }
 
   if (!open) return null;
 
@@ -606,17 +538,9 @@ function VerifyDrawer({
   }
 
   return (
-    <div
-      className="rrOverlay rrOverlay--sheet"
-      onClick={onClose}
-      style={{ paddingBottom: Math.max(12, keyboardInset + 12) }}
-    >
-      <div
-        ref={drawerRef}
-        className="rrDrawer rrDrawer--sheet"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="rrDrawerHead rrDrawerHead--sticky">
+    <div className="rrOverlay">
+      <div className="rrDrawer">
+        <div className="rrDrawerHead">
           <div>
             <div className="rrDrawerTitle">Claim your points</div>
             <div className="rrDrawerSub">
@@ -628,47 +552,39 @@ function VerifyDrawer({
           </button>
         </div>
 
-        <div className="rrDrawerBody rrDrawerBody--sheet">
+        <div className="rrDrawerBody">
           <div className="rrStack">
             {step === "collect" ? (
               <>
                 <input
-                  className="rrInput rrInput--drawer"
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
+                  className="rrInput"
                   placeholder="Email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  onFocus={handleFieldFocus}
-                  style={rrMobileInputStyle}
                 />
                 <input
-                  className="rrInput rrInput--drawer"
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel"
+                  className="rrInput"
                   placeholder="Mobile number"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  onFocus={handleFieldFocus}
-                  style={rrMobileInputStyle}
                 />
-                <label className="rrHelper rrHelper--check">
+                <label className="rrHelper">
                   <input
                     type="checkbox"
                     checked={emailOptIn}
                     onChange={(e) => setEmailOptIn(e.target.checked)}
+                    style={{ marginRight: 8 }}
                   />
-                  <span>Email me updates and bonus offers</span>
+                  Email me updates and bonus offers
                 </label>
-                <label className="rrHelper rrHelper--check">
+                <label className="rrHelper">
                   <input
                     type="checkbox"
                     checked={smsOptIn}
                     onChange={(e) => setSmsOptIn(e.target.checked)}
+                    style={{ marginRight: 8 }}
                   />
-                  <span>Text me verification and promo updates</span>
+                  Text me verification and promo updates
                 </label>
                 <button className="rrBtn" disabled={busy} onClick={sendCode}>
                   {busy ? "Sending..." : "Send verification code"}
@@ -677,14 +593,10 @@ function VerifyDrawer({
             ) : (
               <>
                 <input
-                  className="rrInput rrInput--drawer"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
+                  className="rrInput"
                   placeholder="Enter verification code"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  onFocus={handleFieldFocus}
-                  style={rrMobileInputStyle}
                 />
                 <button className="rrBtn" disabled={busy} onClick={confirmCode}>
                   {busy ? "Verifying..." : "Verify & continue"}
@@ -700,13 +612,10 @@ function VerifyDrawer({
             <div className="rrStack">
               <div className="rrDrawerTitle rrDrawerTitle--small">Redeem code</div>
               <input
-                className="rrInput rrInput--drawer"
-                autoCapitalize="characters"
+                className="rrInput"
                 placeholder="Enter redemption code"
                 value={redeemCode}
                 onChange={(e) => setRedeemCode(e.target.value)}
-                onFocus={handleFieldFocus}
-                style={rrMobileInputStyle}
               />
               <button
                 className="rrBtnGhost"
@@ -716,104 +625,10 @@ function VerifyDrawer({
                 {redeemBusy ? "Redeeming..." : "Redeem code"}
               </button>
             </div>
+
+            {msg ? <div className="rrHelper">{msg}</div> : null}
           </div>
         </div>
-
-        {msg ? (
-          <div className="rrDrawerNotice" role="status" aria-live="polite">
-            {msg}
-          </div>
-        ) : null}
-
-        <style jsx>{`
-          .rrOverlay--sheet {
-            position: fixed;
-            inset: 0;
-            z-index: 110;
-            display: flex;
-            align-items: flex-end;
-            justify-content: center;
-            padding: 12px;
-            background: rgba(2, 8, 20, 0.62);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-          }
-
-          .rrDrawer--sheet {
-            width: min(100%, 840px);
-            max-height: min(88dvh, 760px);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            border-radius: 28px;
-          }
-
-          .rrDrawerHead--sticky {
-            position: sticky;
-            top: 0;
-            z-index: 2;
-            background:
-              linear-gradient(180deg, rgba(11, 20, 37, 0.98), rgba(11, 20, 37, 0.96));
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-          }
-
-          .rrDrawerBody--sheet {
-            overflow-y: auto;
-            overscroll-behavior: contain;
-            padding-bottom: 18px;
-          }
-
-          .rrInput--drawer {
-            min-height: 56px;
-          }
-
-          .rrHelper--check {
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            font-size: 16px;
-            line-height: 1.35;
-          }
-
-          .rrHelper--check input {
-            margin: 2px 0 0;
-            width: 20px;
-            height: 20px;
-            flex: 0 0 auto;
-          }
-
-          .rrDrawerNotice {
-            position: sticky;
-            bottom: 0;
-            z-index: 3;
-            padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
-            font-size: 14px;
-            font-weight: 800;
-            color: #ffffff;
-            background:
-              linear-gradient(180deg, rgba(20, 33, 58, 0.98), rgba(10, 18, 31, 0.98));
-            border-top: 1px solid rgba(118, 174, 255, 0.14);
-            box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.22);
-          }
-
-          @media (max-width: 640px) {
-            .rrOverlay--sheet {
-              padding: 0;
-              align-items: flex-end;
-            }
-
-            .rrDrawer--sheet {
-              width: 100%;
-              max-height: min(92dvh, 92vh);
-              border-radius: 24px 24px 0 0;
-            }
-
-            .rrDrawerHead--sticky {
-              padding-top: 14px;
-            }
-          }
-        `}</style>
       </div>
     </div>
   );
@@ -852,28 +667,12 @@ function BuyCreditsDrawer({
   onRedeem: () => void;
 }) {
   const [showRedeem, setShowRedeem] = useState(false);
-  const keyboardInset = useViewportInset(open);
-
-  useEffect(() => {
-    if (!open || typeof document === "undefined") return;
-
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    const previousBodyOverflow = document.body.style.overflow;
-
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.body.style.overflow = previousBodyOverflow;
-    };
-  }, [open]);
 
   if (!open) return null;
 
   return (
-    <div className="rrOverlay rrOverlay--sheet" onClick={onClose} style={{ paddingBottom: Math.max(12, keyboardInset + 12) }}>
-      <div className="rrDrawer rrDrawer--buy rrDrawer--sheet" onClick={(e) => e.stopPropagation()}>
+    <div className="rrOverlay" onClick={onClose}>
+      <div className="rrDrawer rrDrawer--buy" onClick={(e) => e.stopPropagation()}>
         <div className="rrDrawerHead rrDrawerHead--buy">
           <div>
             <div className="rrDrawerTitle">Take Over the Playlist</div>
@@ -948,11 +747,10 @@ function BuyCreditsDrawer({
                 <div className="rrDrawerTitle rrDrawerTitle--small">Redeem Code</div>
                 <div className="rrInlineForm">
                   <input
-                    className="rrInput rrInput--drawer"
+                    className="rrInput"
                     value={redeemCode}
                     onChange={(e) => setRedeemCode(e.target.value)}
                     placeholder="Enter redeem code"
-                    style={rrMobileInputStyle}
                   />
                   <button className="rrBtnGhost" disabled={redeemBusy} onClick={onRedeem}>
                     {redeemBusy ? "Checking..." : "Redeem"}
@@ -962,60 +760,6 @@ function BuyCreditsDrawer({
             )}
           </div>
         </div>
-
-        <style jsx>{`
-          .rrOverlay--sheet {
-            position: fixed;
-            inset: 0;
-            z-index: 110;
-            display: flex;
-            align-items: flex-end;
-            justify-content: center;
-            padding: 12px;
-            background: rgba(2, 8, 20, 0.62);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-          }
-
-          .rrDrawer--sheet {
-            width: min(100%, 860px);
-            max-height: min(88dvh, 760px);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            border-radius: 28px;
-          }
-
-          .rrDrawerHead--buy {
-            position: sticky;
-            top: 0;
-            z-index: 2;
-            background:
-              linear-gradient(180deg, rgba(11, 20, 37, 0.98), rgba(11, 20, 37, 0.96));
-          }
-
-          .rrDrawer--buy .rrDrawerBody {
-            overflow-y: auto;
-            overscroll-behavior: contain;
-            padding-bottom: 18px;
-          }
-
-          .rrInput--drawer {
-            min-height: 56px;
-          }
-
-          @media (max-width: 640px) {
-            .rrOverlay--sheet {
-              padding: 0;
-            }
-
-            .rrDrawer--sheet {
-              width: 100%;
-              max-height: min(92dvh, 92vh);
-              border-radius: 24px 24px 0 0;
-            }
-          }
-        `}</style>
       </div>
     </div>
   );
@@ -1804,202 +1548,146 @@ export default function RequestPage({ params }: { params: { location: string } }
     ];
   }, [rules]);
 
-return (
+  return (
     <PublicTheme>
-     
-        <div className="rrHeroGrid">
-          <div className="rrLogoCard">
-            <BrandLogo logoUrl={logoUrl} />
-          </div>
+      <div className="rrHeroGrid">
+        <div className="rrLogoCard">
+          <BrandLogo logoUrl={logoUrl} />
+        </div>
 
-          <div className="rrHeroCard">
-            <h1 className="rrTitle">Request a Song</h1>
-            <div className="rrTitleSub">
-              Requests cost {requestCost} point. Boosts cost {playNowCost} points.
-              <br />
-              Upvote and Downvote your favorites!
-            </div>
-          </div>
-
-          <div className="rrPointsCard">
-            <div className="rrPointsStack">
-              <div className="rrHudLabel">Points</div>
-              <div className="rrHudValue">{balanceValue}</div>
-              <div className="rrPointsActions">
-                <button className="rrBtn" style={{ width: "100%" }} onClick={handlePointsAction}>
-                  {sessionActive && verified && identityId ? "Add Points" : "Claim Points"}
-                </button>
-              </div>
-            </div>
+        <div className="rrHeroCard">
+          <h1 className="rrTitle">Request a Song</h1>
+          <div className="rrTitleSub">
+            Requests cost {requestCost} point. Boosts cost {playNowCost} points.
+            <br />
+            Upvote and Downvote your favorites!
           </div>
         </div>
 
-        <div className="rrNoticeCard">
-          <div className="rrNoticeActions rrNoticeActions--full" style={{ marginTop: 0 }}>
-            <button
-              ref={queueTargetRef}
-              className={`rrBtn rrBtn--full ${queuePulseOn ? "rrBtn--pulse" : ""}`}
-              onClick={() => {
-                sfx.playTap();
-                window.location.href = `/queue/${encodeURIComponent(location)}`;
+        <div className="rrPointsCard">
+          <div className="rrPointsStack">
+            <div className="rrHudLabel">Points</div>
+            <div className="rrHudValue">{balanceValue}</div>
+            <div className="rrPointsActions">
+              <button className="rrBtn" style={{ width: "100%" }} onClick={handlePointsAction}>
+                {sessionActive && verified && identityId ? "Add Points" : "Claim Points"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rrNoticeCard">
+        <div className="rrNoticeActions rrNoticeActions--full" style={{ marginTop: 0 }}>
+          <button
+            ref={queueTargetRef}
+            className={`rrBtn rrBtn--full ${queuePulseOn ? "rrBtn--pulse" : ""}`}
+            onClick={() => {
+              sfx.playTap();
+              window.location.href = `/queue/${encodeURIComponent(location)}`;
+            }}
+          >
+            View Queue
+          </button>
+        </div>
+      </div>
+
+      <div className="rrPanel">
+        <div className="rrPanelHead rrPanelHead--centered">
+          <div>
+            <div className="rrPanelTitle">Search & Browse</div>
+            <div className="rrPanelSub">
+              Use tags to narrow the catalog, then hold to request or boost.
+            </div>
+          </div>
+          <span className="rrStatusPill rrStatusPill--live">Live</span>
+        </div>
+
+        <div className="rrPanelBody">
+          <input
+            className="rrInput"
+            placeholder="Search songs or artists..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onFocus={() => sfx.playTap()}
+          />
+
+          <div className="rrRequestChipScrollerWrap">
+            <div className="rrRequestChipScroller">
+              <button
+                className={`rrRequestChip ${tag === "" ? "is-active" : ""}`}
+                onClick={() => {
+                  sfx.playTap();
+                  setTag("");
+                }}
+              >
+                All
+              </button>
+
+              {RAILS.map((rail) => (
+                <button
+                  key={rail}
+                  className={`rrRequestChip ${tag === rail ? "is-active" : ""}`}
+                  onClick={() => {
+                    sfx.playTap();
+                    setTag(rail);
+                  }}
+                >
+                  {rail}
+                </button>
+              ))}
+            </div>
+            <div className="rrRequestChipHint" aria-hidden="true">
+              ›
+            </div>
+          </div>
+
+          {search.trim() && songs.length === 0 ? (
+            <div
+              style={{
+                marginTop: 14,
+                padding: 14,
+                borderRadius: 16,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                display: "grid",
+                gap: 10,
               }}
             >
-              View Queue
-            </button>
-          </div>
-        </div>
-
-        <div className="rrPanel">
-          <div className="rrPanelHead rrPanelHead--centered">
-            <div>
-              <div className="rrPanelTitle">Search & Browse</div>
-              <div className="rrPanelSub">
-                Use tags to narrow the catalog, then hold to request or boost.
-              </div>
+              <div style={{ fontWeight: 900 }}>Can’t find your song?</div>
+              <button
+                className="rrBtnGhost"
+                disabled={writeInBusy || !writeInSearch.requestedTitle}
+                onClick={(e) => {
+                  sfx.playTap();
+                  void submitWriteIn(e.currentTarget);
+                }}
+              >
+                {writeInBusy
+                  ? "SENDING..."
+                  : writeInSearch.requestedArtist
+                    ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
+                    : `Request "${writeInSearch.requestedTitle}" • ${requestCost}pt`}
+              </button>
             </div>
-            <span className="rrStatusPill rrStatusPill--live">Live</span>
+          ) : null}
+        </div>
+      </div>
+
+      {trending.length ? (
+        <div className="rrPanel">
+          <div className="rrPanelHead">
+            <div>
+              <div className="rrPanelTitle">Trending at Remix</div>
+              <div className="rrPanelSub">Fast picks for tonight’s crowd.</div>
+            </div>
           </div>
 
           <div className="rrPanelBody">
-            <input
-              className="rrInput"
-              placeholder="Search songs or artists..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onFocus={() => sfx.playTap()}
-            />
-
-            <div className="rrRequestChipScrollerWrap">
-              <div className="rrRequestChipScroller">
-                <button
-                  className={`rrRequestChip ${tag === "" ? "is-active" : ""}`}
-                  onClick={() => {
-                    sfx.playTap();
-                    setTag("");
-                  }}
-                >
-                  All
-                </button>
-
-                {RAILS.map((rail) => (
-                  <button
-                    key={rail}
-                    className={`rrRequestChip ${tag === rail ? "is-active" : ""}`}
-                    onClick={() => {
-                      sfx.playTap();
-                      setTag(rail);
-                    }}
-                  >
-                    {rail}
-                  </button>
-                ))}
-              </div>
-              <div className="rrRequestChipHint" aria-hidden="true">
-                ›
-              </div>
-            </div>
-
-            {search.trim() && songs.length === 0 ? (
-              <div
-                style={{
-                  marginTop: 14,
-                  padding: 14,
-                  borderRadius: 16,
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  display: "grid",
-                  gap: 10,
-                }}
-              >
-                <div style={{ fontWeight: 900 }}>Can’t find your song?</div>
-                <button
-                  className="rrBtnGhost"
-                  disabled={writeInBusy || !writeInSearch.requestedTitle}
-                  onClick={(e) => {
-                    sfx.playTap();
-                    void submitWriteIn(e.currentTarget);
-                  }}
-                >
-                  {writeInBusy
-                    ? "SENDING..."
-                    : writeInSearch.requestedArtist
-                      ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
-                      : `Request "${writeInSearch.requestedTitle}" • ${requestCost}pt`}
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        {trending.length ? (
-          <div className="rrPanel">
-            <div className="rrPanelHead">
-              <div>
-                <div className="rrPanelTitle">Trending at Remix</div>
-                <div className="rrPanelSub">Fast picks for tonight’s crowd.</div>
-              </div>
-            </div>
-
-            <div className="rrPanelBody">
-              <div className="rrTrendingRail">
-                {trending.map((song) => {
-                  const isSuccess = successTileId === song.id;
-                  const isHot = true;
-
-                  return (
-                    <div key={song.id} className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}>
-                      <AlbumArt src={song.artworkUrl} fallbackSrc={defaultAlbumArtUrl} alt={song.title} />
-
-                      <div className="rrSongTileCopy">
-                        <div className="rrSongTileTitle">{song.title}</div>
-                        <div className="rrSongTileMeta">{song.artist}</div>
-
-                        <div className="rrSongMetaRow">
-                          {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
-                          <span className="rrMetaPill">{requestCost}pt</span>
-                          <span className="rrMetaPill">{playNowCost}pt boost</span>
-                          {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
-                        </div>
-                      </div>
-
-                      <div className="rrSongTileActions">
-                        <HoldButton
-                          idleLabel={`REQUEST! - ${requestCost}pt`}
-                          busyLabel="REQUESTING..."
-                          successLabel="ADDED!"
-                          onConfirm={(el) => submit(song, "play_next", el)}
-                        />
-                        <HoldButton
-                          idleLabel={`BOOST! - ${playNowCost}pts`}
-                          busyLabel="BOOSTING..."
-                          successLabel="SENT!"
-                          onConfirm={(el) => submit(song, "play_now", el)}
-                          className="rrBtn"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="rrPanel">
-          <div className="rrPanelHead rrPanelHead--centered">
-            <div>
-              <div className="rrPanelTitle">Song List</div>
-              <div className="rrPanelSub">
-                {songs.length ? `${songs.length} available` : "No songs found right now."}
-              </div>
-            </div>
-          </div>
-
-          <div className="rrSongTileGrid">
-            {songs.length ? (
-              songs.map((song) => {
+            <div className="rrTrendingRail">
+              {trending.map((song) => {
                 const isSuccess = successTileId === song.id;
-                const isHot = trending.some((x) => x.id === song.id);
+                const isHot = true;
 
                 return (
                   <div key={song.id} className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}>
@@ -2034,369 +1722,382 @@ return (
                     </div>
                   </div>
                 );
-              })
-            ) : (
-              <div className="rrEmpty" style={{ display: "grid", gap: 14 }}>
-                <div>No songs matched that search.</div>
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
-                {search.trim() ? (
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 10,
-                      width: "min(100%, 560px)",
-                      margin: "0 auto",
-                      textAlign: "left",
-                      padding: 16,
-                      borderRadius: 18,
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  >
-                    <div style={{ fontWeight: 900 }}>Can’t find your song?</div>
-                    <div className="rrPanelSub" style={{ marginTop: 0 }}>
-                      Send a write-in request for the DJ to review.
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        color: "rgba(255,255,255,0.88)",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {writeInSearch.requestedArtist
-                        ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
-                        : `Request "${writeInSearch.requestedTitle}" • ${requestCost}pt`}
-                    </div>
-                    <button
-                      className="rrBtn"
-                      disabled={writeInBusy || !writeInSearch.requestedTitle}
-                      onClick={(e) => {
-                        sfx.playTap();
-                        void submitWriteIn(e.currentTarget);
-                      }}
-                    >
-                      {writeInBusy ? "SENDING..." : "Send Write-In Request"}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            )}
+      <div className="rrPanel">
+        <div className="rrPanelHead rrPanelHead--centered">
+          <div>
+            <div className="rrPanelTitle">Song List</div>
+            <div className="rrPanelSub">
+              {songs.length ? `${songs.length} available` : "No songs found right now."}
+            </div>
           </div>
         </div>
 
-        {toastOpen && msg ? (
-          <div className="rrToast">
-            <div className="rrToastInner">
-              <div className="rrToastText">{msg}</div>
-              <button className="rrBtnGhost" onClick={dismissToast}>
-                Close
-              </button>
-            </div>
-          </div>
-        ) : null}
+        <div className="rrSongTileGrid">
+          {songs.length ? (
+            songs.map((song) => {
+              const isSuccess = successTileId === song.id;
+              const isHot = trending.some((x) => x.id === song.id);
 
-        {rewardFlash ? (
+              return (
+                <div key={song.id} className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}>
+                  <AlbumArt src={song.artworkUrl} fallbackSrc={defaultAlbumArtUrl} alt={song.title} />
+
+                  <div className="rrSongTileCopy">
+                    <div className="rrSongTileTitle">{song.title}</div>
+                    <div className="rrSongTileMeta">{song.artist}</div>
+
+                    <div className="rrSongMetaRow">
+                      {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
+                      <span className="rrMetaPill">{requestCost}pt</span>
+                      <span className="rrMetaPill">{playNowCost}pt boost</span>
+                      {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
+                    </div>
+                  </div>
+
+                  <div className="rrSongTileActions">
+                    <HoldButton
+                      idleLabel={`REQUEST! - ${requestCost}pt`}
+                      busyLabel="REQUESTING..."
+                      successLabel="ADDED!"
+                      onConfirm={(el) => submit(song, "play_next", el)}
+                    />
+                    <HoldButton
+                      idleLabel={`BOOST! - ${playNowCost}pts`}
+                      busyLabel="BOOSTING..."
+                      successLabel="SENT!"
+                      onConfirm={(el) => submit(song, "play_now", el)}
+                      className="rrBtn"
+                    />
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="rrEmpty" style={{ display: "grid", gap: 14 }}>
+              <div>No songs matched that search.</div>
+
+              {search.trim() ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 10,
+                    width: "min(100%, 560px)",
+                    margin: "0 auto",
+                    textAlign: "left",
+                    padding: 16,
+                    borderRadius: 18,
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <div style={{ fontWeight: 900 }}>Can’t find your song?</div>
+                  <div className="rrPanelSub" style={{ marginTop: 0 }}>
+                    Send a write-in request for the DJ to review.
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: "rgba(255,255,255,0.88)",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {writeInSearch.requestedArtist
+                      ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
+                      : `Request "${writeInSearch.requestedTitle}" • ${requestCost}pt`}
+                  </div>
+                  <button
+                    className="rrBtn"
+                    disabled={writeInBusy || !writeInSearch.requestedTitle}
+                    onClick={(e) => {
+                      sfx.playTap();
+                      void submitWriteIn(e.currentTarget);
+                    }}
+                  >
+                    {writeInBusy ? "SENDING..." : "Send Write-In Request"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      </div>
+
+        {toastOpen && msg ? (
+        <div className="rrToast">
+          <div className="rrToastInner">
+            <div className="rrToastText">{msg}</div>
+            <button className="rrBtnGhost" onClick={dismissToast}>
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {rewardFlash ? (
+        <div
+          key={rewardFlash.key}
+          style={{
+            position: "fixed",
+            inset: 0,
+            pointerEvents: "none",
+            zIndex: 120,
+            display: "grid",
+            placeItems: "center",
+            padding: 18,
+          }}
+        >
           <div
-            key={rewardFlash.key}
             style={{
-              position: "fixed",
-              inset: 0,
-              pointerEvents: "none",
-              zIndex: 140,
-              display: "grid",
-              placeItems: "center",
-              padding: 18,
+              position: "relative",
+              minWidth: 260,
+              maxWidth: "min(92vw, 380px)",
+              borderRadius: 28,
+              padding: "22px 24px 20px",
+              textAlign: "center",
+              color: "#fff",
+              overflow: "hidden",
+              border: "1px solid rgba(255,255,255,0.16)",
+              background:
+                "radial-gradient(circle at top, rgba(110,231,249,0.22), rgba(18,24,36,0.98) 42%), linear-gradient(145deg, rgba(34,41,58,0.98), rgba(11,16,26,0.98))",
+              boxShadow:
+                "0 22px 70px rgba(0,0,0,0.48), 0 0 34px rgba(110,231,249,0.14), inset 0 1px 0 rgba(255,255,255,0.08)",
+              animation: "rrRewardPop 1850ms cubic-bezier(.16,.84,.24,1) forwards",
             }}
           >
             <div
               style={{
-                position: "relative",
-                minWidth: 260,
-                maxWidth: "min(92vw, 380px)",
-                borderRadius: 28,
-                padding: "22px 24px 20px",
-                textAlign: "center",
-                color: "#fff",
-                overflow: "hidden",
-                border: "1px solid rgba(255,255,255,0.16)",
+                position: "absolute",
+                inset: 0,
                 background:
-                  "radial-gradient(circle at top, rgba(110,231,249,0.22), rgba(18,24,36,0.98) 42%), linear-gradient(145deg, rgba(34,41,58,0.98), rgba(11,16,26,0.98))",
-                boxShadow:
-                  "0 22px 70px rgba(0,0,0,0.48), 0 0 34px rgba(110,231,249,0.14), inset 0 1px 0 rgba(255,255,255,0.08)",
-                animation: "rrRewardPop 1850ms cubic-bezier(.16,.84,.24,1) forwards",
+                  "linear-gradient(115deg, transparent 16%, rgba(255,255,255,0.18) 29%, transparent 44%)",
+                transform: "translateX(-120%)",
+                animation: "rrRewardSheen 900ms ease 130ms forwards",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                inset: "10px",
+                borderRadius: 22,
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            />
+            <div
+              style={{
+                position: "relative",
+                zIndex: 1,
+                fontSize: 11,
+                letterSpacing: "0.26em",
+                opacity: 0.72,
+                fontWeight: 900,
               }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background:
-                    "linear-gradient(115deg, transparent 16%, rgba(255,255,255,0.18) 29%, transparent 44%)",
-                  transform: "translateX(-120%)",
-                  animation: "rrRewardSheen 900ms ease 130ms forwards",
-                }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  inset: "10px",
-                  borderRadius: 22,
-                  border: "1px solid rgba(255,255,255,0.08)",
-                }}
-              />
-              <div
-                style={{
-                  position: "relative",
-                  zIndex: 1,
-                  fontSize: 11,
-                  letterSpacing: "0.26em",
-                  opacity: 0.72,
-                  fontWeight: 900,
-                }}
-              >
-                {rewardFlash.eyebrow || "REWARD UNLOCKED"}
-              </div>
-              <div
-                style={{
-                  position: "relative",
-                  zIndex: 1,
-                  fontSize: 36,
-                  fontWeight: 1000,
-                  lineHeight: 0.96,
-                  marginTop: 10,
-                  textShadow: "0 0 24px rgba(110,231,249,0.18)",
-                }}
-              >
-                {rewardFlash.title}
-              </div>
-              {rewardFlash.subtitle ? (
-                <div
-                  style={{
-                    position: "relative",
-                    zIndex: 1,
-                    marginTop: 10,
-                    fontSize: 14,
-                    opacity: 0.9,
-                  }}
-                >
-                  {rewardFlash.subtitle}
-                </div>
-              ) : null}
-              <div
-                style={{
-                  position: "relative",
-                  zIndex: 1,
-                  margin: "14px auto 0",
-                  width: 74,
-                  height: 4,
-                  borderRadius: 999,
-                  background:
-                    "linear-gradient(90deg, rgba(110,231,249,0.0), rgba(110,231,249,0.92), rgba(217,70,239,0.92), rgba(217,70,239,0.0))",
-                  boxShadow: "0 0 22px rgba(110,231,249,0.28)",
-                }}
-              />
+              {rewardFlash.eyebrow || "REWARD UNLOCKED"}
             </div>
-
-            <style jsx>{`
-              @keyframes rrRewardPop {
-                0% {
-                  transform: scale(0.8) translateY(20px);
-                  opacity: 0;
-                  filter: blur(6px);
-                }
-                12% {
-                  transform: scale(1.04) translateY(0);
-                  opacity: 1;
-                  filter: blur(0);
-                }
-                82% {
-                  transform: scale(1) translateY(0);
-                  opacity: 1;
-                }
-                100% {
-                  transform: scale(0.97) translateY(-10px);
-                  opacity: 0;
-                }
-              }
-
-              @keyframes rrRewardSheen {
-                0% {
-                  transform: translateX(-120%);
-                }
-                100% {
-                  transform: translateX(120%);
-                }
-              }
-            `}</style>
-          </div>
-        ) : null}
-
-        <VerifyDrawer
-          open={showVerify}
-          location={location}
-          email={email}
-          setEmail={setEmail}
-          redeemBusy={redeemBusy}
-          onRedeem={redeem}
-          onClose={() => setShowVerify(false)}
-          onVerified={({ identityId: nextIdentityId, email: nextEmail }) => {
-            const cleanId = String(nextIdentityId || "").trim();
-            const cleanEmail = String(nextEmail || email || "").trim();
-
-            if (cleanId) {
-              setIdentityId(cleanId);
-              setSessionActive(true);
-              setVerified(true);
-              void refreshIdentityState(cleanId);
-            }
-
-            if (cleanEmail) setEmail(cleanEmail);
-
-            setShowBuy(false);
-            setBuyReason("none");
-
-            if (pendingAction) {
-              const action = pendingAction;
-
-              setPendingAction(null);
-              setPendingActionToast(true);
-              setMsg("Completing your request...");
-
-              window.setTimeout(() => {
-                setPendingActionToast(false);
-
-                if (action.type === "request" && action.song) {
-                  void submit(action.song, "play_next", action.sourceEl);
-                  return;
-                }
-
-                if (action.type === "boost" && action.song) {
-                  void submit(action.song, "play_now", action.sourceEl);
-                  return;
-                }
-
-                if (action.type === "write-in") {
-                  void submitWriteIn(action.sourceEl);
-                  return;
-                }
-
-                setMsg("Verification complete. Your points are ready.");
-              }, 150);
-            } else {
-              setMsg("Verification complete. Your points are ready.");
-            }
-          }}
-        />
-
-        <BuyCreditsDrawer
-          open={showBuy}
-          busy={buyBusy}
-          packs={packs}
-          redeemCode={redeemCode}
-          setRedeemCode={setRedeemCode}
-          redeemBusy={redeemBusy}
-          onClose={() => setShowBuy(false)}
-          onBuy={(packageKey, href) => startCheckout(packageKey, href)}
-          onRedeem={() => redeem()}
-        />
-
-          {flyAnim ? (
-          <div
-            style={{
-              position: "fixed",
-              left: flyAnim.startX,
-              top: flyAnim.startY,
-              width: 34,
-              height: 34,
-              marginLeft: -17,
-              marginTop: -17,
-              borderRadius: 12,
-              overflow: "hidden",
-              zIndex: 80,
-              pointerEvents: "none",
-              border: "1px solid rgba(255,255,255,0.12)",
-              background:
-                "linear-gradient(135deg, rgba(46, 56, 74, 0.9), rgba(21, 28, 42, 0.96))",
-              transform: `translate(${flyAnim.deltaX}px, ${flyAnim.deltaY}px) scale(0.52)`,
-              opacity: 0.15,
-              transition: "transform 900ms ease, opacity 900ms ease",
-            }}
-          >
-            {flyAnim.src ? (
-              <img
-                src={flyAnim.src}
-                alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-              />
-            ) : (
+            <div
+              style={{
+                position: "relative",
+                zIndex: 1,
+                fontSize: 36,
+                fontWeight: 1000,
+                lineHeight: 0.96,
+                marginTop: 10,
+                textShadow: "0 0 24px rgba(110,231,249,0.18)",
+              }}
+            >
+              {rewardFlash.title}
+            </div>
+            {rewardFlash.subtitle ? (
               <div
-                className="rrArtFallback"
-                style={{ display: "grid", placeItems: "center", width: "100%", height: "100%" }}
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                  marginTop: 10,
+                  fontSize: 14,
+                  opacity: 0.9,
+                }}
               >
-                RMX
+                {rewardFlash.subtitle}
               </div>
-            )}
+            ) : null}
+            <div
+              style={{
+                position: "relative",
+                zIndex: 1,
+                margin: "14px auto 0",
+                width: 74,
+                height: 4,
+                borderRadius: 999,
+                background:
+                  "linear-gradient(90deg, rgba(110,231,249,0.0), rgba(110,231,249,0.92), rgba(217,70,239,0.92), rgba(217,70,239,0.0))",
+                boxShadow: "0 0 22px rgba(110,231,249,0.28)",
+              }}
+            />
           </div>
-        ) : null}
 
-        <style jsx global>{`
-          html {
-            -webkit-text-size-adjust: 100%;
-          }
-
-          input,
-          textarea,
-          select {
-            font-size: 16px;
-          }
-
-          .rrToast {
-            position: fixed;
-            left: 12px;
-            right: 12px;
-            top: max(12px, env(safe-area-inset-top));
-            bottom: auto;
-            z-index: 135;
-          }
-
-          .rrToastInner {
-            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
-          }
-
-          @media (max-width: 720px) {
-            .rrHeroCard .rrTitle {
-              font-size: clamp(32px, 9vw, 44px);
+          <style jsx>{`
+            @keyframes rrRewardPop {
+              0% {
+                transform: scale(0.8) translateY(20px);
+                opacity: 0;
+                filter: blur(6px);
+              }
+              12% {
+                transform: scale(1.04) translateY(0);
+                opacity: 1;
+                filter: blur(0);
+              }
+              82% {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+              }
+              100% {
+                transform: scale(0.97) translateY(-10px);
+                opacity: 0;
+              }
             }
 
-            .rrHeroCard .rrTitleSub {
-              font-size: 15px;
-              line-height: 1.45;
+            @keyframes rrRewardSheen {
+              0% {
+                transform: translateX(-120%);
+              }
+              100% {
+                transform: translateX(120%);
+              }
             }
+          `}</style>
+        </div>
+      ) : null}
 
-            .rrDrawerTitle {
-              font-size: clamp(24px, 7vw, 34px);
-            }
-
-            .rrDrawerSub {
-              font-size: 16px;
-              line-height: 1.42;
-            }
-
-            .rrCloseBtn {
-              min-width: 92px;
-              min-height: 44px;
-            }
-          }
-        `}</style>
-
-<PublicBottomCommandBar
+      <VerifyDrawer
+        open={showVerify}
         location={location}
-        activeView="request"
-        points={typeof balanceValue === 'number' ? balanceValue : 0}
-        hidden={showVerify || showBuy}
+        email={email}
+        setEmail={setEmail}
+        redeemBusy={redeemBusy}
+        onRedeem={redeem}
+        onClose={() => setShowVerify(false)}
+        onVerified={({ identityId: nextIdentityId, email: nextEmail }) => {
+          const cleanId = String(nextIdentityId || "").trim();
+          const cleanEmail = String(nextEmail || email || "").trim();
+
+          if (cleanId) {
+            setIdentityId(cleanId);
+            setSessionActive(true);
+            setVerified(true);
+            void refreshIdentityState(cleanId);
+          }
+
+          if (cleanEmail) setEmail(cleanEmail);
+
+          setShowBuy(false);
+          setBuyReason("none");
+
+          if (pendingAction) {
+            const action = pendingAction;
+
+            setPendingAction(null);
+            setPendingActionToast(true);
+            setMsg("Completing your request...");
+
+            window.setTimeout(() => {
+              setPendingActionToast(false);
+
+              if (action.type === "request" && action.song) {
+                void submit(action.song, "play_next", action.sourceEl);
+                return;
+              }
+
+              if (action.type === "boost" && action.song) {
+                void submit(action.song, "play_now", action.sourceEl);
+                return;
+              }
+
+              if (action.type === "write-in") {
+                void submitWriteIn(action.sourceEl);
+                return;
+              }
+
+              setMsg("Verification complete. Your points are ready.");
+            }, 150);
+          } else {
+            setMsg("Verification complete. Your points are ready.");
+          }
+        }}
       />
-      
+
+      <BuyCreditsDrawer
+        open={showBuy}
+        busy={buyBusy}
+        packs={packs}
+        redeemCode={redeemCode}
+        setRedeemCode={setRedeemCode}
+        redeemBusy={redeemBusy}
+        onClose={() => setShowBuy(false)}
+        onBuy={(packageKey, href) => startCheckout(packageKey, href)}
+        onRedeem={() => redeem()}
+      />
+
+      {flyAnim ? (
+        <div
+          style={{
+            position: "fixed",
+            left: flyAnim.startX,
+            top: flyAnim.startY,
+            width: 34,
+            height: 34,
+            marginLeft: -17,
+            marginTop: -17,
+            borderRadius: 12,
+            overflow: "hidden",
+            zIndex: 80,
+            pointerEvents: "none",
+            border: "1px solid rgba(255,255,255,0.12)",
+            background:
+              "linear-gradient(135deg, rgba(46, 56, 74, 0.9), rgba(21, 28, 42, 0.96))",
+            animation: `rrFlyAnim-${flyAnim.key} 900ms ease forwards`,
+          }}
+        >
+          {flyAnim.src ? (
+            <img
+              src={flyAnim.src}
+              alt=""
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          ) : (
+            <div
+              className="rrArtFallback"
+              style={{ display: "grid", placeItems: "center", width: "100%", height: "100%" }}
+            >
+              RMX
+            </div>
+          )}
+
+          <style jsx>{`
+            @keyframes rrFlyAnim-${flyAnim.key} {
+              0% {
+                transform: translate(0px, 0px) scale(1);
+                opacity: 1;
+              }
+              100% {
+                transform: translate(${flyAnim.deltaX}px, ${flyAnim.deltaY}px) scale(0.52);
+                opacity: 0.15;
+              }
+            }
+          `}</style>
+        </div>
+      ) : null}
+<PublicBottomCommandBar
+  location={location}
+  activeView="request"
+  points={balanceValue}
+/>
     </PublicTheme>
   );
 }
