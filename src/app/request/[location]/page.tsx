@@ -1806,7 +1806,7 @@ export default function RequestPage({ params }: { params: { location: string } }
 
 return (
     <PublicTheme>
-      <>
+     
         <div className="rrHeroGrid">
           <div className="rrLogoCard">
             <BrandLogo logoUrl={logoUrl} />
@@ -2396,7 +2396,7 @@ return (
         points={typeof balanceValue === 'number' ? balanceValue : 0}
         hidden={showVerify || showBuy}
       />
-      </>
+      
     </PublicTheme>
   );
 }
