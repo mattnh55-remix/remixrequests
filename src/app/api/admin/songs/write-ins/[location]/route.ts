@@ -1,3 +1,5 @@
+// src/app/api/admin/songs/write-ins/[location]/route.ts
+
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
@@ -77,6 +79,11 @@ export async function GET(
 
   return NextResponse.json({
     ok: true,
+    diagnostics: {
+      adapterReady: true,
+      sourceModel: "SongWriteIn",
+      message: "Live Prisma route",
+    },
     items: items.map((item) => ({
       id: item.id,
       title: item.requestedTitle,

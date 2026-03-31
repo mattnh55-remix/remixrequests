@@ -1402,7 +1402,7 @@ export default function RequestPage({ params }: { params: { location: string } }
   }
 
 
-  async function submitWriteIn(sourceEl?: HTMLElement | null) {
+   async function submitWriteIn(sourceEl?: HTMLElement | null) {
     const requestedTitle = writeInSearch.requestedTitle.trim();
     const requestedArtist = writeInSearch.requestedArtist.trim();
 
@@ -1435,14 +1435,14 @@ export default function RequestPage({ params }: { params: { location: string } }
     setWriteInBusy(true);
 
     try {
-      const res = await fetch(`/api/public/request/write-in`, {
+      const res = await fetch(`/api/public/write-ins/${encodeURIComponent(location)}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          location,
-          email,
           requestedTitle,
           requestedArtist,
+          identityId,
+          requestedByLabel: email?.trim() || null,
         }),
       });
 
@@ -1473,17 +1473,19 @@ export default function RequestPage({ params }: { params: { location: string } }
         sourceEl
       );
 
-      if (typeof data?.balance === "number") bal.applyBalance(data.balance);
-      else if (typeof data?.credits?.balance === "number") bal.applyBalance(data.credits.balance);
-      else bal.refreshOnce();
+      // Current write-in route returns ok / writeInId / status / message,
+      // not a balance payload, so just refresh the balance after success.
+      bal.refreshOnce();
 
       await refreshQueuePreview();
 
       setMsg(
-        requestedArtist
-          ? `Write-in request added: ${requestedTitle} - ${requestedArtist}`
-          : `Write-in request added: ${requestedTitle}`
+        data.message ||
+          (requestedArtist
+            ? `Write-in request added: ${requestedTitle} - ${requestedArtist}`
+            : `Write-in request added: ${requestedTitle}`)
       );
+
       return true;
     } catch {
       sfx.playError();

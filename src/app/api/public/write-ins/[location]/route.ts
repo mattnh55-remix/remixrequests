@@ -1,3 +1,5 @@
+// src/app/api/public/write-ins/[location]/route.ts
+
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
