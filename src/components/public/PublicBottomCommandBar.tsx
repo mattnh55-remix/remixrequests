@@ -93,7 +93,7 @@ export default function PublicBottomCommandBar({
   activeView,
   points,
   className,
-  hidden = false,
+  hidden,
 }: PublicBottomCommandBarProps) {
   const copy = useMemo(() => getCopy(location, activeView), [location, activeView]);
   const [mounted, setMounted] = useState(false);
