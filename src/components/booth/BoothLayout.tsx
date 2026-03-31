@@ -172,6 +172,10 @@ function getSessionStorageKey(location: string) {
   return `rr.booth.sessionClock:${location}`;
 }
 
+function getSessionTimerStateStorageKey(location: string) {
+  return `rr.booth.sessionTimerState:${location}`;
+}
+
 function createNewSessionClock(): BoothSessionClock {
   const startedAtIso = new Date().toISOString();
   return {
@@ -213,6 +217,62 @@ function loadSessionClock(location: string): BoothSessionClock {
     } catch {}
     return created;
   }
+}
+
+type PersistedSessionTimerState = {
+  sessionPaused: boolean;
+  pausedElapsedMs: number;
+  pauseStartedAtMs: number | null;
+};
+
+function loadSessionTimerState(location: string): PersistedSessionTimerState {
+  if (typeof window === "undefined") {
+    return {
+      sessionPaused: false,
+      pausedElapsedMs: 0,
+      pauseStartedAtMs: null,
+    };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getSessionTimerStateStorageKey(location));
+    if (!raw) {
+      return {
+        sessionPaused: false,
+        pausedElapsedMs: 0,
+        pauseStartedAtMs: null,
+      };
+    }
+
+    const parsed = JSON.parse(raw) as Partial<PersistedSessionTimerState>;
+
+    return {
+      sessionPaused: Boolean(parsed.sessionPaused),
+      pausedElapsedMs: Math.max(0, Number(parsed.pausedElapsedMs ?? 0)),
+      pauseStartedAtMs:
+        parsed.pauseStartedAtMs == null ? null : Number(parsed.pauseStartedAtMs),
+    };
+  } catch {
+    return {
+      sessionPaused: false,
+      pausedElapsedMs: 0,
+      pauseStartedAtMs: null,
+    };
+  }
+}
+
+function saveSessionTimerState(
+  location: string,
+  timerState: PersistedSessionTimerState
+) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      getSessionTimerStateStorageKey(location),
+      JSON.stringify(timerState)
+    );
+  } catch {}
 }
 
 function saveSessionClock(location: string, clock: BoothSessionClock) {
@@ -259,10 +319,15 @@ export default function BoothLayout({ location }: { location: string }) {
   const [playingInterstitial, setPlayingInterstitial] =
     useState<ActiveInterstitialPlayback | null>(null);
 
-  useEffect(() => {
-    const clock = loadSessionClock(location);
-    setSessionClock(clock);
-  }, [location]);
+useEffect(() => {
+  const clock = loadSessionClock(location);
+  const timerState = loadSessionTimerState(location);
+
+  setSessionClock(clock);
+  setSessionPaused(timerState.sessionPaused);
+  setPausedElapsedMs(timerState.pausedElapsedMs);
+  setPauseStartedAtMs(timerState.pauseStartedAtMs);
+}, [location]);
 
   const [promptState, setPromptState] = useState<{
     open: boolean;
@@ -362,6 +427,14 @@ export default function BoothLayout({ location }: { location: string }) {
       lastUpdated: new Date().toISOString(),
     }));
   }
+
+useEffect(() => {
+  saveSessionTimerState(location, {
+    sessionPaused,
+    pausedElapsedMs,
+    pauseStartedAtMs,
+  });
+}, [location, sessionPaused, pausedElapsedMs, pauseStartedAtMs]);
 
   useEffect(() => {
     void load();
@@ -504,6 +577,12 @@ export default function BoothLayout({ location }: { location: string }) {
         setSessionPaused(false);
     setPausedElapsedMs(0);
     setPauseStartedAtMs(null);
+
+saveSessionTimerState(location, {
+  sessionPaused: false,
+  pausedElapsedMs: 0,
+  pauseStartedAtMs: null,
+});
 
     setCycleSuppressed(false);
     setPromptLatched(false);
