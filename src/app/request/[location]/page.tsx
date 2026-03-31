@@ -2,9 +2,11 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 import PublicTheme from "../../../components/ui/public/PublicTheme";
+import PublicBottomCommandBar from "@/components/public/PublicBottomCommandBar";
+import confetti from "canvas-confetti";
 
 const REMIX_LOGO_URL =
   "https://skateremix.com/wp-content/uploads/2026/03/Remix_Globe_Logo_350px.png";
@@ -59,6 +61,7 @@ type SessionRes = {
   rules?: {
     logoUrl?: string | null;
     buyUrl?: string | null;
+    defaultAlbumArtUrl?: string | null;
     costRequest?: number;
     costPlayNow?: number;
     packTier1PriceCents?: number | null;
@@ -98,6 +101,44 @@ type FlyAnim = {
 
 const BUY_URL_BY_LOCATION: Record<string, string> = {};
 
+function resolveArtworkSrc(primary?: string | null, fallback?: string | null) {
+  const first = String(primary ?? "").trim();
+  if (first) return first;
+
+  const second = String(fallback ?? "").trim();
+  if (second) return second;
+
+  return "";
+}
+
+function parseWriteInSearchInput(input: string) {
+  const cleaned = String(input || "").trim().replace(/^["']+|["']+$/g, "");
+  if (!cleaned) {
+    return { requestedTitle: "", requestedArtist: "" };
+  }
+
+  const dashIndex = cleaned.lastIndexOf(" - ");
+  if (dashIndex > 0) {
+    return {
+      requestedTitle: cleaned.slice(0, dashIndex).trim(),
+      requestedArtist: cleaned.slice(dashIndex + 3).trim(),
+    };
+  }
+
+  const byMatch = cleaned.match(/^(.*)\s+by\s+(.*)$/i);
+  if (byMatch) {
+    return {
+      requestedTitle: String(byMatch[1] || "").trim(),
+      requestedArtist: String(byMatch[2] || "").trim(),
+    };
+  }
+
+  return {
+    requestedTitle: cleaned,
+    requestedArtist: "",
+  };
+}
+
 function formatCountdown(endsAt?: string | null) {
   if (!endsAt) return "Session live";
   const endMs = new Date(endsAt).getTime();
@@ -113,11 +154,72 @@ function formatCountdown(endsAt?: string | null) {
   return h > 0 ? `Ends in ${h}h ${m}m` : `Ends in ${m}m`;
 }
 
-function AlbumArt({ src, alt }: { src?: string; alt?: string }) {
-  const [bad, setBad] = useState(false);
-  const real = (src || "").trim();
+function useViewportInset(active: boolean) {
+  const [bottomInset, setBottomInset] = useState(0);
 
-  if (!real || bad) {
+  useEffect(() => {
+    if (!active || typeof window === "undefined") return;
+
+    const viewport = window.visualViewport;
+
+    const sync = () => {
+      if (!viewport) {
+        setBottomInset(0);
+        return;
+      }
+
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      setBottomInset(inset);
+    };
+
+    sync();
+
+    if (viewport) {
+      viewport.addEventListener("resize", sync);
+      viewport.addEventListener("scroll", sync);
+    }
+
+    window.addEventListener("orientationchange", sync);
+
+    return () => {
+      if (viewport) {
+        viewport.removeEventListener("resize", sync);
+        viewport.removeEventListener("scroll", sync);
+      }
+      window.removeEventListener("orientationchange", sync);
+    };
+  }, [active]);
+
+  return bottomInset;
+}
+
+const rrMobileInputStyle: CSSProperties = {
+  fontSize: 16,
+  lineHeight: 1.2,
+};
+
+function AlbumArt({
+  src,
+  fallbackSrc,
+  alt,
+}: {
+  src?: string;
+  fallbackSrc?: string | null;
+  alt?: string;
+}) {
+  const [badPrimary, setBadPrimary] = useState(false);
+  const [badFallback, setBadFallback] = useState(false);
+
+  const primarySrc = String(src || "").trim();
+  const backupSrc = String(fallbackSrc || "").trim();
+  const real =
+    !badPrimary && primarySrc
+      ? primarySrc
+      : !badFallback && backupSrc && backupSrc !== primarySrc
+        ? backupSrc
+        : "";
+
+  if (!real) {
     return (
       <div className="rrRequestArt rrRequestArt--lg">
         <div className="rrArtFallback">RMX</div>
@@ -132,7 +234,10 @@ function AlbumArt({ src, alt }: { src?: string; alt?: string }) {
         alt={alt || ""}
         loading="lazy"
         referrerPolicy="no-referrer"
-        onError={() => setBad(true)}
+        onError={() => {
+          if (real === primarySrc) setBadPrimary(true);
+          else setBadFallback(true);
+        }}
       />
     </div>
   );
@@ -362,6 +467,7 @@ function HoldButton({
   );
 }
 
+
 function VerifyDrawer({
   open,
   location,
@@ -389,6 +495,8 @@ function VerifyDrawer({
   const [emailOptIn, setEmailOptIn] = useState(true);
   const [smsOptIn, setSmsOptIn] = useState(true);
   const [redeemCode, setRedeemCode] = useState("");
+  const drawerRef = useRef<HTMLDivElement | null>(null);
+  const keyboardInset = useViewportInset(open);
 
   useEffect(() => {
     if (!open) {
@@ -399,6 +507,27 @@ function VerifyDrawer({
       setRedeemCode("");
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return;
+
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, [open]);
+
+  function handleFieldFocus() {
+    window.setTimeout(() => {
+      drawerRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }, 120);
+  }
 
   if (!open) return null;
 
@@ -439,14 +568,16 @@ function VerifyDrawer({
     setMsg("");
 
     try {
-      const res = await fetch(`/api/public/auth/verify`, {
+      const res = await fetch("/api/public/auth/verify", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           location,
           email,
           phone,
           code,
+          emailOptIn,
+          smsOptIn,
         }),
       });
 
@@ -475,9 +606,17 @@ function VerifyDrawer({
   }
 
   return (
-    <div className="rrOverlay">
-      <div className="rrDrawer">
-        <div className="rrDrawerHead">
+    <div
+      className="rrOverlay rrOverlay--sheet"
+      onClick={onClose}
+      style={{ paddingBottom: Math.max(12, keyboardInset + 12) }}
+    >
+      <div
+        ref={drawerRef}
+        className="rrDrawer rrDrawer--sheet"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="rrDrawerHead rrDrawerHead--sticky">
           <div>
             <div className="rrDrawerTitle">Claim your points</div>
             <div className="rrDrawerSub">
@@ -489,39 +628,47 @@ function VerifyDrawer({
           </button>
         </div>
 
-        <div className="rrDrawerBody">
+        <div className="rrDrawerBody rrDrawerBody--sheet">
           <div className="rrStack">
             {step === "collect" ? (
               <>
                 <input
-                  className="rrInput"
+                  className="rrInput rrInput--drawer"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
                   placeholder="Email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onFocus={handleFieldFocus}
+                  style={rrMobileInputStyle}
                 />
                 <input
-                  className="rrInput"
+                  className="rrInput rrInput--drawer"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
                   placeholder="Mobile number"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  onFocus={handleFieldFocus}
+                  style={rrMobileInputStyle}
                 />
-                <label className="rrHelper">
+                <label className="rrHelper rrHelper--check">
                   <input
                     type="checkbox"
                     checked={emailOptIn}
                     onChange={(e) => setEmailOptIn(e.target.checked)}
-                    style={{ marginRight: 8 }}
                   />
-                  Email me updates and bonus offers
+                  <span>Email me updates and bonus offers</span>
                 </label>
-                <label className="rrHelper">
+                <label className="rrHelper rrHelper--check">
                   <input
                     type="checkbox"
                     checked={smsOptIn}
                     onChange={(e) => setSmsOptIn(e.target.checked)}
-                    style={{ marginRight: 8 }}
                   />
-                  Text me verification and promo updates
+                  <span>Text me verification and promo updates</span>
                 </label>
                 <button className="rrBtn" disabled={busy} onClick={sendCode}>
                   {busy ? "Sending..." : "Send verification code"}
@@ -530,10 +677,14 @@ function VerifyDrawer({
             ) : (
               <>
                 <input
-                  className="rrInput"
+                  className="rrInput rrInput--drawer"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
                   placeholder="Enter verification code"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
+                  onFocus={handleFieldFocus}
+                  style={rrMobileInputStyle}
                 />
                 <button className="rrBtn" disabled={busy} onClick={confirmCode}>
                   {busy ? "Verifying..." : "Verify & continue"}
@@ -549,10 +700,13 @@ function VerifyDrawer({
             <div className="rrStack">
               <div className="rrDrawerTitle rrDrawerTitle--small">Redeem code</div>
               <input
-                className="rrInput"
+                className="rrInput rrInput--drawer"
+                autoCapitalize="characters"
                 placeholder="Enter redemption code"
                 value={redeemCode}
                 onChange={(e) => setRedeemCode(e.target.value)}
+                onFocus={handleFieldFocus}
+                style={rrMobileInputStyle}
               />
               <button
                 className="rrBtnGhost"
@@ -562,10 +716,104 @@ function VerifyDrawer({
                 {redeemBusy ? "Redeeming..." : "Redeem code"}
               </button>
             </div>
-
-            {msg ? <div className="rrHelper">{msg}</div> : null}
           </div>
         </div>
+
+        {msg ? (
+          <div className="rrDrawerNotice" role="status" aria-live="polite">
+            {msg}
+          </div>
+        ) : null}
+
+        <style jsx>{`
+          .rrOverlay--sheet {
+            position: fixed;
+            inset: 0;
+            z-index: 110;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 12px;
+            background: rgba(2, 8, 20, 0.62);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+          }
+
+          .rrDrawer--sheet {
+            width: min(100%, 840px);
+            max-height: min(88dvh, 760px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-radius: 28px;
+          }
+
+          .rrDrawerHead--sticky {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background:
+              linear-gradient(180deg, rgba(11, 20, 37, 0.98), rgba(11, 20, 37, 0.96));
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+          }
+
+          .rrDrawerBody--sheet {
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding-bottom: 18px;
+          }
+
+          .rrInput--drawer {
+            min-height: 56px;
+          }
+
+          .rrHelper--check {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            font-size: 16px;
+            line-height: 1.35;
+          }
+
+          .rrHelper--check input {
+            margin: 2px 0 0;
+            width: 20px;
+            height: 20px;
+            flex: 0 0 auto;
+          }
+
+          .rrDrawerNotice {
+            position: sticky;
+            bottom: 0;
+            z-index: 3;
+            padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+            font-size: 14px;
+            font-weight: 800;
+            color: #ffffff;
+            background:
+              linear-gradient(180deg, rgba(20, 33, 58, 0.98), rgba(10, 18, 31, 0.98));
+            border-top: 1px solid rgba(118, 174, 255, 0.14);
+            box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.22);
+          }
+
+          @media (max-width: 640px) {
+            .rrOverlay--sheet {
+              padding: 0;
+              align-items: flex-end;
+            }
+
+            .rrDrawer--sheet {
+              width: 100%;
+              max-height: min(92dvh, 92vh);
+              border-radius: 24px 24px 0 0;
+            }
+
+            .rrDrawerHead--sticky {
+              padding-top: 14px;
+            }
+          }
+        `}</style>
       </div>
     </div>
   );
@@ -604,12 +852,28 @@ function BuyCreditsDrawer({
   onRedeem: () => void;
 }) {
   const [showRedeem, setShowRedeem] = useState(false);
+  const keyboardInset = useViewportInset(open);
+
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return;
+
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, [open]);
 
   if (!open) return null;
 
   return (
-    <div className="rrOverlay" onClick={onClose}>
-      <div className="rrDrawer rrDrawer--buy" onClick={(e) => e.stopPropagation()}>
+    <div className="rrOverlay rrOverlay--sheet" onClick={onClose} style={{ paddingBottom: Math.max(12, keyboardInset + 12) }}>
+      <div className="rrDrawer rrDrawer--buy rrDrawer--sheet" onClick={(e) => e.stopPropagation()}>
         <div className="rrDrawerHead rrDrawerHead--buy">
           <div>
             <div className="rrDrawerTitle">Take Over the Playlist</div>
@@ -684,10 +948,11 @@ function BuyCreditsDrawer({
                 <div className="rrDrawerTitle rrDrawerTitle--small">Redeem Code</div>
                 <div className="rrInlineForm">
                   <input
-                    className="rrInput"
+                    className="rrInput rrInput--drawer"
                     value={redeemCode}
                     onChange={(e) => setRedeemCode(e.target.value)}
                     placeholder="Enter redeem code"
+                    style={rrMobileInputStyle}
                   />
                   <button className="rrBtnGhost" disabled={redeemBusy} onClick={onRedeem}>
                     {redeemBusy ? "Checking..." : "Redeem"}
@@ -697,6 +962,60 @@ function BuyCreditsDrawer({
             )}
           </div>
         </div>
+
+        <style jsx>{`
+          .rrOverlay--sheet {
+            position: fixed;
+            inset: 0;
+            z-index: 110;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 12px;
+            background: rgba(2, 8, 20, 0.62);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+          }
+
+          .rrDrawer--sheet {
+            width: min(100%, 860px);
+            max-height: min(88dvh, 760px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-radius: 28px;
+          }
+
+          .rrDrawerHead--buy {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background:
+              linear-gradient(180deg, rgba(11, 20, 37, 0.98), rgba(11, 20, 37, 0.96));
+          }
+
+          .rrDrawer--buy .rrDrawerBody {
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding-bottom: 18px;
+          }
+
+          .rrInput--drawer {
+            min-height: 56px;
+          }
+
+          @media (max-width: 640px) {
+            .rrOverlay--sheet {
+              padding: 0;
+            }
+
+            .rrDrawer--sheet {
+              width: 100%;
+              max-height: min(92dvh, 92vh);
+              border-radius: 24px 24px 0 0;
+            }
+          }
+        `}</style>
       </div>
     </div>
   );
@@ -731,12 +1050,26 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [queuePulseOn, setQueuePulseOn] = useState(false);
   const [flyAnim, setFlyAnim] = useState<FlyAnim | null>(null);
   const [buyBusy, setBuyBusy] = useState(false);
+  const [writeInBusy, setWriteInBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<null | {
+    type: "request" | "boost" | "write-in";
+    song?: Song;
+    sourceEl?: HTMLElement | null;
+  }>(null);
+  const [pendingActionToast, setPendingActionToast] = useState(false);
+  const [rewardFlash, setRewardFlash] = useState<null | {
+    key: number;
+    eyebrow?: string;
+    title: string;
+    subtitle?: string;
+  }>(null);
 
   const queueTargetRef = useRef<HTMLButtonElement | null>(null);
   const flyTimerRef = useRef<number | null>(null);
   const tileSuccessTimerRef = useRef<number | null>(null);
   const queuePulseTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+  const rewardFlashTimerRef = useRef<number | null>(null);
   const flyKeyRef = useRef(0);
   const prevUserRequestIdsRef = useRef<Set<string>>(new Set());
 
@@ -806,6 +1139,7 @@ export default function RequestPage({ params }: { params: { location: string } }
       if (tileSuccessTimerRef.current != null) window.clearTimeout(tileSuccessTimerRef.current);
       if (queuePulseTimerRef.current != null) window.clearTimeout(queuePulseTimerRef.current);
       if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
+      if (rewardFlashTimerRef.current != null) window.clearTimeout(rewardFlashTimerRef.current);
     };
   }, []);
 
@@ -820,7 +1154,16 @@ export default function RequestPage({ params }: { params: { location: string } }
     }
 
     setToastOpen(true);
-    if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
+
+    if (toastTimerRef.current != null) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+
+    if (pendingActionToast) {
+      return;
+    }
+
     toastTimerRef.current = window.setTimeout(() => {
       setToastOpen(false);
       window.setTimeout(() => setMsg(""), 220);
@@ -829,7 +1172,7 @@ export default function RequestPage({ params }: { params: { location: string } }
     return () => {
       if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
     };
-  }, [msg]);
+  }, [msg, pendingActionToast]);
 
   useEffect(() => {
     try {
@@ -986,6 +1329,62 @@ export default function RequestPage({ params }: { params: { location: string } }
     window.setTimeout(() => setMsg(""), 220);
   }
 
+  function fireRewardConfetti() {
+    confetti({
+      particleCount: 40,
+      spread: 62,
+      startVelocity: 30,
+      ticks: 100,
+      gravity: 0.95,
+      scalar: 0.92,
+      origin: { x: 0.5, y: 0.58 },
+      colors: ["#6ee7f9", "#d946ef", "#ffffff", "#9d4edd"],
+    });
+
+    window.setTimeout(() => {
+      confetti({
+        particleCount: 26,
+        angle: 60,
+        spread: 50,
+        startVelocity: 24,
+        ticks: 90,
+        gravity: 1,
+        scalar: 0.82,
+        origin: { x: 0.34, y: 0.6 },
+        colors: ["#6ee7f9", "#ffffff", "#d946ef"],
+      });
+
+      confetti({
+        particleCount: 26,
+        angle: 120,
+        spread: 50,
+        startVelocity: 24,
+        ticks: 90,
+        gravity: 1,
+        scalar: 0.82,
+        origin: { x: 0.66, y: 0.6 },
+        colors: ["#6ee7f9", "#ffffff", "#d946ef"],
+      });
+    }, 110);
+  }
+
+  function showRewardFlash(title: string, subtitle?: string, eyebrow = "REWARD UNLOCKED") {
+    setRewardFlash({
+      key: Date.now(),
+      eyebrow,
+      title,
+      subtitle,
+    });
+
+    if (rewardFlashTimerRef.current != null) {
+      window.clearTimeout(rewardFlashTimerRef.current);
+    }
+
+    rewardFlashTimerRef.current = window.setTimeout(() => {
+      setRewardFlash(null);
+    }, 1850);
+  }
+
   function openBuy(reason: typeof buyReason) {
     if (!sessionActive || !verified || !identityId) {
       setBuyReason(reason);
@@ -1054,9 +1453,25 @@ export default function RequestPage({ params }: { params: { location: string } }
         return;
       }
 
+      const pointsAdded = Number(data.pointsAdded ?? 0);
+
       sfx.playSuccess();
-      setMsg(`Redeemed +${data.pointsAdded ?? ""} points.`);
+      fireRewardConfetti();
       setRedeemCode("");
+      setShowVerify(false);
+      setShowBuy(false);
+
+      showRewardFlash(
+        pointsAdded > 0 ? `+${pointsAdded} POINTS` : "POINTS ADDED",
+        "Code redeemed successfully",
+        "BONUS HIT"
+      );
+
+      setMsg(
+        pointsAdded > 0
+          ? `Redeemed +${pointsAdded} points.`
+          : "Code redeemed successfully."
+      );
 
       const nextBalance = data?.balance ?? null;
       if (typeof nextBalance === "number") bal.applyBalance(nextBalance);
@@ -1164,7 +1579,7 @@ export default function RequestPage({ params }: { params: { location: string } }
     flyKeyRef.current += 1;
     setFlyAnim({
       key: flyKeyRef.current,
-      src: song.artworkUrl,
+      src: resolveArtworkSrc(song.artworkUrl, rules?.rules?.defaultAlbumArtUrl),
       startX,
       startY,
       deltaX: endX - startX,
@@ -1182,6 +1597,11 @@ export default function RequestPage({ params }: { params: { location: string } }
   ) {
     if (!sessionActive || !verified || !identityId) {
       sfx.playTap();
+      setPendingAction({
+        type: action === "play_now" ? "boost" : "request",
+        song,
+        sourceEl,
+      });
       setMsg("Claim your points to request songs.");
       setShowVerify(true);
       return false;
@@ -1237,12 +1657,107 @@ export default function RequestPage({ params }: { params: { location: string } }
     }
   }
 
+
+  async function submitWriteIn(sourceEl?: HTMLElement | null) {
+    const requestedTitle = writeInSearch.requestedTitle.trim();
+    const requestedArtist = writeInSearch.requestedArtist.trim();
+
+    if (!requestedTitle) {
+      sfx.playError();
+      setMsg("Enter a song title first.");
+      return false;
+    }
+
+    if (!sessionActive || !verified || !identityId) {
+      sfx.playTap();
+      setPendingAction({
+        type: "write-in",
+        sourceEl,
+      });
+      setMsg("Claim your points to request songs.");
+      setShowVerify(true);
+      return false;
+    }
+
+    const costRequest = Number(rules?.rules?.costRequest ?? 1);
+
+    if (typeof bal.balance === "number" && bal.balance < costRequest) {
+      sfx.playError();
+      setMsg("Not enough points.");
+      openBuy("notEnough");
+      return false;
+    }
+
+    setWriteInBusy(true);
+
+    try {
+      const res = await fetch(`/api/public/request/write-in`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          location,
+          email,
+          requestedTitle,
+          requestedArtist,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        const lower = String(data.error || "").toLowerCase();
+        if (lower.includes("expired") || lower.includes("verify")) {
+          resetToClaimState(true);
+          setMsg("Your session expired. Claim your points to continue.");
+          setShowVerify(true);
+          return false;
+        }
+
+        sfx.playError();
+        setMsg(data.error || "Could not submit write-in request.");
+        return false;
+      }
+
+      sfx.playSuccess();
+      triggerSuccessVisuals(
+        {
+          id: `write-in-${Date.now()}`,
+          title: requestedTitle,
+          artist: requestedArtist,
+          artworkUrl: undefined,
+        },
+        sourceEl
+      );
+
+      if (typeof data?.balance === "number") bal.applyBalance(data.balance);
+      else if (typeof data?.credits?.balance === "number") bal.applyBalance(data.credits.balance);
+      else bal.refreshOnce();
+
+      await refreshQueuePreview();
+
+      setMsg(
+        requestedArtist
+          ? `Write-in request added: ${requestedTitle} - ${requestedArtist}`
+          : `Write-in request added: ${requestedTitle}`
+      );
+      return true;
+    } catch {
+      sfx.playError();
+      setMsg("Could not submit write-in request.");
+      return false;
+    } finally {
+      setWriteInBusy(false);
+    }
+  }
+
   const logoUrl = rules?.rules?.logoUrl || REMIX_LOGO_URL;
   const balanceValue = sessionActive && verified && identityId ? Number(bal.balance || 0) : 5;
   const requestCost = Number(rules?.rules?.costRequest ?? 1);
   const playNowCost = Number(rules?.rules?.costPlayNow ?? 5);
 
   const trending = useMemo(() => songs.slice(0, 8), [songs]);
+  const defaultAlbumArtUrl = rules?.rules?.defaultAlbumArtUrl || "";
+  const writeInSearch = useMemo(() => parseWriteInSearchInput(search), [search]);
 
   const packs: UiPack[] = useMemo(() => {
     const p1 = Number(rules?.rules?.packTier1PriceCents ?? 500);
@@ -1289,120 +1804,206 @@ export default function RequestPage({ params }: { params: { location: string } }
     ];
   }, [rules]);
 
-  return (
+return (
     <PublicTheme>
-      <div className="rrHeroGrid">
-        <div className="rrLogoCard">
-          <BrandLogo logoUrl={logoUrl} />
-        </div>
-
-        <div className="rrHeroCard">
-          <h1 className="rrTitle">Request a Song</h1>
-          <div className="rrTitleSub">
-            Requests cost {requestCost} point. Boosts cost {playNowCost} points.
-            <br />
-            Upvote and Downvote your favorites!
+     
+        <div className="rrHeroGrid">
+          <div className="rrLogoCard">
+            <BrandLogo logoUrl={logoUrl} />
           </div>
-        </div>
 
-        <div className="rrPointsCard">
-          <div className="rrPointsStack">
-            <div className="rrHudLabel">Points</div>
-            <div className="rrHudValue">{balanceValue}</div>
-            <div className="rrPointsActions">
-              <button className="rrBtn" style={{ width: "100%" }} onClick={handlePointsAction}>
-                {sessionActive && verified && identityId ? "Add Points" : "Claim Points"}
-              </button>
+          <div className="rrHeroCard">
+            <h1 className="rrTitle">Request a Song</h1>
+            <div className="rrTitleSub">
+              Requests cost {requestCost} point. Boosts cost {playNowCost} points.
+              <br />
+              Upvote and Downvote your favorites!
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="rrNoticeCard">
-        <div className="rrNoticeActions rrNoticeActions--full" style={{ marginTop: 0 }}>
-          <button
-            ref={queueTargetRef}
-            className={`rrBtn rrBtn--full ${queuePulseOn ? "rrBtn--pulse" : ""}`}
-            onClick={() => {
-              sfx.playTap();
-              window.location.href = `/queue/${encodeURIComponent(location)}`;
-            }}
-          >
-            View Queue
-          </button>
-        </div>
-      </div>
-
-      <div className="rrPanel">
-        <div className="rrPanelHead rrPanelHead--centered">
-          <div>
-            <div className="rrPanelTitle">Search & Browse</div>
-            <div className="rrPanelSub">
-              Use tags to narrow the catalog, then hold to request or boost.
-            </div>
-          </div>
-          <span className="rrStatusPill rrStatusPill--live">Live</span>
-        </div>
-
-        <div className="rrPanelBody">
-          <input
-            className="rrInput"
-            placeholder="Search songs or artists..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onFocus={() => sfx.playTap()}
-          />
-
-          <div className="rrRequestChipScrollerWrap">
-            <div className="rrRequestChipScroller">
-              <button
-                className={`rrRequestChip ${tag === "" ? "is-active" : ""}`}
-                onClick={() => {
-                  sfx.playTap();
-                  setTag("");
-                }}
-              >
-                All
-              </button>
-
-              {RAILS.map((rail) => (
-                <button
-                  key={rail}
-                  className={`rrRequestChip ${tag === rail ? "is-active" : ""}`}
-                  onClick={() => {
-                    sfx.playTap();
-                    setTag(rail);
-                  }}
-                >
-                  {rail}
+          <div className="rrPointsCard">
+            <div className="rrPointsStack">
+              <div className="rrHudLabel">Points</div>
+              <div className="rrHudValue">{balanceValue}</div>
+              <div className="rrPointsActions">
+                <button className="rrBtn" style={{ width: "100%" }} onClick={handlePointsAction}>
+                  {sessionActive && verified && identityId ? "Add Points" : "Claim Points"}
                 </button>
-              ))}
-            </div>
-            <div className="rrRequestChipHint" aria-hidden="true">
-              ›
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {trending.length ? (
+        <div className="rrNoticeCard">
+          <div className="rrNoticeActions rrNoticeActions--full" style={{ marginTop: 0 }}>
+            <button
+              ref={queueTargetRef}
+              className={`rrBtn rrBtn--full ${queuePulseOn ? "rrBtn--pulse" : ""}`}
+              onClick={() => {
+                sfx.playTap();
+                window.location.href = `/queue/${encodeURIComponent(location)}`;
+              }}
+            >
+              View Queue
+            </button>
+          </div>
+        </div>
+
         <div className="rrPanel">
-          <div className="rrPanelHead">
+          <div className="rrPanelHead rrPanelHead--centered">
             <div>
-              <div className="rrPanelTitle">Trending at Remix</div>
-              <div className="rrPanelSub">Fast picks for tonight’s crowd.</div>
+              <div className="rrPanelTitle">Search & Browse</div>
+              <div className="rrPanelSub">
+                Use tags to narrow the catalog, then hold to request or boost.
+              </div>
             </div>
+            <span className="rrStatusPill rrStatusPill--live">Live</span>
           </div>
 
           <div className="rrPanelBody">
-            <div className="rrTrendingRail">
-              {trending.map((song) => {
+            <input
+              className="rrInput"
+              placeholder="Search songs or artists..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => sfx.playTap()}
+            />
+
+            <div className="rrRequestChipScrollerWrap">
+              <div className="rrRequestChipScroller">
+                <button
+                  className={`rrRequestChip ${tag === "" ? "is-active" : ""}`}
+                  onClick={() => {
+                    sfx.playTap();
+                    setTag("");
+                  }}
+                >
+                  All
+                </button>
+
+                {RAILS.map((rail) => (
+                  <button
+                    key={rail}
+                    className={`rrRequestChip ${tag === rail ? "is-active" : ""}`}
+                    onClick={() => {
+                      sfx.playTap();
+                      setTag(rail);
+                    }}
+                  >
+                    {rail}
+                  </button>
+                ))}
+              </div>
+              <div className="rrRequestChipHint" aria-hidden="true">
+                ›
+              </div>
+            </div>
+
+            {search.trim() && songs.length === 0 ? (
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: 14,
+                  borderRadius: 16,
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  display: "grid",
+                  gap: 10,
+                }}
+              >
+                <div style={{ fontWeight: 900 }}>Can’t find your song?</div>
+                <button
+                  className="rrBtnGhost"
+                  disabled={writeInBusy || !writeInSearch.requestedTitle}
+                  onClick={(e) => {
+                    sfx.playTap();
+                    void submitWriteIn(e.currentTarget);
+                  }}
+                >
+                  {writeInBusy
+                    ? "SENDING..."
+                    : writeInSearch.requestedArtist
+                      ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
+                      : `Request "${writeInSearch.requestedTitle}" • ${requestCost}pt`}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {trending.length ? (
+          <div className="rrPanel">
+            <div className="rrPanelHead">
+              <div>
+                <div className="rrPanelTitle">Trending at Remix</div>
+                <div className="rrPanelSub">Fast picks for tonight’s crowd.</div>
+              </div>
+            </div>
+
+            <div className="rrPanelBody">
+              <div className="rrTrendingRail">
+                {trending.map((song) => {
+                  const isSuccess = successTileId === song.id;
+                  const isHot = true;
+
+                  return (
+                    <div key={song.id} className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}>
+                      <AlbumArt src={song.artworkUrl} fallbackSrc={defaultAlbumArtUrl} alt={song.title} />
+
+                      <div className="rrSongTileCopy">
+                        <div className="rrSongTileTitle">{song.title}</div>
+                        <div className="rrSongTileMeta">{song.artist}</div>
+
+                        <div className="rrSongMetaRow">
+                          {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
+                          <span className="rrMetaPill">{requestCost}pt</span>
+                          <span className="rrMetaPill">{playNowCost}pt boost</span>
+                          {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
+                        </div>
+                      </div>
+
+                      <div className="rrSongTileActions">
+                        <HoldButton
+                          idleLabel={`REQUEST! - ${requestCost}pt`}
+                          busyLabel="REQUESTING..."
+                          successLabel="ADDED!"
+                          onConfirm={(el) => submit(song, "play_next", el)}
+                        />
+                        <HoldButton
+                          idleLabel={`BOOST! - ${playNowCost}pts`}
+                          busyLabel="BOOSTING..."
+                          successLabel="SENT!"
+                          onConfirm={(el) => submit(song, "play_now", el)}
+                          className="rrBtn"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="rrPanel">
+          <div className="rrPanelHead rrPanelHead--centered">
+            <div>
+              <div className="rrPanelTitle">Song List</div>
+              <div className="rrPanelSub">
+                {songs.length ? `${songs.length} available` : "No songs found right now."}
+              </div>
+            </div>
+          </div>
+
+          <div className="rrSongTileGrid">
+            {songs.length ? (
+              songs.map((song) => {
                 const isSuccess = successTileId === song.id;
-                const isHot = true;
+                const isHot = trending.some((x) => x.id === song.id);
 
                 return (
                   <div key={song.id} className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}>
-                    <AlbumArt src={song.artworkUrl} alt={song.title} />
+                    <AlbumArt src={song.artworkUrl} fallbackSrc={defaultAlbumArtUrl} alt={song.title} />
 
                     <div className="rrSongTileCopy">
                       <div className="rrSongTileTitle">{song.title}</div>
@@ -1433,186 +2034,369 @@ export default function RequestPage({ params }: { params: { location: string } }
                     </div>
                   </div>
                 );
-              })}
-            </div>
-          </div>
-        </div>
-      ) : null}
+              })
+            ) : (
+              <div className="rrEmpty" style={{ display: "grid", gap: 14 }}>
+                <div>No songs matched that search.</div>
 
-      <div className="rrPanel">
-        <div className="rrPanelHead rrPanelHead--centered">
-          <div>
-            <div className="rrPanelTitle">Song List</div>
-            <div className="rrPanelSub">
-              {songs.length ? `${songs.length} available` : "No songs found right now."}
-            </div>
-          </div>
-        </div>
-
-        <div className="rrSongTileGrid">
-          {songs.length ? (
-            songs.map((song) => {
-              const isSuccess = successTileId === song.id;
-              const isHot = trending.some((x) => x.id === song.id);
-
-              return (
-                <div key={song.id} className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}>
-                  <AlbumArt src={song.artworkUrl} alt={song.title} />
-
-                  <div className="rrSongTileCopy">
-                    <div className="rrSongTileTitle">{song.title}</div>
-                    <div className="rrSongTileMeta">{song.artist}</div>
-
-                    <div className="rrSongMetaRow">
-                      {isHot ? <span className="rrTag rrTag--boost">Hot</span> : null}
-                      <span className="rrMetaPill">{requestCost}pt</span>
-                      <span className="rrMetaPill">{playNowCost}pt boost</span>
-                      {song.explicit ? <span className="rrMetaPill">Explicit</span> : null}
+                {search.trim() ? (
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 10,
+                      width: "min(100%, 560px)",
+                      margin: "0 auto",
+                      textAlign: "left",
+                      padding: 16,
+                      borderRadius: 18,
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <div style={{ fontWeight: 900 }}>Can’t find your song?</div>
+                    <div className="rrPanelSub" style={{ marginTop: 0 }}>
+                      Send a write-in request for the DJ to review.
                     </div>
-                  </div>
-
-                  <div className="rrSongTileActions">
-                    <HoldButton
-                      idleLabel={`REQUEST! - ${requestCost}pt`}
-                      busyLabel="REQUESTING..."
-                      successLabel="ADDED!"
-                      onConfirm={(el) => submit(song, "play_next", el)}
-                    />
-                    <HoldButton
-                      idleLabel={`BOOST! - ${playNowCost}pts`}
-                      busyLabel="BOOSTING..."
-                      successLabel="SENT!"
-                      onConfirm={(el) => submit(song, "play_now", el)}
+                    <div
+                      style={{
+                        fontSize: 14,
+                        color: "rgba(255,255,255,0.88)",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {writeInSearch.requestedArtist
+                        ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
+                        : `Request "${writeInSearch.requestedTitle}" • ${requestCost}pt`}
+                    </div>
+                    <button
                       className="rrBtn"
-                    />
+                      disabled={writeInBusy || !writeInSearch.requestedTitle}
+                      onClick={(e) => {
+                        sfx.playTap();
+                        void submitWriteIn(e.currentTarget);
+                      }}
+                    >
+                      {writeInBusy ? "SENDING..." : "Send Write-In Request"}
+                    </button>
                   </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="rrEmpty">No songs matched that search.</div>
-          )}
+                ) : null}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="rrFooterBar">
-        <div className="rrFooterInner">
-          <button
-            className="rrBtn rrFooterCta"
-            onClick={() => {
-              sfx.playTap();
-              window.location.href = `/queue/${encodeURIComponent(location)}`;
+        {toastOpen && msg ? (
+          <div className="rrToast">
+            <div className="rrToastInner">
+              <div className="rrToastText">{msg}</div>
+              <button className="rrBtnGhost" onClick={dismissToast}>
+                Close
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {rewardFlash ? (
+          <div
+            key={rewardFlash.key}
+            style={{
+              position: "fixed",
+              inset: 0,
+              pointerEvents: "none",
+              zIndex: 140,
+              display: "grid",
+              placeItems: "center",
+              padding: 18,
             }}
           >
-            View Queue & Voting
-          </button>
-
-          <button className="rrBtnGhost" onClick={() => openBuy("boost")}>
-            {sessionActive && verified && identityId ? "Get Points" : "Claim Points"}
-          </button>
-        </div>
-      </div>
-
-      {toastOpen && msg ? (
-        <div className="rrToast">
-          <div className="rrToastInner">
-            <div className="rrToastText">{msg}</div>
-            <button className="rrBtnGhost" onClick={dismissToast}>
-              Close
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      <VerifyDrawer
-        open={showVerify}
-        location={location}
-        email={email}
-        setEmail={setEmail}
-        redeemBusy={redeemBusy}
-        onRedeem={redeem}
-        onClose={() => setShowVerify(false)}
-        onVerified={({ identityId: nextIdentityId, email: nextEmail }) => {
-          const cleanId = String(nextIdentityId || "").trim();
-          const cleanEmail = String(nextEmail || email || "").trim();
-
-          if (cleanId) {
-            setIdentityId(cleanId);
-            setSessionActive(true);
-            setVerified(true);
-            void refreshIdentityState(cleanId);
-          }
-
-          if (cleanEmail) setEmail(cleanEmail);
-
-          setMsg("Verification complete. Your points are ready.");
-          if (buyReason !== "none") {
-            setShowBuy(true);
-          }
-        }}
-      />
-
-      <BuyCreditsDrawer
-        open={showBuy}
-        busy={buyBusy}
-        packs={packs}
-        redeemCode={redeemCode}
-        setRedeemCode={setRedeemCode}
-        redeemBusy={redeemBusy}
-        onClose={() => setShowBuy(false)}
-        onBuy={(packageKey, href) => startCheckout(packageKey, href)}
-        onRedeem={() => redeem()}
-      />
-
-      {flyAnim ? (
-        <div
-          style={{
-            position: "fixed",
-            left: flyAnim.startX,
-            top: flyAnim.startY,
-            width: 34,
-            height: 34,
-            marginLeft: -17,
-            marginTop: -17,
-            borderRadius: 12,
-            overflow: "hidden",
-            zIndex: 80,
-            pointerEvents: "none",
-            border: "1px solid rgba(255,255,255,0.12)",
-            background:
-              "linear-gradient(135deg, rgba(46, 56, 74, 0.9), rgba(21, 28, 42, 0.96))",
-            animation: `rrFlyAnim-${flyAnim.key} 900ms ease forwards`,
-          }}
-        >
-          {flyAnim.src ? (
-            <img
-              src={flyAnim.src}
-              alt=""
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-            />
-          ) : (
             <div
-              className="rrArtFallback"
-              style={{ display: "grid", placeItems: "center", width: "100%", height: "100%" }}
+              style={{
+                position: "relative",
+                minWidth: 260,
+                maxWidth: "min(92vw, 380px)",
+                borderRadius: 28,
+                padding: "22px 24px 20px",
+                textAlign: "center",
+                color: "#fff",
+                overflow: "hidden",
+                border: "1px solid rgba(255,255,255,0.16)",
+                background:
+                  "radial-gradient(circle at top, rgba(110,231,249,0.22), rgba(18,24,36,0.98) 42%), linear-gradient(145deg, rgba(34,41,58,0.98), rgba(11,16,26,0.98))",
+                boxShadow:
+                  "0 22px 70px rgba(0,0,0,0.48), 0 0 34px rgba(110,231,249,0.14), inset 0 1px 0 rgba(255,255,255,0.08)",
+                animation: "rrRewardPop 1850ms cubic-bezier(.16,.84,.24,1) forwards",
+              }}
             >
-              RMX
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background:
+                    "linear-gradient(115deg, transparent 16%, rgba(255,255,255,0.18) 29%, transparent 44%)",
+                  transform: "translateX(-120%)",
+                  animation: "rrRewardSheen 900ms ease 130ms forwards",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  inset: "10px",
+                  borderRadius: 22,
+                  border: "1px solid rgba(255,255,255,0.08)",
+                }}
+              />
+              <div
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                  fontSize: 11,
+                  letterSpacing: "0.26em",
+                  opacity: 0.72,
+                  fontWeight: 900,
+                }}
+              >
+                {rewardFlash.eyebrow || "REWARD UNLOCKED"}
+              </div>
+              <div
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                  fontSize: 36,
+                  fontWeight: 1000,
+                  lineHeight: 0.96,
+                  marginTop: 10,
+                  textShadow: "0 0 24px rgba(110,231,249,0.18)",
+                }}
+              >
+                {rewardFlash.title}
+              </div>
+              {rewardFlash.subtitle ? (
+                <div
+                  style={{
+                    position: "relative",
+                    zIndex: 1,
+                    marginTop: 10,
+                    fontSize: 14,
+                    opacity: 0.9,
+                  }}
+                >
+                  {rewardFlash.subtitle}
+                </div>
+              ) : null}
+              <div
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                  margin: "14px auto 0",
+                  width: 74,
+                  height: 4,
+                  borderRadius: 999,
+                  background:
+                    "linear-gradient(90deg, rgba(110,231,249,0.0), rgba(110,231,249,0.92), rgba(217,70,239,0.92), rgba(217,70,239,0.0))",
+                  boxShadow: "0 0 22px rgba(110,231,249,0.28)",
+                }}
+              />
             </div>
-          )}
 
-          <style jsx>{`
-            @keyframes rrFlyAnim-${flyAnim.key} {
-              0% {
-                transform: translate(0px, 0px) scale(1);
-                opacity: 1;
+            <style jsx>{`
+              @keyframes rrRewardPop {
+                0% {
+                  transform: scale(0.8) translateY(20px);
+                  opacity: 0;
+                  filter: blur(6px);
+                }
+                12% {
+                  transform: scale(1.04) translateY(0);
+                  opacity: 1;
+                  filter: blur(0);
+                }
+                82% {
+                  transform: scale(1) translateY(0);
+                  opacity: 1;
+                }
+                100% {
+                  transform: scale(0.97) translateY(-10px);
+                  opacity: 0;
+                }
               }
-              100% {
-                transform: translate(${flyAnim.deltaX}px, ${flyAnim.deltaY}px) scale(0.52);
-                opacity: 0.15;
+
+              @keyframes rrRewardSheen {
+                0% {
+                  transform: translateX(-120%);
+                }
+                100% {
+                  transform: translateX(120%);
+                }
               }
+            `}</style>
+          </div>
+        ) : null}
+
+        <VerifyDrawer
+          open={showVerify}
+          location={location}
+          email={email}
+          setEmail={setEmail}
+          redeemBusy={redeemBusy}
+          onRedeem={redeem}
+          onClose={() => setShowVerify(false)}
+          onVerified={({ identityId: nextIdentityId, email: nextEmail }) => {
+            const cleanId = String(nextIdentityId || "").trim();
+            const cleanEmail = String(nextEmail || email || "").trim();
+
+            if (cleanId) {
+              setIdentityId(cleanId);
+              setSessionActive(true);
+              setVerified(true);
+              void refreshIdentityState(cleanId);
             }
-          `}</style>
-        </div>
-      ) : null}
+
+            if (cleanEmail) setEmail(cleanEmail);
+
+            setShowBuy(false);
+            setBuyReason("none");
+
+            if (pendingAction) {
+              const action = pendingAction;
+
+              setPendingAction(null);
+              setPendingActionToast(true);
+              setMsg("Completing your request...");
+
+              window.setTimeout(() => {
+                setPendingActionToast(false);
+
+                if (action.type === "request" && action.song) {
+                  void submit(action.song, "play_next", action.sourceEl);
+                  return;
+                }
+
+                if (action.type === "boost" && action.song) {
+                  void submit(action.song, "play_now", action.sourceEl);
+                  return;
+                }
+
+                if (action.type === "write-in") {
+                  void submitWriteIn(action.sourceEl);
+                  return;
+                }
+
+                setMsg("Verification complete. Your points are ready.");
+              }, 150);
+            } else {
+              setMsg("Verification complete. Your points are ready.");
+            }
+          }}
+        />
+
+        <BuyCreditsDrawer
+          open={showBuy}
+          busy={buyBusy}
+          packs={packs}
+          redeemCode={redeemCode}
+          setRedeemCode={setRedeemCode}
+          redeemBusy={redeemBusy}
+          onClose={() => setShowBuy(false)}
+          onBuy={(packageKey, href) => startCheckout(packageKey, href)}
+          onRedeem={() => redeem()}
+        />
+
+          {flyAnim ? (
+          <div
+            style={{
+              position: "fixed",
+              left: flyAnim.startX,
+              top: flyAnim.startY,
+              width: 34,
+              height: 34,
+              marginLeft: -17,
+              marginTop: -17,
+              borderRadius: 12,
+              overflow: "hidden",
+              zIndex: 80,
+              pointerEvents: "none",
+              border: "1px solid rgba(255,255,255,0.12)",
+              background:
+                "linear-gradient(135deg, rgba(46, 56, 74, 0.9), rgba(21, 28, 42, 0.96))",
+              transform: `translate(${flyAnim.deltaX}px, ${flyAnim.deltaY}px) scale(0.52)`,
+              opacity: 0.15,
+              transition: "transform 900ms ease, opacity 900ms ease",
+            }}
+          >
+            {flyAnim.src ? (
+              <img
+                src={flyAnim.src}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+            ) : (
+              <div
+                className="rrArtFallback"
+                style={{ display: "grid", placeItems: "center", width: "100%", height: "100%" }}
+              >
+                RMX
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        <style jsx>{`
+          :global(html) {
+            -webkit-text-size-adjust: 100%;
+          }
+
+          :global(input),
+          :global(textarea),
+          :global(select) {
+            font-size: 16px;
+          }
+
+          :global(.rrToast) {
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            top: max(12px, env(safe-area-inset-top));
+            bottom: auto;
+            z-index: 135;
+          }
+
+          :global(.rrToastInner) {
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
+          }
+
+          @media (max-width: 720px) {
+            :global(.rrHeroCard .rrTitle) {
+              font-size: clamp(32px, 9vw, 44px);
+            }
+
+            :global(.rrHeroCard .rrTitleSub) {
+              font-size: 15px;
+              line-height: 1.45;
+            }
+
+            :global(.rrDrawerTitle) {
+              font-size: clamp(24px, 7vw, 34px);
+            }
+
+            :global(.rrDrawerSub) {
+              font-size: 16px;
+              line-height: 1.42;
+            }
+
+            :global(.rrCloseBtn) {
+              min-width: 92px;
+              min-height: 44px;
+            }
+          }
+        `}</style>
+
+<PublicBottomCommandBar
+        location={location}
+        activeView="request"
+        points={typeof balanceValue === 'number' ? balanceValue : 0}
+        hidden={showVerify || showBuy}
+      />
+      
     </PublicTheme>
   );
 }
