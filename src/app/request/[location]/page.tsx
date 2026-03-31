@@ -1049,7 +1049,6 @@ export default function RequestPage({ params }: { params: { location: string } }
   const [successTileId, setSuccessTileId] = useState<string | null>(null);
   const [queuePulseOn, setQueuePulseOn] = useState(false);
   const [flyAnim, setFlyAnim] = useState<FlyAnim | null>(null);
-  const [flyAnimActive, setFlyAnimActive] = useState(false);
   const [buyBusy, setBuyBusy] = useState(false);
   const [writeInBusy, setWriteInBusy] = useState(false);
   const [pendingAction, setPendingAction] = useState<null | {
@@ -1143,22 +1142,6 @@ export default function RequestPage({ params }: { params: { location: string } }
       if (rewardFlashTimerRef.current != null) window.clearTimeout(rewardFlashTimerRef.current);
     };
   }, []);
-
-useEffect(() => {
-  if (!flyAnim) {
-    setFlyAnimActive(false);
-    return;
-  }
-
-  setFlyAnimActive(false);
-
-  const id = window.requestAnimationFrame(() => {
-    setFlyAnimActive(true);
-  });
-
-  return () => window.cancelAnimationFrame(id);
-}, [flyAnim]);
-
 
   useEffect(() => {
     if (!msg) {
@@ -1821,8 +1804,9 @@ useEffect(() => {
     ];
   }, [rules]);
 
-  return (
-    <PublicTheme>
+return (
+  <PublicTheme>
+    <>
       <div className="rrHeroGrid">
         <div className="rrLogoCard">
           <BrandLogo logoUrl={logoUrl} />
@@ -2101,7 +2085,7 @@ useEffect(() => {
         </div>
       </div>
 
-        {toastOpen && msg ? (
+      {toastOpen && msg ? (
         <div className="rrToast">
           <div className="rrToastInner">
             <div className="rrToastText">{msg}</div>
@@ -2317,7 +2301,7 @@ useEffect(() => {
         onRedeem={() => redeem()}
       />
 
-           {flyAnim ? (
+      {flyAnim ? (
         <div
           style={{
             position: "fixed",
@@ -2334,12 +2318,7 @@ useEffect(() => {
             border: "1px solid rgba(255,255,255,0.12)",
             background:
               "linear-gradient(135deg, rgba(46, 56, 74, 0.9), rgba(21, 28, 42, 0.96))",
-            transform: flyAnimActive
-              ? `translate(${flyAnim.deltaX}px, ${flyAnim.deltaY}px) scale(0.52)`
-              : "translate(0px, 0px) scale(1)",
-            opacity: flyAnimActive ? 0.15 : 1,
-            transition: "transform 900ms ease, opacity 900ms ease",
-            willChange: "transform, opacity",
+            animation: `rrFlyAnim-${flyAnim.key} 900ms ease forwards`,
           }}
         >
           {flyAnim.src ? (
@@ -2356,6 +2335,19 @@ useEffect(() => {
               RMX
             </div>
           )}
+
+          <style jsx>{`
+            @keyframes rrFlyAnim-${flyAnim.key} {
+              0% {
+                transform: translate(0px, 0px) scale(1);
+                opacity: 1;
+              }
+              100% {
+                transform: translate(${flyAnim.deltaX}px, ${flyAnim.deltaY}px) scale(0.52);
+                opacity: 0.15;
+              }
+            }
+          `}</style>
         </div>
       ) : null}
 
@@ -2415,6 +2407,7 @@ useEffect(() => {
         points={balanceValue}
         hidden={showVerify || showBuy}
       />
-    </PublicTheme>
-  );
+    </>
+  </PublicTheme>
+);
 }
