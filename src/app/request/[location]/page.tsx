@@ -2301,7 +2301,7 @@ return (
           onRedeem={() => redeem()}
         />
 
-        {flyAnim ? (
+               {flyAnim ? (
           <div
             style={{
               position: "fixed",
@@ -2318,7 +2318,9 @@ return (
               border: "1px solid rgba(255,255,255,0.12)",
               background:
                 "linear-gradient(135deg, rgba(46, 56, 74, 0.9), rgba(21, 28, 42, 0.96))",
-              animation: `rrFlyAnim-${flyAnim.key} 900ms ease forwards`,
+              transform: `translate(${flyAnim.deltaX}px, ${flyAnim.deltaY}px) scale(0.52)`,
+              opacity: 0.15,
+              transition: "transform 900ms ease, opacity 900ms ease",
             }}
           >
             {flyAnim.src ? (
@@ -2335,19 +2337,6 @@ return (
                 RMX
               </div>
             )}
-
-            <style jsx>{`
-              @keyframes rrFlyAnim-${flyAnim.key} {
-                0% {
-                  transform: translate(0px, 0px) scale(1);
-                  opacity: 1;
-                }
-                100% {
-                  transform: translate(${flyAnim.deltaX}px, ${flyAnim.deltaY}px) scale(0.52);
-                  opacity: 0.15;
-                }
-              }
-            `}</style>
           </div>
         ) : null}
 
