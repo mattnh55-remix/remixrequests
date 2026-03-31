@@ -2340,18 +2340,18 @@ return (
           </div>
         ) : null}
 
-        <style jsx>{`
-          :global(html) {
+        <style jsx global>{`
+          html {
             -webkit-text-size-adjust: 100%;
           }
 
-          :global(input),
-          :global(textarea),
-          :global(select) {
+          input,
+          textarea,
+          select {
             font-size: 16px;
           }
 
-          :global(.rrToast) {
+          .rrToast {
             position: fixed;
             left: 12px;
             right: 12px;
@@ -2360,30 +2360,30 @@ return (
             z-index: 135;
           }
 
-          :global(.rrToastInner) {
+          .rrToastInner {
             box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
           }
 
           @media (max-width: 720px) {
-            :global(.rrHeroCard .rrTitle) {
+            .rrHeroCard .rrTitle {
               font-size: clamp(32px, 9vw, 44px);
             }
 
-            :global(.rrHeroCard .rrTitleSub) {
+            .rrHeroCard .rrTitleSub {
               font-size: 15px;
               line-height: 1.45;
             }
 
-            :global(.rrDrawerTitle) {
+            .rrDrawerTitle {
               font-size: clamp(24px, 7vw, 34px);
             }
 
-            :global(.rrDrawerSub) {
+            .rrDrawerSub {
               font-size: 16px;
               line-height: 1.42;
             }
 
-            :global(.rrCloseBtn) {
+            .rrCloseBtn {
               min-width: 92px;
               min-height: 44px;
             }
