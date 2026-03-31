@@ -1,3 +1,6 @@
+// src/app/api/booth/due-interstitial-prompt/[location]/route.ts
+
+
 import { NextRequest, NextResponse } from "next/server";
 import { getDueInterstitialPrompt } from "@/lib/booth/get-due-interstitial-prompt";
 
@@ -11,6 +14,8 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   try {
     const location = String(params.location ?? "").trim();
     const sessionStartedAt = req.nextUrl.searchParams.get("sessionStartedAt");
+const pausedElapsedMsRaw = req.nextUrl.searchParams.get("pausedElapsedMs");
+const pausedElapsedMs = Math.max(0, Number(pausedElapsedMsRaw || 0));
 
     if (!location) {
       return NextResponse.json(
@@ -22,11 +27,12 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const result = await getDueInterstitialPrompt({
-      location,
-      sessionStartedAt,
-      now: new Date(),
-    });
+const result = await getDueInterstitialPrompt({
+  location,
+  sessionStartedAt,
+  pausedElapsedMs,
+  now: new Date(),
+});
 
     return NextResponse.json(result);
   } catch (error) {

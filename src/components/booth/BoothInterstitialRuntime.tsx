@@ -21,6 +21,8 @@ type DuePromptPayload = {
 type Props = {
   location: string;
   sessionStartedAt?: string | null;
+  pausedElapsedMs?: number;
+  isPaused?: boolean;
   pollMs?: number;
   onPromptOpen?: (payload: DuePromptPayload) => void;
   onPromptResolved?: () => void;
@@ -31,6 +33,8 @@ const DEFAULT_POLL_MS = 15000;
 export default function BoothInterstitialRuntime({
   location,
   sessionStartedAt,
+  pausedElapsedMs = 0,
+  isPaused = false,
   pollMs = DEFAULT_POLL_MS,
   onPromptOpen,
 }: Props) {
@@ -39,10 +43,15 @@ export default function BoothInterstitialRuntime({
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
     if (sessionStartedAt) params.set("sessionStartedAt", sessionStartedAt);
+    params.set("pausedElapsedMs", String(Math.max(0, pausedElapsedMs)));
     return params.toString();
-  }, [sessionStartedAt]);
+  }, [sessionStartedAt, pausedElapsedMs]);
 
   const fetchDuePrompt = useCallback(async () => {
+    if (isPaused) {
+      return;
+    }
+
     const url = `/api/booth/due-interstitial-prompt/${encodeURIComponent(location)}${
       queryString ? `?${queryString}` : ""
     }`;
@@ -71,13 +80,17 @@ export default function BoothInterstitialRuntime({
 
     openedScheduleIdRef.current = nextScheduleId;
     onPromptOpen?.(data);
-  }, [location, queryString, onPromptOpen]);
+  }, [isPaused, location, queryString, onPromptOpen]);
 
   useEffect(() => {
     openedScheduleIdRef.current = null;
-  }, [location, sessionStartedAt]);
+  }, [location, sessionStartedAt, pausedElapsedMs, isPaused]);
 
   useEffect(() => {
+    if (isPaused) {
+      return;
+    }
+
     let cancelled = false;
 
     const run = async () => {
@@ -100,7 +113,7 @@ export default function BoothInterstitialRuntime({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [fetchDuePrompt, pollMs]);
+  }, [isPaused, fetchDuePrompt, pollMs]);
 
   return null;
 }

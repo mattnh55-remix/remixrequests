@@ -252,6 +252,9 @@ export default function BoothLayout({ location }: { location: string }) {
     createNewSessionClock()
   );
   const [tick, setTick] = useState(0);
+  const [sessionPaused, setSessionPaused] = useState(false);
+  const [pausedElapsedMs, setPausedElapsedMs] = useState(0);
+  const [pauseStartedAtMs, setPauseStartedAtMs] = useState<number | null>(null);
   const [promptResolving, setPromptResolving] = useState(false);
   const [playingInterstitial, setPlayingInterstitial] =
     useState<ActiveInterstitialPlayback | null>(null);
@@ -276,6 +279,11 @@ export default function BoothLayout({ location }: { location: string }) {
     promptBody: null,
     assets: [],
   });
+
+  const startedAtMs = new Date(sessionClock.startedAtIso).getTime();
+  const effectiveNowMs = sessionPaused && pauseStartedAtMs ? pauseStartedAtMs : Date.now();
+  const elapsedMs = Math.max(0, effectiveNowMs - startedAtMs - pausedElapsedMs);
+  const elapsedMin = Math.floor(elapsedMs / 60000);
 
   useEffect(() => {
     const id = window.setInterval(() => setTick((x) => x + 1), 1000);
@@ -373,8 +381,6 @@ export default function BoothLayout({ location }: { location: string }) {
   );
 
   useEffect(() => {
-    const started = new Date(sessionClock.startedAtIso).getTime();
-    const elapsedMin = Math.floor((Date.now() - started) / 60000);
     const remaining = sessionClock.cycleMinutes - elapsedMin;
 
     let level: "normal" | "warn5" | "warn2" | "hot1" = "normal";
@@ -386,7 +392,7 @@ export default function BoothLayout({ location }: { location: string }) {
     }
 
     setWarningLevel(level);
-  }, [tick, sessionClock, cycleSuppressed]);
+  }, [elapsedMin, sessionClock.cycleMinutes, cycleSuppressed]);
 
   async function materializeRuntimeAndMaybePlay() {
     const result = await postJson(`/api/booth/runtime/materialize-next/${location}`, {});
@@ -476,10 +482,28 @@ export default function BoothLayout({ location }: { location: string }) {
     });
   }
 
+    function toggleSessionPause() {
+    if (!sessionPaused) {
+      setSessionPaused(true);
+      setPauseStartedAtMs(Date.now());
+      return;
+    }
+
+    if (pauseStartedAtMs) {
+      setPausedElapsedMs((prev) => prev + (Date.now() - pauseStartedAtMs));
+    }
+
+    setSessionPaused(false);
+    setPauseStartedAtMs(null);
+  }
+
   function resetSessionClock() {
     const next = createNewSessionClock();
     setSessionClock(next);
     saveSessionClock(location, next);
+        setSessionPaused(false);
+    setPausedElapsedMs(0);
+    setPauseStartedAtMs(null);
 
     setCycleSuppressed(false);
     setPromptLatched(false);
@@ -545,6 +569,9 @@ export default function BoothLayout({ location }: { location: string }) {
             onReset={resetSessionClock}
             warningLevel={promptLatched ? latchedWarning : warningLevel}
             promptLatched={promptLatched}
+            elapsedMsOverride={elapsedMs}
+            isPaused={sessionPaused}
+            onPauseToggle={toggleSessionPause}
           />
         </div>
 
@@ -624,12 +651,14 @@ export default function BoothLayout({ location }: { location: string }) {
               </div>
             </div>
 
-            <BoothInterstitialRuntime
-              location={location}
-              sessionStartedAt={sessionClock.startedAtIso}
-              onPromptOpen={handlePromptOpen}
-              onPromptResolved={handlePromptResolved}
-            />
+<BoothInterstitialRuntime
+  location={location}
+  sessionStartedAt={sessionClock.startedAtIso}
+  pausedElapsedMs={pausedElapsedMs}
+  isPaused={sessionPaused}
+  onPromptOpen={handlePromptOpen}
+  onPromptResolved={handlePromptResolved}
+/>
 
             {promptState.open ? (
               <div className="rrQueueStage__modalOverlay">

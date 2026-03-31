@@ -4,6 +4,7 @@ import type { InterstitialCategory, InterstitialEventStatus } from "@prisma/clie
 type GetDueInterstitialPromptArgs = {
   location: string;
   sessionStartedAt?: string | null;
+  pausedElapsedMs?: number;
   now?: Date;
 };
 
@@ -94,6 +95,7 @@ function buildBaseResult(
 export async function getDueInterstitialPrompt({
   location,
   sessionStartedAt,
+  pausedElapsedMs = 0,
   now = new Date(),
 }: GetDueInterstitialPromptArgs): Promise<DueInterstitialPromptResult> {
   const startedAt = safeDate(sessionStartedAt);
@@ -119,7 +121,14 @@ export async function getDueInterstitialPrompt({
     return base;
   }
 
-  const elapsedMinutes = startedAt ? diffMinutes(startedAt, now) : 0;
+  const elapsedMinutes = startedAt
+  ? Math.max(
+      0,
+      Math.floor(
+        (now.getTime() - startedAt.getTime() - pausedElapsedMs) / 60000
+      )
+    )
+  : 0;
 
   const activeWindows = await prisma.interstitialSchedule.findMany({
     where: {

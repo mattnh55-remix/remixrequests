@@ -9,6 +9,11 @@ type Props = {
 
   warningLevel?: WarningLevel;
   promptLatched?: boolean;
+
+  // NEW
+  elapsedMsOverride?: number;
+  isPaused?: boolean;
+  onPauseToggle?: () => void;
 };
 
 function formatElapsed(ms: number) {
@@ -30,8 +35,13 @@ export default function SessionTimerPanel({
   onReset,
   warningLevel = "normal",
   promptLatched = false,
+  elapsedMsOverride,
+  isPaused = false,
+  onPauseToggle,
 }: Props) {
-  const elapsedMs = Date.now() - new Date(startedAtIso).getTime();
+  const elapsedMs =
+  elapsedMsOverride ??
+  (Date.now() - new Date(startedAtIso).getTime());
   const elapsedMin = Math.floor(elapsedMs / 60000);
   const pct = Math.min(100, Math.round((elapsedMin / cycleMinutes) * 100));
 
@@ -52,9 +62,20 @@ export default function SessionTimerPanel({
           {formatElapsed(elapsedMs)}
         </div>
 
-        <button className="rrSessionHero__reset" onClick={onReset}>
-          Reset
-        </button>
+<div style={{ display: "flex", gap: 6 }}>
+  {onPauseToggle && (
+    <button
+      className="rrSessionHero__reset"
+      onClick={onPauseToggle}
+    >
+      {isPaused ? "Resume" : "Pause"}
+    </button>
+  )}
+
+  <button className="rrSessionHero__reset" onClick={onReset}>
+    Reset
+  </button>
+</div>
       </div>
 
       <div className="rrSessionHero__sub">
