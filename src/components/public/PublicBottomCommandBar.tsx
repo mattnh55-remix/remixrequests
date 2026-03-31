@@ -22,6 +22,7 @@ type PublicBottomCommandBarProps = {
   activeView: PublicView;
   points?: number | null;
   className?: string;
+  hidden?: boolean;
 };
 
 function getCopy(location: string, activeView: PublicView): BarCopy {
@@ -92,10 +93,12 @@ export default function PublicBottomCommandBar({
   activeView,
   points,
   className,
+  hidden = false,
 }: PublicBottomCommandBarProps) {
   const copy = useMemo(() => getCopy(location, activeView), [location, activeView]);
   const [mounted, setMounted] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -112,12 +115,39 @@ export default function PublicBottomCommandBar({
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+
+    const viewport = window.visualViewport;
+    const syncKeyboard = () => {
+      const heightDelta = window.innerHeight - viewport.height;
+      setKeyboardOpen(heightDelta > 140);
+    };
+
+    syncKeyboard();
+    viewport.addEventListener("resize", syncKeyboard);
+    viewport.addEventListener("scroll", syncKeyboard);
+    window.addEventListener("orientationchange", syncKeyboard);
+
+    return () => {
+      viewport.removeEventListener("resize", syncKeyboard);
+      viewport.removeEventListener("scroll", syncKeyboard);
+      window.removeEventListener("orientationchange", syncKeyboard);
+    };
+  }, []);
+
   return (
     <>
       <div className="rrCmdBarSpacer" />
 
       <div
-        className={`rrCmdBarWrap ${className ?? ""} ${mounted && reducedMotion ? "reducedMotion" : ""}`}
+        className={[
+          "rrCmdBarWrap",
+          className ?? "",
+          mounted && reducedMotion ? "reducedMotion" : "",
+          keyboardOpen ? "keyboardOpen" : "",
+          hidden ? "isHidden" : "",
+        ].filter(Boolean).join(" ")}
       >
         <div className="rrCmdBar">
           <div className="rrCmdTop">
@@ -178,10 +208,19 @@ export default function PublicBottomCommandBar({
           position: fixed;
           left: 0;
           right: 0;
-          bottom: max(0px, env(safe-area-inset-bottom));
+          bottom: 0;
           z-index: 80;
           pointer-events: none;
-          padding: 0 12px 12px;
+          padding: 0 12px calc(12px + env(safe-area-inset-bottom));
+          transition:
+            transform 180ms ease,
+            opacity 180ms ease;
+        }
+
+        .rrCmdBarWrap.keyboardOpen,
+        .rrCmdBarWrap.isHidden {
+          transform: translateY(calc(100% + 16px));
+          opacity: 0;
         }
 
         .rrCmdBar {
@@ -446,6 +485,20 @@ export default function PublicBottomCommandBar({
             height: 170px;
           }
 
+          .rrCmdBarWrap {
+            padding-left: 0;
+            padding-right: 0;
+            padding-bottom: 0;
+          }
+
+          .rrCmdBar {
+            border-left: 0;
+            border-right: 0;
+            border-bottom: 0;
+            border-radius: 22px 22px 0 0;
+            max-width: none;
+          }
+
           .rrCmdTop {
             flex-direction: column;
             align-items: stretch;
@@ -473,9 +526,9 @@ export default function PublicBottomCommandBar({
           }
 
           .rrCmdBarWrap {
-            padding-left: 10px;
-            padding-right: 10px;
-            padding-bottom: 10px;
+            padding-left: 0;
+            padding-right: 0;
+            padding-bottom: 0;
           }
 
           .rrCmdTop {

@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 import PublicTheme from "../../../components/ui/public/PublicTheme";
 import PublicBottomCommandBar from "@/components/public/PublicBottomCommandBar";
@@ -153,6 +153,50 @@ function formatCountdown(endsAt?: string | null) {
   if (h <= 0 && m <= 2) return "Ending soon";
   return h > 0 ? `Ends in ${h}h ${m}m` : `Ends in ${m}m`;
 }
+
+function useViewportInset(active: boolean) {
+  const [bottomInset, setBottomInset] = useState(0);
+
+  useEffect(() => {
+    if (!active || typeof window === "undefined") return;
+
+    const viewport = window.visualViewport;
+
+    const sync = () => {
+      if (!viewport) {
+        setBottomInset(0);
+        return;
+      }
+
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      setBottomInset(inset);
+    };
+
+    sync();
+
+    if (viewport) {
+      viewport.addEventListener("resize", sync);
+      viewport.addEventListener("scroll", sync);
+    }
+
+    window.addEventListener("orientationchange", sync);
+
+    return () => {
+      if (viewport) {
+        viewport.removeEventListener("resize", sync);
+        viewport.removeEventListener("scroll", sync);
+      }
+      window.removeEventListener("orientationchange", sync);
+    };
+  }, [active]);
+
+  return bottomInset;
+}
+
+const rrMobileInputStyle: CSSProperties = {
+  fontSize: 16,
+  lineHeight: 1.2,
+};
 
 function AlbumArt({
   src,
@@ -423,6 +467,7 @@ function HoldButton({
   );
 }
 
+
 function VerifyDrawer({
   open,
   location,
@@ -450,6 +495,8 @@ function VerifyDrawer({
   const [emailOptIn, setEmailOptIn] = useState(true);
   const [smsOptIn, setSmsOptIn] = useState(true);
   const [redeemCode, setRedeemCode] = useState("");
+  const drawerRef = useRef<HTMLDivElement | null>(null);
+  const keyboardInset = useViewportInset(open);
 
   useEffect(() => {
     if (!open) {
@@ -460,6 +507,27 @@ function VerifyDrawer({
       setRedeemCode("");
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return;
+
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, [open]);
+
+  function handleFieldFocus() {
+    window.setTimeout(() => {
+      drawerRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }, 120);
+  }
 
   if (!open) return null;
 
@@ -538,9 +606,17 @@ function VerifyDrawer({
   }
 
   return (
-    <div className="rrOverlay">
-      <div className="rrDrawer">
-        <div className="rrDrawerHead">
+    <div
+      className="rrOverlay rrOverlay--sheet"
+      onClick={onClose}
+      style={{ paddingBottom: Math.max(12, keyboardInset + 12) }}
+    >
+      <div
+        ref={drawerRef}
+        className="rrDrawer rrDrawer--sheet"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="rrDrawerHead rrDrawerHead--sticky">
           <div>
             <div className="rrDrawerTitle">Claim your points</div>
             <div className="rrDrawerSub">
@@ -552,39 +628,47 @@ function VerifyDrawer({
           </button>
         </div>
 
-        <div className="rrDrawerBody">
+        <div className="rrDrawerBody rrDrawerBody--sheet">
           <div className="rrStack">
             {step === "collect" ? (
               <>
                 <input
-                  className="rrInput"
+                  className="rrInput rrInput--drawer"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
                   placeholder="Email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onFocus={handleFieldFocus}
+                  style={rrMobileInputStyle}
                 />
                 <input
-                  className="rrInput"
+                  className="rrInput rrInput--drawer"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
                   placeholder="Mobile number"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  onFocus={handleFieldFocus}
+                  style={rrMobileInputStyle}
                 />
-                <label className="rrHelper">
+                <label className="rrHelper rrHelper--check">
                   <input
                     type="checkbox"
                     checked={emailOptIn}
                     onChange={(e) => setEmailOptIn(e.target.checked)}
-                    style={{ marginRight: 8 }}
                   />
-                  Email me updates and bonus offers
+                  <span>Email me updates and bonus offers</span>
                 </label>
-                <label className="rrHelper">
+                <label className="rrHelper rrHelper--check">
                   <input
                     type="checkbox"
                     checked={smsOptIn}
                     onChange={(e) => setSmsOptIn(e.target.checked)}
-                    style={{ marginRight: 8 }}
                   />
-                  Text me verification and promo updates
+                  <span>Text me verification and promo updates</span>
                 </label>
                 <button className="rrBtn" disabled={busy} onClick={sendCode}>
                   {busy ? "Sending..." : "Send verification code"}
@@ -593,10 +677,14 @@ function VerifyDrawer({
             ) : (
               <>
                 <input
-                  className="rrInput"
+                  className="rrInput rrInput--drawer"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
                   placeholder="Enter verification code"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
+                  onFocus={handleFieldFocus}
+                  style={rrMobileInputStyle}
                 />
                 <button className="rrBtn" disabled={busy} onClick={confirmCode}>
                   {busy ? "Verifying..." : "Verify & continue"}
@@ -612,10 +700,13 @@ function VerifyDrawer({
             <div className="rrStack">
               <div className="rrDrawerTitle rrDrawerTitle--small">Redeem code</div>
               <input
-                className="rrInput"
+                className="rrInput rrInput--drawer"
+                autoCapitalize="characters"
                 placeholder="Enter redemption code"
                 value={redeemCode}
                 onChange={(e) => setRedeemCode(e.target.value)}
+                onFocus={handleFieldFocus}
+                style={rrMobileInputStyle}
               />
               <button
                 className="rrBtnGhost"
@@ -625,10 +716,104 @@ function VerifyDrawer({
                 {redeemBusy ? "Redeeming..." : "Redeem code"}
               </button>
             </div>
-
-            {msg ? <div className="rrHelper">{msg}</div> : null}
           </div>
         </div>
+
+        {msg ? (
+          <div className="rrDrawerNotice" role="status" aria-live="polite">
+            {msg}
+          </div>
+        ) : null}
+
+        <style jsx>{`
+          .rrOverlay--sheet {
+            position: fixed;
+            inset: 0;
+            z-index: 110;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 12px;
+            background: rgba(2, 8, 20, 0.62);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+          }
+
+          .rrDrawer--sheet {
+            width: min(100%, 840px);
+            max-height: min(88dvh, 760px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-radius: 28px;
+          }
+
+          .rrDrawerHead--sticky {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background:
+              linear-gradient(180deg, rgba(11, 20, 37, 0.98), rgba(11, 20, 37, 0.96));
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+          }
+
+          .rrDrawerBody--sheet {
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding-bottom: 18px;
+          }
+
+          .rrInput--drawer {
+            min-height: 56px;
+          }
+
+          .rrHelper--check {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            font-size: 16px;
+            line-height: 1.35;
+          }
+
+          .rrHelper--check input {
+            margin: 2px 0 0;
+            width: 20px;
+            height: 20px;
+            flex: 0 0 auto;
+          }
+
+          .rrDrawerNotice {
+            position: sticky;
+            bottom: 0;
+            z-index: 3;
+            padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+            font-size: 14px;
+            font-weight: 800;
+            color: #ffffff;
+            background:
+              linear-gradient(180deg, rgba(20, 33, 58, 0.98), rgba(10, 18, 31, 0.98));
+            border-top: 1px solid rgba(118, 174, 255, 0.14);
+            box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.22);
+          }
+
+          @media (max-width: 640px) {
+            .rrOverlay--sheet {
+              padding: 0;
+              align-items: flex-end;
+            }
+
+            .rrDrawer--sheet {
+              width: 100%;
+              max-height: min(92dvh, 92vh);
+              border-radius: 24px 24px 0 0;
+            }
+
+            .rrDrawerHead--sticky {
+              padding-top: 14px;
+            }
+          }
+        `}</style>
       </div>
     </div>
   );
@@ -667,12 +852,28 @@ function BuyCreditsDrawer({
   onRedeem: () => void;
 }) {
   const [showRedeem, setShowRedeem] = useState(false);
+  const keyboardInset = useViewportInset(open);
+
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return;
+
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, [open]);
 
   if (!open) return null;
 
   return (
-    <div className="rrOverlay" onClick={onClose}>
-      <div className="rrDrawer rrDrawer--buy" onClick={(e) => e.stopPropagation()}>
+    <div className="rrOverlay rrOverlay--sheet" onClick={onClose} style={{ paddingBottom: Math.max(12, keyboardInset + 12) }}>
+      <div className="rrDrawer rrDrawer--buy rrDrawer--sheet" onClick={(e) => e.stopPropagation()}>
         <div className="rrDrawerHead rrDrawerHead--buy">
           <div>
             <div className="rrDrawerTitle">Take Over the Playlist</div>
@@ -747,10 +948,11 @@ function BuyCreditsDrawer({
                 <div className="rrDrawerTitle rrDrawerTitle--small">Redeem Code</div>
                 <div className="rrInlineForm">
                   <input
-                    className="rrInput"
+                    className="rrInput rrInput--drawer"
                     value={redeemCode}
                     onChange={(e) => setRedeemCode(e.target.value)}
                     placeholder="Enter redeem code"
+                    style={rrMobileInputStyle}
                   />
                   <button className="rrBtnGhost" disabled={redeemBusy} onClick={onRedeem}>
                     {redeemBusy ? "Checking..." : "Redeem"}
@@ -760,6 +962,60 @@ function BuyCreditsDrawer({
             )}
           </div>
         </div>
+
+        <style jsx>{`
+          .rrOverlay--sheet {
+            position: fixed;
+            inset: 0;
+            z-index: 110;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 12px;
+            background: rgba(2, 8, 20, 0.62);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+          }
+
+          .rrDrawer--sheet {
+            width: min(100%, 860px);
+            max-height: min(88dvh, 760px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-radius: 28px;
+          }
+
+          .rrDrawer--buy :global(.rrDrawerHead) {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background:
+              linear-gradient(180deg, rgba(11, 20, 37, 0.98), rgba(11, 20, 37, 0.96));
+          }
+
+          .rrDrawer--buy :global(.rrDrawerBody) {
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding-bottom: 18px;
+          }
+
+          .rrInput--drawer {
+            min-height: 56px;
+          }
+
+          @media (max-width: 640px) {
+            .rrOverlay--sheet {
+              padding: 0;
+            }
+
+            .rrDrawer--sheet {
+              width: 100%;
+              max-height: min(92dvh, 92vh);
+              border-radius: 24px 24px 0 0;
+            }
+          }
+        `}</style>
       </div>
     </div>
   );
@@ -1846,7 +2102,7 @@ export default function RequestPage({ params }: { params: { location: string } }
             position: "fixed",
             inset: 0,
             pointerEvents: "none",
-            zIndex: 120,
+            zIndex: 140,
             display: "grid",
             placeItems: "center",
             padding: 18,
@@ -2093,11 +2349,62 @@ export default function RequestPage({ params }: { params: { location: string } }
           `}</style>
         </div>
       ) : null}
-<PublicBottomCommandBar
-  location={location}
-  activeView="request"
-  points={balanceValue}
-/>
+      <style jsx>{`
+        :global(html) {
+          -webkit-text-size-adjust: 100%;
+        }
+
+        :global(input),
+        :global(textarea),
+        :global(select) {
+          font-size: 16px;
+        }
+
+        :global(.rrToast) {
+          position: fixed;
+          left: 12px;
+          right: 12px;
+          top: max(12px, env(safe-area-inset-top));
+          bottom: auto;
+          z-index: 135;
+        }
+
+        :global(.rrToastInner) {
+          box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
+        }
+
+        @media (max-width: 720px) {
+          :global(.rrHeroCard .rrTitle) {
+            font-size: clamp(32px, 9vw, 44px);
+          }
+
+          :global(.rrHeroCard .rrTitleSub) {
+            font-size: 15px;
+            line-height: 1.45;
+          }
+
+          :global(.rrDrawerTitle) {
+            font-size: clamp(24px, 7vw, 34px);
+          }
+
+          :global(.rrDrawerSub) {
+            font-size: 16px;
+            line-height: 1.42;
+          }
+
+          :global(.rrCloseBtn) {
+            min-width: 92px;
+            min-height: 44px;
+          }
+        }
+      `}</style>
+
+      <PublicBottomCommandBar
+        location={location}
+        activeView="request"
+        points={balanceValue}
+        hidden={showVerify || showBuy}
+      />
     </PublicTheme>
   );
 }
