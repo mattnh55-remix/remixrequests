@@ -1711,20 +1711,23 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
               }}
             >
               <div style={{ fontWeight: 900 }}>Can’t find your song?</div>
-              <button
-                className="rrBtnGhost"
-                disabled={writeInBusy || !writeInSearch.requestedTitle}
-                onClick={(e) => {
-                  sfx.playTap();
-                  void submitWriteIn(e.currentTarget);
-                }}
-              >
+<HoldButton
+  idleLabel={
+    writeInSearch.requestedArtist
+      ? `REQUEST "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
+      : `REQUEST "${writeInSearch.requestedTitle}" • ${requestCost}pt`
+  }
+  busyLabel="SENDING..."
+  successLabel="ADDED!"
+  disabled={writeInBusy || !writeInSearch.requestedTitle}
+  onConfirm={(el) => submitWriteIn(el)}
+/>
                                 {writeInBusy
                   ? "SENDING..."
                   : writeInSearch.requestedArtist
                     ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
                     : `Request "${writeInSearch.requestedTitle}" as a write-in • ${requestCost}pt`}
-              </button>
+              
             </div>
           ) : null}
         </div>
@@ -1867,16 +1870,14 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
                       ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
                       : `Request "${writeInSearch.requestedTitle}" as a write-in • ${requestCost}pt`}
                   </div>
-                  <button
-                    className="rrBtn"
-                    disabled={writeInBusy || !writeInSearch.requestedTitle}
-                    onClick={(e) => {
-                      sfx.playTap();
-                      void submitWriteIn(e.currentTarget);
-                    }}
-                  >
-                    {writeInBusy ? "SENDING..." : "Send Write-In Request"}
-                  </button>
+<HoldButton
+  idleLabel="SEND WRITE-IN REQUEST"
+  busyLabel="SENDING..."
+  successLabel="ADDED!"
+  className="rrBtn"
+  disabled={writeInBusy || !writeInSearch.requestedTitle}
+  onConfirm={(el) => submitWriteIn(el)}
+/>
                 </div>
               ) : null}
             </div>
