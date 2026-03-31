@@ -253,6 +253,16 @@ export async function saveInterstitialSchedule(formData: FormData) {
   const active = toBool(formData.get("active"));
   const required = toBool(formData.get("required"));
 
+  // 🔥 NEW: asset IDs coming from form
+  const rawEligibleAssetIds = formData.getAll("eligibleAssetIds");
+  const eligibleAssetIds = Array.from(
+    new Set(
+      rawEligibleAssetIds
+        .map((v) => String(v ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
   if (!locationRaw) throw new Error("Missing locationId.");
   if (!categoryRaw) throw new Error("Category is required.");
 
@@ -285,27 +295,63 @@ export async function saveInterstitialSchedule(formData: FormData) {
   };
 
   try {
-    if (id) {
-      await prisma.interstitialSchedule.update({
-        where: { id },
-        data,
-      });
+    // 🔥 VALIDATE ASSETS (only allow valid + active assets)
+    const validAssets = eligibleAssetIds.length
+      ? await prisma.interstitialAsset.findMany({
+          where: {
+            id: { in: eligibleAssetIds },
+            locationId: location.id,
+            active: true,
+          },
+          select: { id: true },
+        })
+      : [];
 
-      revalidatePath(`/admin/${location.slug}/interstitials`);
-      redirectToAdmin(location.slug, {
-        scheduleStatus: "saved",
-        scheduleMessage: "Window updated.",
-      });
-    }
+    const validAssetIds = validAssets.map((a) => a.id);
 
-    await prisma.interstitialSchedule.create({
-      data,
+    await prisma.$transaction(async (tx) => {
+      let scheduleId: string;
+
+      if (id) {
+        await tx.interstitialSchedule.update({
+          where: { id },
+          data,
+        });
+
+        // 🔥 wipe old links
+        await tx.interstitialScheduleAsset.deleteMany({
+          where: { scheduleId: id },
+        });
+
+        scheduleId = id;
+      } else {
+        const created = await tx.interstitialSchedule.create({
+          data,
+          select: { id: true },
+        });
+
+        scheduleId = created.id;
+      }
+
+      // 🔥 insert new links
+      if (validAssetIds.length) {
+        await tx.interstitialScheduleAsset.createMany({
+          data: validAssetIds.map((assetId, index) => ({
+            scheduleId,
+            assetId,
+            sortOrder: index,
+          })),
+        });
+      }
     });
 
     revalidatePath(`/admin/${location.slug}/interstitials`);
+
     redirectToAdmin(location.slug, {
       scheduleStatus: "saved",
-      scheduleMessage: "Window created.",
+      scheduleMessage: id
+        ? "Window updated with assets."
+        : "Window created with assets.",
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
@@ -320,7 +366,6 @@ export async function saveInterstitialSchedule(formData: FormData) {
     throw error;
   }
 }
-
 export async function toggleInterstitialSchedule(formData: FormData) {
   const id = toStringValue(formData.get("id"));
   const locationRaw = toStringValue(formData.get("locationId"));

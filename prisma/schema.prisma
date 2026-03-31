@@ -381,6 +381,7 @@ model InterstitialAsset {
   notes         String?
   active        Boolean @default(true)
   manualOnly    Boolean @default(false)
+  scheduleAssets InterstitialScheduleAsset[]
 
   priority     Int @default(0)
   randomWeight Int @default(100)
@@ -417,6 +418,7 @@ model InterstitialSchedule {
   cooldownMinutes Int?
   active          Boolean  @default(true)
   required        Boolean  @default(true)
+  scheduleAssets InterstitialScheduleAsset[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -426,6 +428,20 @@ model InterstitialSchedule {
   @@index([locationId, active, startMinute])
   @@index([locationId, category, active])
   @@unique([locationId, category, startMinute, endMinute])
+}
+
+model InterstitialScheduleAsset {
+  id         String @id @default(cuid())
+  scheduleId String
+  assetId    String
+  sortOrder  Int    @default(0)
+
+  schedule InterstitialSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  asset    InterstitialAsset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, assetId])
+  @@index([scheduleId])
+  @@index([assetId])
 }
 
 model InterstitialEvent {

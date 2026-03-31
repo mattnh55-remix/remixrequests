@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { InterstitialCategory, InterstitialEventStatus } from "@prisma/client";
+import type { InterstitialCategory } from "@prisma/client";
 
 type GetDueInterstitialPromptArgs = {
   location: string;
@@ -122,13 +122,13 @@ export async function getDueInterstitialPrompt({
   }
 
   const elapsedMinutes = startedAt
-  ? Math.max(
-      0,
-      Math.floor(
-        (now.getTime() - startedAt.getTime() - pausedElapsedMs) / 60000
+    ? Math.max(
+        0,
+        Math.floor(
+          (now.getTime() - startedAt.getTime() - pausedElapsedMs) / 60000
+        )
       )
-    )
-  : 0;
+    : 0;
 
   const activeWindows = await prisma.interstitialSchedule.findMany({
     where: {
@@ -139,18 +139,45 @@ export async function getDueInterstitialPrompt({
     },
     orderBy: [{ sortOrder: "asc" }, { startMinute: "asc" }, { id: "asc" }],
     select: {
-  id: true,
-  category: true,
-  label: true,
-  promptTitle: true,
-  promptBody: true,
-  startMinute: true,
-  endMinute: true,
-  sortOrder: true,
-  cooldownMinutes: true,
-  required: true,
-  active: true,
-},
+      id: true,
+      category: true,
+      label: true,
+      promptTitle: true,
+      promptBody: true,
+      startMinute: true,
+      endMinute: true,
+      sortOrder: true,
+      cooldownMinutes: true,
+      required: true,
+      active: true,
+      scheduleAssets: {
+        where: {
+          asset: {
+            active: true,
+            manualOnly: false,
+            locationId: locationRow.id,
+          },
+        },
+        orderBy: [
+          { asset: { priority: "desc" } },
+          { asset: { randomWeight: "desc" } },
+          { asset: { name: "asc" } },
+        ],
+        select: {
+          asset: {
+            select: {
+              id: true,
+              name: true,
+              category: true,
+              durationSec: true,
+              fileUrl: true,
+              previewGifUrl: true,
+              notes: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!activeWindows.length) {
@@ -180,24 +207,9 @@ export async function getDueInterstitialPrompt({
   for (const schedule of activeWindows) {
     const category = normalizeCategory(schedule.category);
 
-    const eligibleRows = await prisma.interstitialAsset.findMany({
-      where: {
-        locationId: locationRow.id,
-        active: true,
-        category,
-        manualOnly: false,
-      },
-      orderBy: [{ priority: "desc" }, { randomWeight: "desc" }, { name: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        category: true,
-        durationSec: true,
-        fileUrl: true,
-        previewGifUrl: true,
-        notes: true,
-      },
-    });
+    const eligibleRows = schedule.scheduleAssets
+      .map((row) => row.asset)
+      .filter(Boolean);
 
     if (!eligibleRows.length) {
       continue;
@@ -270,7 +282,7 @@ export async function getDueInterstitialPrompt({
 
       return {
         id: row.id,
-        category,
+        category: normalizeCategory(row.category),
         title: row.name,
         body: row.notes ?? null,
         durationSec: row.durationSec ?? null,
