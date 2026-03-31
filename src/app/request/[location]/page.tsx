@@ -304,6 +304,14 @@ function HoldButton({
   const [holding, setHolding] = useState(false);
   const [label, setLabel] = useState(idleLabel);
 
+  // 👉 Detect mobile (simple + reliable)
+  const isMobile =
+    typeof window !== "undefined" &&
+    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+  // 👉 Mobile faster, desktop unchanged
+  const HOLD_MS = isMobile ? 420 : 650;
+
   function setFill(p: number) {
     if (fillRef.current) {
       fillRef.current.style.width = `${Math.max(0, Math.min(100, p * 100))}%`;
@@ -344,7 +352,7 @@ function HoldButton({
   function tick(ts: number) {
     if (startRef.current == null) startRef.current = ts;
     const elapsed = ts - startRef.current;
-    const p = Math.min(elapsed / 650, 1);
+    const p = Math.min(elapsed / HOLD_MS, 1);
     setFill(p);
 
     if (p < 0.32) setLabel("HOLD TO CONFIRM");
@@ -365,17 +373,21 @@ function HoldButton({
     e.preventDefault();
     e.stopPropagation();
     if (disabled || lockedRef.current) return;
+
     setHolding(true);
     startRef.current = null;
     setFill(0);
     setLabel("HOLD TO CONFIRM");
+
     rafRef.current = requestAnimationFrame(tick);
   }
 
   function cancelHold(e?: PointerEvent<HTMLButtonElement>) {
     e?.preventDefault();
     e?.stopPropagation();
+
     if (lockedRef.current) return;
+
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     startRef.current = null;
@@ -405,6 +417,12 @@ function HoldButton({
         width: "100%",
         position: "relative",
         overflow: "hidden",
+
+        // ✅ CRITICAL: fixes iOS long-press conflict
+        touchAction: "manipulation",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        WebkitTouchCallout: "none",
       }}
     >
       <div
@@ -418,7 +436,19 @@ function HoldButton({
           transition: holding ? "none" : "width 0.14s ease",
         }}
       />
-      <span style={{ position: "relative", zIndex: 1 }}>{label}</span>
+
+      <span
+        style={{
+          position: "relative",
+          zIndex: 1,
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          WebkitTouchCallout: "none",
+          pointerEvents: "none",
+        }}
+      >
+        {label}
+      </span>
     </button>
   );
 }
@@ -1112,6 +1142,29 @@ export default function RequestPage({ params }: { params: { location: string } }
     }, 110);
   }
 
+function fireButtonConfetti(sourceEl?: HTMLElement | null) {
+  const rect = sourceEl?.getBoundingClientRect?.();
+
+  const originX = rect
+    ? (rect.left + rect.width / 2) / window.innerWidth
+    : 0.5;
+
+  const originY = rect
+    ? (rect.top + rect.height / 2) / window.innerHeight
+    : 0.6;
+
+  confetti({
+    particleCount: 14,
+    spread: 36,
+    startVelocity: 18,
+    ticks: 55,
+    gravity: 1.05,
+    scalar: 0.62,
+    origin: { x: originX, y: originY },
+    colors: ["#6ee7f9", "#d946ef", "#ffffff"],
+  });
+}
+
   function showRewardFlash(title: string, subtitle?: string, eyebrow = "REWARD UNLOCKED") {
     setRewardFlash({
       key: Date.now(),
@@ -1298,6 +1351,7 @@ export default function RequestPage({ params }: { params: { location: string } }
 
   function triggerSuccessVisuals(song: Song, sourceEl?: HTMLElement | null) {
     setSuccessTileId(song.id);
+    fireButtonConfetti(sourceEl);
 
     if (tileSuccessTimerRef.current != null) {
       window.clearTimeout(tileSuccessTimerRef.current);
