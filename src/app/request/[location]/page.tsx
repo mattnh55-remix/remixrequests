@@ -1662,7 +1662,7 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
         <div className="rrPanelBody">
           <input
             className="rrInput"
-            placeholder="Search songs or artists..."
+            placeholder='Search songs or artists..."'
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onFocus={() => sfx.playTap()}
@@ -1719,11 +1719,11 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
                   void submitWriteIn(e.currentTarget);
                 }}
               >
-                {writeInBusy
+                                {writeInBusy
                   ? "SENDING..."
                   : writeInSearch.requestedArtist
                     ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
-                    : `Request "${writeInSearch.requestedTitle}" • ${requestCost}pt`}
+                    : `Request "${writeInSearch.requestedTitle}" as a write-in • ${requestCost}pt`}
               </button>
             </div>
           ) : null}
@@ -1863,9 +1863,9 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
                       wordBreak: "break-word",
                     }}
                   >
-                    {writeInSearch.requestedArtist
+                                        {writeInSearch.requestedArtist
                       ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
-                      : `Request "${writeInSearch.requestedTitle}" • ${requestCost}pt`}
+                      : `Request "${writeInSearch.requestedTitle}" as a write-in • ${requestCost}pt`}
                   </div>
                   <button
                     className="rrBtn"

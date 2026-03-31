@@ -50,9 +50,9 @@ export async function POST(
   const requestedByLabel = safeTrim(body?.requestedByLabel) || null;
   const sessionId = await resolveSession(loc.id, safeTrim(body?.sessionId) || undefined);
 
-  if (!requestedArtist || !requestedTitle) {
+  if (!requestedTitle) {
     return NextResponse.json(
-      { ok: false, error: "Artist and title are required." },
+      { ok: false, error: "Song title is required." },
       { status: 400 }
     );
   }
@@ -74,18 +74,22 @@ export async function POST(
     }
   }
 
-  const duplicate = await prisma.songWriteIn.findFirst({
+   const duplicate = await prisma.songWriteIn.findFirst({
     where: {
       locationId: loc.id,
       sessionId: sessionId || undefined,
-      requestedArtist: {
-        equals: requestedArtist,
-        mode: "insensitive",
-      },
       requestedTitle: {
         equals: requestedTitle,
         mode: "insensitive",
       },
+      ...(requestedArtist
+        ? {
+            requestedArtist: {
+              equals: requestedArtist,
+              mode: "insensitive",
+            },
+          }
+        : {}),
       status: {
         in: ["PENDING", "MATCHED", "APPROVED"],
       },
