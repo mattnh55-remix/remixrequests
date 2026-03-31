@@ -118,11 +118,28 @@ export default function PublicBottomCommandBar({
   useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) return;
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const viewport = window.visualViewport;
+    if (!viewport) return;
+
     const syncKeyboard = () => {
       const heightDelta = window.innerHeight - viewport.height;
       setKeyboardOpen(heightDelta > 140);
     };
+
+    syncKeyboard();
+    viewport.addEventListener("resize", syncKeyboard);
+    viewport.addEventListener("scroll", syncKeyboard);
+    window.addEventListener("orientationchange", syncKeyboard);
+
+    return () => {
+      viewport.removeEventListener("resize", syncKeyboard);
+      viewport.removeEventListener("scroll", syncKeyboard);
+      window.removeEventListener("orientationchange", syncKeyboard);
+    };
+  }, []);
 
     syncKeyboard();
     viewport.addEventListener("resize", syncKeyboard);
