@@ -2401,12 +2401,12 @@ return (
           }
         `}</style>
 
-        <PublicBottomCommandBar
-          location={location}
-          activeView="request"
-          points={balanceValue}
-          hidden={showVerify || showBuy}
-        />
+<PublicBottomCommandBar
+        location={location}
+        activeView="request"
+        points={typeof balanceValue === 'number' ? balanceValue : 0}
+        hidden={showVerify || showBuy}
+      />
       </>
     </PublicTheme>
   );
