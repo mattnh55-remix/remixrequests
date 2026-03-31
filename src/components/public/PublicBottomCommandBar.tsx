@@ -208,20 +208,34 @@ export default function PublicBottomCommandBar({
           position: fixed;
           left: 0;
           right: 0;
-          bottom: 0;
+          bottom: env(safe-area-inset-bottom);
           z-index: 80;
           pointer-events: none;
           padding: 0 12px calc(12px + env(safe-area-inset-bottom));
           transition:
             transform 180ms ease,
             opacity 180ms ease;
+html, body {
+  height: 100%;
+  overflow-x: hidden;
+}
+body {
+  overscroll-behavior-y: none;
+}
         }
 
-        .rrCmdBarWrap.keyboardOpen,
-        .rrCmdBarWrap.isHidden {
-          transform: translateY(calc(100% + 16px));
-          opacity: 0;
-        }
+.rrCmdBarWrap {
+  transition: transform 0.25s ease, opacity 0.2s ease;
+}
+
+.rrCmdBarWrap.keyboardOpen,
+.rrCmdBarWrap.isHidden {
+  transform: translateY(120%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+
 
         .rrCmdBar {
           pointer-events: auto;

@@ -1845,7 +1845,57 @@ export default function PublicGunmetalTheme() {
           font-size: 10.5px;
         }
       }
+/* === BEGIN ADDS FOR 331 === */
 
+/* === FIX MOBILE INPUT ZOOM (CRITICAL) === */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+.rrOverlay--mobile {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0,0,0,0.5);
+}
+
+.rrDrawer--mobile {
+  width: 100%;
+  max-height: 85dvh;
+  border-radius: 18px 18px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rrDrawerBody {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(120px + env(safe-area-inset-bottom));
+}
+
+.rrDrawerHead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: inherit;
+}
+
+.rrToast--top {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 200; /* ABOVE drawer */
+}
+
+
+/* === END ADDS FOR 331 === */
     `}</style>
   );
 }

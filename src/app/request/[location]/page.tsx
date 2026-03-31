@@ -538,8 +538,8 @@ function VerifyDrawer({
   }
 
   return (
-    <div className="rrOverlay">
-      <div className="rrDrawer">
+<div className="rrOverlay rrOverlay--mobile">
+  <div className="rrDrawer rrDrawer--mobile">
         <div className="rrDrawerHead">
           <div>
             <div className="rrDrawerTitle">Claim your points</div>
@@ -1829,7 +1829,7 @@ export default function RequestPage({ params }: { params: { location: string } }
       </div>
 
         {toastOpen && msg ? (
-        <div className="rrToast">
+        <div className="rrToast rrToast--top">
           <div className="rrToastInner">
             <div className="rrToastText">{msg}</div>
             <button className="rrBtnGhost" onClick={dismissToast}>
