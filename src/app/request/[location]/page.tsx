@@ -1929,16 +1929,16 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
         </div>
       </div>
 
-        {toastOpen && msg ? (
-        <div className="rrToast rrToast--top">
-          <div className="rrToastInner">
-            <div className="rrToastText">{msg}</div>
-            <button className="rrBtnGhost" onClick={dismissToast}>
-              Close
-            </button>
-          </div>
-        </div>
-      ) : null}
+{toastOpen && msg ? (
+  <div className="rrToastWrap">
+    <div className="rrToastCard">
+      <div className="rrToastText">{msg}</div>
+      <button className="rrToastClose" onClick={dismissToast}>
+        Close
+      </button>
+    </div>
+  </div>
+) : null}
 
       {rewardFlash ? (
         <div

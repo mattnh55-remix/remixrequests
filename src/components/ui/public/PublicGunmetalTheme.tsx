@@ -119,6 +119,83 @@ export default function PublicGunmetalTheme() {
         display: block;
       }
 
+/* === TOAST WRAPPER (POSITIONING) === */
+.rrToastWrap {
+  position: fixed;
+  top: 22%;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 120;
+}
+
+/* === TOAST CARD === */
+.rrToastCard {
+  width: min(86%, 420px);
+  pointer-events: auto;
+
+  border-radius: 18px;
+  padding: 14px 16px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+
+  /* 🔵 BLUE BUTTON STYLE */
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.95),
+    rgba(37, 99, 235, 0.95)
+  );
+
+  border: 1px solid rgba(255,255,255,0.18);
+
+  /* glow + depth */
+  box-shadow:
+    0 18px 50px rgba(0,0,0,0.5),
+    0 0 24px rgba(59,130,246,0.45);
+
+  backdrop-filter: blur(10px);
+
+  /* 🎬 animation */
+  animation: rrToastIn 240ms ease;
+}
+
+/* === TEXT === */
+.rrToastText {
+  flex: 1;
+}
+
+/* === CLOSE BUTTON === */
+.rrToastClose {
+  border: none;
+  background: rgba(255,255,255,0.12);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* === ENTRY ANIMATION === */
+@keyframes rrToastIn {
+  from {
+    transform: translateY(12px) scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
       .rrBrandBadge {
         min-width: 42px;
         min-height: 42px;
