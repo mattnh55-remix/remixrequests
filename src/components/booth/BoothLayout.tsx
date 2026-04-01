@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import QueueList from "./QueueList";
 import RequestPanel from "./RequestPanel";
@@ -41,6 +41,12 @@ type MaterializeResult = {
 const DEFAULT_LOCAL_BRIDGE_BASE_URL = "http://127.0.0.1:8787";
 const BRIDGE_BASE_URL_STORAGE_KEY = "rr.bridgeBaseUrl";
 const SESSION_CYCLE_MINUTES = 120;
+const BOOTH_ALERTS_STORAGE_KEY = "rr.booth.alerts.enabled";
+const REGULAR_REQUEST_ALERT_SRC = "/sounds/req-regular.mp3";
+const BOOSTED_REQUEST_ALERT_SRC = "/sounds/req-boosted.mp3";
+const SHOUTOUT_ALERT_SRC = "/sounds/shoutout.mp3";
+const ALERT_COOLDOWN_MS = 1200;
+
 
 async function postJson(url: string, body: Record<string, unknown>): Promise<PostJsonResult> {
   const res = await fetch(url, {
@@ -293,6 +299,38 @@ function getAssetFilename(asset: InterstitialPadItem | DueInterstitialPromptOpti
   return "";
 }
 
+function areBoothAlertsEnabled() {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(BOOTH_ALERTS_STORAGE_KEY) === "true";
+}
+
+function requestLooksBoosted(item: RequestItem) {
+  const candidate = item as Record<string, unknown>;
+
+  if (candidate.isBoosted === true) return true;
+  if (candidate.boosted === true) return true;
+  if (candidate.priorityLane === "PLAY_NOW") return true;
+  if (candidate.lane === "PLAY_NOW") return true;
+  if (candidate.sourceType === "BOOSTED_REQUEST") return true;
+  if (candidate.requestType === "BOOSTED") return true;
+  if (candidate.kind === "BOOSTED") return true;
+
+  const boostCount = Number(candidate.boostCount ?? 0);
+  if (Number.isFinite(boostCount) && boostCount > 0) return true;
+
+  const boostAmount = Number(candidate.boostAmount ?? 0);
+  if (Number.isFinite(boostAmount) && boostAmount > 0) return true;
+
+  const cost = Number(candidate.costPoints ?? candidate.pointsCost ?? 0);
+  if (Number.isFinite(cost) && cost >= 5) return true;
+
+  return false;
+}
+
+function getRequestAlertKind(item: RequestItem): "regular" | "boosted" {
+  return requestLooksBoosted(item) ? "boosted" : "regular";
+}
+
 export default function BoothLayout({ location }: { location: string }) {
   const mode: BoothMode = "performance";
 
@@ -319,6 +357,35 @@ export default function BoothLayout({ location }: { location: string }) {
   const [playingInterstitial, setPlayingInterstitial] =
     useState<ActiveInterstitialPlayback | null>(null);
 
+  const regularRequestAlertRef = useRef<HTMLAudioElement | null>(null);
+  const boostedRequestAlertRef = useRef<HTMLAudioElement | null>(null);
+  const shoutoutAlertRef = useRef<HTMLAudioElement | null>(null);
+  const previousIncomingIdsRef = useRef<string[]>([]);
+  const previousPendingShoutoutIdsRef = useRef<string[]>([]);
+  const lastAlertAtRef = useRef(0);
+
+  function playBoothAlert(kind: "regular" | "boosted" | "shoutout") {
+    if (!areBoothAlertsEnabled()) return;
+
+    const now = Date.now();
+    if (now - lastAlertAtRef.current < ALERT_COOLDOWN_MS) return;
+    lastAlertAtRef.current = now;
+
+    const audio =
+      kind === "boosted"
+        ? boostedRequestAlertRef.current
+        : kind === "shoutout"
+          ? shoutoutAlertRef.current
+          : regularRequestAlertRef.current;
+
+    if (!audio) return;
+
+    try {
+      audio.currentTime = 0;
+      void audio.play().catch(() => {});
+    } catch {}
+  }
+
 useEffect(() => {
   const clock = loadSessionClock(location);
   const timerState = loadSessionTimerState(location);
@@ -328,6 +395,19 @@ useEffect(() => {
   setPausedElapsedMs(timerState.pausedElapsedMs);
   setPauseStartedAtMs(timerState.pauseStartedAtMs);
 }, [location]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    regularRequestAlertRef.current = new Audio(REGULAR_REQUEST_ALERT_SRC);
+    regularRequestAlertRef.current.preload = "auto";
+
+    boostedRequestAlertRef.current = new Audio(BOOSTED_REQUEST_ALERT_SRC);
+    boostedRequestAlertRef.current.preload = "auto";
+
+    shoutoutAlertRef.current = new Audio(SHOUTOUT_ALERT_SRC);
+    shoutoutAlertRef.current.preload = "auto";
+  }, []);
 
   const [promptState, setPromptState] = useState<{
     open: boolean;
@@ -452,6 +532,63 @@ useEffect(() => {
       ),
     [state.queue]
   );
+
+  const incomingApprovalRequests = useMemo(
+    () => [...state.playNowRequests, ...state.upNextRequests],
+    [state.playNowRequests, state.upNextRequests]
+  );
+
+  useEffect(() => {
+    const currentIds = incomingApprovalRequests.map((item, index) => {
+      const candidate = item as Record<string, unknown>;
+      return String(candidate.requestId ?? candidate.id ?? `${index}:${candidate.title ?? "request"}`);
+    });
+
+    const previousIds = previousIncomingIdsRef.current;
+
+    if (!previousIds.length) {
+      previousIncomingIdsRef.current = currentIds;
+      return;
+    }
+
+    const newIndexes: number[] = [];
+
+    currentIds.forEach((id, index) => {
+      if (!previousIds.includes(id)) {
+        newIndexes.push(index);
+      }
+    });
+
+    if (newIndexes.length > 0) {
+      const newestItem = incomingApprovalRequests[newIndexes[newIndexes.length - 1]];
+      const alertKind = newestItem ? getRequestAlertKind(newestItem) : "regular";
+      playBoothAlert(alertKind);
+    }
+
+    previousIncomingIdsRef.current = currentIds;
+  }, [incomingApprovalRequests]);
+
+  useEffect(() => {
+    const currentIds = state.pendingShoutouts.map((item, index) => {
+      const candidate = item as Record<string, unknown>;
+      return String(candidate.messageId ?? candidate.id ?? `${index}:${candidate.fromName ?? "shoutout"}`);
+    });
+
+    const previousIds = previousPendingShoutoutIdsRef.current;
+
+    if (!previousIds.length) {
+      previousPendingShoutoutIdsRef.current = currentIds;
+      return;
+    }
+
+    const hasNewShoutout = currentIds.some((id) => !previousIds.includes(id));
+
+    if (hasNewShoutout) {
+      playBoothAlert("shoutout");
+    }
+
+    previousPendingShoutoutIdsRef.current = currentIds;
+  }, [state.pendingShoutouts]);
 
   useEffect(() => {
     const remaining = sessionClock.cycleMinutes - elapsedMin;
@@ -677,6 +814,51 @@ saveSessionTimerState(location, {
                 {state.lastUpdated ? new Date(state.lastUpdated).toLocaleTimeString() : "—"}
               </strong>
             </div>
+
+            <button
+              type="button"
+              className={`statBox statBox--button ${areBoothAlertsEnabled() ? "statBox--enabled" : ""}`}
+              onClick={() => {
+                const next = !areBoothAlertsEnabled();
+                window.localStorage.setItem(BOOTH_ALERTS_STORAGE_KEY, next ? "true" : "false");
+                setTick((x) => x + 1);
+              }}
+              aria-pressed={areBoothAlertsEnabled()}
+              title="Turn local booth alerts on only for this machine"
+            >
+              <span>ALERTS</span>
+              <strong>{areBoothAlertsEnabled() ? "ON" : "OFF"}</strong>
+            </button>
+
+            <button
+              type="button"
+              className="statBox statBox--button"
+              onClick={() => playBoothAlert("regular")}
+              title="Test regular request alert"
+            >
+              <span>TEST</span>
+              <strong>REQ</strong>
+            </button>
+
+            <button
+              type="button"
+              className="statBox statBox--button"
+              onClick={() => playBoothAlert("boosted")}
+              title="Test boosted request alert"
+            >
+              <span>TEST</span>
+              <strong>BOOST</strong>
+            </button>
+
+            <button
+              type="button"
+              className="statBox statBox--button"
+              onClick={() => playBoothAlert("shoutout")}
+              title="Test shoutout alert"
+            >
+              <span>TEST</span>
+              <strong>SHOUT</strong>
+            </button>
 
             <Link
               href={`/admin/${location}`}
@@ -1055,6 +1237,22 @@ saveSessionTimerState(location, {
           text-decoration: none;
           color: inherit;
           display: block;
+        }
+
+        .statBox--button {
+          appearance: none;
+          cursor: pointer;
+          text-align: left;
+          color: inherit;
+        }
+
+        .statBox--enabled {
+          border-color: rgba(46, 193, 234, 0.38);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.28),
+            0 0 0 1px rgba(46, 193, 234, 0.16),
+            0 0 14px rgba(46, 193, 234, 0.12);
         }
 
         .rrBooth__grid {
