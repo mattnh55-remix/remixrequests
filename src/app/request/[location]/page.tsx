@@ -300,9 +300,14 @@ function HoldButton({
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number | null>(null);
   const lockedRef = useRef(false);
-
   const [holding, setHolding] = useState(false);
   const [label, setLabel] = useState(idleLabel);
+
+  useEffect(() => {
+    if (!holding && !lockedRef.current) {
+      setLabel(idleLabel);
+    }
+  }, [idleLabel, holding]);
 
   // 👉 Detect mobile (simple + reliable)
   const isMobile =
@@ -1633,111 +1638,127 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
         </div>
       </div>
 
-      <div className="rrNoticeCard">
-        <div className="rrNoticeActions rrNoticeActions--full" style={{ marginTop: 0 }}>
+  <div className="rrNoticeCard">
+    <div className="rrNoticeActions rrNoticeActions--full" style={{ marginTop: 0 }}>
+      <button
+        ref={queueTargetRef}
+        className={`rrBtn rrBtn--full ${queuePulseOn ? "rrBtn--pulse" : ""}`}
+        onClick={() => {
+          sfx.playTap();
+          window.location.href = `/queue/${encodeURIComponent(location)}`;
+        }}
+      >
+        View Queue
+      </button>
+    </div>
+  </div>
+
+  <div className="rrPanel">
+    <div className="rrPanelHead rrPanelHead--centered">
+      <div>
+        <div className="rrPanelTitle">Search & Browse</div>
+        <div className="rrPanelSub">
+          Use tags to narrow the catalog, then hold to request or boost.
+        </div>
+      </div>
+      <span className="rrStatusPill rrStatusPill--live">Live</span>
+    </div>
+
+    <div className="rrPanelBody">
+      <input
+        className="rrInput"
+        placeholder="Search songs or artists..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        onFocus={() => sfx.playTap()}
+      />
+
+      <div className="rrRequestChipScrollerWrap">
+        <div className="rrRequestChipScroller">
           <button
-            ref={queueTargetRef}
-            className={`rrBtn rrBtn--full ${queuePulseOn ? "rrBtn--pulse" : ""}`}
+            className={`rrRequestChip ${tag === "" ? "is-active" : ""}`}
             onClick={() => {
               sfx.playTap();
-              window.location.href = `/queue/${encodeURIComponent(location)}`;
+              setTag("");
             }}
           >
-            View Queue
+            All
           </button>
+
+          {RAILS.map((rail) => (
+            <button
+              key={rail}
+              className={`rrRequestChip ${tag === rail ? "is-active" : ""}`}
+              onClick={() => {
+                sfx.playTap();
+                setTag(rail);
+              }}
+            >
+              {rail}
+            </button>
+          ))}
+        </div>
+        <div className="rrRequestChipHint" aria-hidden="true">
+          ›
         </div>
       </div>
 
-<div className="rrPanel">
-  <div className="rrPanelHead rrPanelHead--centered">
-    <div>
-      <div className="rrPanelTitle">Search & Browse</div>
-      <div className="rrPanelSub">
-        Use tags to narrow the catalog, then hold to request or boost.
-      </div>
-    </div>
-    <span className="rrStatusPill rrStatusPill--live">Live</span>
-  </div>
-
-  <div className="rrPanelBody">
-    <input
-      className="rrInput"
-      placeholder="Search songs or artists..."
-      value={search}
-      onChange={(e) => setSearch(e.target.value)}
-      onFocus={() => sfx.playTap()}
-    />
-
-    <div className="rrRequestChipScrollerWrap">
-      <div className="rrRequestChipScroller">
-        <button
-          className={`rrRequestChip ${tag === "" ? "is-active" : ""}`}
-          onClick={() => {
-            sfx.playTap();
-            setTag("");
+      {search.trim() && songs.length === 0 ? (
+        <div
+          style={{
+            marginTop: 14,
+            padding: 14,
+            borderRadius: 16,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            display: "grid",
+            gap: 10,
           }}
         >
-          All
-        </button>
+          <div style={{ fontWeight: 900 }}>Can’t find your song?</div>
+          <HoldButton
+            idleLabel={
+              search.trim()
+                ? `REQUEST "${search.trim()}" • ${requestCost}pt`
+                : "ENTER A SONG TO REQUEST"
+            }
+            busyLabel="SENDING..."
+            successLabel="ADDED!"
+            disabled={writeInBusy || !search.trim()}
+            onConfirm={(el) => submitWriteIn(el)}
+          />
 
-        {RAILS.map((rail) => (
-          <button
-            key={rail}
-            className={`rrRequestChip ${tag === rail ? "is-active" : ""}`}
-            onClick={() => {
-              sfx.playTap();
-              setTag(rail);
-            }}
-          >
-            {rail}
-          </button>
-        ))}
-      </div>
-      <div className="rrRequestChipHint" aria-hidden="true">
-        ›
-      </div>
+          {search.trim() ? (
+            <div
+              className="rrHelper"
+              style={{
+                marginTop: 10,
+                textAlign: "left",
+                lineHeight: 1.35,
+                whiteSpace: "normal",
+                overflow: "visible",
+                textOverflow: "unset",
+                wordBreak: "break-word",
+              }}
+            >
+              {`Request "${search.trim()}" as a write-in • ${requestCost}pt`}
+              {writeInSearch.requestedArtist ? (
+                <>
+                  <br />
+                  <span>
+                    Tip: for a cleaner match, try{" "}
+                    <b>
+                      {writeInSearch.requestedTitle} - {writeInSearch.requestedArtist}
+                    </b>
+                  </span>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
-
-    {search.trim() && songs.length === 0 ? (
-      <div
-        style={{
-          marginTop: 14,
-          padding: 14,
-          borderRadius: 16,
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          display: "grid",
-          gap: 10,
-        }}
-      >
-        <div style={{ fontWeight: 900 }}>Can’t find your song?</div>
-        <HoldButton
-          idleLabel={
-            search.trim()
-              ? `REQUEST "${search.trim()}" • ${requestCost}pt`
-              : "ENTER A SONG TO REQUEST"
-          }
-          busyLabel="SENDING..."
-          successLabel="ADDED!"
-          disabled={writeInBusy || !search.trim()}
-          onConfirm={(el) => submitWriteIn(el)}
-        />
-
-        {search.trim() && writeInSearch.requestedArtist ? (
-          <div
-            className="rrHelper"
-            style={{ marginTop: 10, textAlign: "left", lineHeight: 1.35 }}
-          >
-            Tip: for a cleaner match, try{" "}
-            <b>
-              {writeInSearch.requestedTitle} - {writeInSearch.requestedArtist}
-            </b>
-          </div>
-        ) : null}
-      </div>
-    ) : null}
-  </div> {/* <--- Added this missing closing div for rrPanelBody */}
-</div>
+  </div>
       {trending.length ? (
         <div className="rrPanel">
           <div className="rrPanelHead">
@@ -1871,9 +1892,35 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
                       wordBreak: "break-word",
                     }}
                   >
-                                        {writeInSearch.requestedArtist
-                      ? `Request "${writeInSearch.requestedTitle} - ${writeInSearch.requestedArtist}" • ${requestCost}pt`
-                      : `Request "${writeInSearch.requestedTitle}" as a write-in • ${requestCost}pt`}
+<div
+  style={{
+    fontSize: 14,
+    color: "rgba(255,255,255,0.88)",
+    wordBreak: "break-word",
+  }}
+>
+  {`Request "${search.trim()}" as a write-in • ${requestCost}pt`}
+  {writeInSearch.requestedArtist ? (
+    <>
+      <br />
+      <span>
+        Tip: for a cleaner match, try{" "}
+        <b>
+          {writeInSearch.requestedTitle} - {writeInSearch.requestedArtist}
+        </b>
+      </span>
+    </>
+  ) : null}
+</div>
+
+<HoldButton
+  idleLabel="SEND WRITE-IN REQUEST"
+  busyLabel="SENDING..."
+  successLabel="ADDED!"
+  className="rrBtn"
+  disabled={writeInBusy || !search.trim()}
+  onConfirm={(el) => submitWriteIn(el)}
+/>
                   </div>
 <HoldButton
   idleLabel="SEND WRITE-IN REQUEST"
