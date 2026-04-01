@@ -14,6 +14,42 @@ function safeTrim(value: unknown) {
   return s.trim();
 }
 
+function normalizeForProfanityCheck(value: string) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[@4]/g, "a")
+    .replace(/[3]/g, "e")
+    .replace(/[1!|]/g, "i")
+    .replace(/[0]/g, "o")
+    .replace(/[$5]/g, "s")
+    .replace(/[7]/g, "t")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+const BLOCKED_WORDS = [
+  "fuck",
+  "fucking",
+  "fucker",
+  "shit",
+  "bitch",
+  "asshole",
+  "motherfucker",
+  "cunt",
+  "nigger",
+  "nigga",
+  "whore",
+  "slut",
+  "dick",
+  "pussy",
+  "cock",
+  "bastard",
+];
+
+function containsBlockedWord(...values: string[]) {
+  const normalized = values.map(normalizeForProfanityCheck).join(" ");
+  return BLOCKED_WORDS.some((word) => normalized.includes(normalizeForProfanityCheck(word)));
+}
+
 function buildTempSongId(title: string, artist: string) {
   const artistPart = artist
     .toLowerCase()
@@ -109,6 +145,14 @@ export async function POST(
     }
 
     const finalRequestedArtist = rawRequestedArtist || "Unknown";
+
+    if (containsBlockedWord(requestedTitle, finalRequestedArtist, requestNotes || "")) {
+      return NextResponse.json(
+        { ok: false, error: "Please enter a clean song title or artist." },
+        { status: 400 }
+      );
+    }
+
 
     const duplicate = await prisma.songWriteIn.findFirst({
       where: {
