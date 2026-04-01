@@ -106,12 +106,12 @@ export default function HomePage() {
             ? localStorage.getItem("rr_location") || "remix"
             : "remix";
 
-        const res = await fetch(`/api/public/rules/${encodeURIComponent(nextLocation)}`, {
-          cache: "no-store",
-        });
-        const data = await res.json();
-        const rules = data?.rules || data || null;
-        setActiveChallenge(getActiveBonusChallenge(rules));
+const res = await fetch(`/api/public/session/${encodeURIComponent(nextLocation)}`, {
+  cache: "no-store",
+});
+const data = await res.json();
+const rules = data?.rules || null;
+setActiveChallenge(getActiveBonusChallenge(rules));
       } catch {
         setActiveChallenge(null);
       }

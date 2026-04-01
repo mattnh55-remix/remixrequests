@@ -1,5 +1,3 @@
-// src/app/api/public/session/[location]/route.ts
-
 import { NextResponse } from "next/server";
 import { getRulesForLocation } from "@/lib/rules";
 import { getIdentitySpendableState } from "@/lib/validators";
@@ -28,6 +26,11 @@ export async function GET(req: Request, { params }: { params: { location: string
       costDownvote: rules.costDownvote,
       costPlayNow: rules.costPlayNow,
       enableVoting: rules.enableVoting,
+
+      bonusChallengeEnabled: rules.bonusChallengeEnabled,
+      bonusChallengeRotationMode: rules.bonusChallengeRotationMode,
+      bonusChallengeOverrideKey: rules.bonusChallengeOverrideKey,
+      bonusChallenges: rules.bonusChallenges,
     },
   });
 }
