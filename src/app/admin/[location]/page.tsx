@@ -278,7 +278,8 @@ const DEFAULT_BONUS_CHALLENGES: BonusChallengeConfig[] = [
     pointValue: 10,
     ctaText: "Show a Staff Member to Receive Your Bonus Card",
     buttonText: "Redeem Now!",
-    modalMessage: "Show a staff member your social media post tagging Remix to receive your bonus card.",
+    modalMessage:
+      "Show a staff member your social media post tagging Remix to receive your bonus card.",
     isActive: true,
     sortOrder: 2,
   },
@@ -298,21 +299,27 @@ const DEFAULT_BONUS_CHALLENGES: BonusChallengeConfig[] = [
 ];
 
 function normalizeBonusChallenges(value: unknown): BonusChallengeConfig[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item: any, index: number) => ({
-      key: String(item?.key || `challenge_${index + 1}`),
-      title: String(item?.title || ""),
-      linkUrl: item?.linkUrl ? String(item.linkUrl) : null,
-      pointValue: Number(item?.pointValue ?? 10),
-      ctaText: String(item?.ctaText || ""),
-      buttonText: String(item?.buttonText || "Learn More"),
-      modalMessage: item?.modalMessage ? String(item.modalMessage) : null,
-      isActive: Boolean(item?.isActive ?? true),
-      sortOrder: Number(item?.sortOrder ?? index + 1),
-    }))
-    .filter((c) => c.isActive)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+  if (!Array.isArray(value) || value.length === 0) {
+    return DEFAULT_BONUS_CHALLENGES;
+  }
+
+  return value.map((item: any, index: number) => ({
+    key: String(item?.key || `challenge_${index + 1}`),
+    title: String(item?.title || DEFAULT_BONUS_CHALLENGES[index]?.title || ""),
+    linkUrl:
+      item?.linkUrl === null || item?.linkUrl === undefined || item?.linkUrl === ""
+        ? DEFAULT_BONUS_CHALLENGES[index]?.linkUrl ?? null
+        : String(item.linkUrl),
+    pointValue: Number(item?.pointValue ?? DEFAULT_BONUS_CHALLENGES[index]?.pointValue ?? 10),
+    ctaText: String(item?.ctaText || DEFAULT_BONUS_CHALLENGES[index]?.ctaText || ""),
+    buttonText: String(item?.buttonText || DEFAULT_BONUS_CHALLENGES[index]?.buttonText || "Learn More"),
+    modalMessage:
+      item?.modalMessage === null || item?.modalMessage === undefined || item?.modalMessage === ""
+        ? DEFAULT_BONUS_CHALLENGES[index]?.modalMessage ?? null
+        : String(item.modalMessage),
+    isActive: Boolean(item?.isActive ?? DEFAULT_BONUS_CHALLENGES[index]?.isActive ?? true),
+    sortOrder: Number(item?.sortOrder ?? DEFAULT_BONUS_CHALLENGES[index]?.sortOrder ?? index + 1),
+  }));
 }
 
 function getWeekNumber(date: Date) {
