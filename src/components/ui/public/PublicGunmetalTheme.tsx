@@ -224,7 +224,7 @@ export default function PublicGunmetalTheme() {
         font-size: 11px;
         letter-spacing: 0.01em;
         min-height: 28px;
-        padding: 0 9px;
+        padding: 6px 9px;
         cursor: pointer;
         transition:
           transform 0.14s ease,
@@ -232,6 +232,28 @@ export default function PublicGunmetalTheme() {
           opacity 0.14s ease,
           box-shadow 0.14s ease,
           filter 0.14s ease;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+        word-break: break-word;
+        line-height: 1.15;
+      }
+
+      .rrBtn span,
+      .rrBtnGhost span,
+      .rrVoteBtn span {
+        display: block;
+        width: 100%;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+        word-break: break-word;
+        line-height: 1.15;
       }
 
       .rrBtn:hover,
