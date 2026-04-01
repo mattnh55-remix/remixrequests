@@ -6,8 +6,11 @@ import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
 
 function safeTrim(value: unknown) {
-  const s = String(value ?? "").trim();
-  return s;
+  if (value === null || value === undefined) return "";
+
+  let s = String(value);
+  s = s.replace(/\s+/g, " ");
+  return s.trim();
 }
 
 async function resolveSession(locationId: string, requestedSessionId?: string) {
@@ -43,12 +46,15 @@ export async function POST(
   const { loc } = await getRulesForLocation(params.location);
   const body = await req.json();
 
-  const requestedArtist = safeTrim(body?.requestedArtist);
+  const rawRequestedArtist = safeTrim(body?.requestedArtist);
   const requestedTitle = safeTrim(body?.requestedTitle);
   const requestNotes = safeTrim(body?.requestNotes) || null;
   const identityId = safeTrim(body?.identityId) || null;
   const requestedByLabel = safeTrim(body?.requestedByLabel) || null;
-  const sessionId = await resolveSession(loc.id, safeTrim(body?.sessionId) || undefined);
+  const sessionId = await resolveSession(
+    loc.id,
+    safeTrim(body?.sessionId) || undefined
+  );
 
   if (!requestedTitle) {
     return NextResponse.json(
@@ -74,7 +80,9 @@ export async function POST(
     }
   }
 
-   const duplicate = await prisma.songWriteIn.findFirst({
+  const finalRequestedArtist = rawRequestedArtist || "Unknown";
+
+  const duplicate = await prisma.songWriteIn.findFirst({
     where: {
       locationId: loc.id,
       sessionId: sessionId || undefined,
@@ -82,10 +90,10 @@ export async function POST(
         equals: requestedTitle,
         mode: "insensitive",
       },
-      ...(requestedArtist
+      ...(rawRequestedArtist
         ? {
             requestedArtist: {
-              equals: requestedArtist,
+              equals: rawRequestedArtist,
               mode: "insensitive",
             },
           }
@@ -116,7 +124,7 @@ export async function POST(
       locationId: loc.id,
       sessionId,
       identityId,
-      requestedArtist,
+      requestedArtist: finalRequestedArtist,
       requestedTitle,
       requestNotes,
       requestedByLabel,
@@ -128,6 +136,36 @@ export async function POST(
       createdAt: true,
     },
   });
+
+  // 🔥 Create LIVE request using existing system
+  try {
+    const requestRes = await fetch(
+      `${process.env.APP_BASE_URL}/api/public/request`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          location: params.location,
+          identityId,
+          // IMPORTANT: pass through write-in data
+          requestedTitle,
+          requestedArtist: finalRequestedArtist,
+          requestNotes,
+          source: "WRITE_IN",
+        }),
+      }
+    );
+
+    const requestData = await requestRes.json();
+
+    if (!requestData.ok) {
+      console.error("WRITE_IN_REQUEST_FAILED", requestData);
+    }
+  } catch (err) {
+    console.error("WRITE_IN_REQUEST_ERROR", err);
+  }
 
   return NextResponse.json({
     ok: true,
