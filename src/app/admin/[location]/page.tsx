@@ -63,6 +63,18 @@ type PlaceholderMessage = {
   productTitle?: string;
 };
 
+type BonusChallengeConfig = {
+  key: string;
+  title: string;
+  linkUrl?: string | null;
+  pointValue: number;
+  ctaText: string;
+  buttonText: string;
+  modalMessage?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+};
+
 type RulesState = {
   costRequest: number;
   costUpvote: number;
@@ -94,6 +106,10 @@ type RulesState = {
   packTier2PriceCents?: number;
   packTier3PriceCents?: number;
   packTier4PriceCents?: number;
+  bonusChallengeEnabled?: boolean;
+  bonusChallengeRotationMode?: "daily" | "weekly" | "override";
+  bonusChallengeOverrideKey?: string;
+  bonusChallenges?: BonusChallengeConfig[];
   top10Enabled?: boolean;
   top10Timezone?: string;
   top10AdultCutoffHour?: number;
@@ -242,6 +258,96 @@ const DEFAULT_PLACEHOLDERS: PlaceholderMessage[] = [
     productTitle: "VIP Text Shout Out",
   },
 ];
+
+const DEFAULT_BONUS_CHALLENGES: BonusChallengeConfig[] = [
+  {
+    key: "google_review",
+    title: "Leave a Google Review!",
+    linkUrl: "https://g.page/r/CZtixt2Zc7i1EBM/review",
+    pointValue: 10,
+    ctaText: "Show a Staff Member to Receive Your Bonus Card",
+    buttonText: "Leave Review",
+    modalMessage: null,
+    isActive: true,
+    sortOrder: 1,
+  },
+  {
+    key: "social_tag",
+    title: "Tag Us On Social Media!",
+    linkUrl: null,
+    pointValue: 10,
+    ctaText: "Show a Staff Member to Receive Your Bonus Card",
+    buttonText: "Redeem Now!",
+    modalMessage: "Show a staff member your social media post tagging Remix to receive your bonus card.",
+    isActive: true,
+    sortOrder: 2,
+  },
+  {
+    key: "skate_selfie",
+    title: "#SkateSelfie at Our Remix Wall!",
+    linkUrl: null,
+    pointValue: 10,
+    ctaText:
+      "Tag a photo of your crew at the Remix Mural on any Social Media Platform! Use #SkateSelfie! Show a Staff Member to Receive Your Bonus Card.",
+    buttonText: "Redeem Now!",
+    modalMessage:
+      "Tag a photo of your crew at the Remix Mural on any social media platform using #SkateSelfie, then show a staff member to receive your bonus card.",
+    isActive: true,
+    sortOrder: 3,
+  },
+];
+
+function normalizeBonusChallenges(value: unknown): BonusChallengeConfig[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item: any, index: number) => ({
+      key: String(item?.key || `challenge_${index + 1}`),
+      title: String(item?.title || ""),
+      linkUrl: item?.linkUrl ? String(item.linkUrl) : null,
+      pointValue: Number(item?.pointValue ?? 10),
+      ctaText: String(item?.ctaText || ""),
+      buttonText: String(item?.buttonText || "Learn More"),
+      modalMessage: item?.modalMessage ? String(item.modalMessage) : null,
+      isActive: Boolean(item?.isActive ?? true),
+      sortOrder: Number(item?.sortOrder ?? index + 1),
+    }))
+    .filter((c) => c.isActive)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function getWeekNumber(date: Date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+function getActiveBonusChallenge(rules: any): BonusChallengeConfig | null {
+  if (!rules?.bonusChallengeEnabled) return null;
+
+  const challenges = normalizeBonusChallenges(rules?.bonusChallenges);
+  if (!challenges.length) return null;
+
+  const mode = rules?.bonusChallengeRotationMode || "weekly";
+  const overrideKey = String(rules?.bonusChallengeOverrideKey || "").trim();
+
+  if (mode === "override" && overrideKey) {
+    return challenges.find((c) => c.key === overrideKey) || challenges[0];
+  }
+
+  const now = new Date();
+
+  if (mode === "daily") {
+    const start = new Date(now.getFullYear(), 0, 0);
+    const diff = now.getTime() - start.getTime();
+    const day = Math.floor(diff / 86400000);
+    return challenges[day % challenges.length];
+  }
+
+  const week = getWeekNumber(now);
+  return challenges[week % challenges.length];
+}
 
 function placeholderKey(location: string) {
   return `rr_tv_placeholders:${location}`;
@@ -546,12 +652,21 @@ async function login(e?: FormEvent) {
         return null;
       }
       const data: any = await safeJson(res);
-      if (data?.rules) {
-        setRules(data.rules);
-        cacheLogo(data.rules.logoUrl);
-        return data.rules as RulesState;
-      }
-    } catch {}
+if (data?.rules) {
+  const normalizedRules: RulesState = {
+    ...data.rules,
+    bonusChallengeRotationMode:
+      data.rules.bonusChallengeRotationMode === "daily" ||
+      data.rules.bonusChallengeRotationMode === "override"
+        ? data.rules.bonusChallengeRotationMode
+        : "weekly",
+    bonusChallenges: normalizeBonusChallenges(data.rules.bonusChallenges),
+  };
+
+  setRules(normalizedRules);
+  cacheLogo(normalizedRules.logoUrl);
+  return normalizedRules;
+}    } catch {}
     return null;
   }
 
@@ -590,6 +705,19 @@ async function login(e?: FormEvent) {
     setTop10SettingsMsg("");
     setShoutoutSettingsMsg("");
   }
+
+function patchBonusChallenge(index: number, patch: Partial<BonusChallengeConfig>) {
+  setRules((curr) => {
+    if (!curr) return curr;
+    const next = normalizeBonusChallenges(curr.bonusChallenges).map((item, i) =>
+      i === index ? { ...item, ...patch } : item
+    );
+    return { ...curr, bonusChallenges: next };
+  });
+
+  setRulesDirty(true);
+  setRequestSettingsMsg("");
+}
 
   async function loadMessageRules(force = false) {
   if (messageRulesDirty && !force) return messageRules;
@@ -1472,6 +1600,128 @@ useEffect(() => {
           <TextField label="Queue full message" value={(rules as any).msgQueueFull || ""} onChange={(v) => patchRules({ msgQueueFull: v } as any)} />
         </div>
       </SubPanel>
+
+<SubPanel
+  title="Bonus challenge settings"
+  sub="Controls the rotating welcome-page challenge that rewards guests with bonus-card points."
+>
+  <div className="admFieldStack">
+    <Toggle
+      label="Enable bonus challenge system"
+      checked={Boolean(rules.bonusChallengeEnabled)}
+      onChange={(v) => patchRules({ bonusChallengeEnabled: v })}
+    />
+
+    <div className="admGrid2">
+      <label className="admField">
+        <span className="admLabel">Rotation mode</span>
+        <select
+          className="admSelect"
+          value={rules.bonusChallengeRotationMode || "weekly"}
+          onChange={(e) =>
+            patchRules({
+              bonusChallengeRotationMode: e.target.value as "daily" | "weekly" | "override",
+            })
+          }
+        >
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="override">Admin Override</option>
+        </select>
+      </label>
+
+      <label className="admField">
+        <span className="admLabel">Override challenge</span>
+        <select
+          className="admSelect"
+          value={rules.bonusChallengeOverrideKey || ""}
+          onChange={(e) => patchRules({ bonusChallengeOverrideKey: e.target.value || "" })}
+          disabled={(rules.bonusChallengeRotationMode || "weekly") !== "override"}
+        >
+          <option value="">Select challenge</option>
+          {normalizeBonusChallenges(rules.bonusChallenges).map((c) => (
+            <option key={c.key} value={c.key}>
+              {c.title}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+
+    <div className="admFieldHelp">
+      Daily rotates by day, Weekly rotates by week, and Admin Override forces one specific challenge.
+    </div>
+
+    <div className="admRows">
+      {normalizeBonusChallenges(rules.bonusChallenges).map((challenge, idx) => (
+        <div key={challenge.key} className="admSubPanel">
+          <div className="admSplitActions" style={{ marginBottom: 10 }}>
+            <div className="admSubTitleText">Challenge {idx + 1}</div>
+            <Toggle
+              label="Active"
+              checked={Boolean(challenge.isActive)}
+              onChange={(v) => patchBonusChallenge(idx, { isActive: v })}
+            />
+          </div>
+
+          <div className="admGrid2">
+            <TextField
+              label="Challenge title"
+              value={challenge.title}
+              onChange={(v) => patchBonusChallenge(idx, { title: v })}
+            />
+
+            <Field
+              label="Point value"
+              value={challenge.pointValue}
+              onChange={(v) => patchBonusChallenge(idx, { pointValue: Number(v) })}
+            />
+
+            <TextField
+              label="Button text"
+              value={challenge.buttonText}
+              onChange={(v) => patchBonusChallenge(idx, { buttonText: v })}
+            />
+
+            <Field
+              label="Sort order"
+              value={challenge.sortOrder}
+              onChange={(v) => patchBonusChallenge(idx, { sortOrder: Number(v) })}
+            />
+          </div>
+
+          <TextField
+            label="Link to do challenge"
+            value={challenge.linkUrl || ""}
+            onChange={(v) => patchBonusChallenge(idx, { linkUrl: v.trim() || null })}
+          />
+
+          <TextField
+            label="CTA text"
+            value={challenge.ctaText}
+            onChange={(v) => patchBonusChallenge(idx, { ctaText: v })}
+          />
+
+          <label className="admField">
+            <span className="admLabel">Modal message (used when link is blank)</span>
+            <textarea
+              className="admTextarea"
+              rows={3}
+              value={challenge.modalMessage || ""}
+              onChange={(e) =>
+                patchBonusChallenge(idx, { modalMessage: e.target.value.trim() || null })
+              }
+            />
+          </label>
+
+          <div className="admFieldHelp">
+            If link is blank, the welcome page button opens a modal using the modal message or CTA text.
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</SubPanel>
 
       <div className="admStickySave">
         {requestSettingsMsg ? <div className="admNotice">{requestSettingsMsg}</div> : null}

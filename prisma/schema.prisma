@@ -285,6 +285,10 @@ model Ruleset {
   top10AdultCutoffHour   Int     @default(21)
   top10AdultCutoffMinute Int     @default(0)
   shoutoutSlideSeconds   Int     @default(10)
+  bonusChallengeEnabled        Boolean @default(false)
+  bonusChallengeRotationMode   String  @default("weekly")
+  bonusChallengeOverrideKey    String?
+  bonusChallenges              Json?
 
   requestClusterThreshold   Int     @default(3)
   requestLookaheadWindow    Int     @default(5)
