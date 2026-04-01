@@ -684,7 +684,10 @@ if (data?.rules) {
       const res = await fetch(`/api/admin/rules/set/${location}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(rules),
+        body: JSON.stringify({
+  ...rules,
+  bonusChallenges: normalizeBonusChallenges(rules.bonusChallenges),
+}),
       });
       const data: any = await safeJson(res);
       if (data?.ok) {

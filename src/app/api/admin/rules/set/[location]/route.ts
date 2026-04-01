@@ -60,6 +60,15 @@ export async function POST(req: Request, { params }: { params: { location: strin
       top10AdultCutoffHour: int(body.top10AdultCutoffHour, rules.top10AdultCutoffHour),
       top10AdultCutoffMinute: int(body.top10AdultCutoffMinute, rules.top10AdultCutoffMinute),
       shoutoutSlideSeconds: Math.max(1, int(body.shoutoutSlideSeconds, (rules as any).shoutoutSlideSeconds ?? 10)),
+bonusChallengeEnabled: Boolean(body.bonusChallengeEnabled),
+bonusChallengeRotationMode: String(body.bonusChallengeRotationMode || "weekly"),
+bonusChallengeOverrideKey: body.bonusChallengeOverrideKey
+  ? String(body.bonusChallengeOverrideKey)
+  : null,
+bonusChallenges: Array.isArray(body.bonusChallenges)
+  ? body.bonusChallenges
+  : null,
+
     },
   });
 
