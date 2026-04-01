@@ -1913,14 +1913,6 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
   ) : null}
 </div>
 
-<HoldButton
-  idleLabel="SEND WRITE-IN REQUEST"
-  busyLabel="SENDING..."
-  successLabel="ADDED!"
-  className="rrBtn"
-  disabled={writeInBusy || !search.trim()}
-  onConfirm={(el) => submitWriteIn(el)}
-/>
                   </div>
 <HoldButton
   idleLabel="SEND WRITE-IN REQUEST"
