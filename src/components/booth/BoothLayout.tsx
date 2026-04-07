@@ -849,72 +849,7 @@ saveSessionTimerState(location, {
 
         <div className="rrTopbarRight">
           <div className="statBoxes">
-            <div className="statBox">
-              <span>PENDING</span>
-              <strong>{summary.total}</strong>
-            </div>
-
-            <div className="statBox">
-              <span>SONGS</span>
-              <strong>{summary.songs}</strong>
-            </div>
-
-            <div className="statBox">
-              <span>INTERSTITIALS</span>
-              <strong>{summary.interstitials}</strong>
-            </div>
-
-            <div className="statBox">
-              <span>UPDATED</span>
-              <strong>
-                {state.lastUpdated ? new Date(state.lastUpdated).toLocaleTimeString() : "—"}
-              </strong>
-            </div>
-
-            <button
-              type="button"
-              className={`statBox statBox--button ${areBoothAlertsEnabled() ? "statBox--enabled" : ""}`}
-              onClick={() => {
-                const next = !areBoothAlertsEnabled();
-                window.localStorage.setItem(BOOTH_ALERTS_STORAGE_KEY, next ? "true" : "false");
-                setTick((x) => x + 1);
-              }}
-              aria-pressed={areBoothAlertsEnabled()}
-              title="Turn local booth alerts on only for this machine"
-            >
-              <span>ALERTS</span>
-              <strong>{areBoothAlertsEnabled() ? "ON" : "OFF"}</strong>
-            </button>
-
-            <button
-              type="button"
-              className="statBox statBox--button"
-              onClick={() => playBoothAlert("regular")}
-              title="Test regular request alert"
-            >
-              <span>TEST</span>
-              <strong>REQ</strong>
-            </button>
-
-            <button
-              type="button"
-              className="statBox statBox--button"
-              onClick={() => playBoothAlert("boosted")}
-              title="Test boosted request alert"
-            >
-              <span>TEST</span>
-              <strong>BOOST</strong>
-            </button>
-
-            <button
-              type="button"
-              className="statBox statBox--button"
-              onClick={() => playBoothAlert("shoutout")}
-              title="Test shoutout alert"
-            >
-              <span>TEST</span>
-              <strong>SHOUT</strong>
-            </button>
+           
 
             <Link
               href={`/admin/${location}`}
@@ -933,7 +868,7 @@ saveSessionTimerState(location, {
           <div className="panelHead panelHead--tight">
             <div>
               <div className="panelTitle">Request Queue</div>
-              <div className="panelSub">Incoming customer approvals above. DJ-controlled pending queue below.</div>
+              <div className="panelSub">Songs requestsed by guests and staff appear below!</div>
             </div>
             <div className="panelHeadBadge">
               <span className="statusPill statusPill--playing">LIVE</span>

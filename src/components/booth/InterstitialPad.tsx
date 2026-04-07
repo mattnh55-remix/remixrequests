@@ -96,7 +96,7 @@ export default function InterstitialPad({
       if (!res.ok) {
         setAssets([]);
         setLoadState("error");
-        setError(payload?.error || "Could not load interstitial pad assets.");
+        setError(payload?.error || "Could not load sound drop assets.");
         return;
       }
 
@@ -104,10 +104,10 @@ export default function InterstitialPad({
       setAssets(nextAssets);
       setLoadState("ready");
     } catch (err) {
-      console.error("Failed to load interstitial pad assets", err);
+      console.error("Failed to load sound drop assets", err);
       setAssets([]);
       setLoadState("error");
-      setError("Could not load interstitial pad assets.");
+      setError("Could not load sound drop assets.");
     }
   }
 
@@ -157,7 +157,7 @@ export default function InterstitialPad({
     try {
       await onPlayAsset(asset);
     } catch (err) {
-      console.error("Interstitial pad play failed", err);
+      console.error("Sound drop play failed", err);
       setError(`Could not play ${asset.name}.`);
     } finally {
       setBusyAssetId(null);
@@ -171,11 +171,11 @@ export default function InterstitialPad({
     try {
       const result: any = await onStopPlayback();
       if (result?.ok === false) {
-        setError("Could not stop interstitial playback.");
+        setError("Could not stop sound drop playback.");
       }
     } catch (err) {
-      console.error("Interstitial pad stop failed", err);
-      setError("Could not stop interstitial playback.");
+      console.error("Sound drop stop failed", err);
+      setError("Could not stop sound drop");
     } finally {
       setStopping(false);
     }
@@ -184,12 +184,12 @@ export default function InterstitialPad({
   const subtitle =
     loadState === "ready"
       ? `${assets.length} active assets • booth-fired from folder tabs`
-      : "Manual bridge-triggered interstitial soundboard";
+      : "Manual bridge-triggered sound drop soundboard";
 
   return (
     <>
       <PanelShell
-        title="Interstitial Pad"
+        title="SOUND BOARD"
         subtitle={subtitle}
         right={
           <div className="rrPadTopActions">
