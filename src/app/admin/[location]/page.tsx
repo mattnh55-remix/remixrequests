@@ -645,7 +645,7 @@ useEffect(() => {
     try {
       const res = await fetch(`/api/admin/rules/get/${location}`, { cache: "no-store" });
 if (res.status === 401) {
-  router.push("/staff-login");
+  router.push("/signin");
   return null;
 }
       const data: any = await safeJson(res);
@@ -725,7 +725,7 @@ function patchBonusChallenge(index: number, patch: Partial<BonusChallengeConfig>
   try {
     const res = await fetch(`/api/admin/shoutout-rules/${location}`, { cache: "no-store" });
 if (res.status === 401) {
-  router.push("/staff-login");
+  router.push("/signin");
   return null;
 }
 
