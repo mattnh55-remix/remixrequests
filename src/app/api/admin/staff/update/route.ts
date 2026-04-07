@@ -66,6 +66,15 @@ export async function POST(req: Request) {
     data.active = active;
   }
 
+// HARD DELETE if active === false
+if (active === false) {
+  await prisma.staffUser.delete({
+    where: { id },
+  });
+
+  return NextResponse.json({ ok: true, deleted: true });
+}
+
   const updated = await prisma.staffUser.update({
     where: { id },
     data,

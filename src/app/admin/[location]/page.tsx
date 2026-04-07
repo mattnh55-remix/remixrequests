@@ -718,24 +718,27 @@ async function createStaffUser() {
   await loadStaffUsers();
 }
 
-async function toggleStaffActive(user: StaffUserItem) {
+async function deleteStaffUser(user: StaffUserItem) {
+  const confirmDelete = confirm(`Delete ${user.username}? This cannot be undone.`);
+  if (!confirmDelete) return;
+
   const res = await fetch("/api/admin/staff/update", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       id: user.id,
-      active: !user.active,
+      active: false,
     }),
   });
 
   const data = await res.json();
 
   if (!res.ok || !data?.ok) {
-    setStaffMsg(data?.error || "Could not update user.");
+    setStaffMsg(data?.error || "Could not delete user.");
     return;
   }
 
-  setStaffMsg(`✅ ${user.username} ${user.active ? "disabled" : "enabled"}.`);
+  setStaffMsg(`🗑️ ${user.username} deleted.`);
   await loadStaffUsers();
 }
 
@@ -2232,13 +2235,9 @@ if (checkingAuth) {
                       Make {u.role === "SUPER_ADMIN" ? "STAFF" : "SUPER_ADMIN"}
                     </ActionButton>
 
-                    <ActionButton
-                      danger={!u.active}
-                      alt={u.active}
-                      onClick={() => toggleStaffActive(u)}
-                    >
-                      {u.active ? "Disable" : "Enable"}
-                    </ActionButton>
+<ActionButton danger onClick={() => deleteStaffUser(u)}>
+  Delete
+</ActionButton>
                   </div>
                 </div>
               ))
