@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type FormEvent,
   type InputHTMLAttributes,
   type ReactNode,
   type TextareaHTMLAttributes,
@@ -500,12 +499,24 @@ function queueBuckets(items: RequestItem[]) {
 export default function AdminPage({ params }: { params: { location: string } }) {
   const location = params.location;
   const router = useRouter();
+const [checkingAuth, setCheckingAuth] = useState(true);
+
+useEffect(() => {
+  async function checkAuth() {
+    const res = await fetch("/api/admin/me");
+
+    if (!res.ok) {
+      router.push("/staff-login");
+      return;
+    }
+
+    setCheckingAuth(false);
+  }
+
+  checkAuth();
+}, []);
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const nextDest = searchParams.get("next");
-
-  const [pin, setPin] = useState("");
-  const [authed, setAuthed] = useState(false);
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [msg, setMsg] = useState("");
   const [rulesDirty, setRulesDirty] = useState(false);
@@ -514,7 +525,6 @@ export default function AdminPage({ params }: { params: { location: string } }) 
   const [top10SettingsMsg, setTop10SettingsMsg] = useState("");
   const [shoutoutSettingsMsg, setShoutoutSettingsMsg] = useState("");
   const [cachedLogoUrl, setCachedLogoUrl] = useState("");
-
   const [pendingRequests, setPendingRequests] = useState<RequestItem[]>([]);
   const [pendingMessages, setPendingMessages] = useState<MessageItem[]>([]);
   const [approvedMessages, setApprovedMessages] = useState<MessageItem[]>([]);
@@ -600,27 +610,7 @@ export default function AdminPage({ params }: { params: { location: string } }) 
     prevMessageIdsRef.current = messageIds;
   }
 
-async function login(e?: FormEvent) {
-  if (e) e.preventDefault();
-  setMsg("");
 
-  const res = await fetch("/api/admin/login", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ pin }),
-  });
-
-  if (!res.ok) return setMsg("Wrong PIN.");
-
-  setAuthed(true);
-
-  if (nextDest && nextDest.startsWith("/")) {
-    router.push(nextDest);
-    return;
-  }
-
-  router.push(`/admin/${location}`);
-}
 
   async function loadRequests() {
     try {
@@ -654,10 +644,10 @@ async function login(e?: FormEvent) {
     if (rulesDirty && !force) return rules;
     try {
       const res = await fetch(`/api/admin/rules/get/${location}`, { cache: "no-store" });
-      if (res.status === 401) {
-        setAuthed(false);
-        return null;
-      }
+if (res.status === 401) {
+  router.push("/staff-login");
+  return null;
+}
       const data: any = await safeJson(res);
 if (data?.rules) {
   const normalizedRules: RulesState = {
@@ -734,10 +724,10 @@ function patchBonusChallenge(index: number, patch: Partial<BonusChallengeConfig>
 
   try {
     const res = await fetch(`/api/admin/shoutout-rules/${location}`, { cache: "no-store" });
-    if (res.status === 401) {
-      setAuthed(false);
-      return null;
-    }
+if (res.status === 401) {
+  router.push("/staff-login");
+  return null;
+}
 
     const data: any = await safeJson(res);
     if (data?.rules) {
@@ -1141,26 +1131,30 @@ async function saveShoutoutSettings() {
   const effectiveTop10Timezone = rules?.top10Timezone || "America/New_York";
   const effectiveShoutoutSlideSeconds = Math.max(1, Number(rules?.shoutoutSlideSeconds ?? 10));
 
-  async function loadAll() {
-    const isEditingRulesTab = tab === "requestSettings" || tab === "top10" || tab === "shoutoutSettings";
-    if (!isEditingRulesTab || !rulesDirty) await loadRules();
-    if (tab !== "shoutoutSettings" || !messageRulesDirty) await loadMessageRules();
-    if (!authed) return;
-    const nextRequests = await loadRequests();
-    const nextPendingMessages = await loadMessages();
-await Promise.all([
-  loadUsers(),
-  loadTop10(),
-  loadCodes(),
-  ...(tab === "users" ? [loadRecentUsers()] : []),
-]);    maybePlayChime(nextRequests, nextPendingMessages);
-  }
+ async function loadAll() {
+  const isEditingRulesTab =
+    tab === "requestSettings" || tab === "top10" || tab === "shoutoutSettings";
 
-  useEffect(() => {
-    loadCachedLogo();
-    setAuthed(false);
-    setRules(null);
-  }, [location]);
+  if (!isEditingRulesTab || !rulesDirty) await loadRules();
+  if (tab !== "shoutoutSettings" || !messageRulesDirty) await loadMessageRules();
+
+  const nextRequests = await loadRequests();
+  const nextPendingMessages = await loadMessages();
+
+  await Promise.all([
+    loadUsers(),
+    loadTop10(),
+    loadCodes(),
+    ...(tab === "users" ? [loadRecentUsers()] : []),
+  ]);
+
+  maybePlayChime(nextRequests, nextPendingMessages);
+}
+
+useEffect(() => {
+  loadCachedLogo();
+  setRules(null);
+}, [location]);
 
   useEffect(() => {
     const allowedTabs: TabKey[] = [
@@ -1185,13 +1179,8 @@ await Promise.all([
   }, [location]);
 
 
-  useEffect(() => {
-    if (!authed || tab !== "users") return;
-    void loadRecentUsers();
-  }, [authed, location, recentUsersPage, recentUsersFilter, tab]);
-
 useEffect(() => {
-  if (!authed) return;
+  if (checkingAuth) return;
 
   void loadAll();
 
@@ -1202,28 +1191,11 @@ useEffect(() => {
   }, tab === "requestSettings" || tab === "top10" || tab === "shoutoutSettings" ? 6000 : 3000);
 
   return () => clearInterval(id);
-}, [authed, location, top10BucketView, tab, rulesDirty, messageRulesDirty]);
+}, [checkingAuth, location, top10BucketView, tab, rulesDirty, messageRulesDirty]);
 
-  if (!authed) {
-    return (
-      <div className="admPage">
-        <AdminGunmetalTheme />
-        <div className="admLoginWrap">
-          <div className="admLoginCard">
-            {logoUrl ? <img src={logoUrl} alt="Admin Logo" className="admLoginLogo" /> : null}
-            <div className="admKicker">Booth control</div>
-            <div className="admTitle">Admin • {location}</div>
-            <div className="admSubTitle">Enter PIN to manage requests, users, points, Top 10, and shout-outs.</div>
-            <form onSubmit={login} className="admLoginBody">
-              <input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="admInput" inputMode="numeric" autoFocus />
-              <button type="submit" className="admBtn admBtn--full">Login</button>
-            </form>
-            {msg ? <div className="admNotice">{msg}</div> : null}
-          </div>
-        </div>
-      </div>
-    );
-  }
+if (checkingAuth) {
+  return <div style={{ padding: 40 }}>Loading...</div>;
+}
 
   return (
     <div className="admPage">
@@ -1246,6 +1218,7 @@ useEffect(() => {
             <span className="admPill admPill--warn">Rules {rulesDirty ? "Unsaved" : "Saved"}</span>
           </div>
         </div>
+
 
 <div className="admTabs">
   <TabButton active={tab === "dashboard"} onClick={() => setTab("dashboard")}>Dashboard</TabButton>
@@ -1774,18 +1747,6 @@ useEffect(() => {
     </div>
   </Panel>
 </div>
-)}
-
-{tab === "top10" && rules && (
-  <div className="admGridSettings" style={{ gridTemplateColumns: "0.92fr 1.08fr" }}>
-    <Panel title="Top 10 settings" sub="Time rules and board behavior.">
-      <SubPanel title="Board controls" sub="Active times.">
-        <div className="admFieldStack">
-            {/* Content for Top 10 goes here */}
-        </div>
-      </SubPanel>
-    </Panel>
-  </div>
 )}
 
         {tab === "top10" && rules && (

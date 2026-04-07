@@ -8,6 +8,15 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model StaffUser {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  pin       String
+  role      String   @default("STAFF") // ADMIN or STAFF
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
 model Location {
   id         String   @id @default(cuid())
   slug       String   @unique

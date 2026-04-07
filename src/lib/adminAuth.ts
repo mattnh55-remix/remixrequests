@@ -16,6 +16,12 @@ function verifyJwt(token: string) {
     return null;
   }
 }
+export function getAdminUserFromCookie(cookieHeader?: string | null) {
+  if (!cookieHeader) return null;
+
+  const match = cookieHeader.match(/rr_admin_user=([^;]+)/);
+  return match ? match[1] : null;
+}
 
 export function isAdminFromCookie(cookieHeader: string | null) {
   if (!cookieHeader) return false;

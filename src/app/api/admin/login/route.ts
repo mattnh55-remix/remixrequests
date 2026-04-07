@@ -1,25 +1,29 @@
-// src/app/api/admin/login/route.ts
-
 import { NextResponse } from "next/server";
-import crypto from "crypto";
-
-function sign(payload: any) {
-  const secret = process.env.ADMIN_JWT_SECRET || "dev";
-  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
-  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const sig = crypto.createHmac("sha256", secret).update(`${header}.${body}`).digest("base64url");
-  return `${header}.${body}.${sig}`;
-}
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const pin = String(body.pin || "");
-  if (pin !== (process.env.ADMIN_PIN || "")) {
+  const { username, pin } = await req.json();
+
+  if (!username || !pin) {
+    return NextResponse.json({ ok: false });
+  }
+
+  const user = await prisma.staffUser.findUnique({
+    where: { username },
+  });
+
+  if (!user || !user.active || user.pin !== pin) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
-  const token = sign({ role: "admin", iat: Date.now() });
 
   const res = NextResponse.json({ ok: true });
-  res.cookies.set("rm_admin", token, { httpOnly: true, sameSite: "lax", path: "/" });
+
+  // 🍪 set session cookie (VERY simple)
+  res.cookies.set("rr_admin_user", user.username, {
+    httpOnly: true,
+    path: "/",
+    maxAge: 60 * 60 * 8, // 8 hours
+  });
+
   return res;
 }
