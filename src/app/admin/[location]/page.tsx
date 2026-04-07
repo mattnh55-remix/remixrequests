@@ -1326,23 +1326,24 @@ useEffect(() => {
   setRules(null);
 }, [location]);
 
-const allowedTabs: TabKey[] = [
-  "dashboard",
-  "songs",
-  "requestSettings",
-  "top10",
-  "users",
-  "staff",
-  "shoutoutSettings",
-];
+useEffect(() => {
+  const allowedTabs: TabKey[] = [
+    "dashboard",
+    "songs",
+    "requestSettings",
+    "top10",
+    "users",
+    "staff",
+    "shoutoutSettings",
+  ];
 
-    if (requestedTab && allowedTabs.includes(requestedTab as TabKey)) {
-      setTab(requestedTab as TabKey);
-      return;
-    }
+  if (requestedTab && allowedTabs.includes(requestedTab as TabKey)) {
+    setTab(requestedTab as TabKey);
+    return;
+  }
 
-    setTab("dashboard");
-  }, [requestedTab, location]);
+  setTab("dashboard");
+}, [requestedTab, location]);
 
   useEffect(() => {
     setPlaceholders(loadSavedPlaceholders(location));
