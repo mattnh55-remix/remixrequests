@@ -1181,49 +1181,49 @@ saveSessionTimerState(location, {
           max-width: 720px;
         }
 
-  .rrSteelStack {
+ .rrSteelStack {
   display: grid;
-  gap: 8px;
-  width: 178px;
+  gap: 5px;
+  width: 122px;
 }
 
 .rrSteelBtn {
   appearance: none;
   width: 100%;
-  min-height: 44px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   color: #f4f7fb;
   text-decoration: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   text-align: center;
   cursor: pointer;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.08) 18%, rgba(255,255,255,0.02) 19%, rgba(255,255,255,0.05) 100%),
-    linear-gradient(180deg, #798391 0%, #596272 15%, #434b59 38%, #2a313d 58%, #1c222d 100%);
+    linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.07) 16%, rgba(255,255,255,0.02) 17%, rgba(255,255,255,0.04) 100%),
+    linear-gradient(180deg, #747d89 0%, #57606c 16%, #404753 40%, #2a313b 62%, #1b2028 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.48),
-    inset 0 -1px 0 rgba(0,0,0,0.42),
-    0 1px 0 rgba(255,255,255,0.08),
-    0 10px 18px rgba(0,0,0,0.28);
+    inset 0 1px 0 rgba(255,255,255,0.4),
+    inset 0 -1px 0 rgba(0,0,0,0.38),
+    0 1px 0 rgba(255,255,255,0.06),
+    0 5px 10px rgba(0,0,0,0.22);
   transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease;
 }
 
 .rrSteelBtn:hover {
-  filter: brightness(1.04);
+  filter: brightness(1.03);
   transform: translateY(-1px);
 }
 
 .rrSteelBtn:active {
   transform: translateY(1px);
   box-shadow:
-    inset 0 2px 4px rgba(0,0,0,0.36),
-    inset 0 1px 0 rgba(255,255,255,0.2),
-    0 4px 10px rgba(0,0,0,0.22);
+    inset 0 2px 4px rgba(0,0,0,0.34),
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    0 2px 6px rgba(0,0,0,0.18);
 }
 
 .rrSteelBtn--link {
@@ -1242,29 +1242,29 @@ saveSessionTimerState(location, {
 .rrSteelBtn--nameplate:active {
   transform: none;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.48),
-    inset 0 -1px 0 rgba(0,0,0,0.42),
-    0 1px 0 rgba(255,255,255,0.08),
-    0 10px 18px rgba(0,0,0,0.28);
+    inset 0 1px 0 rgba(255,255,255,0.4),
+    inset 0 -1px 0 rgba(0,0,0,0.38),
+    0 1px 0 rgba(255,255,255,0.06),
+    0 5px 10px rgba(0,0,0,0.22);
 }
 
 .rrSteelBtn--danger {
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.05) 18%, rgba(255,255,255,0.02) 19%, rgba(255,255,255,0.05) 100%),
-    linear-gradient(180deg, #8a5661 0%, #7a434d 18%, #6c3742 40%, #552730 64%, #431d24 100%);
+    linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.05) 16%, rgba(255,255,255,0.02) 17%, rgba(255,255,255,0.04) 100%),
+    linear-gradient(180deg, #7b515a 0%, #6a4048 18%, #58333a 42%, #46262c 64%, #351b20 100%);
 }
 
 .rrSteelBtn__main {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 1000;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
   line-height: 1;
 }
 
 .rrSteelBtn__sub {
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 900;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.5px;
   opacity: 0.78;
   text-transform: uppercase;
   line-height: 1;
@@ -1898,7 +1898,7 @@ saveSessionTimerState(location, {
   }
 
   .rrSteelStack {
-    width: 178px;
+    width: 122px;
   }
 
   .rrBooth__grid {
