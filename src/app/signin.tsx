@@ -21,7 +21,7 @@ export default function StaffLogin() {
       return;
     }
 
-    router.push("/admin/remix"); // or dynamic
+    router.push("/admin/remixrequest"); // or dynamic
   }
 
   return (

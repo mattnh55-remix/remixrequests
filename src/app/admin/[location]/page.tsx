@@ -506,7 +506,7 @@ useEffect(() => {
     const res = await fetch("/api/admin/me");
 
     if (!res.ok) {
-      router.push("/staff-login");
+      router.push("/signin");
       return;
     }
 
