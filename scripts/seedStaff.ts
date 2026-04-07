@@ -4,14 +4,14 @@ const prisma = new PrismaClient();
 
 async function main() {
   await prisma.staffUser.upsert({
-    where: { username: "MattP" },
+    where: { username: "MattNH55" },
     update: {
       pin: "5555",
       role: "SUPER_ADMIN",
       active: true,
     },
     create: {
-      username: "MattP",
+      username: "MattNH55",
       pin: "5555",
       role: "SUPER_ADMIN",
       active: true,
