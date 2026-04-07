@@ -30,7 +30,7 @@ export default function SignInPage() {
       const params = new URLSearchParams(window.location.search);
       const next = params.get("next");
 
-      router.push(next && next.startsWith("/") ? next : "/admin/remix");
+      router.push(next && next.startsWith("/") ? next : "/admin/remixrequests");
     } catch {
       setMsg("Could not sign in.");
       setBusy(false);

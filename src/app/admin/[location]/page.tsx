@@ -17,7 +17,14 @@ import SongManagementPanel from "@/components/admin/SongManagementPanel";
 import { SHOUTOUT_PRODUCTS } from "@/lib/shoutoutProducts";
 import { useRouter, useSearchParams } from "next/navigation";
 
-type TabKey = "dashboard" | "songs" | "requestSettings" | "top10" | "users" | "shoutoutSettings";
+type TabKey =
+  | "dashboard"
+  | "songs"
+  | "requestSettings"
+  | "top10"
+  | "users"
+  | "staff"
+  | "shoutoutSettings";
 
 type RequestItem = {
   id: string;
@@ -31,6 +38,16 @@ type RequestItem = {
   upvotes?: number;
   downvotes?: number;
   redemptionCode?: string | null;
+};
+
+type StaffRole = "STAFF" | "SUPER_ADMIN";
+
+type StaffUserItem = {
+  id: string;
+  username: string;
+  role: StaffRole;
+  active: boolean;
+  createdAt: string;
 };
 
 type MessageItem = {
@@ -499,7 +516,13 @@ function queueBuckets(items: RequestItem[]) {
 export default function AdminPage({ params }: { params: { location: string } }) {
   const location = params.location;
   const router = useRouter();
-const [checkingAuth, setCheckingAuth] = useState(true);
+
+  async function logout() {
+    await fetch("/api/admin/logout", { method: "POST" });
+    router.push("/signin");
+  }
+
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
 useEffect(() => {
   async function checkAuth() {
@@ -568,6 +591,14 @@ useEffect(() => {
   const [selectedCodeUses, setSelectedCodeUses] = useState<RedemptionCodeUseItem[]>([]);
   const [editOpen, setEditOpen] = useState(false);
   
+const [currentStaffRole, setCurrentStaffRole] = useState<StaffRole | "">("");
+const [staffUsers, setStaffUsers] = useState<StaffUserItem[]>([]);
+const [staffBusy, setStaffBusy] = useState(false);
+const [staffMsg, setStaffMsg] = useState("");
+const [newStaffUsername, setNewStaffUsername] = useState("");
+const [newStaffPin, setNewStaffPin] = useState("");
+const [newStaffRole, setNewStaffRole] = useState<StaffRole>("STAFF");
+
   const [editBusy, setEditBusy] = useState(false);
   const [editMessageId, setEditMessageId] = useState("");
   const [editFromName, setEditFromName] = useState("");
@@ -610,6 +641,145 @@ useEffect(() => {
     prevMessageIdsRef.current = messageIds;
   }
 
+
+async function loadMe() {
+  try {
+    const res = await fetch("/api/admin/me", { cache: "no-store" });
+    const data = await res.json();
+    if (data?.ok && data?.user) {
+      setCurrentStaffRole(data.user.role || "");
+    }
+  } catch {}
+}
+
+async function loadStaffUsers() {
+  setStaffBusy(true);
+  setStaffMsg("");
+
+  try {
+    const res = await fetch("/api/admin/staff/list", { cache: "no-store" });
+    const data = await res.json();
+
+    if (!res.ok || !data?.ok) {
+      setStaffMsg(data?.error || "Could not load staff users.");
+      setStaffUsers([]);
+      return;
+    }
+
+    setStaffUsers(Array.isArray(data.items) ? data.items : []);
+  } catch {
+    setStaffMsg("Could not load staff users.");
+    setStaffUsers([]);
+  } finally {
+    setStaffBusy(false);
+  }
+}
+
+async function createStaffUser() {
+  setStaffMsg("");
+
+  const username = newStaffUsername.trim();
+  const pin = newStaffPin.trim();
+
+  if (!username) {
+    setStaffMsg("Enter a username.");
+    return;
+  }
+
+  if (!pin) {
+    setStaffMsg("Enter a PIN.");
+    return;
+  }
+
+  const res = await fetch("/api/admin/staff/create", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      username,
+      pin,
+      role: newStaffRole,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || !data?.ok) {
+    setStaffMsg(data?.error || "Could not create user.");
+    return;
+  }
+
+  setNewStaffUsername("");
+  setNewStaffPin("");
+  setNewStaffRole("STAFF");
+  setStaffMsg("✅ Staff user created.");
+  await loadStaffUsers();
+}
+
+async function toggleStaffActive(user: StaffUserItem) {
+  const res = await fetch("/api/admin/staff/update", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      id: user.id,
+      active: !user.active,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || !data?.ok) {
+    setStaffMsg(data?.error || "Could not update user.");
+    return;
+  }
+
+  setStaffMsg(`✅ ${user.username} ${user.active ? "disabled" : "enabled"}.`);
+  await loadStaffUsers();
+}
+
+async function resetStaffPin(user: StaffUserItem) {
+  const pin = prompt(`Enter a new PIN for ${user.username}`);
+  if (!pin) return;
+
+  const res = await fetch("/api/admin/staff/update", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      id: user.id,
+      pin,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || !data?.ok) {
+    setStaffMsg(data?.error || "Could not reset PIN.");
+    return;
+  }
+
+  setStaffMsg(`✅ PIN updated for ${user.username}.`);
+  await loadStaffUsers();
+}
+
+async function changeStaffRole(user: StaffUserItem, role: StaffRole) {
+  const res = await fetch("/api/admin/staff/update", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      id: user.id,
+      role,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || !data?.ok) {
+    setStaffMsg(data?.error || "Could not update role.");
+    return;
+  }
+
+  setStaffMsg(`✅ Role updated for ${user.username}.`);
+  await loadStaffUsers();
+}
 
 
   async function loadRequests() {
@@ -1193,6 +1363,17 @@ useEffect(() => {
   return () => clearInterval(id);
 }, [checkingAuth, location, top10BucketView, tab, rulesDirty, messageRulesDirty]);
 
+useEffect(() => {
+  if (checkingAuth) return;
+  void loadMe();
+}, [checkingAuth]);
+
+useEffect(() => {
+  if (checkingAuth || tab !== "staff" || currentStaffRole !== "SUPER_ADMIN") return;
+  void loadStaffUsers();
+}, [checkingAuth, tab, currentStaffRole]);
+
+
 if (checkingAuth) {
   return <div style={{ padding: 40 }}>Loading...</div>;
 }
@@ -1212,11 +1393,14 @@ if (checkingAuth) {
               <div className="admSubTitle">{location} • Live request control, points settings, Top 10, and shout-out moderation.</div>
             </div>
           </div>
-          <div className="admHeroStats">
-            <span className="admPill admPill--live">Requests {pendingRequests.length}</span>
-            <span className="admPill">Messages {pendingMessages.length}</span>
-            <span className="admPill admPill--warn">Rules {rulesDirty ? "Unsaved" : "Saved"}</span>
-          </div>
+<div className="admHeroStats">
+  <span className="admPill admPill--live">Requests {pendingRequests.length}</span>
+  <span className="admPill">Messages {pendingMessages.length}</span>
+  <span className="admPill admPill--warn">Rules {rulesDirty ? "Unsaved" : "Saved"}</span>
+  <button type="button" className="admBtnGhost" onClick={logout}>
+    Logout
+  </button>
+</div>
         </div>
 
 
@@ -1234,7 +1418,13 @@ if (checkingAuth) {
 
  <a href={`/admin/${location}/interstitials`} className="admTab admTabLink">
     INTERSTITIALS
-  </a></div>
+  </a>
+  {currentStaffRole === "SUPER_ADMIN" ? (
+  <TabButton active={tab === "staff"} onClick={() => setTab("staff")}>
+    Staff Users
+  </TabButton>
+) : null}
+</div>
 
 
         {msg ? <div className="admNotice">{msg}</div> : null}
@@ -1973,6 +2163,86 @@ if (checkingAuth) {
           </div>
         )}
 
+{tab === "staff" && currentStaffRole === "SUPER_ADMIN" && (
+  <div className="admGridSettings">
+    <Panel title="Staff users" sub="Create staff logins, disable users, reset PINs, and manage upper-admin access.">
+      <div className="admSectionStack">
+        <SubPanel title="Create new staff user" sub="Simple username + PIN login.">
+          <div className="admGrid2">
+            <TextField label="Username" value={newStaffUsername} onChange={setNewStaffUsername} />
+            <TextField label="PIN" value={newStaffPin} onChange={setNewStaffPin} />
+          </div>
+
+          <label className="admField" style={{ marginTop: 12 }}>
+            <span className="admLabel">Role</span>
+            <select
+              className="admSelect"
+              value={newStaffRole}
+              onChange={(e) => setNewStaffRole(e.target.value as StaffRole)}
+            >
+              <option value="STAFF">STAFF</option>
+              <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+            </select>
+          </label>
+
+          <div className="admActionRow" style={{ marginTop: 12 }}>
+            <ActionButton onClick={createStaffUser}>Create staff user</ActionButton>
+          </div>
+        </SubPanel>
+
+        {staffMsg ? <div className="admNotice">{staffMsg}</div> : null}
+
+        <SubPanel title="Existing staff users" sub="Disable terminated users and manage access.">
+          <div className="admRows">
+            {staffBusy ? (
+              <EmptyState>Loading staff users…</EmptyState>
+            ) : staffUsers.length === 0 ? (
+              <EmptyState>No staff users found.</EmptyState>
+            ) : (
+              staffUsers.map((u) => (
+                <div key={u.id} className="admRow">
+                  <div className="admTextWrap" style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 900 }}>{u.username}</div>
+                    <div className="admFieldHelp" style={{ marginTop: 6 }}>
+                      Role {u.role} • {u.active ? "Active" : "Disabled"}
+                    </div>
+                  </div>
+
+                  <div className="admActionRow">
+                    <ActionButton alt onClick={() => resetStaffPin(u)}>
+                      Reset PIN
+                    </ActionButton>
+
+                    <ActionButton
+                      alt
+                      onClick={() =>
+                        changeStaffRole(
+                          u,
+                          u.role === "SUPER_ADMIN" ? "STAFF" : "SUPER_ADMIN"
+                        )
+                      }
+                    >
+                      Make {u.role === "SUPER_ADMIN" ? "STAFF" : "SUPER_ADMIN"}
+                    </ActionButton>
+
+                    <ActionButton
+                      danger={!u.active}
+                      alt={u.active}
+                      onClick={() => toggleStaffActive(u)}
+                    >
+                      {u.active ? "Disable" : "Enable"}
+                    </ActionButton>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </SubPanel>
+      </div>
+    </Panel>
+  </div>
+)}
+
         <UserHistoryModal
           open={userModalOpen}
           loading={userModalBusy}
@@ -2129,6 +2399,9 @@ onChange={(v) => patchMessageRules({ filterBlockMessage: v })}
       </Panel>
     </div>
 
+
+
+
     <Panel title="TV placeholder shout-outs" sub="Browser-local fallback content for the TV page until shared persistence is added.">
       <div className="admSectionStack">
         <div className="admSubPanel">
@@ -2161,7 +2434,10 @@ onChange={(v) => patchMessageRules({ filterBlockMessage: v })}
         </div>
       </div>
     </Panel>
+
+    
   </div>
+
 )}
         {editOpen ? (
           <div className="admOverlay">
