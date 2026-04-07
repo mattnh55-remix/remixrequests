@@ -646,8 +646,10 @@ async function loadMe() {
   try {
     const res = await fetch("/api/admin/me", { cache: "no-store" });
     const data = await res.json();
+
     if (data?.ok && data?.user) {
       setCurrentStaffRole(data.user.role || "");
+      setCurrentStaffUsername(data.user.username || "");
     }
   } catch {}
 }
@@ -1398,6 +1400,9 @@ if (checkingAuth) {
   <span className="admPill admPill--live">Requests {pendingRequests.length}</span>
   <span className="admPill">Messages {pendingMessages.length}</span>
   <span className="admPill admPill--warn">Rules {rulesDirty ? "Unsaved" : "Saved"}</span>
+<span className="admPill">
+  {currentStaffUsername || "Unknown"} ({currentStaffRole || "no role"})
+</span>
   <button type="button" className="admBtnGhost" onClick={logout}>
     Logout
   </button>
