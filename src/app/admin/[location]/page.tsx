@@ -598,6 +598,7 @@ const [staffMsg, setStaffMsg] = useState("");
 const [newStaffUsername, setNewStaffUsername] = useState("");
 const [newStaffPin, setNewStaffPin] = useState("");
 const [newStaffRole, setNewStaffRole] = useState<StaffRole>("STAFF");
+const [currentStaffUsername, setCurrentStaffUsername] = useState("");
 
   const [editBusy, setEditBusy] = useState(false);
   const [editMessageId, setEditMessageId] = useState("");
