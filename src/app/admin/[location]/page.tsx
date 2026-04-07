@@ -1326,15 +1326,15 @@ useEffect(() => {
   setRules(null);
 }, [location]);
 
-  useEffect(() => {
-    const allowedTabs: TabKey[] = [
-      "dashboard",
-      "songs",
-      "requestSettings",
-      "top10",
-      "users",
-      "shoutoutSettings",
-    ];
+const allowedTabs: TabKey[] = [
+  "dashboard",
+  "songs",
+  "requestSettings",
+  "top10",
+  "users",
+  "staff",
+  "shoutoutSettings",
+];
 
     if (requestedTab && allowedTabs.includes(requestedTab as TabKey)) {
       setTab(requestedTab as TabKey);
