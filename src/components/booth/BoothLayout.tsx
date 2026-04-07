@@ -798,35 +798,6 @@ saveSessionTimerState(location, {
 
   <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
     <div className="rrTitle">REMIX REQUESTS & SHOUTOUTS</div>
-
-    <div style={{
-      fontSize: 12,
-      fontWeight: 800,
-      opacity: 0.85,
-      padding: "4px 8px",
-      borderRadius: 6,
-      background: "rgba(255,255,255,0.06)",
-      border: "1px solid rgba(255,255,255,0.08)"
-    }}>
-      {staffName || "Staff"} ({staffRole || "..."})
-    </div>
-
-    <button
-      onClick={logout}
-      style={{
-        marginLeft: 8,
-        padding: "4px 10px",
-        fontSize: 11,
-        fontWeight: 900,
-        borderRadius: 6,
-        border: "1px solid rgba(255,255,255,0.15)",
-        background: "linear-gradient(180deg,#bb6776,#813944)",
-        color: "#fff",
-        cursor: "pointer"
-      }}
-    >
-      Logout
-    </button>
   </div></div>
 
   <div className="rrSub">
@@ -848,18 +819,38 @@ saveSessionTimerState(location, {
         </div>
 
         <div className="rrTopbarRight">
-          <div className="statBoxes">
-           
 
-            <Link
-              href={`/admin/${location}`}
-              className="statBox statBox--link"
-              aria-label="Admin settings"
-            >
-              <span>SETTINGS</span>
-              <strong>⚙</strong>
-            </Link>
-          </div>
+    <div className="rrSteelStack">
+    <button
+      type="button"
+      className="rrSteelBtn rrSteelBtn--nameplate"
+      title={`${staffName || "Staff"}, ${staffRole || "User"}`}
+    >
+      <span className="rrSteelBtn__main">{staffName || "Staff"}</span>
+      <span className="rrSteelBtn__sub">{staffRole || "User"}</span>
+    </button>
+
+    <button
+      type="button"
+      className="rrSteelBtn rrSteelBtn--danger"
+      onClick={logout}
+      title="Logout"
+    >
+      <span className="rrSteelBtn__main">Logout</span>
+    </button>
+
+    <Link
+      href={`/admin/${location}`}
+      className="rrSteelBtn rrSteelBtn--link"
+      aria-label="Settings"
+      title="Settings"
+    >
+      <span className="rrSteelBtn__main">⚙</span>
+    </Link>
+  </div>
+
+
+     
         </div>
       </div>
 
@@ -1161,11 +1152,11 @@ saveSessionTimerState(location, {
           min-width: 0;
         }
 
-        .rrTopbarRight {
-          display: flex;
-          align-items: stretch;
-          justify-content: flex-end;
-        }
+   .rrTopbarRight {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
 
         .rrEyebrow {
           font-size: 9px;
@@ -1190,61 +1181,94 @@ saveSessionTimerState(location, {
           max-width: 720px;
         }
 
-        .statBoxes {
-          display: flex;
-          gap: 6px;
-          flex-wrap: wrap;
-          justify-content: flex-end;
-        }
+  .rrSteelStack {
+  display: grid;
+  gap: 8px;
+  width: 178px;
+}
 
-        .statBox {
-          min-width: 104px;
-          padding: 10px 12px;
-          border-radius: 4px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
-            linear-gradient(180deg, rgba(19, 24, 37, 0.92), rgba(11, 16, 27, 0.92));
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.05),
-            inset 0 -1px 0 rgba(0, 0, 0, 0.28);
-        }
+.rrSteelBtn {
+  appearance: none;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #f4f7fb;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  cursor: pointer;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.08) 18%, rgba(255,255,255,0.02) 19%, rgba(255,255,255,0.05) 100%),
+    linear-gradient(180deg, #798391 0%, #596272 15%, #434b59 38%, #2a313d 58%, #1c222d 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.48),
+    inset 0 -1px 0 rgba(0,0,0,0.42),
+    0 1px 0 rgba(255,255,255,0.08),
+    0 10px 18px rgba(0,0,0,0.28);
+  transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease;
+}
 
-        .statBox span {
-          display: block;
-          margin-bottom: 5px;
-          font-size: 9px;
-          font-weight: 900;
-          letter-spacing: 1.8px;
-          opacity: 0.7;
-        }
+.rrSteelBtn:hover {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
 
-        .statBox strong {
-          font-size: 13px;
-          font-weight: 1000;
-        }
+.rrSteelBtn:active {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.36),
+    inset 0 1px 0 rgba(255,255,255,0.2),
+    0 4px 10px rgba(0,0,0,0.22);
+}
 
-        .statBox--link {
-          text-decoration: none;
-          color: inherit;
-          display: block;
-        }
+.rrSteelBtn--link {
+  display: flex;
+}
 
-        .statBox--button {
-          appearance: none;
-          cursor: pointer;
-          text-align: left;
-          color: inherit;
-        }
+.rrSteelBtn--nameplate {
+  cursor: default;
+}
 
-        .statBox--enabled {
-          border-color: rgba(46, 193, 234, 0.38);
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.05),
-            inset 0 -1px 0 rgba(0, 0, 0, 0.28),
-            0 0 0 1px rgba(46, 193, 234, 0.16),
-            0 0 14px rgba(46, 193, 234, 0.12);
-        }
+.rrSteelBtn--nameplate:hover {
+  transform: none;
+  filter: none;
+}
+
+.rrSteelBtn--nameplate:active {
+  transform: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.48),
+    inset 0 -1px 0 rgba(0,0,0,0.42),
+    0 1px 0 rgba(255,255,255,0.08),
+    0 10px 18px rgba(0,0,0,0.28);
+}
+
+.rrSteelBtn--danger {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.05) 18%, rgba(255,255,255,0.02) 19%, rgba(255,255,255,0.05) 100%),
+    linear-gradient(180deg, #8a5661 0%, #7a434d 18%, #6c3742 40%, #552730 64%, #431d24 100%);
+}
+
+.rrSteelBtn__main {
+  font-size: 13px;
+  font-weight: 1000;
+  letter-spacing: 0.3px;
+  line-height: 1;
+}
+
+.rrSteelBtn__sub {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  opacity: 0.78;
+  text-transform: uppercase;
+  line-height: 1;
+}
 
         .rrBooth__grid {
           display: grid;
@@ -1864,19 +1888,23 @@ saveSessionTimerState(location, {
           }
         }
 
-        @media (max-width: 1480px) {
-          .rrBooth__topbar {
-            grid-template-columns: 1fr;
-          }
+   @media (max-width: 1480px) {
+  .rrBooth__topbar {
+    grid-template-columns: 1fr;
+  }
 
-          .rrTopbarRight {
-            justify-content: flex-start;
-          }
+  .rrTopbarRight {
+    justify-content: flex-start;
+  }
 
-          .rrBooth__grid {
-            grid-template-columns: 1.7fr 1fr 1fr;
-          }
-        }
+  .rrSteelStack {
+    width: 178px;
+  }
+
+  .rrBooth__grid {
+    grid-template-columns: 1.7fr 1fr 1fr;
+  }
+}
 
         @media (max-width: 1200px) {
           .rrBooth__grid {
