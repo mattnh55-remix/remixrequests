@@ -346,6 +346,24 @@ export default function BoothLayout({ location }: { location: string }) {
     errors: [],
   });
 
+  useEffect(() => {
+  async function loadMe() {
+    try {
+      const res = await fetch("/api/admin/me", { cache: "no-store" });
+      const data = await res.json();
+
+      if (data?.ok && data?.user) {
+        setStaffName(data.user.username || "");
+        setStaffRole(data.user.role || "");
+      }
+    } catch {}
+  }
+
+  loadMe();
+}, []);
+
+  const [staffName, setStaffName] = useState("");
+  const [staffRole, setStaffRole] = useState("");
   const [sessionClock, setSessionClock] = useState<BoothSessionClock>(() =>
     createNewSessionClock()
   );
@@ -363,6 +381,11 @@ export default function BoothLayout({ location }: { location: string }) {
   const previousIncomingIdsRef = useRef<string[]>([]);
   const previousPendingShoutoutIdsRef = useRef<string[]>([]);
   const lastAlertAtRef = useRef(0);
+
+  async function logout() {
+  await fetch("/api/admin/logout", { method: "POST" });
+  window.location.href = "/signin";
+}
 
   function playBoothAlert(kind: "regular" | "boosted" | "shoutout") {
     if (!areBoothAlertsEnabled()) return;
@@ -770,11 +793,44 @@ saveSessionTimerState(location, {
     <div className="rrBooth rrBooth--compact">
       <div className="rrBooth__topbar">
         <div className="rrTopbarLeft">
-          <div className="rrEyebrow">REMIXREQUESTS • LIVE BOOTH</div>
-          <div className="rrTitle">PERFORMANCE CONSOLE</div>
-          <div className="rrSub">
-            Gunmetal booth surface for incoming approvals, pending request order, scheduled
-            interstitial prompts, and shoutouts.
+<div className="rrTopbarLeft">
+  <div className="rrEyebrow">REMIXREQUESTS • LIVE BOOTH</div>
+
+  <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
+    <div className="rrTitle">REMIX REQUESTS & SHOUTOUTS</div>
+
+    <div style={{
+      fontSize: 12,
+      fontWeight: 800,
+      opacity: 0.85,
+      padding: "4px 8px",
+      borderRadius: 6,
+      background: "rgba(255,255,255,0.06)",
+      border: "1px solid rgba(255,255,255,0.08)"
+    }}>
+      {staffName || "Staff"} ({staffRole || "..."})
+    </div>
+
+    <button
+      onClick={logout}
+      style={{
+        marginLeft: 8,
+        padding: "4px 10px",
+        fontSize: 11,
+        fontWeight: 900,
+        borderRadius: 6,
+        border: "1px solid rgba(255,255,255,0.15)",
+        background: "linear-gradient(180deg,#bb6776,#813944)",
+        color: "#fff",
+        cursor: "pointer"
+      }}
+    >
+      Logout
+    </button>
+  </div></div>
+
+  <div className="rrSub">
+            Audience Interaction Panel
           </div>
         </div>
 
