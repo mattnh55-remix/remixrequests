@@ -1881,13 +1881,13 @@ saveSessionTimerState(location, {
           background: linear-gradient(180deg, #bb6776 0%, #9b4755 52%, #813944 100%);
         }
 
-               @media (min-width: 1100px) {
+         @media (min-width: 1100px) {
           .boothSplit {
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
           }
         }
 
-        /* Large desktop */
+        /* Full desktop */
         @media (min-width: 1361px) {
           .rrBooth__topbar {
             grid-template-columns: minmax(320px, 1.2fr) minmax(360px, 0.9fr) minmax(420px, 1fr);
@@ -1898,7 +1898,7 @@ saveSessionTimerState(location, {
           }
         }
 
-        /* Alternate booth layout for ~1100px to ~1360px */
+        /* 1100-ish screens: queue on top, support panels below */
         @media (min-width: 1100px) and (max-width: 1360px) {
           .rrBooth__topbar {
             grid-template-columns: minmax(0, 1fr) auto;
@@ -1928,32 +1928,29 @@ saveSessionTimerState(location, {
           }
 
           .rrBooth__grid {
-            grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr);
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            grid-template-areas:
+              "queue queue"
+              "sound side";
             align-items: start;
           }
 
           .rrQueueStage {
-            grid-column: 1;
-            grid-row: 1 / span 2;
+            grid-area: queue;
           }
 
           .boothStack {
-            grid-column: 2;
-            grid-row: 1;
+            grid-area: sound;
           }
 
           .boothStack--right {
-            grid-column: 2;
-            grid-row: 2;
+            grid-area: side;
           }
 
           .boothStack--right {
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            align-items: start;
-          }
-
-          .boothStack--right > * {
-            min-width: 0;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
           }
 
           .rrQueueStage__content {
@@ -1961,7 +1958,7 @@ saveSessionTimerState(location, {
           }
         }
 
-        /* Tablet and below */
+        /* Smaller than 1100 */
         @media (max-width: 1099px) {
           .rrBooth__topbar {
             grid-template-columns: 1fr;
