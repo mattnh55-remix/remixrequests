@@ -1977,12 +1977,6 @@ saveSessionTimerState(location, {
           }
         }
 
-        @media (max-width: 1200px) {
-          .rrBooth__grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
         @media (max-width: 900px) {
           .queueRow {
             grid-template-columns: 20px 54px minmax(0, 1fr);
