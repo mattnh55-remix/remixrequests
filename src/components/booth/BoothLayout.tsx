@@ -793,12 +793,11 @@ saveSessionTimerState(location, {
     <div className="rrBooth rrBooth--compact">
       <div className="rrBooth__topbar">
         <div className="rrTopbarLeft">
-<div className="rrTopbarLeft">
   <div className="rrEyebrow">REMIXREQUESTS • LIVE BOOTH</div>
 
   <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
     <div className="rrTitle">REMIX REQUESTS & SHOUTOUTS</div>
-  </div></div>
+  </div>
 
   <div className="rrSub">
             Audience Interaction Panel
@@ -1882,29 +1881,104 @@ saveSessionTimerState(location, {
           background: linear-gradient(180deg, #bb6776 0%, #9b4755 52%, #813944 100%);
         }
 
-        @media (min-width: 1100px) {
+               @media (min-width: 1100px) {
           .boothSplit {
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
           }
         }
 
-   @media (max-width: 1480px) {
-  .rrBooth__topbar {
-    grid-template-columns: 1fr;
-  }
+        /* Large desktop */
+        @media (min-width: 1361px) {
+          .rrBooth__topbar {
+            grid-template-columns: minmax(320px, 1.2fr) minmax(360px, 0.9fr) minmax(420px, 1fr);
+          }
 
-  .rrTopbarRight {
-    justify-content: flex-start;
-  }
+          .rrBooth__grid {
+            grid-template-columns: minmax(0, 2fr) minmax(360px, 1fr) minmax(360px, 1fr);
+          }
+        }
 
-  .rrSteelStack {
-    width: 122px;
-  }
+        /* Alternate booth layout for ~1100px to ~1360px */
+        @media (min-width: 1100px) and (max-width: 1360px) {
+          .rrBooth__topbar {
+            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-areas:
+              "brand actions"
+              "timer timer";
+            align-items: start;
+          }
 
-  .rrBooth__grid {
-    grid-template-columns: 1.7fr 1fr 1fr;
-  }
-}
+          .rrTopbarLeft {
+            grid-area: brand;
+          }
+
+          .rrTopbarCenter {
+            grid-area: timer;
+            justify-content: flex-start;
+          }
+
+          .rrTopbarCenter .boothPanel,
+          .rrTopbarCenter > div {
+            max-width: 100%;
+          }
+
+          .rrTopbarRight {
+            grid-area: actions;
+            justify-content: flex-end;
+          }
+
+          .rrBooth__grid {
+            grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr);
+            align-items: start;
+          }
+
+          .rrQueueStage {
+            grid-column: 1;
+            grid-row: 1 / span 2;
+          }
+
+          .boothStack {
+            grid-column: 2;
+            grid-row: 1;
+          }
+
+          .boothStack--right {
+            grid-column: 2;
+            grid-row: 2;
+          }
+
+          .boothStack--right {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            align-items: start;
+          }
+
+          .boothStack--right > * {
+            min-width: 0;
+          }
+
+          .rrQueueStage__content {
+            min-height: 0;
+          }
+        }
+
+        /* Tablet and below */
+        @media (max-width: 1099px) {
+          .rrBooth__topbar {
+            grid-template-columns: 1fr;
+          }
+
+          .rrTopbarRight {
+            justify-content: flex-start;
+          }
+
+          .rrSteelStack {
+            width: 122px;
+          }
+
+          .rrBooth__grid {
+            grid-template-columns: 1fr;
+          }
+        }
 
         @media (max-width: 1200px) {
           .rrBooth__grid {
