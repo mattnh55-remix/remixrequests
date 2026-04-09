@@ -12,9 +12,21 @@ type SpotifyTrack = {
   durationMs: number | null;
 };
 
-type SpotifyPlaylistTracksResponse = {
-  items?: Array<{ track?: any }>;
+type SpotifyTrackItem = {
+  track?: any;
+};
+
+type SpotifyTracksPage = {
+  items?: SpotifyTrackItem[];
   next?: string | null;
+  total?: number;
+};
+
+type SpotifyApiErrorShape = {
+  error?: {
+    status?: number;
+    message?: string;
+  };
 };
 
 function extractPlaylistId(input: string): string | null {
@@ -41,31 +53,69 @@ function mapTrack(track: any): SpotifyTrack | null {
   };
 }
 
-async function fetchPlaylistTracks(playlistId: string, accessToken: string): Promise<SpotifyTrack[]> {
+function parseJsonSafe(text: string): any {
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
+function withMarketFromToken(url: string): string {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}market=from_token`;
+}
+
+async function spotifyGetJson(url: string, accessToken: string) {
+  const finalUrl = withMarketFromToken(url);
+
+  const res = await fetch(finalUrl, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    cache: "no-store",
+  });
+
+  const text = await res.text();
+  const json = parseJsonSafe(text);
+
+  return {
+    ok: res.ok,
+    status: res.status,
+    text,
+    json,
+    url: finalUrl,
+  };
+}
+
+async function fetchRemainingTrackPages(
+  nextUrl: string | null | undefined,
+  accessToken: string
+): Promise<SpotifyTrack[]> {
   const allTracks: SpotifyTrack[] = [];
-  let nextUrl: string | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`;
+  let currentUrl: string | null = nextUrl ?? null;
 
-  while (nextUrl) {
-    const res: Response = await fetch(nextUrl, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      cache: "no-store",
-    });
+  while (currentUrl) {
+    const result = await spotifyGetJson(currentUrl, accessToken);
 
-    const text = await res.text();
-    const data: SpotifyPlaylistTracksResponse & { error?: { message?: string } } = text ? JSON.parse(text) : {};
-
-    if (!res.ok) {
-      throw new Error(data?.error?.message || "Spotify playlist request failed.");
+    if (!result.ok) {
+      const apiError = result.json as SpotifyApiErrorShape;
+      throw new Error(
+        `Spotify tracks request failed (${result.status}): ${
+          apiError?.error?.message || result.text || "Unknown Spotify error"
+        }`
+      );
     }
 
-    for (const item of data.items ?? []) {
+    const page = result.json as SpotifyTracksPage;
+
+    for (const item of page.items ?? []) {
       const mapped = mapTrack(item?.track);
       if (mapped) allTracks.push(mapped);
     }
 
-    nextUrl = data.next ?? null;
+    currentUrl = page.next ?? null;
   }
 
   return allTracks;
@@ -91,27 +141,52 @@ export async function POST(req: Request) {
 
     const connection = await refreshSpotifyAccessTokenIfNeeded(locationSlug);
 
-    const playlistRes = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}`, {
-      headers: {
-        Authorization: `Bearer ${connection.accessToken}`,
-      },
-      cache: "no-store",
-    });
+    const meResult = await spotifyGetJson("https://api.spotify.com/v1/me", connection.accessToken);
+    const meJson = meResult.json || {};
 
-    const playlistText = await playlistRes.text();
-    const playlistJson: any = playlistText ? JSON.parse(playlistText) : {};
+    const playlistResult = await spotifyGetJson(
+      `https://api.spotify.com/v1/playlists/${playlistId}?fields=id,name,description,images,external_urls,owner(display_name,id),tracks(total,next,items(track(id,name,preview_url,duration_ms,artists(name),album(name,images))))`,
+      connection.accessToken
+    );
 
-    if (!playlistRes.ok) {
+    if (!playlistResult.ok) {
+      const apiError = playlistResult.json as SpotifyApiErrorShape;
+
       return NextResponse.json(
         {
           ok: false,
-          error: playlistJson?.error?.message || "Spotify playlist request failed.",
+          error:
+            `Spotify playlist request failed (${playlistResult.status}): ` +
+            (apiError?.error?.message || playlistResult.text || "Unknown Spotify error"),
+          debug: {
+            playlistId,
+            locationSlug,
+            connectedSpotifyUserId: connection.spotifyUserId ?? null,
+            connectedSpotifyDisplayName: connection.spotifyDisplayName ?? null,
+            meId: meJson?.id ?? null,
+            meDisplayName: meJson?.display_name ?? null,
+            requestUrl: playlistResult.url,
+          },
         },
-        { status: playlistRes.status || 500 }
+        { status: playlistResult.status || 500 }
       );
     }
 
-    const tracks = await fetchPlaylistTracks(playlistId, connection.accessToken);
+    const playlistJson: any = playlistResult.json || {};
+    const firstTracksPage: SpotifyTracksPage = playlistJson?.tracks || {};
+
+    const initialTracks: SpotifyTrack[] = [];
+    for (const item of firstTracksPage.items ?? []) {
+      const mapped = mapTrack(item?.track);
+      if (mapped) initialTracks.push(mapped);
+    }
+
+    let remainingTracks: SpotifyTrack[] = [];
+    if (firstTracksPage.next) {
+      remainingTracks = await fetchRemainingTrackPages(firstTracksPage.next, connection.accessToken);
+    }
+
+    const tracks = [...initialTracks, ...remainingTracks];
 
     return NextResponse.json({
       ok: true,
@@ -121,18 +196,30 @@ export async function POST(req: Request) {
         description: playlistJson.description ?? "",
         image: playlistJson.images?.[0]?.url ?? null,
         owner: playlistJson.owner?.display_name ?? playlistJson.owner?.id ?? "",
-        totalTracks: tracks.length,
+        totalTracks: typeof firstTracksPage.total === "number" ? firstTracksPage.total : tracks.length,
         externalUrl: playlistJson.external_urls?.spotify ?? null,
       },
       tracks,
       connection: {
-        spotifyDisplayName: connection.spotifyDisplayName,
-        spotifyUserId: connection.spotifyUserId,
+        spotifyDisplayName: connection.spotifyDisplayName ?? null,
+        spotifyUserId: connection.spotifyUserId ?? null,
+      },
+      debug: {
+        meId: meJson?.id ?? null,
+        meDisplayName: meJson?.display_name ?? null,
+        playlistOwnerId: playlistJson.owner?.id ?? null,
+        playlistOwnerDisplayName: playlistJson.owner?.display_name ?? null,
+        usedEmbeddedTracks: true,
+        embeddedTrackCount: initialTracks.length,
+        pagedExtraTrackCount: remainingTracks.length,
       },
     });
   } catch (error: any) {
     return NextResponse.json(
-      { ok: false, error: error?.message || "Failed to load Spotify playlist." },
+      {
+        ok: false,
+        error: error?.message || "Failed to load Spotify playlist.",
+      },
       { status: 500 }
     );
   }
