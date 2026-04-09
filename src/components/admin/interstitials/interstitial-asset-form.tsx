@@ -228,7 +228,7 @@ export function InterstitialAssetForm({
         </label>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <div className="rrFormActions">
         <button type="submit" className="gunmetalBtn gunmetalBtn--primary">
           {submitLabel}
         </button>

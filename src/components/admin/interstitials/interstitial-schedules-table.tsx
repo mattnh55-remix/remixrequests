@@ -66,7 +66,7 @@ export function InterstitialSchedulesTable({
                       schedule.active ? "rrChip--active" : "rrChip--inactive"
                     }`}
                   >
-                    {schedule.active ? "ACTIVE" : "INACTIVE"}
+                    {schedule.active ? "Active" : "Inactive"}
                   </span>
 
                   <span className="rrChip rrChip--category">
@@ -74,9 +74,9 @@ export function InterstitialSchedulesTable({
                   </span>
 
                   {schedule.required ? (
-                    <span className="rrChip rrChip--schedule">REQUIRED</span>
+                    <span className="rrChip rrChip--schedule">Required</span>
                   ) : (
-                    <span className="rrChip rrChip--inactive">OPTIONAL</span>
+                    <span className="rrChip rrChip--inactive">Optional</span>
                   )}
                 </div>
 
@@ -109,7 +109,11 @@ export function InterstitialSchedulesTable({
                 <form
                   action={deleteInterstitialSchedule}
                   onSubmit={(e) => {
-                    if (!window.confirm(`Delete window "${schedule.label?.trim() || niceCategory(schedule.category)}"?`)) {
+                    if (
+                      !window.confirm(
+                        `Delete window "${schedule.label?.trim() || niceCategory(schedule.category)}"?`
+                      )
+                    ) {
                       e.preventDefault();
                     }
                   }}
@@ -150,7 +154,7 @@ export function InterstitialSchedulesTable({
             </div>
 
             {schedule.promptBody?.trim() ? (
-              <div className="rrAssetProfiles" style={{ marginTop: 8 }}>
+              <div className="rrAssetProfiles">
                 <strong>Prompt:</strong> {schedule.promptBody}
               </div>
             ) : null}

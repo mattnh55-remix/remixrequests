@@ -25,6 +25,13 @@ type AssetRow = {
   blockedProfiles: string[];
 };
 
+function niceCategory(value: string) {
+  return value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
 export function InterstitialAssetsTable({
   locationId,
   assets,
@@ -50,7 +57,9 @@ export function InterstitialAssetsTable({
         return (
           <div
             key={asset.id}
-            className={`rrAssetCard ${asset.active ? "" : "rrAssetCard--inactive"}`}
+            className={`rrAssetCard ${asset.active ? "" : "rrAssetCard--inactive"} ${
+              editing ? "rrAssetCard--editing" : ""
+            }`}
           >
             <div className="rrAssetHeader">
               <div>
@@ -62,15 +71,15 @@ export function InterstitialAssetsTable({
                       asset.active ? "rrChip--active" : "rrChip--inactive"
                     }`}
                   >
-                    {asset.active ? "ACTIVE" : "INACTIVE"}
+                    {asset.active ? "Active" : "Inactive"}
                   </span>
 
                   <span className="rrChip rrChip--category">
-                    {asset.category}
+                    {niceCategory(asset.category)}
                   </span>
 
                   {asset.manualOnly ? (
-                    <span className="rrChip rrChip--schedule">MANUAL ONLY</span>
+                    <span className="rrChip rrChip--schedule">Manual Only</span>
                   ) : null}
                 </div>
 
@@ -78,7 +87,7 @@ export function InterstitialAssetsTable({
                   Local file: <strong>{asset.fileUrl}</strong>
                   {asset.iconLabel ? (
                     <>
-                      {"  •  "}Tile: <strong>{asset.iconLabel}</strong>
+                      {" • "}Tile label: <strong>{asset.iconLabel}</strong>
                     </>
                   ) : null}
                 </div>
@@ -149,14 +158,12 @@ export function InterstitialAssetsTable({
 
               <div className="rrAssetMetaCell">
                 <span>Preview GIF</span>
-                <strong>
-                  {asset.previewGifUrl?.trim() ? "Configured" : "—"}
-                </strong>
+                <strong>{asset.previewGifUrl?.trim() ? "Configured" : "—"}</strong>
               </div>
             </div>
 
             {asset.notes?.trim() ? (
-              <div className="rrAssetProfiles" style={{ marginTop: 6 }}>
+              <div className="rrAssetProfiles">
                 <strong>Notes:</strong> {asset.notes}
               </div>
             ) : null}

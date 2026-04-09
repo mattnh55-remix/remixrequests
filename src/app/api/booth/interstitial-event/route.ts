@@ -1,3 +1,5 @@
+// src/app/api/booth/interstitial-event/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 

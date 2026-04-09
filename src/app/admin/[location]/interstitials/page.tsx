@@ -401,8 +401,8 @@ export default async function AdminInterstitialsPage({
                     {editingSchedule ? "Edit Session Window" : "Program Session Window"}
                   </div>
                   <div className="rrPanelSub">
-                    Set the timing brain of the system here. When eligible asset assignment is fully
-                    wired, it should live inside this form below the timing and prompt fields.
+                    Set the timing brain of the system here. Eligible assets live right below the
+                    timing inputs so setup feels logical and fast.
                   </div>
                 </div>
 
@@ -411,15 +411,15 @@ export default async function AdminInterstitialsPage({
                 </span>
               </div>
 
-<InterstitialScheduleForm
-  locationId={locationId}
-  locationSlug={location.slug}
-  categoryOptions={[...CATEGORY_OPTIONS]}
-  assets={assets}
-  initialValues={editingSchedule ?? undefined}
-  submitLabel={editingSchedule ? "Update Window" : "Save Window"}
-  mode={editingSchedule ? "edit" : "create"}
-/>
+              <InterstitialScheduleForm
+                locationId={locationId}
+                locationSlug={location.slug}
+                categoryOptions={[...CATEGORY_OPTIONS]}
+                assets={assets}
+                initialValues={editingSchedule ?? undefined}
+                submitLabel={editingSchedule ? "Update Window" : "Save Window"}
+                mode={editingSchedule ? "edit" : "create"}
+              />
             </section>
           </div>
 
@@ -778,6 +778,10 @@ export default async function AdminInterstitialsPage({
           padding: 16px;
         }
 
+        .rrAdminPanel--form {
+          overflow: hidden;
+        }
+
         .rrHero {
           display: grid;
           grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
@@ -888,6 +892,12 @@ export default async function AdminInterstitialsPage({
           text-decoration: none;
           font-size: 12px;
           font-weight: 900;
+          transition: transform 120ms ease, border-color 120ms ease;
+        }
+
+        .rrAdminNav__link:hover {
+          transform: translateY(-1px);
+          border-color: rgba(140, 178, 230, 0.44);
         }
 
         .rrAdminNav__link--active {
@@ -973,7 +983,7 @@ export default async function AdminInterstitialsPage({
 
         .rrStudioGrid {
           display: grid;
-          grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.8fr);
+          grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.8fr);
           gap: 12px;
           align-items: start;
         }
@@ -982,6 +992,7 @@ export default async function AdminInterstitialsPage({
         .rrStudioSide {
           display: grid;
           gap: 12px;
+          min-width: 0;
         }
 
         .rrPanelHead {
@@ -1040,11 +1051,77 @@ export default async function AdminInterstitialsPage({
         .rrFormGrid {
           display: grid;
           gap: 10px;
+          min-width: 0;
+        }
+
+        .rrFormGrid--triple {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .rrFormGrid--double {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .rrFormGrid--five {
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+        }
+
+        .rrFormSection {
+          padding: 14px;
+          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.01)),
+            linear-gradient(180deg, rgba(15, 22, 36, 0.9), rgba(9, 15, 26, 0.92));
+        }
+
+        .rrFormSectionHeader {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: flex-start;
+          margin-bottom: 12px;
+        }
+
+        .rrSectionEyebrow {
+          font-size: 10px;
+          line-height: 1;
+          font-weight: 1000;
+          letter-spacing: 1.6px;
+          text-transform: uppercase;
+          color: rgba(177, 196, 231, 0.68);
+          margin-bottom: 6px;
+        }
+
+        .rrFormSectionSub {
+          font-size: 12px;
+          line-height: 1.5;
+          color: rgba(231, 238, 251, 0.72);
+        }
+
+        .rrControlLabel {
+          display: block;
+          margin-bottom: 6px;
+          font-size: 10px;
+          line-height: 1;
+          font-weight: 1000;
+          letter-spacing: 1.4px;
+          text-transform: uppercase;
+          color: rgba(224, 233, 248, 0.78);
+        }
+
+        .rrFormActions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin-top: 2px;
         }
 
         .rrNotesArea {
           min-height: 156px !important;
           padding-top: 12px !important;
+          padding-bottom: 12px !important;
           resize: vertical;
         }
 
@@ -1067,11 +1144,41 @@ export default async function AdminInterstitialsPage({
           appearance: none;
           -webkit-appearance: none;
           -moz-appearance: none;
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            0 0 0 1px rgba(12, 26, 48, 0.18);
+        }
+
+        textarea.gunmetalInput {
+          min-height: 96px;
+          padding: 10px 11px;
+          line-height: 1.45;
         }
 
         .gunmetalSelect option {
           background-color: #0b1220;
           color: #f4f7fd;
+        }
+
+        .gunmetalCheckboxRow {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-height: 42px;
+          padding: 10px 12px;
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.02);
+          color: #eef4ff;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .gunmetalCheckbox {
+          width: 16px;
+          height: 16px;
+          accent-color: #4ea1ff;
+          flex: 0 0 auto;
         }
 
         .gunmetalBtn,
@@ -1095,6 +1202,7 @@ export default async function AdminInterstitialsPage({
           display: inline-flex;
           align-items: center;
           justify-content: center;
+          white-space: nowrap;
         }
 
         .gunmetalBtn--primary {
@@ -1112,6 +1220,15 @@ export default async function AdminInterstitialsPage({
             #8a6a1d 0%,
             #735515 52%,
             #5a430f 100%
+          );
+        }
+
+        .gunmetalBtn--danger {
+          background: linear-gradient(
+            180deg,
+            #8d4450 0%,
+            #713341 52%,
+            #5b2834 100%
           );
         }
 
@@ -1134,11 +1251,124 @@ export default async function AdminInterstitialsPage({
           line-height: 1.55;
         }
 
+        .rrAssetList {
+          display: grid;
+          gap: 10px;
+        }
+
+        .rrAssetCard {
+          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.085);
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+            linear-gradient(180deg, rgba(25, 31, 44, 0.92), rgba(14, 19, 31, 0.92));
+          padding: 12px;
+        }
+
+        .rrAssetCard--editing {
+          border-color: rgba(77, 186, 255, 0.42);
+          box-shadow: 0 0 0 1px rgba(77, 186, 255, 0.14);
+        }
+
+        .rrAssetCard--inactive {
+          opacity: 0.82;
+        }
+
+        .rrAssetHeader {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 12px;
+          align-items: start;
+        }
+
+        .rrAssetTitleLine {
+          display: flex;
+          gap: 6px;
+          align-items: center;
+          flex-wrap: wrap;
+          min-width: 0;
+        }
+
+        .rrAssetTitle {
+          font-size: 16px;
+          font-weight: 1000;
+          line-height: 1.1;
+        }
+
+        .rrAssetSub {
+          margin-top: 6px;
+          color: rgba(213, 224, 244, 0.76);
+          font-size: 12px;
+          line-height: 1.45;
+        }
+
+        .rrAssetActions {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          align-items: center;
+        }
+
+        .rrAssetMetaGrid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 10px;
+          overflow: hidden;
+          background: rgba(255, 255, 255, 0.02);
+          margin-top: 12px;
+        }
+
+        .rrAssetMetaCell {
+          min-width: 0;
+          padding: 9px 10px;
+          border-right: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .rrAssetMetaCell:last-child {
+          border-right: none;
+        }
+
+        .rrAssetMetaCell span {
+          display: block;
+          font-size: 9px;
+          text-transform: uppercase;
+          letter-spacing: 1.4px;
+          opacity: 0.66;
+          margin-bottom: 4px;
+        }
+
+        .rrAssetMetaCell strong {
+          display: block;
+          font-size: 12px;
+          font-weight: 1000;
+          line-height: 1.35;
+        }
+
+        .rrAssetProfiles {
+          margin-top: 10px;
+          color: rgba(216, 227, 246, 0.72);
+          font-size: 12px;
+          line-height: 1.5;
+        }
+
+        .rrAssetProfiles strong {
+          color: rgba(245, 249, 255, 0.92);
+        }
+
+        .rrEditWrap {
+          margin-top: 12px;
+          padding-top: 12px;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
         .rrLogToolbar {
           display: grid;
           grid-template-columns: 220px 220px auto auto;
           gap: 8px;
           margin-bottom: 10px;
+          align-items: center;
         }
 
         .rrToolbarActions {
@@ -1162,6 +1392,16 @@ export default async function AdminInterstitialsPage({
           white-space: nowrap;
         }
 
+        .rrChip--active {
+          border-color: rgba(46, 193, 234, 0.36);
+          color: #d9f7ff;
+        }
+
+        .rrChip--inactive {
+          border-color: rgba(255, 255, 255, 0.16);
+          color: rgba(235, 241, 255, 0.72);
+        }
+
         .rrChip--played {
           border-color: rgba(70, 205, 145, 0.35);
           color: #dff9ec;
@@ -1180,6 +1420,11 @@ export default async function AdminInterstitialsPage({
         .rrChip--category {
           border-color: rgba(212, 104, 255, 0.28);
           color: #f1ddff;
+        }
+
+        .rrChip--schedule {
+          border-color: rgba(230, 170, 52, 0.34);
+          color: #ffe4aa;
         }
 
         .rrTable {
@@ -1282,16 +1527,46 @@ export default async function AdminInterstitialsPage({
           .rrLogToolbar {
             grid-template-columns: 1fr 1fr;
           }
+
+          .rrFormGrid--triple {
+            grid-template-columns: 1fr 1fr;
+          }
+
+          .rrFormGrid--five {
+            grid-template-columns: 1fr 1fr;
+          }
+        }
+
+        @media (max-width: 920px) {
+          .rrAssetHeader {
+            grid-template-columns: 1fr;
+          }
+
+          .rrAssetActions {
+            justify-content: flex-start;
+          }
+
+          .rrAssetMetaGrid {
+            grid-template-columns: 1fr 1fr;
+          }
+
+          .rrAssetMetaCell:nth-child(2n) {
+            border-right: none;
+          }
         }
 
         @media (max-width: 820px) {
           .rrHeroStats,
           .rrGuideGrid,
-          .rrLogToolbar {
+          .rrLogToolbar,
+          .rrFormGrid--triple,
+          .rrFormGrid--double,
+          .rrFormGrid--five {
             grid-template-columns: 1fr;
           }
 
-          .rrPanelHead {
+          .rrPanelHead,
+          .rrFormSectionHeader {
             flex-direction: column;
             align-items: flex-start;
           }
@@ -1303,6 +1578,19 @@ export default async function AdminInterstitialsPage({
           .rrTableRow {
             grid-template-columns: 1fr;
             gap: 6px;
+          }
+
+          .rrAssetMetaGrid {
+            grid-template-columns: 1fr;
+          }
+
+          .rrAssetMetaCell {
+            border-right: none;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          }
+
+          .rrAssetMetaCell:last-child {
+            border-bottom: none;
           }
         }
       `}</style>
