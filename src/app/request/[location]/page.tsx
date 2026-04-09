@@ -1463,7 +1463,7 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
       else bal.refreshOnce();
 
       await refreshQueuePreview();
-      setMsg(action === "play_now" ? "Boost sent to the booth." : "Request added to the queue.");
+      setMsg(action === "play_now" ? "Boost sent to the playlist!" : "Request added to the playlist!");
       return true;
     } catch {
       sfx.playError();

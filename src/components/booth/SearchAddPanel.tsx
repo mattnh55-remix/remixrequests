@@ -70,10 +70,7 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
     return () => clearTimeout(timeout);
   }, [query, location]);
 
-  async function addSong(
-    songId: string,
-    mode: "ADD_TO_QUEUE" | "PLAY_NEXT" | "ADD_AFTER_CURRENT"
-  ) {
+  async function addSong(songId: string) {
     try {
       setSubmittingId(songId);
       setError("");
@@ -86,7 +83,7 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
         credentials: "same-origin",
         body: JSON.stringify({
           songId,
-          mode,
+          mode: "ADD_TO_QUEUE",
         }),
       });
 
@@ -109,11 +106,8 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
     }
   }
 
-  async function runFastAction(
-    song: Song,
-    mode: "ADD_TO_QUEUE" | "PLAY_NEXT" | "ADD_AFTER_CURRENT" = "ADD_TO_QUEUE"
-  ) {
-    await addSong(song.id, mode);
+  async function runFastAction(song: Song) {
+    await addSong(song.id);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -143,18 +137,7 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
     if (e.key === "Enter") {
       e.preventDefault();
       if (!activeSong) return;
-
-      if (e.shiftKey) {
-        void runFastAction(activeSong, "PLAY_NEXT");
-        return;
-      }
-
-      if (e.altKey) {
-        void runFastAction(activeSong, "ADD_AFTER_CURRENT");
-        return;
-      }
-
-      void runFastAction(activeSong, "ADD_TO_QUEUE");
+      void runFastAction(activeSong);
     }
   }
 
@@ -162,9 +145,9 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
     <section className="boothPanel boothPanel--compact">
       <div className="boothPanelHeader">
         <div>
-          <div className="boothPanelTitle">Search &amp; Add</div>
+          <div className="boothPanelTitle">Add</div>
           <div className="boothPanelSub">
-            Arrow keys move • Enter adds • Shift+Enter plays next
+            Arrow keys move • Enter adds to queue
           </div>
         </div>
       </div>
@@ -175,13 +158,13 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Search songs..."
+          placeholder="Add songs..."
           className="gunmetalInput searchAddInput"
           autoComplete="off"
         />
 
         <div className="searchAddHint">
-          Enter = Add to Queue • Shift+Enter = Play Next • Alt+Enter = After Current • Esc = Clear
+          Enter = Add to Queue • Esc = Clear
         </div>
 
         {loading ? <div className="searchAddState">Searching...</div> : null}
@@ -205,7 +188,7 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
                   <button
                     type="button"
                     className="searchAddRowMain"
-                    onClick={() => void runFastAction(song, "ADD_TO_QUEUE")}
+                    onClick={() => void runFastAction(song)}
                   >
                     <div className="searchAddCopy">
                       <div className="searchAddTopline">
@@ -221,29 +204,11 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
 
                     <button
                       type="button"
-                      className="searchBtn searchBtn--neutral"
-                      disabled={isSubmitting}
-                      onClick={() => void addSong(song.id, "ADD_TO_QUEUE")}
-                    >
-                      Add
-                    </button>
-
-                    <button
-                      type="button"
                       className="searchBtn searchBtn--primary"
                       disabled={isSubmitting}
-                      onClick={() => void addSong(song.id, "PLAY_NEXT")}
+                      onClick={() => void addSong(song.id)}
                     >
-                      Next
-                    </button>
-
-                    <button
-                      type="button"
-                      className="searchBtn searchBtn--neutral"
-                      disabled={isSubmitting}
-                      onClick={() => void addSong(song.id, "ADD_AFTER_CURRENT")}
-                    >
-                      After
+                      Add
                     </button>
                   </div>
                 </div>
@@ -259,36 +224,29 @@ export default function SearchAddPanel({ location, onAdded }: Props) {
           gap: 8px;
         }
 
-.searchAddInput {
-  width: 100%;
+        .searchAddInput {
+          width: 100%;
+          background: linear-gradient(180deg, #1b2a3a 0%, #16202c 100%);
+          border: 1px solid rgba(80, 140, 255, 0.35);
+          border-left: 3px solid rgba(80, 140, 255, 0.6);
+          padding-left: 12px;
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            0 0 0 rgba(80, 140, 255, 0);
+          transition: all 0.18s ease;
+        }
 
-  /* NEW: make it pop */
-  background: linear-gradient(180deg, #1b2a3a 0%, #16202c 100%);
-  border: 1px solid rgba(80, 140, 255, 0.35);
-border-left: 3px solid rgba(80,140,255,0.6);
-padding-left: 12px;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.05),
-    0 0 0 rgba(80,140,255,0);
+        .searchAddInput:hover {
+          border-color: rgba(80, 140, 255, 0.55);
+        }
 
-  transition: all 0.18s ease;
-}
-
-/* hover */
-.searchAddInput:hover {
-  border-color: rgba(80, 140, 255, 0.55);
-}
-
-/* focus = THIS is where it comes alive */
-.searchAddInput:focus {
-  border-color: rgba(80, 140, 255, 0.9);
-
-  box-shadow:
-    0 0 0 2px rgba(80,140,255,0.15),
-    0 0 12px rgba(80,140,255,0.25);
-
-  background: linear-gradient(180deg, #1f3347 0%, #182433 100%);
-}
+        .searchAddInput:focus {
+          border-color: rgba(80, 140, 255, 0.9);
+          box-shadow:
+            0 0 0 2px rgba(80, 140, 255, 0.15),
+            0 0 12px rgba(80, 140, 255, 0.25);
+          background: linear-gradient(180deg, #1f3347 0%, #182433 100%);
+        }
 
         .searchAddHint {
           border-radius: 4px;
@@ -451,10 +409,6 @@ padding-left: 12px;
         .searchBtn:disabled {
           cursor: not-allowed;
           opacity: 0.5;
-        }
-
-        .searchBtn--neutral {
-          background: linear-gradient(180deg, #4a5467 0%, #2d3441 52%, #232935 100%);
         }
 
         .searchBtn--primary {
