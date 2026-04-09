@@ -993,14 +993,68 @@ export default function RequestPage({ params }: { params: { location: string } }
     } catch {}
   }, []);
 
-  async function refreshSession() {
+async function refreshSession() {
+  try {
+    const res = await fetch(`/api/public/session/${location}`, { cache: "no-store" });
+    const data = (await res.json()) as SessionRes;
+
+    setRules(data);
+
+    const nextSessionId = String(data?.session?.id || "").trim();
+    const nextEndsAt = String(data?.session?.endsAt || "").trim();
+    const nextEndsAtMs = nextEndsAt ? new Date(nextEndsAt).getTime() : NaN;
+    const sessionExpired = Number.isFinite(nextEndsAtMs) && nextEndsAtMs <= Date.now();
+
+    setSessionCountdown(formatCountdown(nextEndsAt || null));
+
+    let storedSessionId = "";
+    let storedIdentityId = "";
+
     try {
-      const res = await fetch(`/api/public/session/${location}`, { cache: "no-store" });
-      const data = (await res.json()) as SessionRes;
-      setRules(data);
-      setSessionCountdown(formatCountdown(data?.session?.endsAt || null));
+      storedSessionId = (localStorage.getItem(`rr_sessionId:${location}`) || "").trim();
+      storedIdentityId = (localStorage.getItem("rr_identityId") || "").trim();
     } catch {}
-  }
+
+    const sessionChanged =
+      Boolean(storedSessionId) &&
+      Boolean(nextSessionId) &&
+      storedSessionId !== nextSessionId;
+
+    if (nextSessionId) {
+      try {
+        localStorage.setItem(`rr_sessionId:${location}`, nextSessionId);
+      } catch {}
+    }
+
+    const hasAnyVisitorState =
+      Boolean(identityId) ||
+      Boolean(sessionActive) ||
+      Boolean(verified) ||
+      Boolean(storedIdentityId);
+
+    if ((sessionExpired || sessionChanged) && hasAnyVisitorState) {
+      resetToClaimState(true);
+
+      setPendingAction(null);
+      setPendingActionToast(false);
+      setShowVerify(false);
+      setShowBuy(false);
+      setRedeemCode("");
+
+      try {
+        if (identityId) {
+          localStorage.removeItem(`rr_lastBalance:${location}:${identityId}`);
+        }
+      } catch {}
+
+      setMsg(
+        sessionChanged
+          ? "New session started. Claim your 5 points to begin again."
+          : "Your session expired. Claim your 5 points to begin again."
+      );
+    }
+  } catch {}
+}
 
   async function refreshQueuePreview() {
     try {
