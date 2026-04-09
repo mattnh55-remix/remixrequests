@@ -1671,26 +1671,86 @@ if (checkingAuth) {
         </div>
 
 
-<div className="admTabs">
-  <TabButton active={tab === "dashboard"} onClick={() => setTab("dashboard")}>Dashboard</TabButton>
-  <TabButton active={tab === "songs"} onClick={() => setTab("songs")}>Songs</TabButton>
-  <TabButton active={tab === "requestSettings"} onClick={() => setTab("requestSettings")}>Request Settings</TabButton>
-  <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>Top 10</TabButton>
-  <TabButton active={tab === "users"} onClick={() => setTab("users")}>Users & Points</TabButton>
-  <TabButton active={tab === "shoutoutSettings"} onClick={() => setTab("shoutoutSettings")}>Shoutout Settings</TabButton>
+<div style={{ display: "grid", gap: 8, marginBottom: 10 }}>
+  <div className="admTabs" style={{ marginBottom: 0 }}>
+    <TabButton active={tab === "dashboard"} onClick={() => setTab("dashboard")}>
+      Dashboard
+    </TabButton>
 
-<a href={`/booth/${location}`} className="admTab admTabLink">
-  DJ BOOTH
-</a>
+    <TabButton active={tab === "songs"} onClick={() => setTab("songs")}>
+      Songs
+    </TabButton>
 
- <a href={`/admin/${location}/interstitials`} className="admTab admTabLink">
-    INTERSTITIALS
-  </a>
-  {currentStaffRole === "SUPER_ADMIN" ? (
-  <TabButton active={tab === "staff"} onClick={() => setTab("staff")}>
-    Staff Users
-  </TabButton>
-) : null}
+    <TabButton active={tab === "requestSettings"} onClick={() => setTab("requestSettings")}>
+      Request Settings
+    </TabButton>
+
+    <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>
+      Top 10
+    </TabButton>
+
+    <TabButton active={tab === "users"} onClick={() => setTab("users")}>
+      Users & Points
+    </TabButton>
+
+    <TabButton active={tab === "shoutoutSettings"} onClick={() => setTab("shoutoutSettings")}>
+      Shoutout Settings
+    </TabButton>
+
+    {currentStaffRole === "SUPER_ADMIN" ? (
+      <TabButton active={tab === "staff"} onClick={() => setTab("staff")}>
+        Staff Users
+      </TabButton>
+    ) : null}
+  </div>
+
+  <div
+    className="admTabs"
+    style={{
+      marginBottom: 0,
+      paddingTop: 0,
+      borderTop: "1px solid rgba(255,255,255,0.04)",
+    }}
+  >
+    <a
+      href={`/booth/${location}`}
+      className="admTab admTabLink"
+      style={{
+        minHeight: 34,
+        padding: "0 12px",
+        fontSize: 11,
+        letterSpacing: "0.08em",
+      }}
+    >
+      DJ Booth
+    </a>
+
+    <a
+      href={`/admin/${location}/interstitials`}
+      className="admTab admTabLink"
+      style={{
+        minHeight: 34,
+        padding: "0 12px",
+        fontSize: 11,
+        letterSpacing: "0.08em",
+      }}
+    >
+      Interstitials
+    </a>
+
+    <a
+      href="/admin/import"
+      className="admTab admTabLink"
+      style={{
+        minHeight: 34,
+        padding: "0 12px",
+        fontSize: 11,
+        letterSpacing: "0.08em",
+      }}
+    >
+      <i>Spotify Import</i>
+    </a>
+  </div>
 </div>
 
 
@@ -1702,7 +1762,7 @@ if (checkingAuth) {
               title="Tonight at a glance"
               sub="A cleaner landing screen with live operational context, top song focus, and money + point flow."
             >
-              <div className="admDashboardHero">
+              <div className="admDashboardHero" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 0.85fr)", gap: 10, alignItems: "stretch" }}>
                 <div className="admDashboardHeroMain">
                   <div className="admDashboardEyebrow">LIVE SNAPSHOT</div>
                   <div className="admDashboardHeadline">
@@ -1715,7 +1775,7 @@ if (checkingAuth) {
                   </div>
                 </div>
 
-                <div className="admDashboardHeroStats">
+                <div className="admDashboardHeroStats" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, alignContent: "start" }}>
                   <DashboardHeroStat label="Queue live" value={dashboardLedgerStats.liveQueueCount} sub={`${dashboardLedgerStats.boostedQueueCount} boosted • ${dashboardLedgerStats.standardQueueCount} standard`} />
                   <DashboardHeroStat label="Active users" value={dashboardLedgerStats.activeUsers} sub={`${dashboardLedgerStats.verifiedUsers} verified`} />
                   <DashboardHeroStat label="Points issued" value={dashboardLedgerStats.pointsIssued} sub={formatDashboardSince(dashboardLedgerStats.baselineAt)} />
@@ -1724,9 +1784,9 @@ if (checkingAuth) {
               </div>
             </Panel>
 
-            <div className="admDashboardTriGrid">
+            <div className="admDashboardTriGrid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10, alignItems: "start" }}>
               <Panel title="Stats" sub="Usage snapshot without diving into the deeper tabs.">
-                <div className="admDashboardMiniGrid">
+                <div className="admDashboardMiniGrid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
                   <DashboardMiniStat label="Songs in queue" value={dashboardLedgerStats.liveQueueCount} tone="live" />
                   <DashboardMiniStat label="Boosted live" value={dashboardLedgerStats.boostedQueueCount} tone="warn" />
                   <DashboardMiniStat label="Standard live" value={dashboardLedgerStats.standardQueueCount} />
@@ -1737,7 +1797,7 @@ if (checkingAuth) {
                   <DashboardMiniStat label="Redemption codes" value={dashboardLedgerStats.redemptionCodesLoaded} />
                 </div>
 
-                <div className="admSubPanel" style={{ marginTop: 14 }}>
+                <div className="admSubPanel" style={{ marginTop: 10 }}>
                   <div className="admSubTitleText">Quick pulse</div>
                   <div className="admSubCopy" style={{ marginTop: 8 }}>
                     Requests and shout-outs now live in the booth flow, so this page is better used as a live pulse page instead of an old moderation board.
@@ -1772,9 +1832,9 @@ if (checkingAuth) {
                   )}
                 </div>
 
-                <div className="admSubPanel" style={{ marginTop: 14 }}>
+                <div className="admSubPanel" style={{ marginTop: 10 }}>
                   <div className="admSubTitleText">Slim activity stack</div>
-                  <div className="admDashboardActivityList">
+                  <div className="admDashboardActivityList" style={{ display: "grid", gap: 8 }}>
                     {requestBuckets.boosts.slice(0, 3).map((q) => (
                       <DashboardActivityRow
                         key={`boost-${q.id}`}
@@ -1807,7 +1867,7 @@ if (checkingAuth) {
                   </div>
                 </div>
 
-                <div className="admSubPanel" style={{ marginTop: 14 }}>
+                <div className="admSubPanel" style={{ marginTop: 10 }}>
                   <div className="admSubTitleText">Read-only board preview</div>
                   <div className="admSubCopy" style={{ marginTop: 8 }}>
                     {top10UpdatedAt ? `Updated ${new Date(top10UpdatedAt).toLocaleString()}` : "No board update time yet."}
@@ -1821,14 +1881,14 @@ if (checkingAuth) {
               </Panel>
 
               <Panel title="Money + points" sub="Issued points, redeemed points, active balances, and purchased revenue.">
-                <div className="admDashboardMoneyStack">
+                <div className="admDashboardMoneyStack" style={{ display: "grid", gap: 8 }}>
                   <DashboardMoneyRow label="Points issued" value={dashboardLedgerStats.pointsIssued} sub={`${dashboardLedgerStats.welcomeUsers} welcome users • ${dashboardLedgerStats.redeemedUsers} redeemed users`} />
                   <DashboardMoneyRow label="Points redeemed" value={dashboardLedgerStats.pointsRedeemed} sub="Requests, boosts, votes, and shout-outs spent" />
                   <DashboardMoneyRow label="Points active" value={dashboardLedgerStats.pointsAvailable} sub="Issued minus redeemed" />
                   <DashboardMoneyRow label="Purchased $" value={formatCurrencyFromCents(dashboardLedgerStats.estimatedRevenueCents)} sub={`${dashboardLedgerStats.purchaseCount} point-pack purchases`} highlight />
                 </div>
 
-                <div className="admSubPanel" style={{ marginTop: 14 }}>
+                <div className="admSubPanel" style={{ marginTop: 10 }}>
                   <div className="admSubTitleText">Stats window</div>
                   <div className="admSubCopy" style={{ marginTop: 8 }}>
                     {formatDashboardSince(dashboardLedgerStats.baselineAt)}
@@ -2797,7 +2857,7 @@ onChange={(v) => patchMessageRules({ filterBlockMessage: v })}
 
 function DashboardHeroStat({ label, value, sub }: { label: string; value: ReactNode; sub?: string }) {
   return (
-    <div className="admMetricCard" style={{ minHeight: 116 }}>
+    <div className="admMetricCard" style={{ minHeight: 96, padding: 10 }}>
       <div className="admMetricLabel">{label}</div>
       <div className="admMetricValue">{value}</div>
       {sub ? <div className="admMetricSub">{sub}</div> : null}
@@ -2815,9 +2875,9 @@ function DashboardMiniStat({
   tone?: "live" | "warn";
 }) {
   return (
-    <div className="admSubPanel" style={{ padding: "14px 14px 12px", background: tone === "warn" ? "linear-gradient(135deg, rgba(109,61,146,0.28), rgba(23,15,40,0.95))" : tone === "live" ? "linear-gradient(135deg, rgba(33,107,162,0.24), rgba(11,16,32,0.95))" : undefined }}>
+    <div className="admSubPanel" style={{ padding: "10px 10px 9px", background: tone === "warn" ? "linear-gradient(135deg, rgba(109,61,146,0.28), rgba(23,15,40,0.95))" : tone === "live" ? "linear-gradient(135deg, rgba(33,107,162,0.24), rgba(11,16,32,0.95))" : undefined }}>
       <div className="admMetricLabel">{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 1000, marginTop: 8, color: "#f7fbff" }}>{value}</div>
+      <div style={{ fontSize: 24, fontWeight: 1000, marginTop: 8, color: "#f7fbff" }}>{value}</div>
     </div>
   );
 }
@@ -2837,7 +2897,7 @@ function DashboardMoneyRow({
     <div
       className="admSubPanel"
       style={{
-        padding: "14px 16px",
+        padding: "10px 12px",
         background: highlight
           ? "linear-gradient(135deg, rgba(96,42,130,0.38), rgba(14,17,34,0.98))"
           : "linear-gradient(180deg, rgba(17,27,53,0.9), rgba(11,15,28,0.94))",
@@ -2848,7 +2908,7 @@ function DashboardMoneyRow({
           <div className="admMetricLabel">{label}</div>
           {sub ? <div className="admMetricSub" style={{ marginTop: 6 }}>{sub}</div> : null}
         </div>
-        <div style={{ fontSize: 30, fontWeight: 1000, color: "#f8fbff" }}>{value}</div>
+        <div style={{ fontSize: 24, fontWeight: 1000, color: "#f8fbff" }}>{value}</div>
       </div>
     </div>
   );
@@ -2869,9 +2929,9 @@ function DashboardActivityRow({
     <div
       className="admRow"
       style={{
-        marginBottom: 10,
-        paddingTop: 12,
-        paddingBottom: 12,
+        marginBottom: 8,
+        paddingTop: 10,
+        paddingBottom: 10,
         borderColor:
           accent === "boost"
             ? "rgba(166, 84, 203, 0.42)"
@@ -2946,7 +3006,7 @@ function UserHistoryModal({
                 </div>
                 <div style={{ textAlign: "right", minWidth: 120 }}>
                   <div className="admFieldHelp">Current balance</div>
-                  <div style={{ fontWeight: 1000, fontSize: 28 }}>{user.points}</div>
+                  <div style={{ fontWeight: 1000, fontSize: 24 }}>{user.points}</div>
                 </div>
               </div>
             </div>
