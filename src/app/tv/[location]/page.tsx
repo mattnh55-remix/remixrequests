@@ -1659,13 +1659,6 @@ function LandscapeQueuePanel({
   defaultAlbumArtUrl={defaultAlbumArtUrl}
 >
         <div className="remixTvTagRow">
-          <div className="tvTag">REMIX REQUESTS</div>
-          <div className="tvTag" style={{ boxShadow: "var(--glowB)" }}>
-            PLAY NOW • UP NEXT
-          </div>
-          <div className="tvTag" style={{ boxShadow: "var(--glowA)" }}>
-            TOP 10
-          </div>
         </div>
 
         <div className="neonEQ" aria-hidden="true" style={{ marginTop: 12 }}>
@@ -1674,9 +1667,22 @@ function LandscapeQueuePanel({
           <span />
           <span />
           <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
         </div>
-
-        <div className="remixTvUrl">{requestUrl.replace("https://", "")}</div>
       </TopCard>
 
       <Top10Block queueList={queueList} mode="landscape" />
@@ -1759,7 +1765,7 @@ function PortraitQueueSlide({
       <div className="remixTvPortraitQueueBody">
         <TopCard
           mode="portrait"
-          nowPlaying={nowPlaying}
+          nowPlaying={null}
           topIsBoosted={topIsBoosted}
           showA={showA}
           artA={artA}
@@ -1767,7 +1773,29 @@ function PortraitQueueSlide({
           defaultAlbumArtUrl={defaultAlbumArtUrl}
         >
           <div className="remixTvTopMetaRow">
-            <div className="remixTvTopBadge">Top 10 Live</div>
+        <div className="neonEQ" aria-hidden="true" style={{ marginTop: 12 }}>
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+
             {topIsBoosted ? <div className="remixTvTopBadge remixTvTopBadge--boosted">Boosted</div> : null}
           </div>
         </TopCard>
@@ -1817,7 +1845,7 @@ function TopCard({
       </div>
 
       <div className="remixTvTopMeta">
-        <div className="remixTvTopLabel">Now Playing</div>
+        
         <div className="remixTvTopSong">{nowPlaying?.title || "No requests yet"}</div>
         <div className="remixTvTopArtist">
           {nowPlaying?.artist || "Scan the QR to get started"}
