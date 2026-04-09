@@ -169,19 +169,19 @@ export default function AdminGunmetalTheme() {
         margin-bottom: 10px;
       }
       .admTabs::-webkit-scrollbar { display: none; }
-      .admTab {
-        appearance: none;
-        flex: 0 0 auto;
-        min-height: 38px;
-        padding: 0 14px;
-        border-radius: 999px;
-        border: 1px solid rgba(117, 145, 197, 0.22);
-        background: linear-gradient(180deg, rgba(43, 53, 72, 0.84), rgba(18, 26, 39, 0.94));
-        color: #fff;
-        font-size: 12px;
-        font-weight: 900;
-        cursor: pointer;
-      }
+.admTab {
+  appearance: none;
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(117, 145, 197, 0.22);
+  background: linear-gradient(180deg, rgba(43, 53, 72, 0.84), rgba(18, 26, 39, 0.94));
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
       .admTab.is-active {
         background: linear-gradient(180deg, rgba(77, 143, 228, 0.98), rgba(47, 111, 198, 0.99));
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 8px 18px rgba(32, 83, 155, 0.18);
