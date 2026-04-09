@@ -32,6 +32,7 @@ type Song = {
   artworkUrl?: string;
   explicit?: boolean;
   tags?: string[];
+  featureBoost?: number;
 };
 
 type QueuePreviewItem = {
@@ -1626,7 +1627,10 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
   const requestCost = Number(rules?.rules?.costRequest ?? 1);
   const playNowCost = Number(rules?.rules?.costPlayNow ?? 5);
 
-  const trending = useMemo(() => songs.slice(0, 8), [songs]);
+  const featuredSongs = useMemo(
+  () => songs.filter((song: any) => Number(song.featureBoost || 0) > 0).slice(0, 8),
+  [songs]
+);
   const defaultAlbumArtUrl = rules?.rules?.defaultAlbumArtUrl || "";
   const writeInSearch = useMemo(() => parseWriteInSearchInput(search), [search]);
 
@@ -1825,18 +1829,18 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
       ) : null}
     </div>
   </div>
-      {trending.length ? (
+      {featuredSongs.length ? (
         <div className="rrPanel">
           <div className="rrPanelHead">
             <div>
-              <div className="rrPanelTitle">Trending at Remix</div>
-              <div className="rrPanelSub">Fast picks for tonight’s crowd.</div>
+<div className="rrPanelTitle">Trending Now at Remix!</div>
+<div className="rrPanelSub">Here's what's hot and new at the Rink!</div>
             </div>
           </div>
 
           <div className="rrPanelBody">
             <div className="rrTrendingRail">
-              {trending.map((song) => {
+              {featuredSongs.map((song) => {
                 const isSuccess = successTileId === song.id;
                 const isHot = true;
 
@@ -1893,8 +1897,7 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
           {songs.length ? (
             songs.map((song) => {
               const isSuccess = successTileId === song.id;
-              const isHot = trending.some((x) => x.id === song.id);
-
+const isHot = featuredSongs.some((x) => x.id === song.id);
               return (
                 <div key={song.id} className={`rrSongTile ${isSuccess ? "rrSongTile--success" : ""}`}>
                   <AlbumArt src={song.artworkUrl} fallbackSrc={defaultAlbumArtUrl} alt={song.title} />

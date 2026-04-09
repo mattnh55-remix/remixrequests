@@ -22,10 +22,18 @@ export async function GET(req: Request, { params }: { params: { location: string
   }
   if (tag) where.tags = { has: tag };
 
-  const [items, total] = await Promise.all([
-    prisma.song.findMany({ where, take, skip, orderBy: { title: "asc" } }),
-    prisma.song.count({ where })
-  ]);
+const [items, total] = await Promise.all([
+  prisma.song.findMany({
+    where,
+    take,
+    skip,
+    orderBy: [
+      { featureBoost: "desc" },
+      { title: "asc" }
+    ],
+  }),
+  prisma.song.count({ where })
+]);
 
   return NextResponse.json({ items, total, page, pages: Math.ceil(total / take) });
 }
