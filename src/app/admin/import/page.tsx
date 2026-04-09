@@ -319,6 +319,27 @@ function AdminSpotifyImportPageInner() {
 
               <div className="rrPlaylistMeta">
                 <div className="rrPlaylistEyebrow">Loaded playlist</div>
+{playlistData?.debug && (
+  <div style={{
+    marginTop: 16,
+    padding: 12,
+    background: "#111",
+    border: "1px solid #333",
+    borderRadius: 8,
+    fontSize: 12,
+    color: "#0f0"
+  }}>
+    <div><strong>DEBUG</strong></div>
+    <div>Connected User ID: {playlistData.debug.meId}</div>
+    <div>Connected Name: {playlistData.debug.meDisplayName}</div>
+    <div>Saved Connection ID: {playlistData.debug.savedConnectionUserId}</div>
+    <div>Playlist Owner ID: {playlistData.debug.playlistOwnerId}</div>
+    <div>Playlist Owner Name: {playlistData.debug.playlistOwnerDisplayName}</div>
+    <div>Raw Items: {playlistData.debug.rawItemCount}</div>
+    <div>Usable Tracks: {playlistData.debug.usableTrackCount}</div>
+    <div>Null Tracks: {playlistData.debug.nullTrackCount}</div>
+  </div>
+)}
                 <div className="rrPlaylistName">{playlist.name}</div>
                 <div className="rrPlaylistSub">{playlist.owner ? `by ${playlist.owner}` : "Spotify playlist"} • {playlist.totalTracks} tracks</div>
                 {playlist.externalUrl ? (
