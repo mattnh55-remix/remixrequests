@@ -18,24 +18,25 @@ model StaffUser {
 }
 
 model Location {
-  id         String   @id @default(cuid())
-  slug       String   @unique
-  name       String
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  createdAt DateTime @default(now())
 
-  songs                  Song[]
-  sessions               Session[]
-  requests               Request[]
-  rules                  Ruleset?
-  top10Entries           Top10Entry[]
-  queueItems             QueueItem[]
-  playbackEvents         PlaybackEvent[]
-  audioAssets            AudioAsset[]
-  interstitialAssets     InterstitialAsset[]
-  interstitialSchedules  InterstitialSchedule[]
-  interstitialEvents     InterstitialEvent[]
-  boothNotes             BoothNote[]
-  songWriteIns           SongWriteIn[]
+  songs                 Song[]
+  sessions              Session[]
+  requests              Request[]
+  rules                 Ruleset?
+  top10Entries          Top10Entry[]
+  queueItems            QueueItem[]
+  playbackEvents        PlaybackEvent[]
+  audioAssets           AudioAsset[]
+  interstitialAssets    InterstitialAsset[]
+  interstitialSchedules InterstitialSchedule[]
+  interstitialEvents    InterstitialEvent[]
+  boothNotes            BoothNote[]
+  songWriteIns          SongWriteIn[]
+  spotifyConnection     SpotifyConnection?
 
   CreditLedger CreditLedger[]
   PlayHistory  PlayHistory[]
@@ -674,6 +675,26 @@ model ScreenMessage {
   @@index([status])
   @@index([imageModerationStatus])
 }
+
+model SpotifyConnection {
+  id                 String   @id @default(cuid())
+  locationId         String   @unique
+  location           Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  spotifyUserId      String?
+  spotifyDisplayName String?
+
+  accessToken        String
+  refreshToken       String?
+  expiresAt          DateTime
+  scope              String?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([expiresAt])
+}
+
 
 model MessageRuleset {
   id         String @id @default(cuid())

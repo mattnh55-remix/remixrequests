@@ -10,16 +10,16 @@ type ImportTrack = {
   spotifyId: string | null;
   previewUrl?: string | null;
   durationMs?: number | null;
-  featureBoost?: number;
+  featured?: boolean;
 };
 
-function toArtistKey(value: string) {
-  return String(value || "")
+function normalizeArtistKey(artist: string) {
+  return String(artist || "")
     .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "")
-    .trim();
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, "-");
 }
 
 export async function POST(req: Request) {
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const tracks = Array.isArray(body?.tracks) ? (body.tracks as ImportTrack[]) : [];
-    const locationSlug = String(body?.locationSlug || "remixrequests").trim();
+    const locationSlug = String(body?.locationSlug || "remixrequests");
 
     if (!tracks.length) {
       return NextResponse.json(
@@ -51,41 +51,42 @@ export async function POST(req: Request) {
       );
     }
 
-    const importBatch = `spotify-${Date.now()}`;
     let added = 0;
     let updated = 0;
     let skipped = 0;
 
-    const results: Array<{
-      title: string;
-      artist: string;
-      action: "added" | "updated" | "skipped";
-      id?: string;
-    }> = [];
+    const batchId = `spotify-${location.slug}-${Date.now()}`;
 
     for (const track of tracks) {
       const title = String(track.title || "").trim();
       const artist = String(track.artist || "").trim();
       const album = String(track.album || "").trim();
       const artworkUrl = track.albumArt ? String(track.albumArt) : null;
-      const spotifyTrackId = track.spotifyId ? String(track.spotifyId) : null;
-      const durationSec = typeof track.durationMs === "number" ? Math.max(0, Math.round(track.durationMs / 1000)) : null;
-      const featureBoost = Number.isFinite(track.featureBoost) ? Number(track.featureBoost) : 0;
-      const artistKey = toArtistKey(artist);
+      const trackId = track.spotifyId ? String(track.spotifyId) : null;
+      const featured = Boolean(track.featured);
+      const durationSec = typeof track.durationMs === "number" ? Math.max(1, Math.round(track.durationMs / 1000)) : null;
+      const artistKey = normalizeArtistKey(artist);
 
       if (!title || !artist || !artistKey) {
         skipped += 1;
-        results.push({ title, artist, action: "skipped" });
         continue;
       }
 
-      let existing = null;
+      let existing = null as null | { id: string; featureBoost: number; artworkUrl: string | null; album: string | null; trackId: string | null; durationSec: number | null };
 
-      if (spotifyTrackId) {
+      if (trackId) {
         existing = await prisma.song.findFirst({
           where: {
             locationId: location.id,
-            trackId: spotifyTrackId,
+            trackId,
+          },
+          select: {
+            id: true,
+            featureBoost: true,
+            artworkUrl: true,
+            album: true,
+            trackId: true,
+            durationSec: true,
           },
         });
       }
@@ -97,32 +98,36 @@ export async function POST(req: Request) {
             title,
             artist,
           },
+          select: {
+            id: true,
+            featureBoost: true,
+            artworkUrl: true,
+            album: true,
+            trackId: true,
+            durationSec: true,
+          },
         });
       }
 
       if (existing) {
-        const updatedSong = await prisma.song.update({
+        await prisma.song.update({
           where: { id: existing.id },
           data: {
+            title,
+            artist,
+            artistKey,
             album: album || existing.album || null,
             artworkUrl: artworkUrl || existing.artworkUrl || null,
-            trackId: spotifyTrackId || existing.trackId || null,
-            durationSec: durationSec ?? existing.durationSec ?? null,
+            trackId: trackId || existing.trackId || null,
+            durationSec: durationSec || existing.durationSec || null,
             active: true,
-            featureBoost: featureBoost > 0 ? featureBoost : existing.featureBoost,
-            importBatch,
+            importBatch: batchId,
+            featureBoost: featured ? Math.max(existing.featureBoost, 100) : existing.featureBoost,
           },
         });
-
         updated += 1;
-        results.push({
-          title,
-          artist,
-          action: "updated",
-          id: updatedSong.id,
-        });
       } else {
-        const createdSong = await prisma.song.create({
+        await prisma.song.create({
           data: {
             locationId: location.id,
             title,
@@ -130,43 +135,31 @@ export async function POST(req: Request) {
             artistKey,
             album: album || null,
             artworkUrl,
-            trackId: spotifyTrackId,
+            trackId,
             durationSec,
             active: true,
             explicit: false,
-            featureBoost: Math.max(0, featureBoost),
-            importBatch,
+            featureBoost: featured ? 100 : 0,
+            importBatch: batchId,
+            notes: "Imported from Spotify playlist",
           },
         });
-
         added += 1;
-        results.push({
-          title,
-          artist,
-          action: "added",
-          id: createdSong.id,
-        });
       }
     }
 
     return NextResponse.json({
       ok: true,
-      location,
       summary: {
         added,
         updated,
         skipped,
         total: tracks.length,
       },
-      results,
     });
   } catch (error: any) {
-    console.error("spotify import route error", error);
     return NextResponse.json(
-      {
-        ok: false,
-        error: error?.message || "Failed to import songs.",
-      },
+      { ok: false, error: error?.message || "Failed to import songs." },
       { status: 500 }
     );
   }

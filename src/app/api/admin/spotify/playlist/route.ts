@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdminFromCookie } from "@/lib/adminAuth";
-
-const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID!;
-const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET!;
+import { refreshSpotifyAccessTokenIfNeeded } from "@/lib/spotify-oauth";
 
 type SpotifyTrack = {
   title: string;
@@ -19,40 +17,11 @@ type SpotifyPlaylistTracksResponse = {
   next?: string | null;
 };
 
-async function getSpotifyAccessToken(): Promise<string> {
-  if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET) {
-    throw new Error("Missing SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET");
-  }
-
-  const tokenRes: Response = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
-    headers: {
-      Authorization:
-        "Basic " +
-        Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString("base64"),
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: "grant_type=client_credentials",
-    cache: "no-store",
-  });
-
-  if (!tokenRes.ok) {
-    const text = await tokenRes.text();
-    throw new Error(`Spotify token request failed: ${text}`);
-  }
-
-  const data: { access_token: string } = await tokenRes.json();
-  return data.access_token;
-}
-
 function extractPlaylistId(input: string): string | null {
   const trimmed = String(input || "").trim();
-
   const match = trimmed.match(/playlist\/([a-zA-Z0-9]+)(\?|$)/);
   if (match?.[1]) return match[1];
-
   if (/^[a-zA-Z0-9]+$/.test(trimmed)) return trimmed;
-
   return null;
 }
 
@@ -72,29 +41,24 @@ function mapTrack(track: any): SpotifyTrack | null {
   };
 }
 
-async function fetchPlaylistTracks(
-  playlistId: string,
-  token: string
-): Promise<SpotifyTrack[]> {
+async function fetchPlaylistTracks(playlistId: string, accessToken: string): Promise<SpotifyTrack[]> {
   const allTracks: SpotifyTrack[] = [];
   let nextUrl: string | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`;
 
   while (nextUrl) {
-    const fetchUrl: string = nextUrl;
-
-    const spotifyRes: Response = await fetch(fetchUrl, {
+    const res: Response = await fetch(nextUrl, {
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       cache: "no-store",
     });
 
-    if (!spotifyRes.ok) {
-      const text = await spotifyRes.text();
-      throw new Error(`Spotify playlist request failed: ${text}`);
-    }
+    const text = await res.text();
+    const data: SpotifyPlaylistTracksResponse & { error?: { message?: string } } = text ? JSON.parse(text) : {};
 
-    const data: SpotifyPlaylistTracksResponse = await spotifyRes.json();
+    if (!res.ok) {
+      throw new Error(data?.error?.message || "Spotify playlist request failed.");
+    }
 
     for (const item of data.items ?? []) {
       const mapped = mapTrack(item?.track);
@@ -115,6 +79,7 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const url = String(body?.url || "");
+    const locationSlug = String(body?.locationSlug || "remixrequests");
     const playlistId = extractPlaylistId(url);
 
     if (!playlistId) {
@@ -124,45 +89,50 @@ export async function POST(req: Request) {
       );
     }
 
-    const token = await getSpotifyAccessToken();
+    const connection = await refreshSpotifyAccessTokenIfNeeded(locationSlug);
 
-    const playlistRes: Response = await fetch(
-      `https://api.spotify.com/v1/playlists/${playlistId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      }
-    );
+    const playlistRes = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}`, {
+      headers: {
+        Authorization: `Bearer ${connection.accessToken}`,
+      },
+      cache: "no-store",
+    });
+
+    const playlistText = await playlistRes.text();
+    const playlistJson: any = playlistText ? JSON.parse(playlistText) : {};
 
     if (!playlistRes.ok) {
-      const text = await playlistRes.text();
-      throw new Error(`Spotify playlist detail request failed: ${text}`);
+      return NextResponse.json(
+        {
+          ok: false,
+          error: playlistJson?.error?.message || "Spotify playlist request failed.",
+        },
+        { status: playlistRes.status || 500 }
+      );
     }
 
-    const playlist: any = await playlistRes.json();
-    const tracks = await fetchPlaylistTracks(playlistId, token);
+    const tracks = await fetchPlaylistTracks(playlistId, connection.accessToken);
 
     return NextResponse.json({
       ok: true,
       playlist: {
-        id: playlist.id ?? playlistId,
-        name: playlist.name ?? "Spotify Playlist",
-        description: playlist.description ?? "",
-        image: playlist.images?.[0]?.url ?? null,
-        owner: playlist.owner?.display_name ?? "",
+        id: playlistJson.id ?? playlistId,
+        name: playlistJson.name ?? "Spotify Playlist",
+        description: playlistJson.description ?? "",
+        image: playlistJson.images?.[0]?.url ?? null,
+        owner: playlistJson.owner?.display_name ?? playlistJson.owner?.id ?? "",
         totalTracks: tracks.length,
+        externalUrl: playlistJson.external_urls?.spotify ?? null,
       },
       tracks,
+      connection: {
+        spotifyDisplayName: connection.spotifyDisplayName,
+        spotifyUserId: connection.spotifyUserId,
+      },
     });
   } catch (error: any) {
-    console.error("spotify playlist route error", error);
     return NextResponse.json(
-      {
-        ok: false,
-        error: error?.message || "Failed to load Spotify playlist.",
-      },
+      { ok: false, error: error?.message || "Failed to load Spotify playlist." },
       { status: 500 }
     );
   }
