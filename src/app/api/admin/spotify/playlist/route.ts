@@ -12,12 +12,10 @@ type SpotifyTrack = {
   durationMs: number | null;
 };
 
-type SpotifyTrackItem = {
-  track?: any;
-};
-
 type SpotifyTracksPage = {
-  items?: SpotifyTrackItem[];
+  items?: Array<{
+    track?: any | null;
+  }>;
   next?: string | null;
   total?: number;
 };
@@ -35,22 +33,6 @@ function extractPlaylistId(input: string): string | null {
   if (match?.[1]) return match[1];
   if (/^[a-zA-Z0-9]+$/.test(trimmed)) return trimmed;
   return null;
-}
-
-function mapTrack(track: any): SpotifyTrack | null {
-  if (!track || !track.id || !track.name) return null;
-
-  return {
-    title: track.name ?? "",
-    artist: Array.isArray(track.artists)
-      ? track.artists.map((a: any) => a?.name).filter(Boolean).join(", ")
-      : "",
-    album: track.album?.name ?? "",
-    albumArt: track.album?.images?.[0]?.url ?? null,
-    spotifyId: track.id ?? null,
-    previewUrl: track.preview_url ?? null,
-    durationMs: typeof track.duration_ms === "number" ? track.duration_ms : null,
-  };
 }
 
 function parseJsonSafe(text: string): any {
@@ -89,15 +71,42 @@ async function spotifyGetJson(url: string, accessToken: string) {
   };
 }
 
-async function fetchRemainingTrackPages(
-  nextUrl: string | null | undefined,
-  accessToken: string
-): Promise<SpotifyTrack[]> {
-  const allTracks: SpotifyTrack[] = [];
-  let currentUrl: string | null = nextUrl ?? null;
+function mapTrack(track: any): SpotifyTrack | null {
+  if (!track || !track.id || !track.name) return null;
 
-  while (currentUrl) {
-    const result = await spotifyGetJson(currentUrl, accessToken);
+  return {
+    title: track.name ?? "",
+    artist: Array.isArray(track.artists)
+      ? track.artists.map((a: any) => a?.name).filter(Boolean).join(", ")
+      : "",
+    album: track.album?.name ?? "",
+    albumArt: track.album?.images?.[0]?.url ?? null,
+    spotifyId: track.id ?? null,
+    previewUrl: track.preview_url ?? null,
+    durationMs: typeof track.duration_ms === "number" ? track.duration_ms : null,
+  };
+}
+
+async function fetchPlaylistTracks(
+  playlistId: string,
+  accessToken: string
+): Promise<{
+  tracks: SpotifyTrack[];
+  totalFromSpotify: number;
+  skippedNullTracks: number;
+}> {
+  const allTracks: SpotifyTrack[] = [];
+  let skippedNullTracks = 0;
+
+  let nextUrl: string | null =
+    `https://api.spotify.com/v1/playlists/${playlistId}/tracks` +
+    `?limit=100&offset=0&additional_types=track` +
+    `&fields=items(track(id,name,preview_url,duration_ms,artists(name),album(name,images))),next,total`;
+
+  let totalFromSpotify = 0;
+
+  while (nextUrl) {
+    const result = await spotifyGetJson(nextUrl, accessToken);
 
     if (!result.ok) {
       const apiError = result.json as SpotifyApiErrorShape;
@@ -110,15 +119,32 @@ async function fetchRemainingTrackPages(
 
     const page = result.json as SpotifyTracksPage;
 
-    for (const item of page.items ?? []) {
-      const mapped = mapTrack(item?.track);
-      if (mapped) allTracks.push(mapped);
+    if (typeof page.total === "number") {
+      totalFromSpotify = page.total;
     }
 
-    currentUrl = page.next ?? null;
+    for (const item of page.items ?? []) {
+      if (!item?.track) {
+        skippedNullTracks += 1;
+        continue;
+      }
+
+      const mapped = mapTrack(item.track);
+      if (mapped) {
+        allTracks.push(mapped);
+      } else {
+        skippedNullTracks += 1;
+      }
+    }
+
+    nextUrl = page.next ?? null;
   }
 
-  return allTracks;
+  return {
+    tracks: allTracks,
+    totalFromSpotify,
+    skippedNullTracks,
+  };
 }
 
 export async function POST(req: Request) {
@@ -145,7 +171,7 @@ export async function POST(req: Request) {
     const meJson = meResult.json || {};
 
     const playlistResult = await spotifyGetJson(
-      `https://api.spotify.com/v1/playlists/${playlistId}?fields=id,name,description,images,external_urls,owner(display_name,id),tracks(total,next,items(track(id,name,preview_url,duration_ms,artists(name),album(name,images))))`,
+      `https://api.spotify.com/v1/playlists/${playlistId}?fields=id,name,description,images,external_urls,owner(display_name,id)`,
       connection.accessToken
     );
 
@@ -173,20 +199,7 @@ export async function POST(req: Request) {
     }
 
     const playlistJson: any = playlistResult.json || {};
-    const firstTracksPage: SpotifyTracksPage = playlistJson?.tracks || {};
-
-    const initialTracks: SpotifyTrack[] = [];
-    for (const item of firstTracksPage.items ?? []) {
-      const mapped = mapTrack(item?.track);
-      if (mapped) initialTracks.push(mapped);
-    }
-
-    let remainingTracks: SpotifyTrack[] = [];
-    if (firstTracksPage.next) {
-      remainingTracks = await fetchRemainingTrackPages(firstTracksPage.next, connection.accessToken);
-    }
-
-    const tracks = [...initialTracks, ...remainingTracks];
+    const trackResult = await fetchPlaylistTracks(playlistId, connection.accessToken);
 
     return NextResponse.json({
       ok: true,
@@ -196,10 +209,10 @@ export async function POST(req: Request) {
         description: playlistJson.description ?? "",
         image: playlistJson.images?.[0]?.url ?? null,
         owner: playlistJson.owner?.display_name ?? playlistJson.owner?.id ?? "",
-        totalTracks: typeof firstTracksPage.total === "number" ? firstTracksPage.total : tracks.length,
+        totalTracks: trackResult.totalFromSpotify || trackResult.tracks.length,
         externalUrl: playlistJson.external_urls?.spotify ?? null,
       },
-      tracks,
+      tracks: trackResult.tracks,
       connection: {
         spotifyDisplayName: connection.spotifyDisplayName ?? null,
         spotifyUserId: connection.spotifyUserId ?? null,
@@ -209,9 +222,9 @@ export async function POST(req: Request) {
         meDisplayName: meJson?.display_name ?? null,
         playlistOwnerId: playlistJson.owner?.id ?? null,
         playlistOwnerDisplayName: playlistJson.owner?.display_name ?? null,
-        usedEmbeddedTracks: true,
-        embeddedTrackCount: initialTracks.length,
-        pagedExtraTrackCount: remainingTracks.length,
+        totalFromSpotify: trackResult.totalFromSpotify,
+        usableTrackCount: trackResult.tracks.length,
+        skippedNullTracks: trackResult.skippedNullTracks,
       },
     });
   } catch (error: any) {
