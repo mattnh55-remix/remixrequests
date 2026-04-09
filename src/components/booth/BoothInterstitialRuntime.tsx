@@ -66,6 +66,7 @@ export default function BoothInterstitialRuntime({
     }
 
     const data = (await res.json()) as DuePromptPayload;
+    console.log("[BoothInterstitialRuntime] due prompt response", data);
 
     if (!data?.due) {
       openedScheduleIdRef.current = null;
@@ -79,8 +80,15 @@ export default function BoothInterstitialRuntime({
     }
 
     openedScheduleIdRef.current = nextScheduleId;
+    console.log("[BoothInterstitialRuntime] opening prompt", {
+      scheduleId: data.scheduleId,
+      category: data.category,
+      title: data.promptTitle,
+      assets: data.eligibleAssets?.length ?? 0,
+    });
+
     onPromptOpen?.(data);
-  }, [isPaused, location, queryString, onPromptOpen]);
+    }, [isPaused, location, queryString, onPromptOpen]);
 
   useEffect(() => {
     openedScheduleIdRef.current = null;
