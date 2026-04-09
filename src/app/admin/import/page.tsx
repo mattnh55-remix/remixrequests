@@ -57,6 +57,7 @@ function AdminSpotifyImportPageInner() {
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [playlist, setPlaylist] = useState<PlaylistInfo | null>(null);
+const [debug, setDebug] = useState<any>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
   const [featuredIds, setFeaturedIds] = useState<Record<string, boolean>>({});
@@ -165,8 +166,9 @@ function AdminSpotifyImportPageInner() {
       if (!res.ok || !data.ok) throw new Error(data?.error || "Could not load playlist.");
 
       const incomingTracks: Track[] = Array.isArray(data.tracks) ? data.tracks : [];
-      setPlaylist(data.playlist || null);
-      setTracks(incomingTracks);
+setPlaylist(data.playlist || null);
+setTracks(incomingTracks);
+setDebug(data.debug || null);
 
       const nextSelected: Record<string, boolean> = {};
       for (const track of incomingTracks) {
@@ -319,25 +321,28 @@ function AdminSpotifyImportPageInner() {
 
               <div className="rrPlaylistMeta">
                 <div className="rrPlaylistEyebrow">Loaded playlist</div>
-{playlistData?.debug && (
-  <div style={{
-    marginTop: 16,
-    padding: 12,
-    background: "#111",
-    border: "1px solid #333",
-    borderRadius: 8,
-    fontSize: 12,
-    color: "#0f0"
-  }}>
+{debug && (
+  <div
+    style={{
+      marginTop: 16,
+      padding: 12,
+      background: "#111",
+      border: "1px solid #333",
+      borderRadius: 8,
+      fontSize: 12,
+      color: "#0f0",
+    }}
+  >
     <div><strong>DEBUG</strong></div>
-    <div>Connected User ID: {playlistData.debug.meId}</div>
-    <div>Connected Name: {playlistData.debug.meDisplayName}</div>
-    <div>Saved Connection ID: {playlistData.debug.savedConnectionUserId}</div>
-    <div>Playlist Owner ID: {playlistData.debug.playlistOwnerId}</div>
-    <div>Playlist Owner Name: {playlistData.debug.playlistOwnerDisplayName}</div>
-    <div>Raw Items: {playlistData.debug.rawItemCount}</div>
-    <div>Usable Tracks: {playlistData.debug.usableTrackCount}</div>
-    <div>Null Tracks: {playlistData.debug.nullTrackCount}</div>
+    <div>Connected User ID: {debug.meId}</div>
+    <div>Connected Name: {debug.meDisplayName}</div>
+    <div>Saved Connection ID: {debug.savedConnectionUserId}</div>
+    <div>Playlist Owner ID: {debug.playlistOwnerId}</div>
+    <div>Playlist Owner Name: {debug.playlistOwnerDisplayName}</div>
+    <div>Raw Items: {debug.rawItemCount}</div>
+    <div>Usable Tracks: {debug.usableTrackCount}</div>
+    <div>Null Tracks: {debug.nullTrackCount}</div>
+    <div>Unmappable Tracks: {debug.unmappableTrackCount}</div>
   </div>
 )}
                 <div className="rrPlaylistName">{playlist.name}</div>
