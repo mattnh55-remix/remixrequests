@@ -154,6 +154,7 @@ const [debug, setDebug] = useState<any>(null);
     setLoading(true);
     setTracks([]);
     setPlaylist(null);
+    setDebug(null);
 
     try {
       const res = await fetch("/api/admin/spotify/playlist", {
@@ -163,7 +164,10 @@ const [debug, setDebug] = useState<any>(null);
       });
 
       const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data?.error || "Could not load playlist.");
+      if (!res.ok || !data.ok) {
+  setDebug(data?.debug || null);
+  throw new Error(data?.error || "Could not load playlist.");
+}
 
       const incomingTracks: Track[] = Array.isArray(data.tracks) ? data.tracks : [];
 setPlaylist(data.playlist || null);
@@ -298,8 +302,35 @@ setDebug(data.debug || null);
               </button>
             </div>
 
-            {message ? <div className="rrNotice rrNoticeSuccess">{message}</div> : null}
-            {error ? <div className="rrNotice rrNoticeError">{error}</div> : null}
+{message ? <div className="rrNotice rrNoticeSuccess">{message}</div> : null}
+{error ? <div className="rrNotice rrNoticeError">{error}</div> : null}
+
+{debug && (
+  <div
+    style={{
+      marginTop: 12,
+      padding: 12,
+      background: "#111",
+      border: "1px solid #333",
+      borderRadius: 8,
+      fontSize: 12,
+      color: "#0f0",
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-word",
+    }}
+  >
+    <div><strong>DEBUG</strong></div>
+    <div>Connected User ID: {debug.meId ?? "-"}</div>
+    <div>Connected Name: {debug.meDisplayName ?? "-"}</div>
+    <div>Saved Connection ID: {debug.savedConnectionUserId ?? "-"}</div>
+    <div>Playlist Owner ID: {debug.playlistOwnerId ?? "-"}</div>
+    <div>Playlist Owner Name: {debug.playlistOwnerDisplayName ?? "-"}</div>
+    <div>Raw Items: {debug.rawItemCount ?? "-"}</div>
+    <div>Usable Tracks: {debug.usableTrackCount ?? "-"}</div>
+    <div>Null Tracks: {debug.nullTrackCount ?? "-"}</div>
+    <div>Unmappable Tracks: {debug.unmappableTrackCount ?? "-"}</div>
+  </div>
+)}
 
             {summary ? (
               <div className="rrSummaryGrid">
