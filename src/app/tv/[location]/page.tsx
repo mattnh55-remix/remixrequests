@@ -1765,7 +1765,7 @@ function PortraitQueueSlide({
       <div className="remixTvPortraitQueueBody">
         <TopCard
           mode="portrait"
-          nowPlaying={null}
+          nowPlaying={nowPlaying}
           topIsBoosted={topIsBoosted}
           showA={showA}
           artA={artA}
