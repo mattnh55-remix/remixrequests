@@ -474,8 +474,14 @@ function VerifyDrawer({
   setEmail: (value: string) => void;
   redeemBusy: boolean;
   onRedeem: (code: string) => void;
-  onVerified: (payload: { identityId?: string; email?: string }) => void;
-  onClose: () => void;
+  onVerified: (payload: {
+    identityId?: string;
+    email?: string;
+    balance?: number;
+    note?: string;
+    welcomeGranted?: boolean;
+  }) => void;
+    onClose: () => void;
 }) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -563,8 +569,14 @@ function VerifyDrawer({
         if (nextEmail) localStorage.setItem("rr_email", nextEmail);
       } catch {}
 
-      onVerified({ identityId: nextIdentityId, email: nextEmail });
-      onClose();
+      onVerified({
+        identityId: nextIdentityId,
+        email: nextEmail,
+        balance: typeof data.balance === "number" ? data.balance : undefined,
+        note: data.note,
+        welcomeGranted: Boolean(data.welcomeGranted),
+      });
+            onClose();
     } catch {
       setMsg("Code verification failed.");
     } finally {
@@ -2084,15 +2096,26 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
         redeemBusy={redeemBusy}
         onRedeem={redeem}
         onClose={() => setShowVerify(false)}
-        onVerified={({ identityId: nextIdentityId, email: nextEmail }) => {
-          const cleanId = String(nextIdentityId || "").trim();
+        onVerified={({
+          identityId: nextIdentityId,
+          email: nextEmail,
+          balance: verifiedBalance,
+          note,
+          welcomeGranted,
+        }) => {
+                    const cleanId = String(nextIdentityId || "").trim();
           const cleanEmail = String(nextEmail || email || "").trim();
 
           if (cleanId) {
             setIdentityId(cleanId);
             setSessionActive(true);
             setVerified(true);
-            void refreshIdentityState(cleanId);
+
+            if (typeof verifiedBalance === "number") {
+              bal.applyBalance(verifiedBalance);
+            } else {
+              void refreshIdentityState(cleanId);
+            }
           }
 
           if (cleanEmail) setEmail(cleanEmail);
@@ -2100,12 +2123,33 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
           setShowBuy(false);
           setBuyReason("none");
 
+          const shouldCelebrate =
+            Boolean(welcomeGranted) || Number(verifiedBalance ?? 0) > 0;
+
           if (pendingAction) {
             const action = pendingAction;
 
             setPendingAction(null);
+
+            if (shouldCelebrate) {
+              sfx.playSuccess();
+              fireRewardConfetti();
+
+              showRewardFlash(
+                typeof verifiedBalance === "number" && verifiedBalance > 0
+                  ? `+${verifiedBalance} POINTS`
+                  : "POINTS ADDED",
+                note || "Your welcome points are ready!",
+                "BONUS HIT"
+              );
+            }
+
             setPendingActionToast(true);
-            setMsg("Completing your request...");
+            setMsg(
+              shouldCelebrate
+                ? note || "Points added! Completing your request..."
+                : "Completing your request..."
+            );
 
             window.setTimeout(() => {
               setPendingActionToast(false);
@@ -2125,10 +2169,23 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
                 return;
               }
 
-              setMsg("Verification complete. Your points are ready.");
-            }, 150);
+              setMsg(note || "Your welcome points are ready!");
+            }, shouldCelebrate ? 900 : 150);
           } else {
-            setMsg("Verification complete. Your points are ready.");
+            if (welcomeGranted || Number(verifiedBalance ?? 0) > 0) {
+              sfx.playSuccess();
+              fireRewardConfetti();
+
+              showRewardFlash(
+                typeof verifiedBalance === "number" && verifiedBalance > 0
+                  ? `+${verifiedBalance} POINTS`
+                  : "POINTS ADDED",
+                note || "Your welcome points are ready!",
+                "BONUS HIT"
+              );
+            }
+
+            setMsg(note || "Your welcome points are ready!");
           }
         }}
       />
