@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type PlaylistInfo = {
@@ -47,7 +47,7 @@ function formatDuration(ms: number | null | undefined) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-export default function AdminSpotifyImportPage() {
+function AdminSpotifyImportPageInner() {
   const searchParams = useSearchParams();
   const [locationSlug, setLocationSlug] = useState("remixrequests");
   const [spotifyStatus, setSpotifyStatus] = useState<SpotifyStatus>({ connected: false });
@@ -464,5 +464,23 @@ export default function AdminSpotifyImportPage() {
         @media (max-width: 640px) { .rrAdminSpotifyPage { padding: 12px; } .rrAdminHeroTitle { font-size: 26px; } .rrTrackGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .rrTrackActions { flex-direction: column; } .rrQuickActions { width: 100%; } }
       `}</style>
     </div>
+  );
+}
+
+export default function AdminSpotifyImportPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="rrAdminSpotifyPage">
+          <div className="rrAdminSpotifyShell">
+            <div className="rrPanel">
+              <div className="rrPanelBody">Loading Spotify import…</div>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <AdminSpotifyImportPageInner />
+    </Suspense>
   );
 }
