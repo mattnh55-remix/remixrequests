@@ -217,6 +217,10 @@ export default function InterstitialPromptModal({
                 />
               </label>
 
+              {error ? (
+                <div className="rrPromptModal__confirmError">{error}</div>
+              ) : null}
+
               <div className="rrPromptModal__confirmActions">
                 <button
                   type="button"
@@ -648,6 +652,17 @@ export default function InterstitialPromptModal({
           height: 44px;
           resize: none;
           overflow: auto;
+        }
+
+        .rrPromptModal__confirmError {
+          margin-top: 12px;
+          border-radius: 12px;
+          border: 1px solid rgba(251, 113, 133, 0.24);
+          background: rgba(251, 113, 133, 0.12);
+          padding: 10px 12px;
+          font-size: 12px;
+          line-height: 1.4;
+          color: #ffd7df;
         }
 
         .rrPromptModal__confirmActions {
