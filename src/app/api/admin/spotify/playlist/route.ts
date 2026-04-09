@@ -217,36 +217,37 @@ export async function POST(req: Request) {
     const trackResult = await fetchPlaylistTracks(playlistId, connection.accessToken);
 
     return NextResponse.json({
-      ok: true,
-      playlist: {
-        id: playlistJson.id ?? playlistId,
-        name: playlistJson.name ?? "Spotify Playlist",
-        description: playlistJson.description ?? "",
-        image: playlistJson.images?.[0]?.url ?? null,
-        owner: playlistJson.owner?.display_name ?? playlistJson.owner?.id ?? "",
-        totalTracks:
-          typeof trackResult.totalFromSpotify === "number" && trackResult.totalFromSpotify > 0
-            ? trackResult.totalFromSpotify
-            : trackResult.tracks.length,
-        externalUrl: playlistJson.external_urls?.spotify ?? null,
-      },
-      tracks: trackResult.tracks,
-      connection: {
-        spotifyDisplayName: connection.spotifyDisplayName ?? null,
-        spotifyUserId: connection.spotifyUserId ?? null,
-      },
-      debug: {
-        meId: meJson?.id ?? null,
-        meDisplayName: meJson?.display_name ?? null,
-        playlistOwnerId: playlistJson.owner?.id ?? null,
-        playlistOwnerDisplayName: playlistJson.owner?.display_name ?? null,
-        totalFromSpotify: trackResult.totalFromSpotify,
-        rawItemCount: trackResult.rawItemCount,
-        usableTrackCount: trackResult.tracks.length,
-        nullTrackCount: trackResult.nullTrackCount,
-        unmappableTrackCount: trackResult.unmappableTrackCount,
-      },
-    });
+  ok: true,
+  playlist: {
+    id: playlistJson.id ?? playlistId,
+    name: playlistJson.name ?? "Spotify Playlist",
+    description: playlistJson.description ?? "",
+    image: playlistJson.images?.[0]?.url ?? null,
+    owner: playlistJson.owner?.display_name ?? playlistJson.owner?.id ?? "",
+    ownerId: playlistJson.owner?.id ?? null,
+    totalTracks:
+      typeof trackResult.totalFromSpotify === "number" && trackResult.totalFromSpotify > 0
+        ? trackResult.totalFromSpotify
+        : trackResult.tracks.length,
+    externalUrl: playlistJson.external_urls?.spotify ?? null,
+  },
+  tracks: trackResult.tracks,
+  connection: {
+    spotifyDisplayName: connection.spotifyDisplayName ?? null,
+    spotifyUserId: connection.spotifyUserId ?? null,
+  },
+  debug: {
+    meId: meJson?.id ?? null,
+    meDisplayName: meJson?.display_name ?? null,
+    playlistOwnerId: playlistJson.owner?.id ?? null,
+    playlistOwnerDisplayName: playlistJson.owner?.display_name ?? null,
+    savedConnectionUserId: connection.spotifyUserId ?? null,
+    rawItemCount: trackResult.rawItemCount,
+    usableTrackCount: trackResult.tracks.length,
+    nullTrackCount: trackResult.nullTrackCount,
+    unmappableTrackCount: trackResult.unmappableTrackCount,
+  },
+});
   } catch (error: any) {
     return NextResponse.json(
       {
