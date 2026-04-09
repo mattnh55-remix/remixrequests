@@ -96,7 +96,7 @@ export async function POST(req: Request) {
     const connection = await refreshSpotifyAccessTokenIfNeeded(locationSlug);
 
     const searchUrl =
-      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=30`;
+      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=10`;
 
     const result = await spotifyGetJson(searchUrl, connection.accessToken, "US");
 
