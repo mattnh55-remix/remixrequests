@@ -286,6 +286,7 @@ export default function InterstitialPromptModal({
 
         .rrPromptModal__dialog {
           position: relative;
+          isolation: isolate;
           z-index: 121;
           width: 80%;
           height: 92%;
@@ -556,9 +557,9 @@ export default function InterstitialPromptModal({
         }
 
         .rrPromptModal__confirmLayer {
-          position: fixed;
+          position: absolute;
           inset: 0;
-          z-index: 9999;
+          z-index: 300;
           display: grid;
           place-items: center;
           pointer-events: auto;
@@ -571,24 +572,24 @@ export default function InterstitialPromptModal({
           border: 0;
           padding: 0;
           margin: 0;
-          background: rgba(5, 10, 18, 0.62);
-          backdrop-filter: blur(5px);
+          background: rgba(5, 10, 18, 0.72);
+          backdrop-filter: blur(6px);
           cursor: default;
         }
 
         .rrPromptModal__confirmCard {
           position: relative;
-          z-index: 141;
+          z-index: 301;
           width: min(420px, calc(100% - 32px));
           border-radius: 14px;
-          border: 1px solid rgba(120, 160, 220, 0.2);
+          border: 1px solid rgba(120, 160, 220, 0.24);
           background: linear-gradient(
             180deg,
-            rgba(36, 46, 68, 0.99),
-            rgba(18, 27, 43, 0.99)
+            rgba(36, 46, 68, 0.995),
+            rgba(18, 27, 43, 0.995)
           );
           box-shadow:
-            0 18px 50px rgba(0, 0, 0, 0.45),
+            0 24px 70px rgba(0, 0, 0, 0.55),
             inset 0 1px 0 rgba(255, 255, 255, 0.06);
           padding: 16px;
         }
