@@ -46,7 +46,7 @@ function parseJsonSafe(text: string): any {
 
 function withMarketFromToken(url: string): string {
   const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}market=from_token`;
+  return `${url}${separator}market=US`;
 }
 
 async function spotifyGetJson(url: string, accessToken: string) {
