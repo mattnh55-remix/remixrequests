@@ -245,8 +245,21 @@ function AdminSpotifyImportPageInner() {
         throw new Error(data?.error || "Import failed.");
       }
 
+      const importedIds = new Set(
+        payloadTracks
+          .map((track) => track.spotifyId)
+          .filter(Boolean)
+      );
+
       setSummary(data.summary || null);
       setMessage("Songs imported successfully.");
+
+      setResults((prev) =>
+        prev.filter((track) => !track.spotifyId || !importedIds.has(track.spotifyId))
+      );
+
+      setSelectedIds({});
+      setFeaturedIds({});
     } catch (err: any) {
       setError(err?.message || "Import failed.");
     } finally {
