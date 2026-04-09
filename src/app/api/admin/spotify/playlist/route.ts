@@ -14,12 +14,17 @@ type SpotifyTrack = {
   durationMs: number | null;
 };
 
-async function getSpotifyAccessToken() {
+type SpotifyPlaylistTracksResponse = {
+  items?: Array<{ track?: any }>;
+  next?: string | null;
+};
+
+async function getSpotifyAccessToken(): Promise<string> {
   if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET) {
     throw new Error("Missing SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET");
   }
 
-  const res = await fetch("https://accounts.spotify.com/api/token", {
+  const tokenRes: Response = await fetch("https://accounts.spotify.com/api/token", {
     method: "POST",
     headers: {
       Authorization:
@@ -31,16 +36,16 @@ async function getSpotifyAccessToken() {
     cache: "no-store",
   });
 
-  if (!res.ok) {
-    const text = await res.text();
+  if (!tokenRes.ok) {
+    const text = await tokenRes.text();
     throw new Error(`Spotify token request failed: ${text}`);
   }
 
-  const data = await res.json();
-  return data.access_token as string;
+  const data: { access_token: string } = await tokenRes.json();
+  return data.access_token;
 }
 
-function extractPlaylistId(input: string) {
+function extractPlaylistId(input: string): string | null {
   const trimmed = String(input || "").trim();
 
   const match = trimmed.match(/playlist\/([a-zA-Z0-9]+)(\?|$)/);
@@ -67,24 +72,29 @@ function mapTrack(track: any): SpotifyTrack | null {
   };
 }
 
-async function fetchPlaylistTracks(playlistId: string, token: string) {
+async function fetchPlaylistTracks(
+  playlistId: string,
+  token: string
+): Promise<SpotifyTrack[]> {
   const allTracks: SpotifyTrack[] = [];
   let nextUrl: string | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`;
 
   while (nextUrl) {
-    const res = await fetch(nextUrl, {
+    const fetchUrl: string = nextUrl;
+
+    const spotifyRes: Response = await fetch(fetchUrl, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
       cache: "no-store",
     });
 
-    if (!res.ok) {
-      const text = await res.text();
+    if (!spotifyRes.ok) {
+      const text = await spotifyRes.text();
       throw new Error(`Spotify playlist request failed: ${text}`);
     }
 
-    const data = await res.json();
+    const data: SpotifyPlaylistTracksResponse = await spotifyRes.json();
 
     for (const item of data.items ?? []) {
       const mapped = mapTrack(item?.track);
@@ -116,19 +126,22 @@ export async function POST(req: Request) {
 
     const token = await getSpotifyAccessToken();
 
-    const playlistRes = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    });
+    const playlistRes: Response = await fetch(
+      `https://api.spotify.com/v1/playlists/${playlistId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      }
+    );
 
     if (!playlistRes.ok) {
       const text = await playlistRes.text();
       throw new Error(`Spotify playlist detail request failed: ${text}`);
     }
 
-    const playlist = await playlistRes.json();
+    const playlist: any = await playlistRes.json();
     const tracks = await fetchPlaylistTracks(playlistId, token);
 
     return NextResponse.json({
