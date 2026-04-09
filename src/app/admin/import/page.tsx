@@ -278,7 +278,7 @@ setDebug(data.debug || null);
         <div className="rrPanel">
           <div className="rrPanelHead">
             <div>
-              <div className="rrPanelTitle">Import playlist</div>
+              <div className="rrPanelTitle">Import playlist v2.0</div>
               <div className="rrPanelSub">Paste the Spotify playlist link from the connected Remix account.</div>
             </div>
             <div className="rrStatusPill">{selectedCount} selected</div>
