@@ -1,4 +1,4 @@
-/* app/neon.css — RemixRequests Neon Jukebox UI (UI-only) */
+neonEQ/* app/neon.css — RemixRequests Neon Jukebox UI (UI-only) */
 
 :root {
   --bg0: #070813;
@@ -441,6 +441,13 @@
   gap: 4px;
 }
 
+.neonEQ { 
+  height: 22px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
 .neonEQ > span {
   width: 4px;
   height: 10px;
@@ -450,10 +457,32 @@
   box-shadow: var(--glowA);
 }
 
-.neonEQ > span:nth-child(2) { animation-delay: 120ms; }
-.neonEQ > span:nth-child(3) { animation-delay: 240ms; }
-.neonEQ > span:nth-child(4) { animation-delay: 360ms; }
-.neonEQ > span:nth-child(5) { animation-delay: 480ms; }
+/* 25 bars with staggered timing */
+.neonEQ > span:nth-child(1)  { animation-delay: 0ms; }
+.neonEQ > span:nth-child(2)  { animation-delay: 60ms; }
+.neonEQ > span:nth-child(3)  { animation-delay: 120ms; }
+.neonEQ > span:nth-child(4)  { animation-delay: 180ms; }
+.neonEQ > span:nth-child(5)  { animation-delay: 240ms; }
+.neonEQ > span:nth-child(6)  { animation-delay: 300ms; }
+.neonEQ > span:nth-child(7)  { animation-delay: 360ms; }
+.neonEQ > span:nth-child(8)  { animation-delay: 420ms; }
+.neonEQ > span:nth-child(9)  { animation-delay: 480ms; }
+.neonEQ > span:nth-child(10) { animation-delay: 540ms; }
+.neonEQ > span:nth-child(11) { animation-delay: 600ms; }
+.neonEQ > span:nth-child(12) { animation-delay: 660ms; }
+.neonEQ > span:nth-child(13) { animation-delay: 720ms; }
+.neonEQ > span:nth-child(14) { animation-delay: 780ms; }
+.neonEQ > span:nth-child(15) { animation-delay: 840ms; }
+.neonEQ > span:nth-child(16) { animation-delay: 900ms; }
+.neonEQ > span:nth-child(17) { animation-delay: 960ms; }
+.neonEQ > span:nth-child(18) { animation-delay: 1020ms; }
+.neonEQ > span:nth-child(19) { animation-delay: 1080ms; }
+.neonEQ > span:nth-child(20) { animation-delay: 1140ms; }
+.neonEQ > span:nth-child(21) { animation-delay: 1200ms; }
+.neonEQ > span:nth-child(22) { animation-delay: 1260ms; }
+.neonEQ > span:nth-child(23) { animation-delay: 1320ms; }
+.neonEQ > span:nth-child(24) { animation-delay: 1380ms; }
+.neonEQ > span:nth-child(25) { animation-delay: 1440ms; }
 
 @keyframes eq {
   0%, 100% { height: 6px; opacity: 0.75; }
