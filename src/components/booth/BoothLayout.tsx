@@ -1898,8 +1898,8 @@ saveSessionTimerState(location, {
           }
         }
 
-        /* 1100-ish screens: queue on top, support panels below */
-        @media (min-width: 1100px) and (max-width: 1360px) {
+        /* Mid-width booth layout: queue on top, support panels below */
+        @media (min-width: 1024px) and (max-width: 1360px) {
           .rrBooth__topbar {
             grid-template-columns: minmax(0, 1fr) auto;
             grid-template-areas:
@@ -1958,8 +1958,8 @@ saveSessionTimerState(location, {
           }
         }
 
-        /* Smaller than 1100 */
-        @media (max-width: 1099px) {
+        /* Smaller than 1024 */
+        @media (max-width: 1023px) {
           .rrBooth__topbar {
             grid-template-columns: 1fr;
           }
@@ -1974,6 +1974,19 @@ saveSessionTimerState(location, {
 
           .rrBooth__grid {
             grid-template-columns: 1fr;
+          }
+
+                    .rrBooth__grid {
+            grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+            grid-template-areas:
+              "queue queue"
+              "sound side";
+            align-items: start;
+          }
+
+          .boothStack,
+          .boothStack--right {
+            align-self: start;
           }
         }
 
