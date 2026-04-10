@@ -145,10 +145,20 @@ export default function HomePage() {
   return (
     <PublicTheme>
       <div className="rrWelcomeRoot">
+        <div className="rrClubPulse rrClubPulseA" />
+        <div className="rrClubPulse rrClubPulseB" />
+        <div className="rrClubPulse rrClubPulseC" />
+
+        <div className="rrLightBeam rrLightBeamLeft" />
+        <div className="rrLightBeam rrLightBeamRight" />
+        <div className="rrLightBeam rrLightBeamTop" />
+
         <div className="rrOrb rrOrbA" />
         <div className="rrOrb rrOrbB" />
         <div className="rrOrb rrOrbC" />
         <div className="rrGridGlow" />
+        <div className="rrEdgeGlow" />
+        <div className="rrVignette" />
 
         <div className="rrWelcome">
           <div className="rrTopStage">
@@ -244,35 +254,147 @@ export default function HomePage() {
             position: relative;
             overflow: hidden;
             background:
-              radial-gradient(circle at top left, rgba(0, 247, 255, 0.18), transparent 28%),
-              radial-gradient(circle at bottom right, rgba(255, 57, 212, 0.18), transparent 32%),
-              linear-gradient(180deg, #050816 0%, #060b18 50%, #05060c 100%);
+              radial-gradient(circle at 50% 38%, rgba(12, 18, 35, 0.55) 0%, rgba(7, 10, 20, 0.78) 32%, rgba(4, 6, 14, 0.96) 62%, #03040a 100%);
           }
 
           .rrGridGlow {
             position: absolute;
             inset: 0;
             background:
-              linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+              linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
             background-size: 34px 34px;
             mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 95%);
             pointer-events: none;
-            opacity: 0.45;
+            opacity: 0.28;
+          }
+
+          .rrEdgeGlow {
+            position: absolute;
+            inset: -8%;
+            pointer-events: none;
+            background:
+              radial-gradient(circle at 0% 20%, rgba(0, 247, 255, 0.16), transparent 22%),
+              radial-gradient(circle at 100% 25%, rgba(255, 57, 212, 0.18), transparent 24%),
+              radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.14), transparent 20%),
+              radial-gradient(circle at 50% 100%, rgba(0, 247, 255, 0.1), transparent 26%);
+            filter: blur(26px);
+            animation: edgePulse 6s ease-in-out infinite alternate;
+          }
+
+          .rrVignette {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background:
+              radial-gradient(circle at center, transparent 28%, rgba(0, 0, 0, 0.16) 58%, rgba(0, 0, 0, 0.38) 100%);
+          }
+
+          .rrClubPulse {
+            position: absolute;
+            border-radius: 999px;
+            filter: blur(80px);
+            opacity: 0.42;
+            pointer-events: none;
+            mix-blend-mode: screen;
+          }
+
+          .rrClubPulseA {
+            width: 260px;
+            height: 260px;
+            left: -60px;
+            top: 14%;
+            background: rgba(0, 247, 255, 0.3);
+            animation: clubFloatA 7s ease-in-out infinite;
+          }
+
+          .rrClubPulseB {
+            width: 300px;
+            height: 300px;
+            right: -90px;
+            top: 22%;
+            background: rgba(255, 57, 212, 0.3);
+            animation: clubFloatB 8.5s ease-in-out infinite;
+          }
+
+          .rrClubPulseC {
+            width: 280px;
+            height: 280px;
+            left: 20%;
+            bottom: -90px;
+            background: rgba(86, 132, 255, 0.24);
+            animation: clubFloatC 9s ease-in-out infinite;
+          }
+
+          .rrLightBeam {
+            position: absolute;
+            pointer-events: none;
+            opacity: 0.28;
+            filter: blur(10px);
+            mix-blend-mode: screen;
+          }
+
+          .rrLightBeamLeft {
+            top: -12%;
+            left: -8%;
+            width: 220px;
+            height: 150%;
+            background: linear-gradient(
+              180deg,
+              transparent 0%,
+              rgba(0, 247, 255, 0.18) 20%,
+              rgba(0, 247, 255, 0.3) 48%,
+              rgba(0, 247, 255, 0.08) 75%,
+              transparent 100%
+            );
+            transform: rotate(20deg);
+            animation: beamSweepLeft 6.5s ease-in-out infinite alternate;
+          }
+
+          .rrLightBeamRight {
+            top: -10%;
+            right: -8%;
+            width: 240px;
+            height: 150%;
+            background: linear-gradient(
+              180deg,
+              transparent 0%,
+              rgba(255, 57, 212, 0.16) 20%,
+              rgba(255, 57, 212, 0.3) 50%,
+              rgba(255, 57, 212, 0.08) 75%,
+              transparent 100%
+            );
+            transform: rotate(-18deg);
+            animation: beamSweepRight 7.2s ease-in-out infinite alternate;
+          }
+
+          .rrLightBeamTop {
+            top: -140px;
+            left: 50%;
+            width: 320px;
+            height: 340px;
+            transform: translateX(-50%);
+            background: radial-gradient(
+              ellipse at center,
+              rgba(110, 231, 249, 0.2) 0%,
+              rgba(217, 70, 239, 0.14) 36%,
+              transparent 72%
+            );
+            animation: topPulse 5.5s ease-in-out infinite;
           }
 
           .rrOrb {
             position: absolute;
             border-radius: 999px;
             filter: blur(60px);
-            opacity: 0.45;
+            opacity: 0.32;
             pointer-events: none;
           }
 
           .rrOrbA {
             width: 340px;
             height: 340px;
-            background: rgba(0, 247, 255, 0.25);
+            background: rgba(0, 247, 255, 0.2);
             top: -80px;
             left: -60px;
           }
@@ -280,7 +402,7 @@ export default function HomePage() {
           .rrOrbB {
             width: 380px;
             height: 380px;
-            background: rgba(255, 57, 212, 0.22);
+            background: rgba(255, 57, 212, 0.18);
             right: -100px;
             top: 20vh;
           }
@@ -288,7 +410,7 @@ export default function HomePage() {
           .rrOrbC {
             width: 300px;
             height: 300px;
-            background: rgba(120, 160, 255, 0.22);
+            background: rgba(120, 160, 255, 0.18);
             left: 30%;
             bottom: -80px;
           }
@@ -313,11 +435,12 @@ export default function HomePage() {
             background:
               radial-gradient(circle at top center, rgba(110, 231, 249, 0.14), transparent 42%),
               radial-gradient(circle at bottom center, rgba(217, 70, 239, 0.12), transparent 40%),
-              linear-gradient(180deg, rgba(18, 25, 40, 0.96), rgba(8, 12, 21, 0.98));
+              linear-gradient(180deg, rgba(18, 25, 40, 0.92), rgba(8, 12, 21, 0.96));
             box-shadow:
               inset 0 1px 0 rgba(255, 255, 255, 0.1),
-              0 16px 40px rgba(0, 0, 0, 0.5),
-              0 0 30px rgba(0, 247, 255, 0.1);
+              0 16px 40px rgba(0, 0, 0, 0.55),
+              0 0 30px rgba(0, 247, 255, 0.08);
+            backdrop-filter: blur(10px);
           }
 
           .rrTopShine {
@@ -383,6 +506,7 @@ export default function HomePage() {
             box-shadow:
               inset 0 1px 0 rgba(255, 255, 255, 0.08),
               0 8px 18px rgba(0, 0, 0, 0.28);
+            backdrop-filter: blur(8px);
           }
 
           .rrHowIcon {
@@ -440,6 +564,7 @@ export default function HomePage() {
             );
             transform: skewX(-22deg);
             pointer-events: none;
+            animation: btnSweep 3.6s linear infinite;
           }
 
           .rrEnterBtnText,
@@ -465,12 +590,13 @@ export default function HomePage() {
             border: 1px solid rgba(255, 255, 255, 0.12);
             background:
               radial-gradient(circle at top, rgba(110, 231, 249, 0.14), transparent 42%),
-              linear-gradient(180deg, rgba(23, 29, 44, 0.98), rgba(10, 14, 22, 0.99));
+              linear-gradient(180deg, rgba(23, 29, 44, 0.95), rgba(10, 14, 22, 0.98));
             box-shadow:
               inset 0 2px 0 rgba(255, 255, 255, 0.08),
               inset 0 -6px 14px rgba(0, 0, 0, 0.22),
               0 22px 44px rgba(0, 0, 0, 0.52),
-              0 0 26px rgba(0, 247, 255, 0.14);
+              0 0 26px rgba(0, 247, 255, 0.12);
+            backdrop-filter: blur(10px);
           }
 
           .rrBonusClickable {
@@ -593,6 +719,92 @@ export default function HomePage() {
             justify-self: end;
           }
 
+          @keyframes clubFloatA {
+            0%, 100% {
+              transform: translate(0, 0) scale(1);
+              opacity: 0.34;
+            }
+            50% {
+              transform: translate(22px, -18px) scale(1.1);
+              opacity: 0.52;
+            }
+          }
+
+          @keyframes clubFloatB {
+            0%, 100% {
+              transform: translate(0, 0) scale(1);
+              opacity: 0.3;
+            }
+            50% {
+              transform: translate(-26px, 20px) scale(1.08);
+              opacity: 0.5;
+            }
+          }
+
+          @keyframes clubFloatC {
+            0%, 100% {
+              transform: translate(0, 0) scale(1);
+              opacity: 0.26;
+            }
+            50% {
+              transform: translate(16px, -24px) scale(1.12);
+              opacity: 0.42;
+            }
+          }
+
+          @keyframes beamSweepLeft {
+            0%, 100% {
+              transform: rotate(20deg) translateX(0);
+              opacity: 0.18;
+            }
+            50% {
+              transform: rotate(28deg) translateX(22px);
+              opacity: 0.34;
+            }
+          }
+
+          @keyframes beamSweepRight {
+            0%, 100% {
+              transform: rotate(-18deg) translateX(0);
+              opacity: 0.18;
+            }
+            50% {
+              transform: rotate(-28deg) translateX(-24px);
+              opacity: 0.34;
+            }
+          }
+
+          @keyframes topPulse {
+            0%, 100% {
+              opacity: 0.16;
+              transform: translateX(-50%) scale(1);
+            }
+            50% {
+              opacity: 0.3;
+              transform: translateX(-50%) scale(1.12);
+            }
+          }
+
+          @keyframes edgePulse {
+            0%, 100% {
+              opacity: 0.36;
+              transform: scale(1);
+            }
+            50% {
+              opacity: 0.54;
+              transform: scale(1.03);
+            }
+          }
+
+          @keyframes btnSweep {
+            0% {
+              left: -45%;
+            }
+            100% {
+              left: 115%;
+            }
+          }
+
           @media (max-width: 420px) {
             .rrWelcome {
               padding: 14px 8px 74px;
@@ -616,6 +828,11 @@ export default function HomePage() {
 
             .rrEnterBtn {
               padding: 15px 14px;
+            }
+
+            .rrLightBeamLeft,
+            .rrLightBeamRight {
+              width: 170px;
             }
           }
         `}</style>
