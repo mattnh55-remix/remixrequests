@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PublicTheme from "../components/ui/public/PublicTheme";
 import confetti from "canvas-confetti";
@@ -18,6 +18,13 @@ type BonusChallengeConfig = {
   modalMessage?: string | null;
   isActive: boolean;
   sortOrder: number;
+};
+
+type FeaturedSong = {
+  id: string;
+  title: string;
+  artist: string;
+  artworkUrl?: string | null;
 };
 
 function normalizeBonusChallenges(value: unknown): BonusChallengeConfig[] {
@@ -73,12 +80,28 @@ function getActiveBonusChallenge(rules: any): BonusChallengeConfig | null {
   return challenges[week % challenges.length];
 }
 
+function decorativeStats(song: FeaturedSong) {
+  const seed = `${song.id}-${song.title}-${song.artist}`;
+  let hash = 0;
+
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+
+  const up = (hash % 7) + 1;
+  const down = hash % 3;
+  const fire = (hash % 5) + 1;
+
+  return { up, down, fire };
+}
+
 export default function HomePage() {
   const router = useRouter();
 
   const [activeChallenge, setActiveChallenge] = useState<BonusChallengeConfig | null>(null);
   const [challengeModalOpen, setChallengeModalOpen] = useState(false);
   const [challengeModalText, setChallengeModalText] = useState("");
+  const [featuredSongs, setFeaturedSongs] = useState<FeaturedSong[]>([]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && !localStorage.getItem("rr_location")) {
@@ -99,25 +122,35 @@ export default function HomePage() {
       confetti({ particleCount: 40, spread: 50, origin: { x: 0.7, y: 0.5 } });
     }, 120);
 
-    const loadChallenge = async () => {
+    const loadPageData = async () => {
       try {
         const nextLocation =
           typeof window !== "undefined"
             ? localStorage.getItem("rr_location") || "remix"
             : "remix";
 
-        const res = await fetch(`/api/public/session/${encodeURIComponent(nextLocation)}`, {
-          cache: "no-store",
-        });
-        const data = await res.json();
-        const rules = data?.rules || null;
+        const [sessionRes, featuredRes] = await Promise.all([
+          fetch(`/api/public/session/${encodeURIComponent(nextLocation)}`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/public/featured-songs/${encodeURIComponent(nextLocation)}`, {
+            cache: "no-store",
+          }),
+        ]);
+
+        const sessionData = await sessionRes.json();
+        const rules = sessionData?.rules || null;
         setActiveChallenge(getActiveBonusChallenge(rules));
+
+        const featuredData = await featuredRes.json();
+        setFeaturedSongs(Array.isArray(featuredData?.items) ? featuredData.items : []);
       } catch {
         setActiveChallenge(null);
+        setFeaturedSongs([]);
       }
     };
 
-    void loadChallenge();
+    void loadPageData();
 
     return () => window.clearTimeout(timer);
   }, []);
@@ -141,6 +174,15 @@ export default function HomePage() {
     setChallengeModalText(fallback);
     setChallengeModalOpen(true);
   };
+
+  const featuredRows = useMemo(
+    () =>
+      featuredSongs.map((song) => ({
+        ...song,
+        stats: decorativeStats(song),
+      })),
+    [featuredSongs]
+  );
 
   return (
     <PublicTheme>
@@ -226,6 +268,50 @@ export default function HomePage() {
               <span className="rrBtn">{activeChallenge?.buttonText || "Leave Review"}</span>
             </div>
           </button>
+
+          <div className="rrFeaturedCard">
+            <div className="rrFeaturedBadge">FEATURED REQUESTS</div>
+
+            <div className="rrFeaturedList">
+              {featuredRows.length > 0 ? (
+                featuredRows.map((song) => (
+                  <div
+                    key={song.id}
+                    className="rrFeaturedRow"
+                    onClick={() => router.push(`/request/${encodeURIComponent(location)}`)}
+                  >
+                    <div className="rrFeaturedArtWrap">
+                      <img
+                        src={song.artworkUrl || REMIX_LOGO_URL}
+                        alt={`${song.title} artwork`}
+                        className="rrFeaturedArt"
+                      />
+                    </div>
+
+                    <div className="rrFeaturedText">
+                      <div className="rrFeaturedTitle">{song.title}</div>
+                      <div className="rrFeaturedArtist">{song.artist}</div>
+
+                      <div className="rrFeaturedMeta">
+                        <span>👍 {song.stats.up}</span>
+                        <span>👎 {song.stats.down}</span>
+                        <span>🔥 {song.stats.fire}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rrFeaturedEmpty">Featured songs coming soon.</div>
+              )}
+            </div>
+
+            <button
+              className="rrViewMoreBtn"
+              onClick={() => router.push(`/request/${encodeURIComponent(location)}`)}
+            >
+              VIEW MORE
+            </button>
+          </div>
 
           {challengeModalOpen ? (
             <div className="rrOverlay" onClick={() => setChallengeModalOpen(false)}>
@@ -582,7 +668,8 @@ export default function HomePage() {
             opacity: 0.95;
           }
 
-          .rrBonusCard {
+          .rrBonusCard,
+          .rrFeaturedCard {
             position: relative;
             overflow: hidden;
             padding: 18px 16px;
@@ -620,7 +707,8 @@ export default function HomePage() {
             pointer-events: none;
           }
 
-          .rrBonusBadge {
+          .rrBonusBadge,
+          .rrFeaturedBadge {
             font-size: 10px;
             letter-spacing: 0.22em;
             opacity: 0.74;
@@ -665,6 +753,101 @@ export default function HomePage() {
             box-shadow:
               inset 0 1px 0 rgba(255, 255, 255, 0.22),
               0 12px 28px rgba(32, 83, 155, 0.35);
+          }
+
+          .rrFeaturedList {
+            display: grid;
+            gap: 10px;
+            margin-top: 14px;
+          }
+
+          .rrFeaturedRow {
+            display: grid;
+            grid-template-columns: 58px minmax(0, 1fr);
+            gap: 12px;
+            align-items: center;
+            padding: 10px 10px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background:
+              linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025));
+            box-shadow:
+              inset 0 1px 0 rgba(255, 255, 255, 0.05),
+              0 8px 18px rgba(0, 0, 0, 0.22);
+            cursor: pointer;
+            text-align: left;
+          }
+
+          .rrFeaturedArtWrap {
+            width: 58px;
+            height: 58px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.03);
+          }
+
+          .rrFeaturedArt {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+          }
+
+          .rrFeaturedText {
+            min-width: 0;
+          }
+
+          .rrFeaturedTitle {
+            font-size: 18px;
+            font-weight: 900;
+            color: #f5f8ff;
+            line-height: 1.1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          .rrFeaturedArtist {
+            margin-top: 4px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.82);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          .rrFeaturedMeta {
+            display: flex;
+            gap: 12px;
+            margin-top: 7px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+          }
+
+          .rrFeaturedEmpty {
+            padding: 14px 10px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.03);
+            font-size: 13px;
+            opacity: 0.8;
+          }
+
+          .rrViewMoreBtn {
+            width: 100%;
+            margin-top: 12px;
+            padding: 12px 14px;
+            border: 1px solid rgba(150, 170, 210, 0.18);
+            border-radius: 14px;
+            background:
+              linear-gradient(180deg, rgba(70, 88, 130, 0.6), rgba(36, 47, 78, 0.72));
+            color: rgba(237, 243, 255, 0.95);
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            box-shadow:
+              inset 0 1px 0 rgba(255, 255, 255, 0.08),
+              0 10px 20px rgba(0, 0, 0, 0.18);
           }
 
           .rrOverlay {
@@ -833,6 +1016,20 @@ export default function HomePage() {
             .rrLightBeamLeft,
             .rrLightBeamRight {
               width: 170px;
+            }
+
+            .rrFeaturedRow {
+              grid-template-columns: 52px minmax(0, 1fr);
+              gap: 10px;
+            }
+
+            .rrFeaturedArtWrap {
+              width: 52px;
+              height: 52px;
+            }
+
+            .rrFeaturedTitle {
+              font-size: 16px;
             }
           }
         `}</style>
