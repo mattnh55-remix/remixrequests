@@ -182,16 +182,17 @@ void loadFeatured();
       <div className="remixTvOrb remixTvOrbC" />
 
       <div className="remixTvQueueOnlyWrap">
-        <PortraitQueueOnlyPanel
-          nowPlaying={nowPlaying}
-          queueList={queueList}
-          topIsBoosted={topIsBoosted}
-          showA={showA}
-          artA={artA}
-          artB={artB}
-          qrSrc={qrSrc}
-          defaultAlbumArtUrl={defaultAlbumArtUrl}
-        />
+<PortraitQueueOnlyPanel
+  nowPlaying={nowPlaying}
+  queueList={queueList}
+  featuredSongs={featuredSongs}
+  topIsBoosted={topIsBoosted}
+  showA={showA}
+  artA={artA}
+  artB={artB}
+  qrSrc={qrSrc}
+  defaultAlbumArtUrl={defaultAlbumArtUrl}
+/>
       </div>
 
       <style jsx global>{`
@@ -648,6 +649,7 @@ void loadFeatured();
 function PortraitQueueOnlyPanel({
   nowPlaying,
   queueList,
+  featuredSongs,
   topIsBoosted,
   showA,
   artA,
@@ -657,6 +659,7 @@ function PortraitQueueOnlyPanel({
 }: {
   nowPlaying: QueueItem | null;
   queueList: QueueItem[];
+  featuredSongs: QueueItem[];
   topIsBoosted: boolean;
   showA: boolean;
   artA: string | null;
