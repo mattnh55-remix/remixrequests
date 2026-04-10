@@ -1,5 +1,3 @@
-// src/app/tv-queue/[location]/page.tsx
-
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -20,6 +18,14 @@ type QueueItem = {
   isBoosted?: boolean;
   boosted?: boolean;
   wasBoosted?: boolean;
+};
+
+type RulesResponse = {
+  ok?: boolean;
+  rules?: {
+    defaultAlbumArtUrl?: string | null;
+  } | null;
+  defaultAlbumArtUrl?: string | null;
 };
 
 export default function TvQueuePortraitPage({
@@ -45,13 +51,13 @@ export default function TvQueuePortraitPage({
   );
 
   const qrSrc = useMemo(() => {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
+    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(
       requestUrl
     )}`;
   }, [requestUrl]);
 
   const nowPlaying = playNow[0] || upNext[0] || null;
-  const queueList = upNext.slice(0, 6);
+  const queueList = upNext.slice(0, 4);
   const topIsBoosted = Boolean(
     nowPlaying && (nowPlaying.isBoosted || nowPlaying.boosted || nowPlaying.wasBoosted)
   );
@@ -70,28 +76,26 @@ export default function TvQueuePortraitPage({
     }
   }
 
+  async function loadRules() {
+    try {
+      const res = await fetch(`/api/public/rules/${location}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as RulesResponse;
+      const url = data?.rules?.defaultAlbumArtUrl || data?.defaultAlbumArtUrl || null;
+      setDefaultAlbumArtUrl(url);
+    } catch {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     void tickQueue();
-
-    fetch(`/api/public/rules/${location}`)
-      .then((r) => r.json())
-      .then((d) => {
-        const url = d?.rules?.defaultAlbumArtUrl || d?.defaultAlbumArtUrl || null;
-        if (url) setDefaultAlbumArtUrl(url);
-      })
-      .catch(() => {});
+    void loadRules();
 
     const q = window.setInterval(() => void tickQueue(), 3000);
-
-    const r = window.setInterval(() => {
-      fetch(`/api/public/rules/${location}`)
-        .then((rr) => rr.json())
-        .then((d) => {
-          const url = d?.rules?.defaultAlbumArtUrl || d?.defaultAlbumArtUrl || null;
-          if (url) setDefaultAlbumArtUrl(url);
-        })
-        .catch(() => {});
-    }, 15000);
+    const r = window.setInterval(() => void loadRules(), 15000);
 
     return () => {
       window.clearInterval(q);
@@ -236,16 +240,16 @@ export default function TvQueuePortraitPage({
           position: relative;
           z-index: 2;
           min-height: 100vh;
-          padding: 12px;
+          padding: 22px;
           box-sizing: border-box;
         }
 
         .remixTvQueueOnlyPanel {
-          min-height: calc(100vh - 24px);
+          min-height: calc(100vh - 44px);
           display: grid;
-          grid-template-rows: auto auto 1fr auto;
-          gap: 10px;
-          padding: 12px;
+          grid-template-rows: auto auto minmax(0, 1fr) auto;
+          gap: 18px;
+          padding: 20px;
         }
 
         .remixTvSectionHeader {
@@ -262,11 +266,11 @@ export default function TvQueuePortraitPage({
         }
 
         .remixTvSectionTitle {
-          font-size: clamp(20px, 4.6vw, 32px);
+          font-size: clamp(34px, 4.2vw, 54px);
           font-weight: 1000;
           font-style: italic;
           text-transform: uppercase;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.7px;
           text-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
           white-space: nowrap;
           overflow: hidden;
@@ -276,7 +280,7 @@ export default function TvQueuePortraitPage({
         .remixTvTopCard {
           display: grid;
           align-items: center;
-          border-radius: 24px;
+          border-radius: 28px;
           border: 1px solid rgba(255,255,255,0.1);
           background: linear-gradient(
             90deg,
@@ -286,10 +290,10 @@ export default function TvQueuePortraitPage({
           );
           position: relative;
           overflow: hidden;
-          grid-template-columns: 88px 1fr;
-          gap: 12px;
-          min-height: 96px;
-          padding: 10px 12px;
+          grid-template-columns: 144px 1fr;
+          gap: 18px;
+          min-height: 150px;
+          padding: 16px;
         }
 
         .remixTvTopCardBoosted {
@@ -302,9 +306,9 @@ export default function TvQueuePortraitPage({
         }
 
         .remixTvTopArtFrame {
-          width: 88px;
-          height: 88px;
-          border-radius: 22px;
+          width: 144px;
+          height: 144px;
+          border-radius: 26px;
           overflow: hidden;
           position: relative;
           border: 1px solid rgba(255,255,255,0.18);
@@ -342,12 +346,12 @@ export default function TvQueuePortraitPage({
         .remixTvTopSong {
           line-height: 1;
           font-weight: 1000;
-          letter-spacing: -0.45px;
+          letter-spacing: -0.55px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
           text-shadow: 0 0 12px rgba(255,255,255,0.12);
-          font-size: clamp(20px, 2.45vw, 28px);
+          font-size: clamp(32px, 3.8vw, 50px);
         }
 
         .remixTvTopArtist {
@@ -355,15 +359,15 @@ export default function TvQueuePortraitPage({
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          margin-top: 5px;
-          font-size: clamp(13px, 1.6vw, 18px);
+          margin-top: 8px;
+          font-size: clamp(20px, 2.2vw, 30px);
         }
 
         .remixTvTopMetaRow {
           display: flex;
           align-items: center;
-          gap: 10px;
-          margin-top: 8px;
+          gap: 12px;
+          margin-top: 14px;
           flex-wrap: wrap;
         }
 
@@ -371,10 +375,10 @@ export default function TvQueuePortraitPage({
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-height: 28px;
-          padding: 0 12px;
+          min-height: 38px;
+          padding: 0 16px;
           border-radius: 999px;
-          font-size: 12px;
+          font-size: 16px;
           font-weight: 1000;
           letter-spacing: 1px;
           text-transform: uppercase;
@@ -388,22 +392,30 @@ export default function TvQueuePortraitPage({
           box-shadow: var(--glowB);
         }
 
+        .remixTvTop10Block {
+          min-height: 0;
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          gap: 12px;
+          align-content: start;
+        }
+
         .remixTvTop10Header {
           display: flex;
           align-items: center;
           justify-content: flex-start;
           gap: 12px;
-          font-size: 16px;
+          font-size: 24px;
           font-weight: 1000;
-          letter-spacing: 1.6px;
+          letter-spacing: 2px;
           text-transform: uppercase;
-          color: rgba(255,255,255,0.8);
-          padding: 2px 4px 0;
+          color: rgba(255,255,255,0.86);
+          padding: 4px 4px 0;
         }
 
         .remixTvTop10List {
           display: grid;
-          gap: 10px;
+          gap: 14px;
           align-content: start;
           min-height: 0;
           overflow: hidden;
@@ -411,11 +423,11 @@ export default function TvQueuePortraitPage({
 
         .remixTvTop10Row {
           display: grid;
-          grid-template-columns: 30px minmax(0, 1fr) auto auto;
-          gap: 10px;
+          grid-template-columns: 44px minmax(0, 1fr) auto;
+          gap: 14px;
           align-items: center;
-          padding: 10px 12px;
-          border-radius: 18px;
+          padding: 16px 18px;
+          border-radius: 22px;
           border: 1px solid rgba(255,255,255,0.1);
           background: linear-gradient(
             90deg,
@@ -427,7 +439,7 @@ export default function TvQueuePortraitPage({
         }
 
         .remixTvTop10Pos {
-          font-size: 22px;
+          font-size: 34px;
           font-weight: 1000;
           line-height: 1;
           text-align: center;
@@ -440,17 +452,17 @@ export default function TvQueuePortraitPage({
         }
 
         .remixTvTop10Song {
-          font-size: clamp(14px, 1.65vw, 18px);
+          font-size: clamp(24px, 2.4vw, 34px);
           font-weight: 1000;
-          line-height: 1.12;
+          line-height: 1.08;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
 
         .remixTvTop10Artist {
-          margin-top: 3px;
-          font-size: clamp(11px, 1.28vw, 14px);
+          margin-top: 6px;
+          font-size: clamp(17px, 1.8vw, 24px);
           color: var(--muted);
           white-space: nowrap;
           overflow: hidden;
@@ -458,30 +470,30 @@ export default function TvQueuePortraitPage({
         }
 
         .remixTvTop10MetaRow {
-          margin-top: 6px;
+          margin-top: 10px;
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 10px;
           flex-wrap: wrap;
         }
 
         .remixTvTop10VoteRail {
           display: inline-flex;
           align-items: center;
-          gap: 6px;
+          gap: 8px;
         }
 
         .remixTvTop10VotePill,
         .remixTvTop10Score {
-          min-width: 30px;
-          height: 30px;
-          padding: 0 10px;
+          min-width: 48px;
+          height: 40px;
+          padding: 0 14px;
           border-radius: 999px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 4px;
-          font-size: 12px;
+          gap: 6px;
+          font-size: 18px;
           font-weight: 1000;
           line-height: 1;
           white-space: nowrap;
@@ -494,12 +506,12 @@ export default function TvQueuePortraitPage({
         }
 
         .remixTvTop10VoteEmoji {
-          font-size: 11px;
+          font-size: 16px;
           line-height: 1;
         }
 
         .remixTvTop10VoteValue {
-          min-width: 8px;
+          min-width: 10px;
           text-align: center;
         }
 
@@ -507,12 +519,13 @@ export default function TvQueuePortraitPage({
           background: rgba(0,247,255,0.09);
           border: 1px solid rgba(0,247,255,0.24);
           box-shadow: var(--glowA);
+          align-self: center;
         }
 
         .remixTvEmptyState {
-          padding: 14px 8px;
-          font-size: 15px;
-          line-height: 1.35;
+          padding: 20px 10px;
+          font-size: 22px;
+          line-height: 1.4;
           color: var(--muted);
         }
 
@@ -521,18 +534,18 @@ export default function TvQueuePortraitPage({
           margin-top: 2px;
           display: grid;
           align-items: center;
-          padding-top: 10px;
-          grid-template-columns: 1fr 98px;
-          gap: 12px;
+          padding-top: 14px;
+          grid-template-columns: 1fr 132px;
+          gap: 18px;
         }
 
         .remixTvBottomText {
-          line-height: 1.08;
+          line-height: 1.06;
           font-weight: 1000;
           font-style: italic;
           text-transform: uppercase;
           letter-spacing: 0.35px;
-          font-size: clamp(14px, 1.5vw, 18px);
+          font-size: clamp(18px, 1.9vw, 26px);
           text-align: left;
         }
 
@@ -544,15 +557,15 @@ export default function TvQueuePortraitPage({
         .remixTvBottomTextLineMuted {
           display: block;
           color: rgba(255,255,255,0.7);
-          margin-top: 4px;
+          margin-top: 5px;
         }
 
         .remixTvBottomQrWrap {
           justify-self: end;
-          width: 98px;
-          height: 98px;
-          padding: 4px;
-          border-radius: 14px;
+          width: 132px;
+          height: 132px;
+          padding: 5px;
+          border-radius: 16px;
           border: 1px solid rgba(255,255,255,0.14);
           background: rgba(255,255,255,0.04);
         }
@@ -563,6 +576,32 @@ export default function TvQueuePortraitPage({
           object-fit: cover;
           display: block;
           border-radius: 12px;
+        }
+
+        .neonEQ {
+          height: 24px;
+          display: flex;
+          align-items: flex-end;
+          gap: 4px;
+        }
+
+        .neonEQ > span {
+          width: 5px;
+          height: 10px;
+          border-radius: 999px;
+          background: linear-gradient(180deg, rgba(0,247,255,0.9), rgba(255,57,212,0.85));
+          animation: eq 900ms ease-in-out infinite;
+          box-shadow: var(--glowA);
+        }
+
+        .neonEQ > span:nth-child(2) { animation-delay: 120ms; }
+        .neonEQ > span:nth-child(3) { animation-delay: 240ms; }
+        .neonEQ > span:nth-child(4) { animation-delay: 360ms; }
+        .neonEQ > span:nth-child(5) { animation-delay: 480ms; }
+
+        @keyframes eq {
+          0%, 100% { height: 7px; opacity: 0.75; }
+          50% { height: 22px; opacity: 1; }
         }
       `}</style>
     </div>
@@ -666,7 +705,7 @@ function TopCard({
 
 function Top10Block({ queueList }: { queueList: QueueItem[] }) {
   return (
-    <>
+    <div className="remixTvTop10Block">
       <div className="remixTvTop10Header">
         <span>Top 10</span>
       </div>
@@ -709,7 +748,7 @@ function Top10Block({ queueList }: { queueList: QueueItem[] }) {
           })
         )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -756,7 +795,7 @@ function Artwork({
           placeItems: "center",
           fontWeight: 1000,
           opacity: 0.65,
-          fontSize: 22,
+          fontSize: 28,
           letterSpacing: 1.2,
         }}
       >

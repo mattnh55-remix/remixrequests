@@ -177,7 +177,7 @@ export default function HomePage() {
 
             <div className="rrHowRow">
               <div className="rrHowCard">
-                <div className="rrHowIcon">🎟️</div>
+                <div className="rrHowIcon">🎁</div>
                 <div className="rrHowTitle">CLAIM</div>
                 <div className="rrHowSub">Get points</div>
               </div>
