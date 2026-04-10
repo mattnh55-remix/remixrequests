@@ -42,6 +42,17 @@ export default function TvQueuePortraitPage({
   const [artB, setArtB] = useState<string | null>(null);
   const [showA, setShowA] = useState(true);
   const [defaultAlbumArtUrl, setDefaultAlbumArtUrl] = useState<string | null>(null);
+  const [featuredSongs, setFeaturedSongs] = useState<QueueItem[]>([]);
+
+useEffect(() => {
+  if (!featuredSongs.length) return;
+
+  const t = setInterval(() => {
+    setFeaturedSongs((prev) => [...prev].sort(() => Math.random() - 0.5));
+  }, 10000); // every 10 seconds
+
+  return () => clearInterval(t);
+}, [featuredSongs.length]);
 
   const prevTopId = useRef<string | null>(null);
 
@@ -92,6 +103,32 @@ export default function TvQueuePortraitPage({
 
   useEffect(() => {
     void tickQueue();
+async function loadFeatured() {
+  try {
+    const res = await fetch(`/api/public/featured-songs/${location}`, {
+      cache: "no-store",
+    });
+    const data = await res.json();
+
+    const items = Array.isArray(data?.items) ? data.items : [];
+
+    setFeaturedSongs(
+      items.map((s: any) => ({
+        id: s.id,
+        title: s.title,
+        artist: s.artist,
+        artworkUrl: s.artworkUrl,
+        score: 0,
+        upvotes: 0,
+        downvotes: 0,
+      }))
+    );
+  } catch {
+    setFeaturedSongs([]);
+  }
+}
+
+void loadFeatured();
     void loadRules();
 
     const q = window.setInterval(() => void tickQueue(), 3000);
@@ -654,7 +691,10 @@ function PortraitQueueOnlyPanel({
         </div>
       </TopCard>
 
-      <Top10Block queueList={queueList} />
+      <Top10Block
+  queueList={queueList}
+  featuredSongs={featuredSongs}
+/>
 
       <CtaBlock qrSrc={qrSrc} />
     </section>
@@ -703,46 +743,61 @@ function TopCard({
   );
 }
 
-function Top10Block({ queueList }: { queueList: QueueItem[] }) {
+function Top10Block({
+  queueList,
+  featuredSongs,
+}: {
+  queueList: QueueItem[];
+  featuredSongs: QueueItem[];
+}) {
+  const isEmpty = queueList.length === 0;
+  const list = isEmpty ? featuredSongs : queueList;
+  const title = isEmpty ? "Featured at Remix" : "Top 10";
+
   return (
     <div className="remixTvTop10Block">
       <div className="remixTvTop10Header">
-        <span>Top 10</span>
+        <span>{title}</span>
       </div>
 
       <div className="remixTvTop10List">
-        {queueList.length === 0 ? (
+        {list.length === 0 ? (
           <div className="remixTvEmptyState">
-            No requests yet — scan the QR and start the vibe.
+            Loading vibe...
           </div>
         ) : (
-          queueList.map((item, index) => {
+          list.map((item, index) => {
             const upvotes = Number(item.upvotes || 0);
             const downvotes = Number(item.downvotes || 0);
             const score = Number(item.score || 0);
 
             return (
               <div className="remixTvTop10Row" key={item.id}>
-                <div className="remixTvTop10Pos">{index + 1}</div>
+                <div className="remixTvTop10Pos">
+                  {isEmpty ? "🔥" : index + 1}
+                </div>
 
                 <div className="remixTvTop10Text">
                   <div className="remixTvTop10Song">{item.title}</div>
                   <div className="remixTvTop10Artist">{item.artist}</div>
-                  <div className="remixTvTop10MetaRow">
-                    <div className="remixTvTop10VoteRail" aria-label="Vote counts">
-                      <div className="remixTvTop10VotePill">
-                        <span className="remixTvTop10VoteEmoji" aria-hidden="true">👎</span>
-                        <span className="remixTvTop10VoteValue">{downvotes}</span>
-                      </div>
-                      <div className="remixTvTop10VotePill">
-                        <span className="remixTvTop10VoteEmoji" aria-hidden="true">👍</span>
-                        <span className="remixTvTop10VoteValue">{upvotes}</span>
+
+                  {!isEmpty && (
+                    <div className="remixTvTop10MetaRow">
+                      <div className="remixTvTop10VoteRail">
+                        <div className="remixTvTop10VotePill">
+                          👎 {downvotes}
+                        </div>
+                        <div className="remixTvTop10VotePill">
+                          👍 {upvotes}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
-                <div className="remixTvTop10Score">S {score}</div>
+                {!isEmpty && (
+                  <div className="remixTvTop10Score">S {score}</div>
+                )}
               </div>
             );
           })
@@ -751,6 +806,7 @@ function Top10Block({ queueList }: { queueList: QueueItem[] }) {
     </div>
   );
 }
+
 
 function CtaBlock({ qrSrc }: { qrSrc: string }) {
   return (
