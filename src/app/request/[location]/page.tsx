@@ -868,10 +868,18 @@ export default function RequestPage({ params }: { params: { location: string } }
   const sfx = usePublicSfx();
 
   function resetToClaimState(clearStorage = false) {
+    const previousIdentityId = identityId;
+
     setSessionActive(false);
     setVerified(false);
     setIdentityId("");
     setShowBuy(false);
+
+    try {
+      if (previousIdentityId) {
+        localStorage.removeItem(`rr_lastBalance:${location}:${previousIdentityId}`);
+      }
+    } catch {}
 
     if (clearStorage) {
       try {
@@ -1118,10 +1126,13 @@ async function refreshSession() {
       const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
       const lsLocation = (localStorage.getItem("rr_location") || "").trim();
       const lsEmail = (localStorage.getItem("rr_email") || "").trim();
+      const lsSessionId = (localStorage.getItem(`rr_sessionId:${location}`) || "").trim();
+      const currentSessionId = String(rules?.session?.id || "").trim();
 
       if (lsLocation && lsLocation !== location) {
         localStorage.setItem("rr_location", String(location));
         localStorage.removeItem("rr_identityId");
+        localStorage.removeItem(`rr_sessionId:${location}`);
         resetToClaimState(false);
         if (lsEmail) setEmail(lsEmail);
         return;
@@ -1133,6 +1144,19 @@ async function refreshSession() {
         localStorage.setItem("rr_location", String(location));
       }
 
+      // Wait until we know the current public session before trusting any saved identity.
+      if (!currentSessionId) {
+        return;
+      }
+
+      // If this browser does not have a matching saved session id, force new-visitor state.
+      if (!lsSessionId || lsSessionId !== currentSessionId) {
+        localStorage.removeItem("rr_identityId");
+        localStorage.setItem(`rr_sessionId:${location}`, currentSessionId);
+        resetToClaimState(false);
+        return;
+      }
+
       if (lsIdentity) {
         setIdentityId(lsIdentity);
         void refreshIdentityState(lsIdentity);
@@ -1142,7 +1166,7 @@ async function refreshSession() {
     } catch {
       resetToClaimState(false);
     }
-  }, [location]);
+  }, [location, rules?.session?.id]);
 
   useEffect(() => {
     if (!identityId || !sessionActive) return;

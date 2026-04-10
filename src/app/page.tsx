@@ -106,12 +106,12 @@ export default function HomePage() {
             ? localStorage.getItem("rr_location") || "remix"
             : "remix";
 
-const res = await fetch(`/api/public/session/${encodeURIComponent(nextLocation)}`, {
-  cache: "no-store",
-});
-const data = await res.json();
-const rules = data?.rules || null;
-setActiveChallenge(getActiveBonusChallenge(rules));
+        const res = await fetch(`/api/public/session/${encodeURIComponent(nextLocation)}`, {
+          cache: "no-store",
+        });
+        const data = await res.json();
+        const rules = data?.rules || null;
+        setActiveChallenge(getActiveBonusChallenge(rules));
       } catch {
         setActiveChallenge(null);
       }
@@ -127,27 +127,77 @@ setActiveChallenge(getActiveBonusChallenge(rules));
       ? localStorage.getItem("rr_location") || "remix"
       : "remix";
 
+  const openChallenge = () => {
+    if (activeChallenge?.linkUrl) {
+      window.open(activeChallenge.linkUrl, "_blank");
+      return;
+    }
+
+    const fallback =
+      activeChallenge?.modalMessage ||
+      activeChallenge?.ctaText ||
+      "Show a staff member to receive your bonus card.";
+
+    setChallengeModalText(fallback);
+    setChallengeModalOpen(true);
+  };
+
   return (
     <PublicTheme>
       <div className="rrWelcomeRoot">
         <div className="rrOrb rrOrbA" />
         <div className="rrOrb rrOrbB" />
         <div className="rrOrb rrOrbC" />
+        <div className="rrGridGlow" />
 
         <div className="rrWelcome">
-          <div className="rrWelcomeLogo">
-            <img src={REMIX_LOGO_URL} alt="Remix" />
-          </div>
+          <div className="rrTopStage">
+            <div className="rrTopShine" />
 
-          <div className="rrWelcomeHero">
-            <div className="rrWelcomeTitle">CONTROL THE MUSIC</div>
-            <div className="rrWelcomeSub">
-              Request songs. Boost favorites. Earn bonus points.
+            <div className="rrWelcomeLogo">
+              <img src={REMIX_LOGO_URL} alt="Remix" />
             </div>
+
+            <div className="rrWelcomeHero">
+              <div className="rrWelcomeTitle">CONTROL THE MUSIC</div>
+              <div className="rrWelcomeSub">
+                Request songs. Boost favorites. Earn bonus points.
+              </div>
+            </div>
+
+            <div className="rrHowRow">
+              <div className="rrHowCard">
+                <div className="rrHowIcon">🎟️</div>
+                <div className="rrHowTitle">CLAIM</div>
+                <div className="rrHowSub">Get points</div>
+              </div>
+
+              <div className="rrHowCard">
+                <div className="rrHowIcon">🎵</div>
+                <div className="rrHowTitle">REQUEST</div>
+                <div className="rrHowSub">Pick songs</div>
+              </div>
+
+              <div className="rrHowCard">
+                <div className="rrHowIcon">🚀</div>
+                <div className="rrHowTitle">BOOST</div>
+                <div className="rrHowSub">Move them up</div>
+              </div>
+            </div>
+
+            <button
+              className="rrEnterBtn"
+              onClick={() => router.push(`/request/${encodeURIComponent(location)}`)}
+            >
+              <span className="rrEnterBtnGlow" />
+              <span className="rrEnterBtnText">ENTER REMIX SPOT</span>
+              <span className="rrEnterBtnArrow">→</span>
+            </button>
           </div>
 
-          <div className="rrBonusCard">
-            <div className="rrBonusBadge">THIS WEEK</div>
+          <button className="rrBonusCard rrBonusClickable" onClick={openChallenge}>
+            <div className="rrBonusEmboss" />
+            <div className="rrBonusBadge">THIS WEEK&apos;S OFFER</div>
 
             <div className="rrBonusTitle">
               {activeChallenge?.title || "Leave a Google Review!"}
@@ -163,50 +213,8 @@ setActiveChallenge(getActiveBonusChallenge(rules));
             </div>
 
             <div className="rrBonusActions">
-              <button
-                className="rrBtn"
-                onClick={() => {
-                  if (activeChallenge?.linkUrl) {
-                    window.open(activeChallenge.linkUrl, "_blank");
-                    return;
-                  }
-
-                  const fallback =
-                    activeChallenge?.modalMessage ||
-                    activeChallenge?.ctaText ||
-                    "Show a staff member to receive your bonus card.";
-
-                  setChallengeModalText(fallback);
-                  setChallengeModalOpen(true);
-                }}
-              >
-                {activeChallenge?.buttonText || "Leave Review"}
-              </button>
+              <span className="rrBtn">{activeChallenge?.buttonText || "Leave Review"}</span>
             </div>
-          </div>
-
-          <div className="rrHowRow">
-            <div className="rrHowCard">
-              <div className="rrHowTitle">CLAIM</div>
-              <div className="rrHowSub">Get points</div>
-            </div>
-
-            <div className="rrHowCard">
-              <div className="rrHowTitle">REQUEST</div>
-              <div className="rrHowSub">Pick songs</div>
-            </div>
-
-            <div className="rrHowCard">
-              <div className="rrHowTitle">BOOST</div>
-              <div className="rrHowSub">Move them up</div>
-            </div>
-          </div>
-
-          <button
-            className="rrEnterBtn"
-            onClick={() => router.push(`/request/${encodeURIComponent(location)}`)}
-          >
-            ENTER REMIX
           </button>
 
           {challengeModalOpen ? (
@@ -217,6 +225,7 @@ setActiveChallenge(getActiveBonusChallenge(rules));
                     <div className="rrDrawerTitle">Bonus Challenge</div>
                     <div className="rrDrawerSub">{challengeModalText}</div>
                   </div>
+
                   <button
                     className="rrBtnGhost rrCloseBtn"
                     onClick={() => setChallengeModalOpen(false)}
@@ -235,9 +244,21 @@ setActiveChallenge(getActiveBonusChallenge(rules));
             position: relative;
             overflow: hidden;
             background:
-              radial-gradient(circle at top left, rgba(0,247,255,0.18), transparent 28%),
-              radial-gradient(circle at bottom right, rgba(255,57,212,0.18), transparent 32%),
+              radial-gradient(circle at top left, rgba(0, 247, 255, 0.18), transparent 28%),
+              radial-gradient(circle at bottom right, rgba(255, 57, 212, 0.18), transparent 32%),
               linear-gradient(180deg, #050816 0%, #060b18 50%, #05060c 100%);
+          }
+
+          .rrGridGlow {
+            position: absolute;
+            inset: 0;
+            background:
+              linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+            background-size: 34px 34px;
+            mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 95%);
+            pointer-events: none;
+            opacity: 0.45;
           }
 
           .rrOrb {
@@ -251,7 +272,7 @@ setActiveChallenge(getActiveBonusChallenge(rules));
           .rrOrbA {
             width: 340px;
             height: 340px;
-            background: rgba(0,247,255,0.25);
+            background: rgba(0, 247, 255, 0.25);
             top: -80px;
             left: -60px;
           }
@@ -259,7 +280,7 @@ setActiveChallenge(getActiveBonusChallenge(rules));
           .rrOrbB {
             width: 380px;
             height: 380px;
-            background: rgba(255,57,212,0.22);
+            background: rgba(255, 57, 212, 0.22);
             right: -100px;
             top: 20vh;
           }
@@ -267,7 +288,7 @@ setActiveChallenge(getActiveBonusChallenge(rules));
           .rrOrbC {
             width: 300px;
             height: 300px;
-            background: rgba(120,160,255,0.22);
+            background: rgba(120, 160, 255, 0.22);
             left: 30%;
             bottom: -80px;
           }
@@ -279,40 +300,204 @@ setActiveChallenge(getActiveBonusChallenge(rules));
             gap: 16px;
             padding: 18px 10px 80px;
             text-align: center;
+            max-width: 520px;
+            margin: 0 auto;
+          }
+
+          .rrTopStage {
+            position: relative;
+            overflow: hidden;
+            padding: 16px 14px 14px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background:
+              radial-gradient(circle at top center, rgba(110, 231, 249, 0.14), transparent 42%),
+              radial-gradient(circle at bottom center, rgba(217, 70, 239, 0.12), transparent 40%),
+              linear-gradient(180deg, rgba(18, 25, 40, 0.96), rgba(8, 12, 21, 0.98));
+            box-shadow:
+              inset 0 1px 0 rgba(255, 255, 255, 0.1),
+              0 16px 40px rgba(0, 0, 0, 0.5),
+              0 0 30px rgba(0, 247, 255, 0.1);
+          }
+
+          .rrTopShine {
+            position: absolute;
+            top: -90px;
+            left: -20%;
+            width: 140%;
+            height: 180px;
+            background: linear-gradient(
+              90deg,
+              transparent 0%,
+              rgba(255, 255, 255, 0.05) 35%,
+              rgba(255, 255, 255, 0.13) 50%,
+              rgba(255, 255, 255, 0.05) 65%,
+              transparent 100%
+            );
+            transform: rotate(-8deg);
+            pointer-events: none;
           }
 
           .rrWelcomeLogo img {
-            width: 110px;
-            margin: 10px auto;
-            filter: drop-shadow(0 0 14px rgba(110,231,249,0.25));
+            width: 112px;
+            margin: 8px auto 2px;
+            filter:
+              drop-shadow(0 0 14px rgba(110, 231, 249, 0.28))
+              drop-shadow(0 0 24px rgba(217, 70, 239, 0.18));
+          }
+
+          .rrWelcomeHero {
+            display: grid;
+            gap: 6px;
+            margin-top: 4px;
           }
 
           .rrWelcomeTitle {
-            font-size: 26px;
+            font-size: 28px;
+            line-height: 1;
             font-weight: 1000;
+            letter-spacing: 0.03em;
+            text-shadow:
+              0 0 18px rgba(110, 231, 249, 0.18),
+              0 0 28px rgba(217, 70, 239, 0.12);
           }
 
           .rrWelcomeSub {
             font-size: 13px;
-            opacity: 0.7;
+            opacity: 0.78;
+          }
+
+          .rrHowRow {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 8px;
+          }
+
+          .rrHowCard {
+            padding: 12px 8px 10px;
+            border-radius: 18px;
+            background:
+              linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow:
+              inset 0 1px 0 rgba(255, 255, 255, 0.08),
+              0 8px 18px rgba(0, 0, 0, 0.28);
+          }
+
+          .rrHowIcon {
+            font-size: 22px;
+            line-height: 1;
+            margin-bottom: 8px;
+            filter: drop-shadow(0 0 10px rgba(110, 231, 249, 0.16));
+          }
+
+          .rrHowTitle {
+            font-size: 11px;
+            font-weight: 1000;
+            letter-spacing: 0.14em;
+          }
+
+          .rrHowSub {
+            margin-top: 4px;
+            font-size: 11px;
+            opacity: 0.78;
+          }
+
+          .rrEnterBtn {
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            margin-top: 10px;
+            padding: 16px 16px;
+            border-radius: 18px;
+            border: 1px solid rgba(138, 190, 255, 0.5);
+            font-weight: 1000;
+            color: white;
+            background:
+              linear-gradient(180deg, #67a6ff 0%, #3b7fe0 55%, #255fba 100%);
+            box-shadow:
+              inset 0 2px 0 rgba(255, 255, 255, 0.25),
+              0 14px 28px rgba(32, 83, 155, 0.38),
+              0 0 18px rgba(85, 170, 255, 0.22);
+          }
+
+          .rrEnterBtnGlow {
+            position: absolute;
+            top: 0;
+            left: -35%;
+            width: 45%;
+            height: 100%;
+            background: linear-gradient(
+              90deg,
+              transparent,
+              rgba(255, 255, 255, 0.28),
+              transparent
+            );
+            transform: skewX(-22deg);
+            pointer-events: none;
+          }
+
+          .rrEnterBtnText,
+          .rrEnterBtnArrow {
+            position: relative;
+            z-index: 1;
+          }
+
+          .rrEnterBtnText {
+            letter-spacing: 0.06em;
+          }
+
+          .rrEnterBtnArrow {
+            font-size: 18px;
+            opacity: 0.95;
           }
 
           .rrBonusCard {
-            padding: 16px;
-            border-radius: 18px;
-            border: 1px solid rgba(255,255,255,0.1);
+            position: relative;
+            overflow: hidden;
+            padding: 18px 16px;
+            border-radius: 22px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
             background:
-              radial-gradient(circle at top, rgba(110,231,249,0.15), transparent 40%),
-              linear-gradient(180deg, rgba(20,26,40,0.95), rgba(10,14,22,0.98));
+              radial-gradient(circle at top, rgba(110, 231, 249, 0.14), transparent 42%),
+              linear-gradient(180deg, rgba(23, 29, 44, 0.98), rgba(10, 14, 22, 0.99));
             box-shadow:
-              0 18px 40px rgba(0,0,0,0.6),
-              0 0 25px rgba(0,247,255,0.18);
+              inset 0 2px 0 rgba(255, 255, 255, 0.08),
+              inset 0 -6px 14px rgba(0, 0, 0, 0.22),
+              0 22px 44px rgba(0, 0, 0, 0.52),
+              0 0 26px rgba(0, 247, 255, 0.14);
+          }
+
+          .rrBonusClickable {
+            cursor: pointer;
+            width: 100%;
+            color: inherit;
+            text-align: center;
+          }
+
+          .rrBonusClickable:active {
+            transform: translateY(1px);
+          }
+
+          .rrBonusEmboss {
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            box-shadow:
+              inset 0 1px 0 rgba(255, 255, 255, 0.14),
+              inset 0 -2px 0 rgba(0, 0, 0, 0.24);
+            pointer-events: none;
           }
 
           .rrBonusBadge {
             font-size: 10px;
-            letter-spacing: 0.2em;
-            opacity: 0.7;
+            letter-spacing: 0.22em;
+            opacity: 0.74;
           }
 
           .rrBonusTitle {
@@ -325,53 +510,113 @@ setActiveChallenge(getActiveBonusChallenge(rules));
             color: #6ee7f9;
             font-weight: 1000;
             margin-top: 6px;
+            text-shadow: 0 0 16px rgba(110, 231, 249, 0.2);
           }
 
           .rrBonusSub {
             margin-top: 8px;
             font-size: 12px;
-            opacity: 0.8;
+            opacity: 0.82;
           }
 
           .rrBonusActions {
             display: grid;
             gap: 8px;
-            margin-top: 12px;
+            margin-top: 14px;
+            justify-items: center;
           }
 
-          .rrHowRow {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-          }
-
-          .rrHowCard {
-            padding: 10px;
-            border-radius: 12px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.06);
-          }
-
-          .rrHowTitle {
-            font-size: 11px;
-            font-weight: 1000;
-            letter-spacing: 0.1em;
-          }
-
-          .rrHowSub {
-            margin-top: 4px;
-            font-size: 11px;
-            opacity: 0.75;
-          }
-
-          .rrEnterBtn {
-            padding: 14px;
+          .rrBtn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 170px;
+            padding: 12px 18px;
             border-radius: 14px;
             font-weight: 1000;
-            background: linear-gradient(180deg, #4d8fe4, #2f6fc6);
-            border: none;
             color: white;
-            box-shadow: 0 12px 28px rgba(32,83,155,0.35);
+            background: linear-gradient(180deg, #4d8fe4, #2f6fc6);
+            box-shadow:
+              inset 0 1px 0 rgba(255, 255, 255, 0.22),
+              0 12px 28px rgba(32, 83, 155, 0.35);
+          }
+
+          .rrOverlay {
+            position: fixed;
+            inset: 0;
+            z-index: 60;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(4, 6, 12, 0.7);
+            backdrop-filter: blur(6px);
+          }
+
+          .rrDrawer {
+            width: min(460px, 100%);
+            border-radius: 22px;
+            padding: 18px;
+            background:
+              linear-gradient(180deg, rgba(18, 24, 38, 0.98), rgba(10, 14, 22, 0.99));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+          }
+
+          .rrDrawerHead {
+            display: grid;
+            gap: 14px;
+          }
+
+          .rrDrawerTitle {
+            font-size: 20px;
+            font-weight: 1000;
+          }
+
+          .rrDrawerSub {
+            margin-top: 6px;
+            font-size: 13px;
+            opacity: 0.82;
+            line-height: 1.45;
+          }
+
+          .rrBtnGhost {
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.06);
+            color: white;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-weight: 800;
+          }
+
+          .rrCloseBtn {
+            justify-self: end;
+          }
+
+          @media (max-width: 420px) {
+            .rrWelcome {
+              padding: 14px 8px 74px;
+            }
+
+            .rrWelcomeTitle {
+              font-size: 24px;
+            }
+
+            .rrBonusTitle {
+              font-size: 18px;
+            }
+
+            .rrHowCard {
+              padding: 10px 6px 9px;
+            }
+
+            .rrHowIcon {
+              font-size: 20px;
+            }
+
+            .rrEnterBtn {
+              padding: 15px 14px;
+            }
           }
         `}</style>
       </div>
