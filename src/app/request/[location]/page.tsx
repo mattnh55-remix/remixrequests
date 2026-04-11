@@ -1009,31 +1009,23 @@ async function refreshSession() {
 
     setRules(data);
 
-    const nextSessionId = String(data?.session?.id || "").trim();
     const nextEndsAt = String(data?.session?.endsAt || "").trim();
     const nextEndsAtMs = nextEndsAt ? new Date(nextEndsAt).getTime() : NaN;
     const sessionExpired = Number.isFinite(nextEndsAtMs) && nextEndsAtMs <= Date.now();
 
     setSessionCountdown(formatCountdown(nextEndsAt || null));
 
-    let storedSessionId = "";
-    let storedIdentityId = "";
-
-    try {
-      storedSessionId = (localStorage.getItem(`rr_sessionId:${location}`) || "").trim();
-      storedIdentityId = (localStorage.getItem("rr_identityId") || "").trim();
-    } catch {}
-
-    const sessionChanged =
-      Boolean(storedSessionId) &&
-      Boolean(nextSessionId) &&
-      storedSessionId !== nextSessionId;
-
-    if (nextSessionId) {
-      try {
-        localStorage.setItem(`rr_sessionId:${location}`, nextSessionId);
-      } catch {}
+    if (sessionExpired && identityId) {
+      resetToClaimState(true);
+      setPendingAction(null);
+      setPendingActionToast(false);
+      setShowVerify(false);
+      setShowBuy(false);
+      setRedeemCode("");
+      setMsg("Your session expired. Claim your 5 points to begin again.");
     }
+  } catch {}
+}
 
     const hasAnyVisitorState =
       Boolean(identityId) ||
@@ -1126,14 +1118,12 @@ async function refreshSession() {
       const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
       const lsLocation = (localStorage.getItem("rr_location") || "").trim();
       const lsEmail = (localStorage.getItem("rr_email") || "").trim();
-      const lsSessionId = (localStorage.getItem(`rr_sessionId:${location}`) || "").trim();
-      const currentSessionId = String(rules?.session?.id || "").trim();
 
       if (lsLocation && lsLocation !== location) {
         localStorage.setItem("rr_location", String(location));
         localStorage.removeItem("rr_identityId");
-        localStorage.removeItem(`rr_sessionId:${location}`);
-        resetToClaimState(false);
+        resetToClaimState(true);
+
         if (lsEmail) setEmail(lsEmail);
         return;
       }
@@ -1142,19 +1132,6 @@ async function refreshSession() {
 
       if (!lsLocation && location) {
         localStorage.setItem("rr_location", String(location));
-      }
-
-      // Wait until we know the current public session before trusting any saved identity.
-      if (!currentSessionId) {
-        return;
-      }
-
-      // If this browser does not have a matching saved session id, force new-visitor state.
-      if (!lsSessionId || lsSessionId !== currentSessionId) {
-        localStorage.removeItem("rr_identityId");
-        localStorage.setItem(`rr_sessionId:${location}`, currentSessionId);
-        resetToClaimState(false);
-        return;
       }
 
       if (lsIdentity) {
@@ -1166,7 +1143,7 @@ async function refreshSession() {
     } catch {
       resetToClaimState(false);
     }
-  }, [location, rules?.session?.id]);
+  }, [location]);
 
   useEffect(() => {
     if (!identityId || !sessionActive) return;
