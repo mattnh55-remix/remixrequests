@@ -75,6 +75,7 @@ type PlaceholderMessage = {
   body: string;
   fromName: string;
   imageUrl?: string | null;
+  imagePath?: string | null;
   accent?: "gold" | "cyan" | "pink";
   productTitle?: string;
 };
@@ -271,6 +272,7 @@ const DEFAULT_PLACEHOLDERS: PlaceholderMessage[] = [
     body: "Happy Birthday Taylor and Hunter!",
     fromName: "-$name",
     imageUrl: null,
+    imagePath: null,
     accent: "cyan",
     productTitle: "Basic Text Shout Out",
   },
@@ -280,6 +282,7 @@ const DEFAULT_PLACEHOLDERS: PlaceholderMessage[] = [
     body: "Congrats to our birthday crew tonight. Thanks for celebrating at Remix!",
     fromName: "-$name",
     imageUrl: null,
+    imagePath: null,
     accent: "gold",
     productTitle: "Remix Roller Text Shout Out",
   },
@@ -289,6 +292,7 @@ const DEFAULT_PLACEHOLDERS: PlaceholderMessage[] = [
     body: "Welcome to Remix! Scan the code, request your song, and send a shout out.",
     fromName: "-$name",
     imageUrl: null,
+    imagePath: null,
     accent: "pink",
     productTitle: "VIP Text Shout Out",
   },
@@ -412,6 +416,7 @@ function loadSavedPlaceholders(location: string): PlaceholderMessage[] {
       body: String(p?.body || DEFAULT_PLACEHOLDERS[i]?.body || ""),
       fromName: String(p?.fromName || DEFAULT_PLACEHOLDERS[i]?.fromName || "-$name"),
       imageUrl: p?.imageUrl || null,
+      imagePath: p?.imagePath || null,
       accent: (p?.accent || DEFAULT_PLACEHOLDERS[i]?.accent || "cyan") as "gold" | "cyan" | "pink",
       productTitle: String(p?.productTitle || DEFAULT_PLACEHOLDERS[i]?.productTitle || "Remix Shout Out"),
     }));
@@ -662,6 +667,7 @@ useEffect(() => {
   const [messageRules, setMessageRules] = useState<MessageRulesState | null>(null);
   const [messageRulesDirty, setMessageRulesDirty] = useState(false);
   const [placeholders, setPlaceholders] = useState<PlaceholderMessage[]>(DEFAULT_PLACEHOLDERS);
+  const [placeholderUploadBusyId, setPlaceholderUploadBusyId] = useState<string>("");
   const [users, setUsers] = useState<SessionUser[]>([]);
   const [recentUsers, setRecentUsers] = useState<RecentUserItem[]>([]);
   const [recentUsersTotal, setRecentUsersTotal] = useState(0);
@@ -1378,6 +1384,43 @@ setMsg(data?.delta === 0 ? "✅ Balance already matched target." : "✅ User bal
 
   function updatePlaceholder(index: number, patch: Partial<PlaceholderMessage>) {
     setPlaceholders((curr) => curr.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  }
+  async function uploadPlaceholderPhoto(index: number, file: File) {
+    const target = placeholders[index];
+    if (!target) return;
+
+    setMsg("");
+    setPlaceholderUploadBusyId(target.id);
+
+    try {
+      const form = new FormData();
+      form.append("location", location);
+      form.append("placeholderId", target.id);
+      form.append("file", file);
+
+      const res = await fetch("/api/admin/shoutouts/upload-placeholder-photo", {
+        method: "POST",
+        body: form,
+      });
+
+      const data: any = await safeJson(res);
+
+      if (!data?.ok) {
+        setMsg(data?.error || "Could not upload placeholder photo.");
+        return;
+      }
+
+      updatePlaceholder(index, {
+        imagePath: data.imagePath || null,
+        imageUrl: data.signedImageUrl || null,
+      });
+
+      setMsg("✅ Placeholder photo uploaded.");
+    } catch {
+      setMsg("Could not upload placeholder photo.");
+    } finally {
+      setPlaceholderUploadBusyId("");
+    }
   }
 
   function savePlaceholderSettings() {
@@ -2784,7 +2827,7 @@ onChange={(v) => patchMessageRules({ filterBlockMessage: v })}
                 </div>
               </div>
               <div className="admActionRow" style={{ marginTop: 10 }}>
-                <Pill>{p.hasPhoto ? "Photo tier" : "Text only"}</Pill>
+                <Pill>{p.hasImage ? "Photo tier" : "Text only"}</Pill>
                 <Pill>Weight {p.weight}</Pill>
                 <Pill variant={p.enabled ? "live" : "warn"}>{p.enabled ? "Live" : "Coming soon"}</Pill>
               </div>
@@ -2810,7 +2853,69 @@ onChange={(v) => patchMessageRules({ filterBlockMessage: v })}
               <Input value={p.title} onChange={(e) => updatePlaceholder(idx, { title: e.target.value })} />
               <Label style={{ marginTop: 10 }}>Product Label</Label>
               <Input value={p.productTitle || ""} onChange={(e) => updatePlaceholder(idx, { productTitle: e.target.value })} />
-              <Label style={{ marginTop: 10 }}>Message</Label>
+              <Label style={{ marginTop: 10 }}>Photo</Label>
+
+              {p.imageUrl ? (
+                <div
+                  style={{
+                    marginBottom: 10,
+                    borderRadius: 14,
+                    overflow: "hidden",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: "rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <img
+                    src={p.imageUrl}
+                    alt={`Placeholder ${idx + 1}`}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      maxHeight: 240,
+                      objectFit: "cover",
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="admFieldHelp" style={{ marginBottom: 10 }}>
+                  No photo uploaded yet.
+                </div>
+              )}
+
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/heic,image/heif"
+                className="admFileInput"
+                disabled={placeholderUploadBusyId === p.id}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    void uploadPlaceholderPhoto(idx, file);
+                  }
+                  e.currentTarget.value = "";
+                }}
+              />
+
+              <div className="admFieldHelp" style={{ marginTop: 8 }}>
+                Upload uses the same image validation flow as public photo shout-outs.
+              </div>
+
+              {p.imageUrl ? (
+                <div className="admActionRow" style={{ marginTop: 10 }}>
+                  <ActionButton
+                    alt
+                    onClick={() =>
+                      updatePlaceholder(idx, {
+                        imageUrl: null,
+                        imagePath: null,
+                      })
+                    }
+                  >
+                    Remove photo
+                  </ActionButton>
+                </div>
+              ) : null}              
+<Label style={{ marginTop: 10 }}>Message</Label>
               <Textarea rows={4} value={p.body} onChange={(e) => updatePlaceholder(idx, { body: e.target.value })} />
               <Label style={{ marginTop: 10 }}>From</Label>
               <Input value={p.fromName} onChange={(e) => updatePlaceholder(idx, { fromName: e.target.value })} />

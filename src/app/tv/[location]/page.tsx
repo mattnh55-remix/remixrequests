@@ -44,11 +44,11 @@ type PlaceholderMessage = {
   fromName: string;
   messageText?: string;
   imageUrl?: string | null;
+  imagePath?: string | null;
   accent?: "gold" | "cyan" | "pink";
   displayDurationSec?: number;
   productTitle?: string;
 };
-
 type RulesResponse = {
   ok?: boolean;
   rules?: {
@@ -132,6 +132,7 @@ function loadSavedPlaceholders(location: string): PlaceholderMessage[] {
         ),
 
         imageUrl: p?.imageUrl ?? null,
+        imagePath: p?.imagePath ?? null,
 
         accent: (
           p?.accent ??
