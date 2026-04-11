@@ -1027,36 +1027,6 @@ async function refreshSession() {
   } catch {}
 }
 
-    const hasAnyVisitorState =
-      Boolean(identityId) ||
-      Boolean(sessionActive) ||
-      Boolean(verified) ||
-      Boolean(storedIdentityId);
-
-    if ((sessionExpired || sessionChanged) && hasAnyVisitorState) {
-      resetToClaimState(true);
-
-      setPendingAction(null);
-      setPendingActionToast(false);
-      setShowVerify(false);
-      setShowBuy(false);
-      setRedeemCode("");
-
-      try {
-        if (identityId) {
-          localStorage.removeItem(`rr_lastBalance:${location}:${identityId}`);
-        }
-      } catch {}
-
-      setMsg(
-        sessionChanged
-          ? "New session started. Claim your 5 points to begin again."
-          : "Your session expired. Claim your 5 points to begin again."
-      );
-    }
-  } catch {}
-}
-
   async function refreshQueuePreview() {
     try {
       const res = await fetch(`/api/public/queue/${location}`, { cache: "no-store" });
