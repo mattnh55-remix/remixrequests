@@ -1,6 +1,7 @@
+// src/app/tv-queue/[location]/page.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 type QueueItem = {
   id: string;
@@ -27,6 +28,13 @@ type RulesResponse = {
   } | null;
   defaultAlbumArtUrl?: string | null;
 };
+
+const EMPTY_CTA_MESSAGES = [
+  "SCAN THE CODE AT YOUR TABLE",
+  "REQUEST YOUR SONG",
+  "BOOST YOUR FAVORITES",
+  "SEND A SHOUTOUT",
+];
 
 function decorativeSeed(item: QueueItem) {
   const seed = `${item.id}-${item.title}-${item.artist}`;
@@ -59,19 +67,9 @@ export default function TvQueuePortraitPage({
   const [defaultAlbumArtUrl, setDefaultAlbumArtUrl] = useState<string | null>(null);
   const [featuredSongs, setFeaturedSongs] = useState<QueueItem[]>([]);
   const [tvScale, setTvScale] = useState(1);
+  const [ctaIndex, setCtaIndex] = useState(0);
 
   const prevTopId = useRef<string | null>(null);
-
-  const requestUrl = useMemo(
-    () => `https://skateremix.com/request/${location}`,
-    [location]
-  );
-
-  const qrSrc = useMemo(() => {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(
-      requestUrl
-    )}`;
-  }, [requestUrl]);
 
   const nowPlaying = playNow[0] || upNext[0] || null;
   const queueList = upNext.slice(0, 4);
@@ -92,14 +90,12 @@ export default function TvQueuePortraitPage({
   }, []);
 
   useEffect(() => {
-    if (!featuredSongs.length) return;
+    const timer = window.setInterval(() => {
+      setCtaIndex((prev) => (prev + 1) % EMPTY_CTA_MESSAGES.length);
+    }, 5000);
 
-    const t = window.setInterval(() => {
-      setFeaturedSongs((prev) => [...prev].sort(() => Math.random() - 0.5));
-    }, 10000);
-
-    return () => window.clearInterval(t);
-  }, [featuredSongs.length]);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function tickQueue() {
     try {
@@ -129,42 +125,43 @@ export default function TvQueuePortraitPage({
     }
   }
 
-  useEffect(() => {
-    async function loadFeatured() {
-      try {
-        const res = await fetch(`/api/public/featured-songs/${location}`, {
-          cache: "no-store",
-        });
-        const data = await res.json();
+  async function loadFeatured() {
+    try {
+      const res = await fetch(`/api/public/featured-songs/${location}`, {
+        cache: "no-store",
+      });
+      const data = await res.json();
+      const items = Array.isArray(data?.items) ? data.items : [];
 
-        const items = Array.isArray(data?.items) ? data.items : [];
-
-        setFeaturedSongs(
-          items.map((s: any) => ({
-            id: s.id,
-            title: s.title,
-            artist: s.artist,
-            artworkUrl: s.artworkUrl,
-            score: 0,
-            upvotes: 0,
-            downvotes: 0,
-          }))
-        );
-      } catch {
-        setFeaturedSongs([]);
-      }
+      setFeaturedSongs(
+        items.slice(0, 2).map((s: any) => ({
+          id: String(s.id),
+          title: String(s.title || ""),
+          artist: String(s.artist || ""),
+          artworkUrl: s.artworkUrl || undefined,
+          score: 0,
+          upvotes: 0,
+          downvotes: 0,
+        }))
+      );
+    } catch {
+      setFeaturedSongs([]);
     }
+  }
 
+  useEffect(() => {
     void tickQueue();
     void loadFeatured();
     void loadRules();
 
-    const q = window.setInterval(() => void tickQueue(), 3000);
-    const r = window.setInterval(() => void loadRules(), 15000);
+    const queueTimer = window.setInterval(() => void tickQueue(), 3000);
+    const featuredTimer = window.setInterval(() => void loadFeatured(), 10000);
+    const rulesTimer = window.setInterval(() => void loadRules(), 15000);
 
     return () => {
-      window.clearInterval(q);
-      window.clearInterval(r);
+      window.clearInterval(queueTimer);
+      window.clearInterval(featuredTimer);
+      window.clearInterval(rulesTimer);
     };
   }, [location]);
 
@@ -174,9 +171,9 @@ export default function TvQueuePortraitPage({
 
     if (prevTopId.current && prevTopId.current !== topId) {
       setBoostFlash(true);
-      const t = window.setTimeout(() => setBoostFlash(false), 900);
+      const timer = window.setTimeout(() => setBoostFlash(false), 900);
       prevTopId.current = topId;
-      return () => window.clearTimeout(t);
+      return () => window.clearTimeout(timer);
     }
 
     prevTopId.current = topId;
@@ -223,8 +220,8 @@ export default function TvQueuePortraitPage({
           showA={showA}
           artA={artA}
           artB={artB}
-          qrSrc={qrSrc}
           defaultAlbumArtUrl={defaultAlbumArtUrl}
+          ctaMessage={EMPTY_CTA_MESSAGES[ctaIndex]}
         />
       </div>
 
@@ -342,6 +339,26 @@ export default function TvQueuePortraitPage({
           100% { transform: translateX(180%) skewX(-18deg); opacity: 0; }
         }
 
+        @keyframes remixTvCtaPulse {
+          0%, 100% {
+            opacity: 0.78;
+            text-shadow:
+              0 0 0 rgba(0,247,255,0),
+              0 0 0 rgba(255,57,212,0);
+          }
+          50% {
+            opacity: 1;
+            text-shadow:
+              0 0 calc(10px * var(--tvScale)) rgba(0,247,255,0.32),
+              0 0 calc(18px * var(--tvScale)) rgba(255,57,212,0.18);
+          }
+        }
+
+        @keyframes remixTvHintGlow {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 0.95; }
+        }
+
         .remixTvFlash::before {
           content: "";
           position: fixed;
@@ -411,7 +428,7 @@ export default function TvQueuePortraitPage({
           overflow: hidden;
           grid-template-columns: calc(144px * var(--tvScale)) 1fr;
           gap: calc(18px * var(--tvScale));
-          min-height: calc(150px * var(--tvScale));
+          min-height: calc(158px * var(--tvScale));
           padding: calc(16px * var(--tvScale));
         }
 
@@ -423,6 +440,12 @@ export default function TvQueuePortraitPage({
           transform: translateX(-120%) skewX(-18deg);
           animation: remixTvShimmer 8.5s ease-in-out infinite;
           pointer-events: none;
+        }
+
+        .remixTvTopCard--empty {
+          box-shadow:
+            0 0 calc(16px * var(--tvScale)) rgba(0,247,255,0.14),
+            0 0 calc(26px * var(--tvScale)) rgba(255,57,212,0.08);
         }
 
         .remixTvTopCardBoosted {
@@ -483,6 +506,10 @@ export default function TvQueuePortraitPage({
           font-size: clamp(28px, calc(38px * var(--tvScale)), 50px);
         }
 
+        .remixTvTopSong--empty {
+          font-size: clamp(30px, calc(42px * var(--tvScale)), 54px);
+        }
+
         .remixTvTopArtist {
           color: var(--muted);
           white-space: nowrap;
@@ -490,6 +517,11 @@ export default function TvQueuePortraitPage({
           text-overflow: ellipsis;
           margin-top: calc(8px * var(--tvScale));
           font-size: clamp(18px, calc(22px * var(--tvScale)), 30px);
+        }
+
+        .remixTvTopArtist--empty {
+          color: rgba(255,255,255,0.94);
+          animation: remixTvCtaPulse 2.2s ease-in-out infinite;
         }
 
         .remixTvTopMetaRow {
@@ -519,6 +551,11 @@ export default function TvQueuePortraitPage({
         .remixTvTopBadge--boosted {
           background: linear-gradient(90deg, rgba(255,57,212,0.24), rgba(0,247,255,0.16));
           box-shadow: var(--glowB);
+        }
+
+        .remixTvTopBadge--empty {
+          background: linear-gradient(90deg, rgba(0,247,255,0.18), rgba(255,57,212,0.14));
+          animation: remixTvHintGlow 2.8s ease-in-out infinite;
         }
 
         .remixTvTop10Block {
@@ -551,8 +588,9 @@ export default function TvQueuePortraitPage({
         }
 
         .remixTvTop10Block[data-featured="true"] .remixTvTop10List {
-          gap: calc(18px * var(--tvScale));
+          gap: calc(22px * var(--tvScale));
           justify-items: center;
+          padding-top: calc(4px * var(--tvScale));
         }
 
         .remixTvTop10Row {
@@ -652,13 +690,13 @@ export default function TvQueuePortraitPage({
         }
 
         .remixTvFeaturedCard {
-          width: min(calc(360px * var(--tvScale)), 88%);
+          width: min(calc(420px * var(--tvScale)), 92%);
           display: grid;
           justify-items: center;
           text-align: center;
-          gap: calc(10px * var(--tvScale));
-          padding: calc(18px * var(--tvScale)) calc(16px * var(--tvScale)) calc(16px * var(--tvScale));
-          border-radius: calc(24px * var(--tvScale));
+          gap: calc(12px * var(--tvScale));
+          padding: calc(20px * var(--tvScale)) calc(18px * var(--tvScale)) calc(18px * var(--tvScale));
+          border-radius: calc(26px * var(--tvScale));
           border: 1px solid rgba(255,255,255,0.12);
           background:
             linear-gradient(180deg, rgba(28,16,48,0.85), rgba(16,18,45,0.78), rgba(40,13,54,0.7));
@@ -671,7 +709,6 @@ export default function TvQueuePortraitPage({
         }
 
         .remixTvFeaturedCard:nth-child(2) { animation-delay: -1.5s; }
-        .remixTvFeaturedCard:nth-child(3) { animation-delay: -3s; }
 
         .remixTvFeaturedCard::after {
           content: "";
@@ -684,8 +721,8 @@ export default function TvQueuePortraitPage({
         }
 
         .remixTvFeaturedArtWrap {
-          width: calc(180px * var(--tvScale));
-          height: calc(180px * var(--tvScale));
+          width: calc(190px * var(--tvScale));
+          height: calc(190px * var(--tvScale));
           border-radius: calc(22px * var(--tvScale));
           overflow: hidden;
           position: relative;
@@ -707,7 +744,7 @@ export default function TvQueuePortraitPage({
         }
 
         .remixTvFeaturedTitle {
-          font-size: clamp(20px, calc(26px * var(--tvScale)), 32px);
+          font-size: clamp(22px, calc(28px * var(--tvScale)), 34px);
           font-weight: 1000;
           line-height: 1.1;
           text-shadow: 0 0 10px rgba(255,255,255,0.12);
@@ -718,7 +755,7 @@ export default function TvQueuePortraitPage({
         }
 
         .remixTvFeaturedArtist {
-          font-size: clamp(15px, calc(20px * var(--tvScale)), 24px);
+          font-size: clamp(16px, calc(20px * var(--tvScale)), 24px);
           color: var(--muted);
           max-width: 100%;
           white-space: nowrap;
@@ -741,53 +778,18 @@ export default function TvQueuePortraitPage({
           color: var(--muted);
         }
 
-        .remixTvBottomCta {
+        .remixTvBottomHint {
           border-top: 1px solid rgba(255,255,255,0.12);
           margin-top: 2px;
-          display: grid;
-          align-items: center;
           padding-top: calc(14px * var(--tvScale));
-          grid-template-columns: 1fr calc(132px * var(--tvScale));
-          gap: calc(18px * var(--tvScale));
-        }
-
-        .remixTvBottomText {
-          line-height: 1.06;
+          text-align: center;
           font-weight: 1000;
           font-style: italic;
           text-transform: uppercase;
-          letter-spacing: 0.35px;
+          letter-spacing: 1px;
           font-size: clamp(15px, calc(19px * var(--tvScale)), 26px);
-          text-align: left;
-        }
-
-        .remixTvBottomTextLineStrong {
-          display: block;
-          color: #fff;
-        }
-
-        .remixTvBottomTextLineMuted {
-          display: block;
-          color: rgba(255,255,255,0.7);
-          margin-top: calc(5px * var(--tvScale));
-        }
-
-        .remixTvBottomQrWrap {
-          justify-self: end;
-          width: calc(132px * var(--tvScale));
-          height: calc(132px * var(--tvScale));
-          padding: calc(5px * var(--tvScale));
-          border-radius: calc(16px * var(--tvScale));
-          border: 1px solid rgba(255,255,255,0.14);
-          background: rgba(255,255,255,0.04);
-        }
-
-        .remixTvBottomQr {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          display: block;
-          border-radius: calc(12px * var(--tvScale));
+          color: rgba(255,255,255,0.82);
+          animation: remixTvHintGlow 2.8s ease-in-out infinite;
         }
 
         .neonEQ {
@@ -828,8 +830,8 @@ function PortraitQueueOnlyPanel({
   showA,
   artA,
   artB,
-  qrSrc,
   defaultAlbumArtUrl,
+  ctaMessage,
 }: {
   nowPlaying: QueueItem | null;
   queueList: QueueItem[];
@@ -838,8 +840,8 @@ function PortraitQueueOnlyPanel({
   showA: boolean;
   artA: string | null;
   artB: string | null;
-  qrSrc: string;
   defaultAlbumArtUrl?: string | null;
+  ctaMessage: string;
 }) {
   return (
     <section className="neonPanel remixTvQueueOnlyPanel">
@@ -854,6 +856,7 @@ function PortraitQueueOnlyPanel({
         artA={artA}
         artB={artB}
         defaultAlbumArtUrl={defaultAlbumArtUrl}
+        ctaMessage={ctaMessage}
       >
         <div className="remixTvTopMetaRow">
           <div className="neonEQ" aria-hidden="true" style={{ marginTop: 12 }}>
@@ -865,6 +868,9 @@ function PortraitQueueOnlyPanel({
           {topIsBoosted ? (
             <div className="remixTvTopBadge remixTvTopBadge--boosted">Boosted</div>
           ) : null}
+          {!nowPlaying ? (
+            <div className="remixTvTopBadge remixTvTopBadge--empty">Get the vibe started</div>
+          ) : null}
         </div>
       </TopCard>
 
@@ -874,7 +880,7 @@ function PortraitQueueOnlyPanel({
         defaultAlbumArtUrl={defaultAlbumArtUrl}
       />
 
-      <CtaBlock qrSrc={qrSrc} />
+      <div className="remixTvBottomHint">Scan the code at your table to request songs</div>
     </section>
   );
 }
@@ -887,6 +893,7 @@ function TopCard({
   artB,
   children,
   defaultAlbumArtUrl,
+  ctaMessage,
 }: {
   nowPlaying: QueueItem | null;
   topIsBoosted: boolean;
@@ -895,9 +902,16 @@ function TopCard({
   artB: string | null;
   children?: ReactNode;
   defaultAlbumArtUrl?: string | null;
+  ctaMessage: string;
 }) {
+  const isEmpty = !nowPlaying;
+
   return (
-    <div className={`remixTvTopCard ${topIsBoosted ? "remixTvTopCardBoosted" : ""}`}>
+    <div
+      className={`remixTvTopCard ${topIsBoosted ? "remixTvTopCardBoosted" : ""} ${
+        isEmpty ? "remixTvTopCard--empty" : ""
+      }`}
+    >
       <div className="remixTvTopArtWrap">
         <div className="remixTvTopArtFrame">
           <div className="remixTvTopArtGlow" />
@@ -911,10 +925,14 @@ function TopCard({
       </div>
 
       <div className="remixTvTopMeta">
-        <div className="remixTvTopSong">{nowPlaying?.title || "No requests yet"}</div>
-        <div className="remixTvTopArtist">
-          {nowPlaying?.artist || "Scan the QR to get started"}
+        <div className={`remixTvTopSong ${isEmpty ? "remixTvTopSong--empty" : ""}`}>
+          {nowPlaying?.title || "You Control The Music"}
         </div>
+
+        <div className={`remixTvTopArtist ${isEmpty ? "remixTvTopArtist--empty" : ""}`}>
+          {nowPlaying?.artist || ctaMessage}
+        </div>
+
         {children}
       </div>
     </div>
@@ -931,7 +949,7 @@ function Top10Block({
   defaultAlbumArtUrl?: string | null;
 }) {
   const isEmpty = queueList.length === 0;
-  const list = isEmpty ? featuredSongs : queueList;
+  const list = isEmpty ? featuredSongs.slice(0, 2) : queueList;
   const title = isEmpty ? "Featured at Remix" : "Top 10";
 
   return (
@@ -945,9 +963,7 @@ function Top10Block({
 
       <div className="remixTvTop10List">
         {list.length === 0 ? (
-          <div className="remixTvEmptyState">
-            Loading vibe...
-          </div>
+          <div className="remixTvEmptyState">Loading vibe...</div>
         ) : (
           list.map((item, index) => {
             const upvotes = Number(item.upvotes || 0);
@@ -1000,26 +1016,6 @@ function Top10Block({
             );
           })
         )}
-      </div>
-    </div>
-  );
-}
-
-function CtaBlock({ qrSrc }: { qrSrc: string }) {
-  return (
-    <div className="remixTvBottomCta">
-      <div className="remixTvBottomText">
-        <span className="remixTvBottomTextLineStrong">Scan to request songs</span>
-        <span className="remixTvBottomTextLineMuted">or send a shout out from your phone</span>
-      </div>
-
-      <div className="remixTvBottomQrWrap">
-        <img
-          src={qrSrc}
-          alt="QR code to request songs"
-          className="remixTvBottomQr"
-          referrerPolicy="no-referrer"
-        />
       </div>
     </div>
   );
