@@ -787,9 +787,10 @@ export default function PublicGunmetalTheme() {
         min-width: 52px;
       }
 
-      .rrDrawer--buy {
-        max-width: 560px;
-      }
+.rrDrawer--buy {
+  width: min(560px, calc(100vw - 12px));
+  max-height: min(88dvh, calc(100vh - 12px - env(safe-area-inset-top)));
+}
 
       .rrDrawerHead--buy {
         border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -1027,38 +1028,43 @@ export default function PublicGunmetalTheme() {
       }
 
 
-      .rrOverlay {
-        position: fixed;
-        inset: 0;
-        z-index: 90;
-        display: flex;
-        align-items: flex-end;
-        justify-content: center;
-        background:
-          radial-gradient(circle at 50% 18%, rgba(90, 146, 255, 0.14), transparent 34%),
-          rgba(3, 6, 12, 0.62);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        animation: rrOverlayFadeIn 180ms ease;
-      }
+.rrOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-top: max(12px, env(safe-area-inset-top));
+  background:
+    radial-gradient(circle at 50% 18%, rgba(90, 146, 255, 0.14), transparent 34%),
+    rgba(3, 6, 12, 0.62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: rrOverlayFadeIn 180ms ease;
+}
 
-      .rrDrawer {
-        width: min(560px, 100vw);
-        margin: 0 auto;
-        border-top-left-radius: 22px;
-        border-top-right-radius: 22px;
-        border: 1px solid rgba(130, 176, 255, 0.18);
-        background:
-          radial-gradient(circle at top, rgba(83, 134, 230, 0.16), transparent 32%),
-          linear-gradient(180deg, rgba(20, 30, 50, 0.985) 0%, rgba(9, 14, 24, 0.995) 100%);
-        box-shadow:
-          0 -18px 48px rgba(0, 0, 0, 0.48),
-          0 0 0 1px rgba(77, 143, 228, 0.08),
-          inset 0 1px 0 rgba(255, 255, 255, 0.08);
-        overflow: hidden;
-        animation: rrDrawerRiseIn 280ms cubic-bezier(.18,.9,.28,1);
-        position: relative;
-      }
+.rrDrawer {
+  width: min(560px, calc(100vw - 12px));
+  max-height: min(88dvh, calc(100vh - 12px - env(safe-area-inset-top)));
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top-left-radius: 22px;
+  border-top-right-radius: 22px;
+  border: 1px solid rgba(130, 176, 255, 0.18);
+  background:
+    radial-gradient(circle at top, rgba(83, 134, 230, 0.16), transparent 32%),
+    linear-gradient(180deg, rgba(20, 30, 50, 0.985) 0%, rgba(9, 14, 24, 0.995) 100%);
+  box-shadow:
+    0 -18px 48px rgba(0, 0, 0, 0.48),
+    0 0 0 1px rgba(77, 143, 228, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  animation: rrDrawerRiseIn 280ms cubic-bezier(.18,.9,.28,1);
+  position: relative;
+}
 
       .rrDrawer::before {
         content: "";
@@ -1113,13 +1119,15 @@ export default function PublicGunmetalTheme() {
         max-width: 420px;
       }
 
-      .rrDrawerBody {
-        position: relative;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-        padding: 16px;
-        padding-bottom: calc(126px + env(safe-area-inset-bottom));
-      }
+.rrDrawerBody {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 16px 16px;
+  padding-bottom: calc(126px + env(safe-area-inset-bottom));
+}
 
       .rrCloseBtn {
         min-width: 82px;
