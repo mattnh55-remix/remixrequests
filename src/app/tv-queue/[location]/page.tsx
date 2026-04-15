@@ -332,6 +332,7 @@ export default function TvQueuePortraitBillboardPage({
           line-height: 0.94;
           letter-spacing: 1px;
           text-transform: uppercase;
+          transform: translateY(-8px);
           color: #f8f4ea;
           text-shadow:
             4px 4px 0 rgba(0, 0, 0, 0.22),
