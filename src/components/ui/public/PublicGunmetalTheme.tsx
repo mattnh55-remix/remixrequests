@@ -787,6 +787,201 @@ export default function PublicGunmetalTheme() {
         min-width: 52px;
       }
 
+      .rrDrawer--buy {
+        max-width: 560px;
+      }
+
+      .rrDrawerHead--buy {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .rrBuyLead {
+        margin-bottom: 12px;
+        padding: 14px 14px 13px;
+        border-radius: 16px;
+        border: 1px solid rgba(134, 178, 247, 0.16);
+        background:
+          radial-gradient(circle at 12% 0%, rgba(92, 146, 245, 0.16), transparent 36%),
+          linear-gradient(180deg, rgba(23, 36, 58, 0.96), rgba(12, 20, 33, 0.98));
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.06),
+          0 12px 26px rgba(0,0,0,0.18);
+      }
+
+      .rrBuyLeadTitle {
+        font-size: 12px;
+        font-weight: 1000;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #e8f2ff;
+      }
+
+      .rrBuyLeadText {
+        margin-top: 6px;
+        font-size: 13px;
+        color: #c8d8f0;
+        line-height: 1.42;
+      }
+
+      .rrBuyPackGrid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .rrBuyPackCard {
+        position: relative;
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid rgba(134, 171, 232, 0.14);
+        background:
+          radial-gradient(circle at 14% 0%, rgba(86, 133, 224, 0.10), transparent 34%),
+          linear-gradient(180deg, rgba(22, 34, 54, 0.98) 0%, rgba(11, 18, 30, 0.995) 100%);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.05),
+          0 14px 28px rgba(0, 0, 0, 0.22);
+        overflow: hidden;
+      }
+
+      .rrBuyPackCard::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(120deg, transparent 0%, transparent 40%, rgba(255,255,255,0.04) 50%, transparent 60%, transparent 100%);
+        background-size: 220% 100%;
+        animation: rrDrawerSheen 7s linear infinite;
+        opacity: 0.45;
+      }
+
+      .rrBuyPackCard--featured {
+        border-color: rgba(99, 163, 255, 0.36);
+        background:
+          radial-gradient(circle at 12% 0%, rgba(103, 165, 255, 0.18), transparent 34%),
+          radial-gradient(circle at 92% 100%, rgba(126, 76, 255, 0.14), transparent 32%),
+          linear-gradient(180deg, rgba(28, 42, 68, 0.99) 0%, rgba(12, 20, 34, 1) 100%);
+        box-shadow:
+          0 0 0 1px rgba(77, 143, 228, 0.14),
+          inset 0 1px 0 rgba(255,255,255,0.08),
+          0 18px 34px rgba(0, 0, 0, 0.28);
+      }
+
+      .rrBuyPackTop {
+        display: grid;
+        gap: 6px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .rrBuyPackTitleRow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .rrBuyPackTitle {
+        font-size: 20px;
+        font-weight: 1000;
+        line-height: 1;
+        letter-spacing: -0.04em;
+        color: #ffffff;
+      }
+
+      .rrBuyPackSubtitle {
+        font-size: 12px;
+        color: #c7d7ef;
+        line-height: 1.42;
+      }
+
+      .rrBuyPackValueRow {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        position: relative;
+        z-index: 1;
+      }
+
+      .rrBuyPackPoints {
+        font-size: 14px;
+        font-weight: 1000;
+        color: #edf4ff;
+      }
+
+      .rrBuyPackUsage {
+        margin-top: 3px;
+        font-size: 11px;
+        color: #95a7c2;
+        line-height: 1.35;
+      }
+
+      .rrBuyPackPrice {
+        font-size: 28px;
+        font-weight: 1000;
+        line-height: 0.95;
+        letter-spacing: -0.05em;
+        color: #ffffff;
+        text-shadow: 0 1px 0 rgba(0,0,0,0.2);
+      }
+
+      .rrBuyPackBadge--featured {
+        border-color: rgba(110, 176, 255, 0.34);
+        background: linear-gradient(180deg, rgba(77, 143, 228, 0.24), rgba(77, 143, 228, 0.12));
+        color: #eef6ff;
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.08),
+          0 0 0 1px rgba(77, 143, 228, 0.10);
+      }
+
+      .rrBtn--featuredPack {
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.24),
+          0 14px 26px rgba(37, 99, 235, 0.36),
+          0 0 0 1px rgba(77, 143, 228, 0.10);
+      }
+
+      @media (max-width: 520px) {
+        .rrBuyLead {
+          padding: 13px 13px 12px;
+          border-radius: 15px;
+        }
+
+        .rrBuyPackGrid {
+          gap: 10px;
+        }
+
+        .rrBuyPackCard {
+          padding: 12px;
+          gap: 8px;
+          border-radius: 16px;
+        }
+
+        .rrBuyPackTitle {
+          font-size: 18px;
+        }
+
+        .rrBuyPackPrice {
+          font-size: 24px;
+        }
+
+        .rrBuyLeadTitle {
+          font-size: 11px;
+        }
+
+        .rrBuyLeadText,
+        .rrBuyPackSubtitle {
+          font-size: 11px;
+        }
+
+        .rrBuyPackPoints {
+          font-size: 13px;
+        }
+      }
+
 
       .rrOverlay {
         position: fixed;

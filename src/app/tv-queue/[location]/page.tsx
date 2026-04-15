@@ -328,15 +328,15 @@ export default function TvQueuePortraitBillboardPage({
           white-space: nowrap;
           text-align: center;
           font-family: var(--font-barlow-condensed), sans-serif;
-          font-size: clamp(46px, 4vw, 86px);
+          font-size: clamp(42px, 3.7vw, 78px);
           line-height: 0.94;
           letter-spacing: 1px;
           text-transform: uppercase;
           color: #f8f4ea;
           text-shadow:
-            6px 6px 0 rgba(0, 0, 0, 0.22),
+            4px 4px 0 rgba(0, 0, 0, 0.22),
             0 2px 0 rgba(0, 0, 0, 0.16);
-          font-weight: 800;
+          font-weight: 700;
         }
 
         .tvFooterText {
@@ -345,15 +345,15 @@ export default function TvQueuePortraitBillboardPage({
           white-space: nowrap;
           text-align: center;
           font-family: var(--font-barlow-condensed), sans-serif;
-          font-size: clamp(30px, 2.6vw, 54px);
+          font-size: clamp(26px, 2.3vw, 48px);
           line-height: 0.94;
           letter-spacing: 1px;
           text-transform: uppercase;
           color: #f8f4ea;
           text-shadow:
-            6px 6px 0 rgba(0, 0, 0, 0.22),
+            4px 4px 0 rgba(0, 0, 0, 0.22),
             0 2px 0 rgba(0, 0, 0, 0.16);
-          font-weight: 800;
+          font-weight: 700;
         }
 
         .tvScene {
@@ -375,7 +375,7 @@ export default function TvQueuePortraitBillboardPage({
         }
 
         .tvCardShell {
-          width: min(65vw, 338px);
+          width: min(61vw, 320px);
           display: grid;
           justify-items: center;
           align-content: start;
@@ -420,7 +420,7 @@ export default function TvQueuePortraitBillboardPage({
           width: 100%;
           text-align: center;
           font-weight: 700;
-          font-size: clamp(36px, 3.8vw, 54px);
+          font-size: clamp(34px, 3.5vw, 50px);
           line-height: 0.95;
           letter-spacing: 0.3px;
           text-transform: uppercase;
@@ -434,7 +434,7 @@ export default function TvQueuePortraitBillboardPage({
           width: 100%;
           text-align: center;
           font-weight: 600;
-          font-size: clamp(20px, 2.3vw, 29px);
+          font-size: clamp(18px, 2vw, 26px);
           line-height: 1;
           letter-spacing: 0.2px;
           text-transform: uppercase;
@@ -486,7 +486,7 @@ export default function TvQueuePortraitBillboardPage({
         }
 
         .tvRankBadgeText {
-          font-weight: 800;
+          font-weight: 700;
           font-size: 44px;
           line-height: 1;
           color: #f8f4ea;
@@ -544,7 +544,7 @@ export default function TvQueuePortraitBillboardPage({
           }
 
           .tvCardShell {
-            width: min(61vw, 298px);
+            width: min(57vw, 282px);
             gap: 8px;
           }
 
