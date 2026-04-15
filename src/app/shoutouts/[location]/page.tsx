@@ -1356,13 +1356,13 @@ function VerifyDrawer({
   const [msg, setMsg] = useState("");
   const [emailOptIn, setEmailOptIn] = useState(true);
   const [smsOptIn, setSmsOptIn] = useState(true);
-  const [redeemCode, setRedeemCode] = useState("");
 
   useEffect(() => {
     if (!open) {
+      setPhone("");
       setCode("");
-      setMsg("");
       setStep("collect");
+      setMsg("");
     }
   }, [open]);
 
@@ -1371,17 +1371,30 @@ function VerifyDrawer({
   async function sendCode() {
     setBusy(true);
     setMsg("");
+
     try {
       const res = await fetch(`/api/public/auth/start`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, email, phone, emailOptIn, smsOptIn }),
+        body: JSON.stringify({
+          location,
+          email,
+          phone,
+          emailOptIn,
+          smsOptIn,
+        }),
       });
+
       const data = await res.json();
-      if (data.ok) setStep("code");
-      else setMsg(data.error || "Error");
+      if (!data.ok) {
+        setMsg(data.error || "Could not send code.");
+        return;
+      }
+
+      setStep("code");
+      setMsg("Code sent.");
     } catch {
-      setMsg("Error");
+      setMsg("Could not send code.");
     } finally {
       setBusy(false);
     }
@@ -1390,97 +1403,204 @@ function VerifyDrawer({
   async function confirmCode() {
     setBusy(true);
     setMsg("");
+
     try {
       const res = await fetch(`/api/public/auth/verify`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ location, email, code, emailOptIn, smsOptIn }),
+        body: JSON.stringify({
+          location,
+          email,
+          phone,
+          code,
+          emailOptIn,
+          smsOptIn,
+        }),
       });
+
       const data = await res.json();
-      if (data.ok) {
-        localStorage.setItem("rr_identityId", data.identityId);
-        if (email.trim()) localStorage.setItem("rr_email", email.trim());
-        onVerified?.({
-          balance: data.balance,
-          note: data.note,
-          welcomeGranted: data.welcomeGranted,
-        });
-      } else {
-        setMsg(data.error || "Invalid code");
+      if (!data.ok) {
+        setMsg(data.error || "Code verification failed.");
+        return;
       }
+
+      const nextIdentityId = String(data.identityId || data.identity?.id || "").trim();
+      const nextEmail = String(data.email || email || "").trim();
+
+      try {
+        if (nextIdentityId) localStorage.setItem("rr_identityId", nextIdentityId);
+        if (location) localStorage.setItem("rr_location", String(location));
+        if (nextEmail) localStorage.setItem("rr_email", nextEmail);
+      } catch {}
+
+      onVerified?.({
+        balance: typeof data.balance === "number" ? data.balance : undefined,
+        note: data.note,
+        welcomeGranted: Boolean(data.welcomeGranted),
+      });
+
+      onClose();
     } catch {
-      setMsg("Error");
+      setMsg("Code verification failed.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="rrOverlay" style={{ alignItems: "center" }}>
-      <div className="rrDrawer" style={{ borderRadius: 16, width: "min(560px, calc(100vw - 12px))" }}>
+    <div className="rrOverlay rrOverlay--mobile">
+      <div className="rrDrawer rrDrawer--mobile">
         <div className="rrDrawerHead">
           <div>
-            <div className="rrDrawerTitle">Claim Intro Points</div>
-            <div className="rrDrawerSub">Verify once to unlock points, redemptions, and faster sending.</div>
+            <div className="rrDrawerTitle">
+              {step === "code" ? "Enter SMS Verification Code" : "Get Your Shout-Out Live"}
+            </div>
+            <div className="rrDrawerSub">
+              {step === "code"
+                ? "Enter the code we just texted you to finish signing in."
+                : "Quick sign-in unlocks shout-outs, requests, boosts, and bonus point promos."}
+            </div>
           </div>
-          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>Close</button>
+
+          <button
+            className="rrBtnGhost rrCloseBtn"
+            onClick={onClose}
+            style={{
+              minWidth: 44,
+              width: 44,
+              height: 44,
+              padding: 0,
+              fontSize: 24,
+              lineHeight: 1,
+            }}
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
 
         <div className="rrDrawerBody">
           <div className="rrStack">
-            <input className="rrInput" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-            <input className="rrInput" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" />
-
-            <label className="rrCheckRow">
-              <input type="checkbox" checked={emailOptIn} onChange={(e) => setEmailOptIn(e.target.checked)} />
-              <span>Yes — email deals & updates <span className="rrHelper">(required for points)</span></span>
-            </label>
-
-            <label className="rrCheckRow">
-              <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} />
-              <span>Yes — text deals & updates <span className="rrHelper">(recommended)</span></span>
-            </label>
-
-            <div className="rrDivider" />
-
-            <div className="rrStack">
-              <div className="rrFieldLabel">Have a redemption code?</div>
-              <div className="rrInlineForm">
+            {step === "collect" ? (
+              <>
                 <input
                   className="rrInput"
-                  placeholder="Code"
-                  value={redeemCode}
-                  onChange={(e) => setRedeemCode(e.target.value)}
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
-                <button
-                  className="rrBtn"
-                  disabled={redeemBusy}
-                  onClick={() => onRedeem?.(redeemCode)}
-                >
-                  {redeemBusy ? "..." : "Apply"}
+
+                <input
+                  className="rrInput"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="Mobile number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+
+                <label className="rrCheckRow">
+                  <input
+                    type="checkbox"
+                    checked={emailOptIn}
+                    onChange={(e) => setEmailOptIn(e.target.checked)}
+                  />
+                  <span>Email me bonus offers, points, and event updates</span>
+                </label>
+
+                <label className="rrCheckRow">
+                  <input
+                    type="checkbox"
+                    checked={smsOptIn}
+                    onChange={(e) => setSmsOptIn(e.target.checked)}
+                  />
+                  <span>Text me verification codes and occasional promos</span>
+                </label>
+
+                <button className="rrBtn" disabled={busy} onClick={sendCode}>
+                  {busy ? "Sending code..." : "Start Sending Shout-Outs"}
                 </button>
-              </div>
-            </div>
 
-            <div className="rrHelper">We’ll text a one-time code. Standard messaging rates may apply.</div>
+                <div className="rrHelper">
+                  This only takes a few seconds, then you’re ready to send.
+                </div>
 
-            {step === "code" ? (
-              <input
-                className="rrInput"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="Enter 6-digit code"
-              />
-            ) : null}
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: "16px 14px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(90, 146, 255, 0.28)",
+                    background: "rgba(77, 143, 228, 0.06)",
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 1000,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: "#dbe8ff",
+                    }}
+                  >
+                    Have a promo or point code?
+                  </div>
 
-            <div className="rrActionStack">
-              <button className="rrBtn rrBtn--full" onClick={step === "collect" ? sendCode : confirmCode}>
-                {busy ? "Working..." : step === "collect" ? "Send Code" : "Verify & Claim"}
-              </button>
-              <button className="rrBtnGhost rrBtn--full" onClick={onClose}>Close</button>
-            </div>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: 14,
+                      lineHeight: 1.45,
+                      color: "#c8d7ef",
+                    }}
+                  >
+                    Enter the code
+                    <br />
+                    after signing in!
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <input
+                  className="rrInput"
+                  placeholder="Enter verification code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
 
-            {msg ? <div className="rrMessage">{msg}</div> : null}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    gap: 10,
+                    marginTop: 4,
+                  }}
+                >
+                  <button
+                    className="rrBtnGhost"
+                    disabled={busy}
+                    onClick={() => setStep("collect")}
+                    style={{ width: 100, minWidth: 100 }}
+                  >
+                    Back
+                  </button>
+
+                  <button
+                    className="rrBtn"
+                    disabled={busy}
+                    onClick={confirmCode}
+                    style={{ width: 100, minWidth: 100 }}
+                  >
+                    {busy ? "Working..." : "Verify"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {msg ? <div className="rrVerifyMsg">{msg}</div> : null}
           </div>
         </div>
       </div>
@@ -1489,52 +1609,68 @@ function VerifyDrawer({
 }
 
 function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, onBuy }: BuyDrawerProps) {
+  const [showRedeem, setShowRedeem] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
 
   if (!open) return null;
 
   return (
-    <div className="rrOverlay">
-      <div className="rrDrawer rrDrawer--buy">
+    <div className="rrOverlay" onClick={onClose}>
+      <div className="rrDrawer rrDrawer--buy" onClick={(e) => e.stopPropagation()}>
         <div className="rrDrawerHead rrDrawerHead--buy">
           <div>
-            <div className="rrDrawerTitle">Get More Points</div>
-            <div className="rrDrawerSub">More points means more control, more speed, and more attention on screen.</div>
+            <div className="rrDrawerTitle">Get Points to Go Live</div>
+            <div className="rrDrawerSub">
+              More points means more messages, more visibility, and more fun on screen.
+            </div>
           </div>
-          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>Close</button>
+          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
+            Close
+          </button>
         </div>
 
         <div className="rrDrawerBody">
           <div className="rrBuyLead">
-            <div className="rrBuyLeadTitle">Make your message stand out</div>
+            <div className="rrBuyLeadTitle">Make your message stand out.</div>
             <div className="rrBuyLeadText">
-              Load up once, then use points for shout-outs without stopping to check out every time.
+              Load up once, then use points for shout-outs, requests, and boosts without stopping every time.
             </div>
           </div>
 
           <div className="rrBuyPackGrid">
             {packs.map((p) => (
-              <div key={p.id} className={`rrBuyPackCard ${p.highlight ? "rrBuyPackCard--featured" : ""}`}>
+              <div
+                key={p.id}
+                className={`rrBuyPackCard ${p.highlight ? "rrBuyPackCard--featured" : ""}`}
+              >
                 <div className="rrBuyPackTop">
                   <div className="rrBuyPackTitleRow">
                     <div className="rrBuyPackTitle">{p.title}</div>
                     {p.badge ? (
-                      <span className={`rrStatusPill ${p.highlight ? "rrBuyPackBadge--featured" : ""}`}>{p.badge}</span>
+                      <span className={`rrMetaPill ${p.highlight ? "rrBuyPackBadge--featured" : ""}`}>
+                        {p.badge}
+                      </span>
                     ) : null}
                   </div>
-                  <div className="rrBuyPackSubtitle">{p.subtitle}</div>
                 </div>
 
-                <div className="rrBuyPackValueRow">
-                  <div>
+                <div className="rrBuyPackValueRow rrBuyPackValueRow--compact">
+                  <div className="rrBuyPackLeft">
                     <div className="rrBuyPackPoints">{p.creditsLabel}</div>
-                    <div className="rrBuyPackUsage">Use them for shout-outs, requests, and boosts.</div>
                   </div>
-                  <div className="rrBuyPackPrice">{formatMoney(p.priceCents)}</div>
+
+                  <div className="rrBuyPackRight">
+                    <div className="rrBuyPackPrice rrBuyPackPrice--compact">
+                      {formatMoney(p.priceCents)}
+                    </div>
+                    <div className="rrBuyPackUsage">
+                      About {String(p.creditsLabel).toLowerCase().replace("points", "shout-outs")}
+                    </div>
+                  </div>
                 </div>
 
                 <button
-                  className={`rrBtn rrBtn--full ${p.highlight ? "rrBtn--featuredPack" : ""}`}
+                  className={`rrBtn ${p.highlight ? "rrBtn--featuredPack" : ""}`}
                   onClick={() => {
                     if (p.packageKey) {
                       onBuy(p.packageKey);
@@ -1545,7 +1681,7 @@ function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, 
                     }
                   }}
                 >
-                  {p.cta || "Get Points"}
+                  {p.cta || `Get ${p.creditsLabel}`}
                 </button>
               </div>
             ))}
@@ -1554,25 +1690,33 @@ function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, 
           <div className="rrDivider" />
 
           <div className="rrStack">
-            <div className="rrFieldLabel">Redeem a code</div>
-            <div className="rrInlineForm">
-              <input
-                className="rrInput"
-                placeholder="Code"
-                value={redeemCode}
-                onChange={(e) => setRedeemCode(e.target.value)}
-              />
-              <button
-                className="rrBtn"
-                disabled={redeemBusy}
-                onClick={() => {
-                  onRedeem(redeemCode);
-                  setRedeemCode("");
-                }}
-              >
-                {redeemBusy ? "..." : "Apply"}
+            {!showRedeem ? (
+              <button className="rrBtnGhost" onClick={() => setShowRedeem(true)}>
+                Have a Code?
               </button>
-            </div>
+            ) : (
+              <>
+                <div className="rrDrawerTitle rrDrawerTitle--small">Redeem Code</div>
+                <div className="rrInlineForm">
+                  <input
+                    className="rrInput"
+                    placeholder="Enter redeem code"
+                    value={redeemCode}
+                    onChange={(e) => setRedeemCode(e.target.value)}
+                  />
+                  <button
+                    className="rrBtnGhost"
+                    disabled={redeemBusy}
+                    onClick={() => {
+                      onRedeem(redeemCode);
+                      setRedeemCode("");
+                    }}
+                  >
+                    {redeemBusy ? "Checking..." : "Redeem"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

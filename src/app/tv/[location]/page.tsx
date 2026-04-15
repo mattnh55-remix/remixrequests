@@ -235,9 +235,15 @@ function getTextOnlyVariant(id: string): TextOnlyVariant {
 
 function joinInlineMessage(body: string, fromName: string) {
   const trimmedBody = body.trim();
-  const trimmedFrom = fromName.trim();
-  if (!trimmedFrom) return trimmedBody;
-  return `${trimmedBody} ${trimmedFrom}`;
+  const formattedFrom = formatFromName(fromName);
+  if (!formattedFrom) return trimmedBody;
+  return `${trimmedBody} ${formattedFrom}`;
+}
+function formatFromName(fromName: string) {
+  const trimmed = fromName.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("-")) return trimmed;
+  return `-${trimmed}`;
 }
 
 export default function TvPage({
@@ -1269,7 +1275,7 @@ function PortraitMessageLayout({
         <div className="remixPortraitMessageWrap">
           <div className="remixMessageText remixPortraitMessageText">
             {body}
-            <span className="remixPortraitInlineFrom"> {fromName}</span>
+  <span className="remixPortraitInlineFrom"> {formatFromName(fromName)}</span>
           </div>
         </div>
         <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
@@ -1338,7 +1344,7 @@ function TextOnlyMessageLayout({
           <div className="remixPortraitMessageWrap">
           <div className="remixMessageText remixPortraitMessageText">
             {body}
-            <span className="remixPortraitInlineFrom"> {fromName}</span>
+            <span className="remixPortraitInlineFrom"> {formatFromName(fromName)}</span>
           </div>
         </div>
           <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
