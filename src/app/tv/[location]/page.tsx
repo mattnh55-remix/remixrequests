@@ -80,6 +80,9 @@ type DisplaySlide =
       imageUrl?: string | null;
       accent: "gold" | "cyan" | "pink";
       isFallback?: boolean;
+      displayDurationSec?: number;
+      approvedAt?: string;
+      createdAt?: string;
     };
 
 const DEFAULT_SLIDE_SECONDS = 20;
@@ -199,9 +202,7 @@ function normalizeMessageSlide(
   fallbackDurationSec: number,
   isFallback = false
 ): DisplaySlide {
-  const body = String(
-    source.body ?? source.messageText ?? ""
-  ).trim();
+  const body = String(source.body ?? source.messageText ?? "").trim();
 
   return {
     id: String(source.id || `slide-${Math.random().toString(36).slice(2)}`),
@@ -215,6 +216,12 @@ function normalizeMessageSlide(
       source.displayDurationSec,
       fallbackDurationSec
     ),
+    displayDurationSec: safeSeconds(
+      source.displayDurationSec,
+      fallbackDurationSec
+    ),
+    approvedAt: "approvedAt" in source ? source.approvedAt : undefined,
+    createdAt: "createdAt" in source ? source.createdAt : undefined,
     isFallback,
   };
 }
@@ -344,14 +351,14 @@ export default function TvPage({
     return () => window.clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    if (!activeSlides.length) return;
+useEffect(() => {
+  if (!activeSlides.length) return;
 
-    setCurrentIndex((prev) => {
-      const safePrev = Math.min(prev, activeSlides.length - 1);
-      return safePrev >= 0 ? safePrev : 0;
-    });
-  }, [activeSignature]);
+  setCurrentIndex((prev) => {
+    const safePrev = Math.min(prev, activeSlides.length - 1);
+    return safePrev >= 0 ? safePrev : 0;
+  });
+}, [activeSignature]);
 
   useEffect(() => {
     if (!activeSlide || !activeSlides.length) return;
@@ -368,24 +375,57 @@ export default function TvPage({
     setSlideStartedAt(Date.now());
   }, [activeSlide, activeSlides, nowMs, slideStartedAt]);
 
+  const liveDisplayStartMs =
+    activeSlide && activeSlide.kind === "message" && !activeSlide.isFallback
+      ? new Date(
+          activeSlide.approvedAt || activeSlide.createdAt || Date.now()
+        ).getTime()
+      : 0;
+
+  const liveDisplayDurationSec =
+    activeSlide && activeSlide.kind === "message"
+      ? safeSeconds(activeSlide.displayDurationSec, getSlideDuration(activeSlide))
+      : 0;
+
+  const usingLifetimeTimer =
+    !!activeSlide &&
+    activeSlide.kind === "message" &&
+    !activeSlide.isFallback &&
+    liveDisplayDurationSec > 0;
+
   const remainingSec = activeSlide
-    ? Math.max(
-        0,
-        Math.ceil((getSlideDuration(activeSlide) * 1000 - (nowMs - slideStartedAt)) / 1000)
-      )
+    ? usingLifetimeTimer
+      ? Math.max(
+          0,
+          Math.ceil(
+            (liveDisplayDurationSec * 1000 - Math.max(0, nowMs - liveDisplayStartMs)) /
+              1000
+          )
+        )
+      : Math.max(
+          0,
+          Math.ceil((getSlideDuration(activeSlide) * 1000 - (nowMs - slideStartedAt)) / 1000)
+        )
     : 0;
 
   const progressPct = activeSlide
-    ? Math.max(
-        0,
-        Math.min(
-          100,
-          100 -
-            ((nowMs - slideStartedAt) /
-              (getSlideDuration(activeSlide) * 1000)) *
-              100
+    ? usingLifetimeTimer
+      ? Math.max(
+          0,
+          Math.min(
+            100,
+            100 -
+              (Math.max(0, nowMs - liveDisplayStartMs) / (liveDisplayDurationSec * 1000)) * 100
+          )
         )
-      )
+      : Math.max(
+          0,
+          Math.min(
+            100,
+            100 -
+              ((nowMs - slideStartedAt) / (getSlideDuration(activeSlide) * 1000)) * 100
+          )
+        )
     : 100;
 
   const timerLabel = `${Math.floor(remainingSec / 60)}:${String(
@@ -535,14 +575,14 @@ export default function TvPage({
           }
         }
 
-        .remixSlideShell {
-          min-height: 100vh;
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr) auto;
-          padding: 24px 28px 0;
-          box-sizing: border-box;
-          gap: 14px;
-        }
+.remixSlideShell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: 0 28px 0;
+  box-sizing: border-box;
+  gap: 10px;
+}
 
 .remixSlideTop {
   display: grid;
@@ -561,18 +601,31 @@ export default function TvPage({
   position: relative;
   width: min(100vw - 56px, 1280px);
   min-width: 0;
-  padding: 16px 42px 26px;
-  background:
-    linear-gradient(8deg, transparent 0, transparent 100%),
-    radial-gradient(circle, rgba(255,255,255,0.16) 1.3px, transparent 1.3px),
-    linear-gradient(180deg, #18b1a4 0%, #11988d 100%);
-  background-size: auto, 22px 22px, auto;
-  background-position: center, 0 0, center;
+  margin-top: 0;
+  padding: 10px 42px 18px;
+  background: linear-gradient(180deg, #18b1a4 0%, #11988d 100%);
   border-bottom: 8px solid rgba(0, 0, 0, 0.34);
-  clip-path: polygon(0 0, 100% 0, 100% 84%, 50% 100%, 0 84%);
+  clip-path: polygon(0 0, 100% 0, 100% 86%, 50% 100%, 0 86%);
   box-shadow: 0 14px 24px rgba(0, 0, 0, 0.18);
   text-align: center;
   overflow: hidden;
+}
+
+.remixBanner--arched {
+  transform: perspective(1200px) rotateX(2deg);
+  transform-origin: center top;
+}
+
+.remixBannerDots {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle, rgba(255,255,255,0.34) 1.5px, transparent 1.5px);
+  background-size: 20px 20px;
+  opacity: 0.55;
+  transform: rotate(8deg) scale(1.08);
+  transform-origin: center center;
+  pointer-events: none;
 }
 
 .remixBanner::before {
@@ -886,6 +939,7 @@ export default function TvPage({
 .remixTeaserTop {
   display: flex;
   justify-content: center;
+  padding-top: 0;
 }
 
         .remixFooterBars {
@@ -943,15 +997,14 @@ export default function TvPage({
           white-space: nowrap;
         }
 
-        .remixTeaser {
-          min-height: 100vh;
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr) auto;
-          gap: 14px;
-          padding: 24px 28px 0;
-          box-sizing: border-box;
-        }
-
+.remixTeaser {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 0 28px 0;
+  box-sizing: border-box;
+}
         .remixTeaserCenter {
           min-height: 0;
           display: grid;
@@ -1243,7 +1296,8 @@ function SlideTop({
   return (
     <div className="remixSlideTop">
       <div className="remixBannerWrap">
-        <div className="remixBanner">
+        <div className="remixBanner remixBanner--arched">
+          <div className="remixBannerDots" />
           <div className="remixBannerText">{title || "REMIX SHOUTOUT!"}</div>
         </div>
       </div>
@@ -1283,7 +1337,8 @@ function TeaserSlide() {
     <div className="remixTeaser">
       <div className="remixTeaserTop">
         <div className="remixBannerWrap">
-          <div className="remixBanner">
+          <div className="remixBanner remixBanner--arched">
+            <div className="remixBannerDots" />
             <div className="remixBannerText">REMIX SHOUTOUT!</div>
           </div>
         </div>
