@@ -1,20 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type PublicView = "request" | "queue" | "shoutouts";
 
-type CtaConfig = {
+type NavTarget = {
   label: string;
   href: string;
+  icon: string;
+  direction: "left" | "right";
 };
 
-type BarCopy = {
-  eyebrow?: string;
-  message: string;
-  primary?: CtaConfig;
-  secondary?: CtaConfig;
+type HeaderCopy = {
+  title: string;
+  subtitle: string;
 };
 
 type PublicBottomCommandBarProps = {
@@ -26,65 +26,75 @@ type PublicBottomCommandBarProps = {
   hidden?: boolean;
 };
 
-function getCopy(location: string, activeView: PublicView): BarCopy {
+function getHeaderCopy(activeView: PublicView): HeaderCopy {
+  switch (activeView) {
+    case "request":
+      return {
+        title: "REQUEST A SONG",
+        subtitle: "Browse songs, boost favorites, and watch the queue move.",
+      };
+    case "queue":
+      return {
+        title: "LIVE QUEUE",
+        subtitle: "Track what is coming up and vote your favorites higher.",
+      };
+    case "shoutouts":
+      return {
+        title: "BIG SCREEN SHOUT-OUTS",
+        subtitle: "Send a message to the rink display and keep the energy up.",
+      };
+    default:
+      return {
+        title: "REMIX REQUESTS",
+        subtitle: "Jump between songs, queue, and shout-outs.",
+      };
+  }
+}
+
+function getSideTargets(location: string, activeView: PublicView): NavTarget[] {
   const requestHref = `/request/${location}`;
   const queueHref = `/queue/${location}`;
   const shoutoutsHref = `/shoutouts/${location}`;
 
   switch (activeView) {
     case "request":
-      return {
-        eyebrow: "LIVE QUEUE",
-        message: "See what’s climbing now, vote favorites up, or send a shout-out to the big screen.",
-        primary: { label: "View Queue", href: queueHref },
-        secondary: { label: "Shout-Outs", href: shoutoutsHref },
-      };
-
+      return [
+        { label: "QUEUE", href: queueHref, icon: "♫", direction: "left" },
+        { label: "SHOUTOUTS", href: shoutoutsHref, icon: "📣", direction: "right" },
+      ];
     case "queue":
-      return {
-        eyebrow: "GET IN THE MIX",
-        message: "Browse songs, drop a request, or put your message on the screen while the queue heats up.",
-        primary: { label: "Request Song", href: requestHref },
-        secondary: { label: "Shout-Outs", href: shoutoutsHref },
-      };
-
+      return [
+        { label: "REQUEST", href: requestHref, icon: "🎵", direction: "left" },
+        { label: "SHOUTOUTS", href: shoutoutsHref, icon: "📣", direction: "right" },
+      ];
     case "shoutouts":
-      return {
-        eyebrow: "ON THE BIG SCREEN",
-        message: "Jump back to songs, watch the live queue, or submit your shout-out in seconds.",
-        primary: { label: "Browse Songs", href: requestHref },
-        secondary: { label: "View Queue", href: queueHref },
-      };
-
+      return [
+        { label: "REQUEST", href: requestHref, icon: "🎵", direction: "left" },
+        { label: "QUEUE", href: queueHref, icon: "♫", direction: "right" },
+      ];
     default:
-      return {
-        message: "Browse songs, watch the queue, and send shout-outs.",
-      };
+      return [
+        { label: "REQUEST", href: requestHref, icon: "🎵", direction: "left" },
+        { label: "QUEUE", href: queueHref, icon: "♫", direction: "right" },
+      ];
   }
 }
 
-function NavTab({
-  href,
-  label,
-  icon,
-  isActive,
-}: {
-  href: string;
-  label: string;
-  icon: string;
-  isActive: boolean;
-}) {
+function SideWing({ target }: { target: NavTarget }) {
   return (
     <Link
-      href={href}
-      className={`rrCmdTab ${isActive ? "isActive" : ""}`}
-      aria-current={isActive ? "page" : undefined}
+      href={target.href}
+      className={`rrCmdWing rrCmdWing--${target.direction}`}
+      aria-label={target.label}
     >
-      <span className="rrCmdTabIcon" aria-hidden="true">
-        {icon}
+      <span className="rrCmdWingGlow" aria-hidden="true" />
+      <span className="rrCmdWingArrow" aria-hidden="true">
+        {target.direction === "left" ? "‹‹‹" : "›››"}
       </span>
-      <span className="rrCmdTabLabel">{label}</span>
-      {isActive ? <span className="rrCmdSweep" aria-hidden="true" /> : null}
+      <span className="rrCmdWingLabel">{target.label}</span>
+      <span className="rrCmdWingIcon" aria-hidden="true">
+        {target.icon}
+      </span>
     </Link>
   );
 }
@@ -97,10 +107,22 @@ export default function PublicBottomCommandBar({
   className,
   hidden,
 }: PublicBottomCommandBarProps) {
-  const copy = useMemo(() => getCopy(location, activeView), [location, activeView]);
+  const headerCopy = useMemo(() => getHeaderCopy(activeView), [activeView]);
+  const targets = useMemo(() => getSideTargets(location, activeView), [location, activeView]);
+
   const [mounted, setMounted] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [displayPoints, setDisplayPoints] = useState(0);
+  const [pointsPulse, setPointsPulse] = useState(false);
+
+  const animationFrameRef = useRef<number | null>(null);
+  const pulseTimerRef = useRef<number | null>(null);
+  const lastPointsRef = useRef<number>(0);
+  const hasAnimatedInitialRef = useRef(false);
+
+  const safePoints = Math.max(0, Number(points ?? 0) || 0);
+  const pointsCta = safePoints > 0 ? "ADD MORE" : "CLAIM POINTS";
 
   useEffect(() => {
     setMounted(true);
@@ -108,13 +130,10 @@ export default function PublicBottomCommandBar({
 
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     const sync = () => setReducedMotion(media.matches);
-
     sync();
-    media.addEventListener?.("change", sync);
 
-    return () => {
-      media.removeEventListener?.("change", sync);
-    };
+    media.addEventListener?.("change", sync);
+    return () => media.removeEventListener?.("change", sync);
   }, []);
 
   useEffect(() => {
@@ -138,6 +157,60 @@ export default function PublicBottomCommandBar({
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current != null) cancelAnimationFrame(animationFrameRef.current);
+      if (pulseTimerRef.current != null) window.clearTimeout(pulseTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const from = lastPointsRef.current;
+    const to = safePoints;
+
+    if (animationFrameRef.current != null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    const shouldJackpot =
+      !reducedMotion && (!hasAnimatedInitialRef.current || Math.abs(to - from) >= 3);
+
+    if (!shouldJackpot) {
+      setDisplayPoints(to);
+      lastPointsRef.current = to;
+      hasAnimatedInitialRef.current = true;
+      return;
+    }
+
+    const start = performance.now();
+    const duration = hasAnimatedInitialRef.current ? 650 : 1050;
+
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const next = Math.round(from + (to - from) * eased);
+
+      setDisplayPoints(next);
+
+      if (progress < 1) {
+        animationFrameRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      setDisplayPoints(to);
+      lastPointsRef.current = to;
+      hasAnimatedInitialRef.current = true;
+      setPointsPulse(true);
+
+      if (pulseTimerRef.current != null) window.clearTimeout(pulseTimerRef.current);
+      pulseTimerRef.current = window.setTimeout(() => setPointsPulse(false), 520);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(tick);
+  }, [safePoints, reducedMotion]);
+
   return (
     <>
       <div className="rrCmdBarSpacer" />
@@ -153,75 +226,49 @@ export default function PublicBottomCommandBar({
           .filter(Boolean)
           .join(" ")}
       >
-        <div className="rrCmdBar">
-          <div className="rrCmdTop">
-            <div className="rrCmdCopy">
-              {copy.eyebrow ? <div className="rrCmdEyebrow">{copy.eyebrow}</div> : null}
-              <div className="rrCmdMessage">{copy.message}</div>
-            </div>
-
-            <div className="rrCmdActions">
-              {copy.primary ? (
-                <Link href={copy.primary.href} className="rrCmdAction rrCmdActionPrimary">
-                  {copy.primary.label}
-                </Link>
-              ) : null}
-
-              {copy.secondary ? (
-                <Link href={copy.secondary.href} className="rrCmdAction rrCmdActionSecondary">
-                  {copy.secondary.label}
-                </Link>
-              ) : null}
-
-              <div
-                className={`rrCmdPointsPill ${onPointsClick ? "isClickable" : ""}`}
-                aria-label="Points balance"
-                role={onPointsClick ? "button" : undefined}
-                tabIndex={onPointsClick ? 0 : undefined}
-                onClick={onPointsClick}
-                onKeyDown={
-                  onPointsClick
-                    ? (e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onPointsClick();
-                        }
-                      }
-                    : undefined
-                }
-              >
-                <span className="rrCmdPointsLabel">Points</span>
-                <span className="rrCmdPointsValue">{points ?? 0}</span>
-              </div>
-            </div>
+        <div className="rrCmdShell">
+          <div className="rrCmdHeader">
+            <div className="rrCmdHeaderTitle">{headerCopy.title}</div>
+            <div className="rrCmdHeaderSubtitle">{headerCopy.subtitle}</div>
           </div>
 
-          <div className="rrCmdNav">
-            <NavTab
-              href={`/request/${location}`}
-              label="Request"
-              icon="🎵"
-              isActive={activeView === "request"}
-            />
-            <NavTab
-              href={`/queue/${location}`}
-              label="Queue"
-              icon="📺"
-              isActive={activeView === "queue"}
-            />
-            <NavTab
-              href={`/shoutouts/${location}`}
-              label="Shout-Outs"
-              icon="💬"
-              isActive={activeView === "shoutouts"}
-            />
+          <div className="rrCmdDeck">
+            <SideWing target={targets[0]} />
+
+            <button
+              type="button"
+              className={[
+                "rrCmdPointsDock",
+                onPointsClick ? "isClickable" : "",
+                pointsPulse ? "isPulsePop" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              aria-label={safePoints > 0 ? `You have ${safePoints} points. Add more.` : "Claim points"}
+              onClick={onPointsClick}
+              onKeyDown={(e) => {
+                if (!onPointsClick) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onPointsClick();
+                }
+              }}
+              disabled={!onPointsClick}
+            >
+              <span className="rrCmdPointsDockSheen" aria-hidden="true" />
+              <span className="rrCmdPointsDockTop">POINTS</span>
+              <span className="rrCmdPointsDockValue">{displayPoints}</span>
+              <span className="rrCmdPointsDockBottom">{pointsCta}</span>
+            </button>
+
+            <SideWing target={targets[1]} />
           </div>
         </div>
       </div>
 
       <style jsx>{`
         .rrCmdBarSpacer {
-          height: 154px;
+          height: 172px;
         }
 
         .rrCmdBarWrap {
@@ -231,24 +278,8 @@ export default function PublicBottomCommandBar({
           bottom: env(safe-area-inset-bottom);
           z-index: 80;
           pointer-events: none;
-          padding: 0 12px calc(12px + env(safe-area-inset-bottom));
-          transition:
-            transform 180ms ease,
-            opacity 180ms ease;
-        }
-
-        html,
-        body {
-          height: 100%;
-          overflow-x: hidden;
-        }
-
-        body {
-          overscroll-behavior-y: none;
-        }
-
-        .rrCmdBarWrap {
-          transition: transform 0.25s ease, opacity 0.2s ease;
+          padding: 0 14px calc(14px + env(safe-area-inset-bottom));
+          transition: transform 180ms ease, opacity 180ms ease;
         }
 
         .rrCmdBarWrap.keyboardOpen,
@@ -258,284 +289,294 @@ export default function PublicBottomCommandBar({
           pointer-events: none;
         }
 
-        .rrCmdBar {
+        .rrCmdShell {
           pointer-events: auto;
-          max-width: 860px;
+          max-width: 1120px;
           margin: 0 auto;
-          border-radius: 24px;
+          border-radius: 30px 30px 0 0;
           overflow: hidden;
+          border: 1px solid rgba(153, 170, 255, 0.14);
+          border-bottom: 0;
           background:
-            linear-gradient(180deg, rgba(12, 25, 46, 0.92) 0%, rgba(7, 15, 28, 0.96) 100%);
-          border: 1px solid rgba(118, 174, 255, 0.18);
+            linear-gradient(90deg, rgba(0, 26, 63, 0.96) 0%, rgba(20, 7, 68, 0.98) 100%);
           box-shadow:
-            0 18px 44px rgba(0, 0, 0, 0.5),
-            inset 0 1px 0 rgba(255, 255, 255, 0.07),
-            0 0 0 1px rgba(37, 88, 160, 0.18);
-          backdrop-filter: blur(16px) saturate(130%);
-          -webkit-backdrop-filter: blur(16px) saturate(130%);
+            0 22px 50px rgba(0, 0, 0, 0.42),
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            0 0 0 1px rgba(72, 107, 197, 0.1);
+          backdrop-filter: blur(16px) saturate(125%);
+          -webkit-backdrop-filter: blur(16px) saturate(125%);
         }
 
-        .rrCmdTop {
-          position: relative;
-          display: flex;
-          gap: 12px;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px 14px 10px;
+        .rrCmdHeader {
+          padding: 18px 20px 92px;
+          text-align: center;
           background:
-            radial-gradient(circle at 20% 0%, rgba(84, 129, 255, 0.16) 0%, transparent 38%),
-            radial-gradient(circle at 85% 120%, rgba(129, 72, 255, 0.14) 0%, transparent 34%);
-          border-bottom: 1px solid rgba(118, 174, 255, 0.12);
+            radial-gradient(circle at 10% 0%, rgba(66, 132, 255, 0.16) 0%, transparent 30%),
+            radial-gradient(circle at 85% 15%, rgba(130, 76, 255, 0.14) 0%, transparent 34%);
         }
 
-        .rrCmdCopy {
-          min-width: 0;
-          flex: 1;
-        }
-
-        .rrCmdEyebrow {
-          margin-bottom: 4px;
-          font-size: 10px;
-          font-weight: 900;
-          letter-spacing: 0.14em;
+        .rrCmdHeaderTitle {
+          font-size: clamp(24px, 2.3vw, 42px);
+          line-height: 0.95;
+          font-weight: 1000;
+          letter-spacing: 0.03em;
+          color: #f8f1e4;
           text-transform: uppercase;
-          color: rgba(164, 206, 255, 0.95);
+          text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.28);
         }
 
-        .rrCmdMessage {
-          font-size: 13px;
-          line-height: 1.35;
-          font-weight: 700;
-          color: rgba(245, 250, 255, 0.94);
+        .rrCmdHeaderSubtitle {
+          margin-top: 10px;
+          font-size: clamp(13px, 1vw, 18px);
+          line-height: 1.15;
+          font-weight: 800;
+          color: rgba(234, 241, 255, 0.9);
           text-wrap: balance;
+          text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.2);
         }
 
-        .rrCmdActions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-shrink: 0;
-        }
-
-        .rrCmdAction {
-          position: relative;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 36px;
-          padding: 0 12px;
-          border-radius: 999px;
-          font-size: 12px;
-          font-weight: 900;
-          letter-spacing: 0.02em;
-          text-decoration: none;
-          white-space: nowrap;
-          transition:
-            transform 140ms ease,
-            box-shadow 180ms ease,
-            border-color 180ms ease,
-            background 180ms ease,
-            opacity 180ms ease;
-        }
-
-        .rrCmdAction:hover,
-        .rrCmdAction:active {
-          transform: translateY(-1px) scale(1.02);
-        }
-
-        .rrCmdActionPrimary {
-          color: #ffffff;
-          border: 1px solid rgba(131, 182, 255, 0.42);
-          background:
-            linear-gradient(180deg, rgba(88, 154, 255, 0.92) 0%, rgba(54, 113, 228, 0.95) 100%);
-          box-shadow:
-            0 8px 22px rgba(36, 95, 201, 0.32),
-            inset 0 1px 0 rgba(255, 255, 255, 0.24);
-        }
-
-        .rrCmdActionPrimary:hover {
-          box-shadow:
-            0 10px 26px rgba(36, 95, 201, 0.4),
-            0 0 0 1px rgba(153, 199, 255, 0.28),
-            inset 0 1px 0 rgba(255, 255, 255, 0.28);
-        }
-
-        .rrCmdActionSecondary {
-          color: rgba(237, 245, 255, 0.96);
-          border: 1px solid rgba(118, 174, 255, 0.18);
-          background: linear-gradient(180deg, rgba(23, 40, 67, 0.95) 0%, rgba(14, 24, 40, 0.98) 100%);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-        }
-
-        .rrCmdPointsPill {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          min-height: 36px;
-          padding: 0 10px;
-          border-radius: 999px;
-          border: 1px solid rgba(118, 174, 255, 0.18);
-          background: rgba(10, 18, 34, 0.86);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-        }
-
-        .rrCmdPointsPill.isClickable {
-          cursor: pointer;
-          transition:
-            transform 140ms ease,
-            box-shadow 180ms ease,
-            border-color 180ms ease,
-            background 180ms ease;
-        }
-
-        .rrCmdPointsPill.isClickable:hover,
-        .rrCmdPointsPill.isClickable:active {
-          transform: translateY(-1px) scale(1.02);
-          border-color: rgba(131, 182, 255, 0.28);
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.08),
-            0 8px 18px rgba(0, 0, 0, 0.24);
-        }
-
-        .rrCmdPointsPill.isClickable:focus-visible {
-          outline: 2px solid rgba(157, 206, 255, 0.9);
-          outline-offset: 2px;
-        }
-
-        .rrCmdPointsLabel {
-          font-size: 10px;
-          font-weight: 900;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: rgba(168, 202, 255, 0.88);
-        }
-
-        .rrCmdPointsValue {
-          font-size: 15px;
-          font-weight: 1000;
-          color: #ffffff;
-        }
-
-        .rrCmdNav {
+        .rrCmdDeck {
+          position: absolute;
+          left: 50%;
+          bottom: calc(14px + env(safe-area-inset-bottom));
+          transform: translateX(-50%);
+          width: min(1120px, calc(100% - 28px));
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 10px;
-          padding: 12px;
+          grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+          align-items: end;
+          gap: 0;
+          pointer-events: none;
         }
 
-        .rrCmdTab {
+        .rrCmdWing,
+        .rrCmdPointsDock {
+          pointer-events: auto;
+        }
+
+        .rrCmdWing {
           position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
-          min-height: 52px;
-          padding: 0 12px;
-          border-radius: 18px;
-          overflow: hidden;
+          gap: 16px;
+          min-height: 118px;
+          padding: 18px 28px;
           text-decoration: none;
-          border: 1px solid rgba(118, 174, 255, 0.12);
-          background:
-            linear-gradient(180deg, rgba(20, 34, 56, 0.94) 0%, rgba(10, 18, 31, 0.98) 100%);
+          overflow: hidden;
+          color: #f8f1e4;
+          background: linear-gradient(180deg, #7524ff 0%, #5c18f4 100%);
           box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.05),
-            0 8px 20px rgba(0, 0, 0, 0.22);
-          transition:
-            transform 140ms ease,
-            border-color 180ms ease,
-            box-shadow 180ms ease,
-            background 180ms ease;
+            inset 0 1px 0 rgba(255, 255, 255, 0.12),
+            0 16px 28px rgba(38, 8, 98, 0.32);
+          transition: transform 140ms ease, filter 180ms ease, box-shadow 180ms ease;
         }
 
-        .rrCmdTab:hover,
-        .rrCmdTab:active {
-          transform: translateY(-1px) scale(1.015);
-          border-color: rgba(131, 182, 255, 0.26);
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.08),
-            0 10px 24px rgba(0, 0, 0, 0.28);
-        }
-
-        .rrCmdTabIcon {
-          position: relative;
-          z-index: 2;
-          font-size: 16px;
-          line-height: 1;
-          filter: drop-shadow(0 0 10px rgba(121, 180, 255, 0.18));
-        }
-
-        .rrCmdTabLabel {
-          position: relative;
-          z-index: 2;
-          font-size: 13px;
-          font-weight: 1000;
-          letter-spacing: 0.02em;
-          color: rgba(235, 244, 255, 0.92);
-        }
-
-        .rrCmdTab.isActive {
-          border-color: rgba(131, 182, 255, 0.3);
-          background:
-            radial-gradient(circle at 12% 0%, rgba(80, 131, 255, 0.22) 0%, transparent 42%),
-            linear-gradient(180deg, rgba(31, 53, 86, 0.98) 0%, rgba(13, 23, 39, 1) 100%);
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.08),
-            0 12px 28px rgba(0, 0, 0, 0.32),
-            0 0 0 1px rgba(118, 174, 255, 0.15);
-        }
-
-        .rrCmdTab.isActive::after {
+        .rrCmdWing::after {
           content: "";
           position: absolute;
-          left: 16px;
-          right: 16px;
-          bottom: 8px;
-          height: 3px;
-          border-radius: 999px;
-          background: linear-gradient(
-            90deg,
-            rgba(110, 168, 255, 0.2),
-            rgba(157, 206, 255, 0.95),
-            rgba(110, 168, 255, 0.2)
-          );
-          box-shadow: 0 0 16px rgba(115, 176, 255, 0.34);
+          inset: auto 0 0 0;
+          height: 14px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0));
+          opacity: 0.55;
         }
 
-        .rrCmdSweep {
+        .rrCmdWing--left {
+          clip-path: polygon(34px 0, 100% 0, calc(100% - 18px) 50%, 100% 100%, 34px 100%, 0 50%);
+          padding-left: 42px;
+          border-radius: 22px 0 18px 22px;
+        }
+
+        .rrCmdWing--right {
+          clip-path: polygon(0 0, calc(100% - 34px) 0, 100% 50%, calc(100% - 34px) 100%, 0 100%, 18px 50%);
+          padding-right: 42px;
+          border-radius: 0 22px 22px 18px;
+        }
+
+        .rrCmdWing:hover,
+        .rrCmdWing:active {
+          transform: translateY(-2px) scale(1.01);
+          filter: brightness(1.05);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.16),
+            0 18px 34px rgba(38, 8, 98, 0.4);
+        }
+
+        .rrCmdWingGlow {
           position: absolute;
           inset: 0;
-          z-index: 1;
-          pointer-events: none;
           background: linear-gradient(
-            110deg,
+            115deg,
             transparent 0%,
-            transparent 36%,
-            rgba(255, 255, 255, 0.02) 42%,
-            rgba(170, 210, 255, 0.12) 49%,
-            rgba(255, 255, 255, 0.22) 50%,
-            rgba(170, 210, 255, 0.12) 51%,
-            rgba(255, 255, 255, 0.02) 58%,
-            transparent 64%,
+            transparent 30%,
+            rgba(255,255,255,0.04) 38%,
+            rgba(255,255,255,0.18) 50%,
+            rgba(255,255,255,0.04) 62%,
+            transparent 72%,
             transparent 100%
           );
           background-size: 220% 100%;
-          animation: rrSweep 5.5s linear infinite;
+          animation: rrCmdWingSweep 8s linear infinite;
           mix-blend-mode: screen;
-          opacity: 0.65;
         }
 
-        .reducedMotion .rrCmdSweep {
+        .rrCmdWingArrow {
+          font-size: clamp(18px, 1.8vw, 28px);
+          font-weight: 1000;
+          letter-spacing: -0.16em;
+          opacity: 0.9;
+          text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.28);
+        }
+
+        .rrCmdWingLabel {
+          font-size: clamp(28px, 2.6vw, 54px);
+          line-height: 0.92;
+          font-weight: 1000;
+          letter-spacing: 0.01em;
+          text-transform: uppercase;
+          text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.28);
+          white-space: nowrap;
+        }
+
+        .rrCmdWingIcon {
+          font-size: clamp(34px, 2.8vw, 54px);
+          line-height: 1;
+          filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.24));
+        }
+
+        .rrCmdPointsDock {
+          position: relative;
+          z-index: 2;
+          margin: 0 -6px;
+          width: clamp(230px, 22vw, 286px);
+          min-height: 168px;
+          border: 0;
+          border-radius: 38px;
+          padding: 18px 18px 16px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(180deg, #48b8d0 0%, #3ea5c2 100%);
+          color: #f8f1e4;
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.2),
+            0 18px 34px rgba(11, 95, 120, 0.34),
+            0 0 0 6px rgba(36, 167, 206, 0.16);
+          transform: translateY(-26px);
+          transition: transform 120ms ease, box-shadow 180ms ease, filter 180ms ease;
+          overflow: hidden;
+        }
+
+        .rrCmdPointsDock::before {
+          content: "";
+          position: absolute;
+          inset: 14px 14px auto;
+          height: 24px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.1);
+          filter: blur(1px);
+        }
+
+        .rrCmdPointsDock.isClickable {
+          cursor: pointer;
+          animation: rrCmdDockPulse 2.8s ease-in-out infinite;
+        }
+
+        .rrCmdPointsDock.isClickable:hover,
+        .rrCmdPointsDock.isClickable:active {
+          transform: translateY(-30px) scale(1.015);
+          filter: brightness(1.02);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.24),
+            0 20px 40px rgba(11, 95, 120, 0.42),
+            0 0 0 7px rgba(36, 167, 206, 0.22);
+        }
+
+        .rrCmdPointsDock.isClickable:active {
+          transform: translateY(-22px) scale(0.985);
+        }
+
+        .rrCmdPointsDock:disabled {
+          cursor: default;
+        }
+
+        .rrCmdPointsDockSheen {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(
+            112deg,
+            transparent 0%,
+            transparent 32%,
+            rgba(255,255,255,0.08) 40%,
+            rgba(255,255,255,0.28) 50%,
+            rgba(255,255,255,0.08) 60%,
+            transparent 68%,
+            transparent 100%
+          );
+          background-size: 220% 100%;
+          animation: rrCmdDockSheen 7.5s linear infinite;
+          mix-blend-mode: screen;
+          opacity: 0.7;
+        }
+
+        .rrCmdPointsDockTop,
+        .rrCmdPointsDockBottom,
+        .rrCmdPointsDockValue {
+          position: relative;
+          z-index: 1;
+          text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.24);
+        }
+
+        .rrCmdPointsDockTop {
+          font-size: clamp(24px, 1.9vw, 42px);
+          line-height: 0.92;
+          font-weight: 1000;
+          letter-spacing: 0.02em;
+          text-transform: uppercase;
+        }
+
+        .rrCmdPointsDockValue {
+          margin-top: 2px;
+          font-size: clamp(64px, 5.1vw, 98px);
+          line-height: 0.85;
+          font-weight: 1000;
+          letter-spacing: -0.04em;
+        }
+
+        .rrCmdPointsDockBottom {
+          margin-top: 4px;
+          font-size: clamp(22px, 1.8vw, 38px);
+          line-height: 0.92;
+          font-weight: 1000;
+          letter-spacing: 0.01em;
+          text-transform: uppercase;
+        }
+
+        .isPulsePop {
+          animation: rrCmdDockLand 520ms ease;
+        }
+
+        .reducedMotion .rrCmdPointsDock.isClickable,
+        .reducedMotion .rrCmdWingGlow,
+        .reducedMotion .rrCmdPointsDockSheen {
           animation: none;
-          opacity: 0.18;
         }
 
-        .reducedMotion .rrCmdTab,
-        .reducedMotion .rrCmdAction,
-        .reducedMotion .rrCmdPointsPill.isClickable {
+        .reducedMotion .rrCmdWing,
+        .reducedMotion .rrCmdPointsDock {
           transition: none;
         }
 
-        @keyframes rrSweep {
+        @keyframes rrCmdWingSweep {
+          0% {
+            background-position: 135% 0;
+          }
+          100% {
+            background-position: -120% 0;
+          }
+        }
+
+        @keyframes rrCmdDockSheen {
           0% {
             background-position: 130% 0;
           }
@@ -544,9 +585,66 @@ export default function PublicBottomCommandBar({
           }
         }
 
+        @keyframes rrCmdDockPulse {
+          0%, 100% {
+            box-shadow:
+              inset 0 1px 0 rgba(255, 255, 255, 0.2),
+              0 18px 34px rgba(11, 95, 120, 0.34),
+              0 0 0 6px rgba(36, 167, 206, 0.16);
+          }
+          50% {
+            box-shadow:
+              inset 0 1px 0 rgba(255, 255, 255, 0.22),
+              0 20px 38px rgba(11, 95, 120, 0.4),
+              0 0 0 8px rgba(36, 167, 206, 0.24);
+          }
+        }
+
+        @keyframes rrCmdDockLand {
+          0% {
+            transform: translateY(-20px) scale(0.96);
+          }
+          45% {
+            transform: translateY(-34px) scale(1.04);
+          }
+          100% {
+            transform: translateY(-26px) scale(1);
+          }
+        }
+
+        @media (max-width: 980px) {
+          .rrCmdBarSpacer {
+            height: 186px;
+          }
+
+          .rrCmdHeader {
+            padding: 16px 16px 90px;
+          }
+
+          .rrCmdWing {
+            min-height: 104px;
+            gap: 10px;
+            padding-top: 14px;
+            padding-bottom: 14px;
+          }
+
+          .rrCmdWingLabel {
+            font-size: clamp(24px, 3vw, 38px);
+          }
+
+          .rrCmdWingIcon {
+            font-size: clamp(28px, 3vw, 42px);
+          }
+
+          .rrCmdPointsDock {
+            width: clamp(206px, 30vw, 248px);
+            min-height: 154px;
+          }
+        }
+
         @media (max-width: 720px) {
           .rrCmdBarSpacer {
-            height: 170px;
+            height: 200px;
           }
 
           .rrCmdBarWrap {
@@ -555,75 +653,147 @@ export default function PublicBottomCommandBar({
             padding-bottom: 0;
           }
 
-          .rrCmdBar {
+          .rrCmdShell {
             border-left: 0;
             border-right: 0;
-            border-bottom: 0;
-            border-radius: 22px 22px 0 0;
-            max-width: none;
+            border-radius: 26px 26px 0 0;
           }
 
-          .rrCmdTop {
-            flex-direction: column;
-            align-items: stretch;
+          .rrCmdHeader {
+            padding: 14px 16px 96px;
           }
 
-          .rrCmdActions {
+          .rrCmdHeaderTitle {
+            font-size: 22px;
+          }
+
+          .rrCmdHeaderSubtitle {
+            margin-top: 7px;
+            font-size: 12px;
+          }
+
+          .rrCmdDeck {
             width: 100%;
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-          }
-
-          .rrCmdAction {
-            min-width: 0;
+            left: 0;
+            transform: none;
             padding: 0 10px;
+            gap: 6px;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
           }
 
-          .rrCmdPointsPill {
-            justify-content: center;
+          .rrCmdWing {
+            min-height: 88px;
+            gap: 8px;
+            padding: 12px 18px;
+          }
+
+          .rrCmdWing--left {
+            padding-left: 24px;
+            clip-path: polygon(22px 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 22px 100%, 0 50%);
+          }
+
+          .rrCmdWing--right {
+            padding-right: 24px;
+            clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%, 12px 50%);
+          }
+
+          .rrCmdWingArrow {
+            display: none;
+          }
+
+          .rrCmdWingLabel {
+            font-size: 18px;
+          }
+
+          .rrCmdWingIcon {
+            font-size: 24px;
+          }
+
+          .rrCmdPointsDock {
+            width: 154px;
+            min-height: 126px;
+            border-radius: 28px;
+            padding: 14px 10px 12px;
+            transform: translateY(-22px);
+          }
+
+          .rrCmdPointsDock.isClickable:hover,
+          .rrCmdPointsDock.isClickable:active {
+            transform: translateY(-24px) scale(1.01);
+          }
+
+          .rrCmdPointsDock.isClickable:active {
+            transform: translateY(-18px) scale(0.985);
+          }
+
+          .rrCmdPointsDockTop {
+            font-size: 18px;
+          }
+
+          .rrCmdPointsDockValue {
+            font-size: 50px;
+          }
+
+          .rrCmdPointsDockBottom {
+            font-size: 16px;
           }
         }
 
         @media (max-width: 520px) {
           .rrCmdBarSpacer {
-            height: 182px;
+            height: 192px;
           }
 
-          .rrCmdBarWrap {
-            padding-left: 0;
-            padding-right: 0;
-            padding-bottom: 0;
+          .rrCmdHeader {
+            padding: 12px 14px 90px;
           }
 
-          .rrCmdTop {
-            padding: 10px 10px 8px;
+          .rrCmdHeaderTitle {
+            font-size: 20px;
           }
 
-          .rrCmdActions {
-            grid-template-columns: 1fr 1fr;
+          .rrCmdHeaderSubtitle {
+            max-width: 290px;
+            margin: 6px auto 0;
+            font-size: 11px;
           }
 
-          .rrCmdPointsPill {
-            grid-column: 1 / -1;
-          }
-
-          .rrCmdNav {
-            gap: 8px;
-            padding: 10px;
-          }
-
-          .rrCmdTab {
-            min-height: 50px;
+          .rrCmdDeck {
             padding: 0 8px;
+            gap: 4px;
+          }
+
+          .rrCmdWing {
+            min-height: 76px;
             gap: 6px;
+            padding-top: 10px;
+            padding-bottom: 10px;
           }
 
-          .rrCmdTabLabel {
-            font-size: 12px;
+          .rrCmdWingLabel {
+            font-size: 15px;
           }
 
-          .rrCmdMessage {
-            font-size: 12px;
+          .rrCmdWingIcon {
+            font-size: 19px;
+          }
+
+          .rrCmdPointsDock {
+            width: 136px;
+            min-height: 114px;
+            border-radius: 24px;
+          }
+
+          .rrCmdPointsDockTop {
+            font-size: 16px;
+          }
+
+          .rrCmdPointsDockValue {
+            font-size: 42px;
+          }
+
+          .rrCmdPointsDockBottom {
+            font-size: 14px;
           }
         }
       `}</style>
