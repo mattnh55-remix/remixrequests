@@ -867,6 +867,48 @@ export default function PublicGunmetalTheme() {
           inset 0 1px 0 rgba(255,255,255,0.08),
           0 18px 34px rgba(0, 0, 0, 0.28);
       }
+.rrBuyPackValueRow--compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.rrBuyPackLeft {
+  display: flex;
+  align-items: center;
+}
+
+.rrBuyPackRight {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
+}
+
+.rrBuyPackPoints {
+  font-size: 20px;
+  font-weight: 1000;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+
+.rrBuyPackPrice--compact {
+  font-size: 14px;
+  font-weight: 1000;
+  color: #95a7c2;
+}
+
+.rrBuyPackUsage {
+  font-size: 11px;
+  color: #95a7c2;
+}
+
+.rrBuyPackCard {
+  padding: 12px; /* slightly tighter */
+  gap: 8px;       /* reduce vertical spacing */
+}
+
 
       .rrBuyPackTop {
         display: grid;

@@ -829,12 +829,45 @@ function BuyCreditsDrawer({
                     {p.subtitle ? <div className="rrBuyPackSubtitle">{p.subtitle}</div> : null}
                   </div>
 
-                  <div className="rrBuyPackValueRow">
-                    <div className="rrBuyPackPoints">{p.creditsLabel}</div>
-                    <div className="rrBuyPackUsage">About {approxRequests} requests</div>
-                  </div>
+<div className={`rrBuyPackCard ${p.highlight ? "rrBuyPackCard--featured" : ""}`}>
 
-                  <div className="rrBuyPackPrice">${(p.priceCents / 100).toFixed(2)}</div>
+  <div className="rrBuyPackTop">
+    <div className="rrBuyPackTitleRow">
+      <div className="rrBuyPackTitle">{p.title}</div>
+
+      {p.badge ? (
+        <div className={`rrShoutCardBadge rrBuyPackBadge--${p.badge}`}>
+          {p.badge === "featured" ? "BEST VALUE" : p.badge.toUpperCase()}
+        </div>
+      ) : null}
+    </div>
+  </div>
+
+  <div className="rrBuyPackValueRow rrBuyPackValueRow--compact">
+    <div className="rrBuyPackLeft">
+      <div className="rrBuyPackPoints">{p.creditsLabel}</div>
+    </div>
+
+    <div className="rrBuyPackRight">
+      <div className="rrBuyPackPrice rrBuyPackPrice--compact">
+        {formatPrice(p.priceCents)}
+      </div>
+
+      <div className="rrBuyPackUsage">
+        {p.usageHint}
+      </div>
+    </div>
+  </div>
+
+  <button
+    className={`rrBtn ${p.highlight ? "rrBtn--featuredPack" : ""}`}
+    onClick={() => onBuy(p.packageKey)}
+    disabled={buyBusy}
+  >
+    {p.cta ?? `Get ${p.creditsLabel}`}
+  </button>
+
+</div>
 
                   <button
                     className={`rrBtn ${p.highlight ? "rrBtn--featuredPack" : ""}`}
