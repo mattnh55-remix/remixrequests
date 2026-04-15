@@ -894,7 +894,7 @@ export default function PublicGunmetalTheme() {
 }
 
 .rrBuyPackPrice--compact {
-  font-size: 7px;
+  font-size: 10px;
   font-weight: 1000;
   line-height: 1;
   letter-spacing: -0.01em;
