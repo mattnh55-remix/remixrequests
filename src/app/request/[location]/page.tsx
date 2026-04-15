@@ -926,6 +926,7 @@ export default function RequestPage({ params }: { params: { location: string } }
   const tileSuccessTimerRef = useRef<number | null>(null);
   const queuePulseTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+  const isError = msg?.toLowerCase().includes("not enough");
   const rewardFlashTimerRef = useRef<number | null>(null);
   const flyKeyRef = useRef(0);
   const prevUserRequestIdsRef = useRef<Set<string>>(new Set());
@@ -2036,7 +2037,7 @@ const isHot = featuredSongs.some((x) => x.id === song.id);
 
 {toastOpen && msg ? (
   <div className="rrToastWrap">
-    <div className="rrToastCard">
+    <div className={`rrToastCard ${isError ? "rrToastCard--error" : ""}`}>
       <div className="rrToastText">{msg}</div>
       <button className="rrToastClose" onClick={dismissToast}>
         Close
