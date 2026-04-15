@@ -255,6 +255,7 @@ export default function TvQueuePortraitPage({
         @import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&display=swap");
 
         .remixRequestsBillboardRoot {
+          --font-barlow-condensed: "Barlow Condensed";
           --bgLeft: #02152f;
           --bgRight: #2b0c45;
           --panel: rgba(255, 255, 255, 0.05);
@@ -325,15 +326,15 @@ export default function TvQueuePortraitPage({
         }
 
         .remixRequestsHeaderBadge {
-          min-width: min(78vw, calc(760px * var(--tvScale)));
-          max-width: calc(800px * var(--tvScale));
+          min-width: min(92vw, calc(980px * var(--tvScale)));
+          max-width: calc(1040px * var(--tvScale));
           background:
             radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05), transparent 70%),
             linear-gradient(180deg, #7a58c0 0%, #6547a9 100%);
           border: calc(5px * var(--tvScale)) solid #0c0717;
           margin-top: calc(-6px * var(--tvScale));
           clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%);
-          padding: calc(18px * var(--tvScale)) calc(30px * var(--tvScale)) calc(42px * var(--tvScale));
+          padding: calc(18px * var(--tvScale)) calc(44px * var(--tvScale)) calc(42px * var(--tvScale));
           text-align: center;
           box-shadow: 0 calc(18px * var(--tvScale)) calc(32px * var(--tvScale)) rgba(0,0,0,0.3);
           position: relative;
@@ -358,17 +359,17 @@ export default function TvQueuePortraitPage({
         .remixRequestsHeaderText {
           position: relative;
           z-index: 1;
-          font-size: clamp(32px, calc(54px * var(--tvScale)), 78px);
+          font-size: clamp(46px, 4vw, 86px);
           font-weight: 800;
-          line-height: 1;
-          letter-spacing: 0.5px;
+          line-height: 0.94;
+          letter-spacing: 1px;
           text-transform: uppercase;
           white-space: nowrap;
-          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
-          color: var(--text);
+          font-family: var(--font-barlow-condensed), sans-serif;
+          color: #f8f4ea;
           text-shadow:
-            calc(4px * var(--tvScale)) calc(4px * var(--tvScale)) 0 rgba(21, 8, 31, 0.7),
-            0 0 calc(12px * var(--tvScale)) rgba(255,255,255,0.1);
+            6px 6px 0 rgba(0, 0, 0, 0.22),
+            0 2px 0 rgba(0, 0, 0, 0.16);
         }
 
         .remixRequestsCardsViewport {
@@ -427,8 +428,8 @@ export default function TvQueuePortraitPage({
 
         .remixRequestsCardNumberText {
           font-size: clamp(38px, calc(70px * var(--tvScale)), 100px);
-          font-weight: 700;
-          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+          font-weight: 800;
+          font-family: var(--font-barlow-condensed), sans-serif;
           line-height: 1;
           color: var(--text);
           text-shadow: calc(5px * var(--tvScale)) calc(5px * var(--tvScale)) 0 rgba(26, 10, 36, 0.65);
@@ -477,7 +478,7 @@ export default function TvQueuePortraitPage({
           font-size: clamp(34px, calc(66px * var(--tvScale)), 96px);
           line-height: 0.96;
           font-weight: 800;
-          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+          font-family: var(--font-barlow-condensed), sans-serif;
           text-transform: uppercase;
           color: var(--text);
           text-shadow: calc(4px * var(--tvScale)) calc(4px * var(--tvScale)) 0 rgba(25, 11, 35, 0.64);
@@ -488,7 +489,7 @@ export default function TvQueuePortraitPage({
           font-size: clamp(20px, calc(34px * var(--tvScale)), 52px);
           line-height: 1;
           font-weight: 700;
-          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+          font-family: var(--font-barlow-condensed), sans-serif;
           text-transform: uppercase;
           color: var(--text);
           text-shadow: calc(3px * var(--tvScale)) calc(3px * var(--tvScale)) 0 rgba(25, 11, 35, 0.58);
@@ -514,7 +515,7 @@ export default function TvQueuePortraitPage({
           border-radius: 999px;
           font-size: clamp(16px, calc(26px * var(--tvScale)), 40px);
           font-weight: 700;
-          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+          font-family: var(--font-barlow-condensed), sans-serif;
           box-shadow: 0 calc(6px * var(--tvScale)) calc(14px * var(--tvScale)) rgba(0,0,0,0.2);
         }
 
@@ -551,7 +552,7 @@ export default function TvQueuePortraitPage({
           font-size: clamp(28px, calc(54px * var(--tvScale)), 82px);
           line-height: 0.96;
           font-weight: 700;
-          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+          font-family: var(--font-barlow-condensed), sans-serif;
           text-transform: uppercase;
           color: var(--text);
           text-shadow: calc(4px * var(--tvScale)) calc(4px * var(--tvScale)) 0 rgba(25, 11, 35, 0.62);
@@ -566,7 +567,7 @@ export default function TvQueuePortraitPage({
           border: 1px solid rgba(255,255,255,0.1);
           font-size: clamp(20px, calc(34px * var(--tvScale)), 48px);
           font-weight: 700;
-          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+          font-family: var(--font-barlow-condensed), sans-serif;
           text-transform: uppercase;
         }
 
@@ -623,39 +624,10 @@ function HeaderBadge() {
     <div className="remixRequestsHeaderWrap">
       <div className="remixRequestsHeaderBadge">
         <div className="remixRequestsHeaderText" aria-label="Remix Requests">
-          <ArchText text="Remix Requests" />
+          Remix Requests
         </div>
       </div>
     </div>
-  );
-}
-
-function ArchText({ text }: { text: string }) {
-  const chars = text.split("");
-  const mid = (chars.length - 1) / 2;
-
-  return (
-    <span style={{ display: "inline-flex", alignItems: "flex-end", justifyContent: "center" }}>
-      {chars.map((char, index) => {
-        const distance = Math.abs(index - mid);
-        const offset = Math.round(distance * 2.3);
-        const rotation = (index - mid) * 0.8;
-
-        return (
-          <span
-            key={`${char}-${index}`}
-            style={{
-              display: "inline-block",
-              transform: `translateY(${offset}px) rotate(${rotation}deg)`,
-              marginLeft: char === " " ? "0.18em" : 0,
-              marginRight: char === " " ? "0.18em" : 0,
-            }}
-          >
-            {char === " " ? "\u00A0" : char}
-          </span>
-        );
-      })}
-    </span>
   );
 }
 

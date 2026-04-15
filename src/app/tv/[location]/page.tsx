@@ -623,7 +623,7 @@ useEffect(() => {
     radial-gradient(circle, rgba(255,255,255,0.34) 1.5px, transparent 1.5px);
   background-size: 20px 20px;
   opacity: 0.55;
-  transform: rotate(8deg) scale(1.08);
+  transform: none;
   transform-origin: center center;
   pointer-events: none;
 }
@@ -653,42 +653,6 @@ useEffect(() => {
             0 2px 0 rgba(0, 0, 0, 0.16);
         }
 
-.remixTimerWrap {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-  padding-top: 2px;
-  width: min(100%, 560px);
-  justify-self: end;
-}
-
-        .remixTimerTrack {
-          position: relative;
-          height: 28px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.88);
-          overflow: hidden;
-          box-shadow: inset 0 1px 1px rgba(0,0,0,0.08);
-        }
-
-        .remixTimerFill {
-          position: absolute;
-          inset: 0 auto 0 0;
-          height: 100%;
-          border-radius: 999px;
-          background: linear-gradient(90deg, #f7f5ee 0%, #ffffff 100%);
-          transition: width 250ms linear;
-        }
-
-        .remixTimerText {
-          font-family: var(--font-barlow-condensed), sans-serif;
-          font-size: clamp(30px, 2.2vw, 56px);
-          line-height: 1;
-          color: #f7f4eb;
-          text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.22);
-          white-space: nowrap;
-        }
 
         .remixMessageMain {
           min-height: 0;
@@ -1231,8 +1195,7 @@ function StandardMessageLayout({
 }) {
   return (
     <div className="remixSlideShell">
-      <SlideTop title={title} timerLabel={timerLabel} progressPct={progressPct} />
-
+<SlideTop title={title} />
       <main className="remixMessageMain remixMessageMain--standard">
         <div className="remixVisualPanel remixVisualPanel--standard">
           <VisualFrame imageUrl={imageUrl} mode="standard" />
@@ -1266,8 +1229,7 @@ function LandscapeMessageLayout({
 }) {
   return (
     <div className="remixSlideShell">
-      <SlideTop title={title} timerLabel={timerLabel} progressPct={progressPct} />
-
+<SlideTop title={title} />
       <main className="remixMessageMain remixMessageMain--landscape">
         <div className="remixVisualPanel">
           <VisualFrame imageUrl={imageUrl} mode="landscape" />
@@ -1286,12 +1248,8 @@ function LandscapeMessageLayout({
 
 function SlideTop({
   title,
-  timerLabel,
-  progressPct,
 }: {
   title: string;
-  timerLabel: string;
-  progressPct: number;
 }) {
   return (
     <div className="remixSlideTop">
@@ -1300,13 +1258,6 @@ function SlideTop({
           <div className="remixBannerDots" />
           <div className="remixBannerText">{title || "REMIX SHOUTOUT!"}</div>
         </div>
-      </div>
-
-      <div className="remixTimerWrap">
-        <div className="remixTimerTrack" aria-hidden="true">
-          <div className="remixTimerFill" style={{ width: `${progressPct}%` }} />
-        </div>
-        <div className="remixTimerText">{timerLabel}</div>
       </div>
     </div>
   );
