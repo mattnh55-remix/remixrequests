@@ -86,6 +86,7 @@ type DisplaySlide =
     };
 
 type Orientation = "portrait" | "landscape" | "square";
+type TextOnlyVariant = "portrait" | "landscape";
 
 const DEFAULT_SLIDE_SECONDS = 20;
 
@@ -93,24 +94,24 @@ const PLACEHOLDER_MESSAGES: PlaceholderMessage[] = [
   {
     id: "placeholder-1",
     title: "REMIX SHOUTOUT!",
-    body: "Celebrate a birthday, surprise your crew, or put your message on the big screen.",
-    fromName: "- Remix Guests",
+    body: "Welcome to Remix! Scan the code, request your song, and send a shout out.",
+    fromName: "-$name",
     accent: "cyan",
     displayDurationSec: 20,
   },
   {
     id: "placeholder-2",
     title: "REMIX SHOUTOUT!",
-    body: "Photo shoutouts and message slides are live tonight.",
-    fromName: "- Scan your table code",
+    body: "Congrats to our birthday crew tonight. Thanks for celebrating at Remix!",
+    fromName: "-$name",
     accent: "pink",
     displayDurationSec: 20,
   },
   {
     id: "placeholder-3",
     title: "REMIX SHOUTOUT!",
-    body: "Your moment. Your message. Right up on the screen.",
-    fromName: "- Remix Skate & Event Center",
+    body: "Happy Birthday Taylor and Hunter!",
+    fromName: "-$name",
     accent: "gold",
     displayDurationSec: 20,
   },
@@ -224,6 +225,19 @@ function makeTeaserSlide(durationSec: number): DisplaySlide {
 
 function getSlideDuration(slide: DisplaySlide) {
   return safeSeconds(slide.durationSec, DEFAULT_SLIDE_SECONDS);
+}
+
+function getTextOnlyVariant(id: string): TextOnlyVariant {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) hash += id.charCodeAt(i);
+  return hash % 2 === 0 ? "portrait" : "landscape";
+}
+
+function joinInlineMessage(body: string, fromName: string) {
+  const trimmedBody = body.trim();
+  const trimmedFrom = fromName.trim();
+  if (!trimmedFrom) return trimmedBody;
+  return `${trimmedBody} ${trimmedFrom}`;
 }
 
 export default function TvPage({
@@ -585,11 +599,12 @@ export default function TvPage({
           }
         }
 
-        .remixSlideShell {
+        .remixLandscapeShell,
+        .remixTeaser {
           min-height: 100vh;
           display: grid;
           grid-template-rows: auto minmax(0, 1fr) auto;
-          padding: 0 28px 0;
+          padding: 0 28px;
           box-sizing: border-box;
           gap: 8px;
         }
@@ -597,14 +612,13 @@ export default function TvPage({
         .remixPortraitShell {
           min-height: 100vh;
           display: grid;
-          grid-template-columns: minmax(430px, 45%) minmax(0, 1fr);
-          padding: 0 0 0 0;
+          grid-template-columns: minmax(470px, 46%) minmax(0, 1fr);
+          padding: 0;
           box-sizing: border-box;
           gap: 0;
         }
 
         .remixPortraitMediaCol {
-          position: relative;
           min-height: 100vh;
           display: flex;
           align-items: stretch;
@@ -621,41 +635,22 @@ export default function TvPage({
           box-sizing: border-box;
         }
 
-        .remixLandscapeShell {
-          min-height: 100vh;
+        .remixLandscapeContent {
+          min-height: 0;
           display: grid;
-          grid-template-rows: auto minmax(0, 1fr) auto;
-          padding: 0 28px 0;
-          box-sizing: border-box;
-          gap: 10px;
+          grid-template-rows: auto minmax(0, 1fr);
+          gap: 18px;
+          align-content: start;
+          padding-top: 4px;
         }
-
-.remixLandscapeContent {
-  min-height: 0;
-  display: grid;
-  grid-template-rows: minmax(420px, 54vh) minmax(0, 1fr);
-  gap: 22px;
-}
 
         .remixTextOnlyContent {
           min-height: 0;
           display: grid;
-          grid-template-rows: minmax(280px, 0.92fr) minmax(0, 1fr);
+          grid-template-rows: auto minmax(0, 1fr);
           gap: 18px;
-        }
-
-        .remixTextOnlyVisualWrap {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .remixTextOnlyTextWrap {
-          min-height: 0;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          padding: 0 18px 18px;
+          align-content: start;
+          padding-top: 4px;
         }
 
         .remixSlideTop {
@@ -666,7 +661,7 @@ export default function TvPage({
 
         .remixSlideTop--portrait {
           justify-content: flex-end;
-          padding-right: 72px;
+          padding-right: 84px;
         }
 
         .remixBannerWrap {
@@ -679,24 +674,23 @@ export default function TvPage({
           justify-content: flex-end;
         }
 
-.remixBanner {
-  position: relative;
-  width: min(100%, 760px);
-  min-width: 0;
-  margin-top: 0;
-  padding: 10px 34px 16px;
-  background: linear-gradient(180deg, #18b1a4 0%, #11988d 100%);
-  border-bottom: 6px solid rgba(0, 0, 0, 0.34);
-  clip-path: polygon(0 0, 100% 0, 100% 84%, 50% 100%, 0 84%);
-  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.16);
-  text-align: center;
-  overflow: hidden;
-}
+        .remixBanner {
+          position: relative;
+          width: min(100%, 760px);
+          min-width: 0;
+          padding: 10px 34px 16px;
+          background: linear-gradient(180deg, #18b1a4 0%, #11988d 100%);
+          border-bottom: 6px solid rgba(0, 0, 0, 0.34);
+          clip-path: polygon(0 0, 100% 0, 100% 84%, 50% 100%, 0 84%);
+          box-shadow: 0 10px 18px rgba(0, 0, 0, 0.16);
+          text-align: center;
+          overflow: hidden;
+        }
 
-.remixBanner--portrait {
-  width: min(100%, 420px);
-  padding: 10px 24px 14px;
-}
+        .remixBanner--portrait {
+          width: min(100%, 400px);
+          padding: 10px 22px 14px;
+        }
 
         .remixBanner--arched {
           transform: perspective(1200px) rotateX(2deg);
@@ -717,23 +711,24 @@ export default function TvPage({
           pointer-events: none;
         }
 
-.remixBannerText {
-  position: relative;
-  z-index: 2;
-  font-family: var(--font-barlow-condensed), sans-serif;
-  font-size: clamp(42px, 3.2vw, 68px);
-  line-height: 0.94;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: #f8f4ea;
-  text-shadow: 5px 5px 0 rgba(0, 0, 0, 0.22), 0 2px 0 rgba(0, 0, 0, 0.16);
-}
+        .remixBannerText {
+          position: relative;
+          z-index: 2;
+          font-family: var(--font-barlow-condensed), sans-serif;
+          font-size: clamp(42px, 3.2vw, 68px);
+          line-height: 0.94;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          color: #f8f4ea;
+          text-shadow: 5px 5px 0 rgba(0, 0, 0, 0.22), 0 2px 0 rgba(0, 0, 0, 0.16);
+        }
 
-.remixBanner--portrait .remixBannerText {
-  font-size: clamp(30px, 2.1vw, 44px);
-}
+        .remixBanner--portrait .remixBannerText {
+          font-size: clamp(30px, 2.1vw, 44px);
+        }
 
-        .remixMessageText {
+        .remixMessageText,
+        .remixInlineMessage {
           font-family: var(--font-dm-serif-display), serif;
           font-weight: 400;
           font-style: normal;
@@ -752,8 +747,8 @@ export default function TvPage({
         }
 
         .remixPortraitMessageText {
-          font-size: clamp(46px, 4.8vw, 100px);
-          line-height: 1.05;
+          font-size: clamp(52px, 4.9vw, 102px);
+          line-height: 1.06;
         }
 
         .remixPortraitFrom {
@@ -762,57 +757,31 @@ export default function TvPage({
           font-size: clamp(34px, 2.8vw, 64px);
         }
 
-.remixLandscapeMessageWrap {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: center;
-  padding: 18px 44px 8px;
-  text-align: center;
-}
-
-.remixLandscapeMessageText {
-  font-size: clamp(46px, 4.2vw, 88px);
-  line-height: 1.06;
-  text-align: center;
-}
-
-.remixLandscapeFrom {
-  margin-top: 26px;
-  text-align: center;
-  font-size: clamp(30px, 2.4vw, 56px);
-}
-
-        .remixTextOnlyMessageText {
-          font-size: clamp(50px, 4.7vw, 104px);
-          line-height: 1.05;
-          text-align: center;
-        }
-
-        .remixTextOnlyFrom {
-          margin-top: 28px;
-          text-align: center;
-          font-size: clamp(34px, 2.6vw, 58px);
-        }
-
-        .remixFrom {
-          font-family: var(--font-dm-serif-display), serif;
-          color: var(--remix-cream);
-          text-shadow: 6px 6px 0 var(--remix-shadow);
-          overflow-wrap: anywhere;
-        }
-
-        .remixVisualPanel {
-          min-width: 0;
+        .remixLandscapeTextWrap {
           min-height: 0;
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: center;
-          overflow: hidden;
+          padding: 6px 20px 2px;
         }
 
-        .remixLandscapeVisualPanel {
+        .remixInlineMessage {
+          font-size: clamp(50px, 4.8vw, 104px);
+          line-height: 1.06;
+          text-align: center;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          max-width: 100%;
+        }
+
+        .remixInlineMessage--textOnly {
+          font-size: clamp(46px, 4.4vw, 94px);
+        }
+
+        .remixLandscapeVisualPanel,
+        .remixTextOnlyVisualWrap {
           min-width: 0;
           min-height: 0;
           display: flex;
@@ -830,19 +799,10 @@ export default function TvPage({
           box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
         }
 
-.remixLandscapeMediaFrame {
-  width: min(100%, 940px);
-  height: 100%;
-  background: #c9bcab;
-  overflow: hidden;
-  position: relative;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
-}
-
+        .remixLandscapeMediaFrame,
         .remixTextOnlyMediaFrame {
-          width: min(100%, 820px);
-          height: 100%;
-          min-height: 280px;
+          width: min(100%, 900px);
+          aspect-ratio: 16 / 9;
           background: #c9bcab;
           overflow: hidden;
           position: relative;
@@ -947,7 +907,7 @@ export default function TvPage({
           inset: 0;
           display: grid;
           place-items: center;
-          padding: 36px;
+          padding: 30px;
         }
 
         .remixPhotoInner--portrait {
@@ -976,12 +936,12 @@ export default function TvPage({
           height: 100%;
           display: grid;
           place-items: center;
-          padding: 48px;
+          padding: 20px;
           box-sizing: border-box;
         }
 
         .remixPlaceholderArtInner {
-          width: min(72%, 520px);
+          width: min(58%, 320px);
           aspect-ratio: 1 / 1;
           display: grid;
           place-items: center;
@@ -991,8 +951,8 @@ export default function TvPage({
         }
 
         .remixPlaceholderArtInner img {
-          max-width: 72%;
-          max-height: 72%;
+          max-width: 74%;
+          max-height: 74%;
           object-fit: contain;
           display: block;
           filter: saturate(0.9) contrast(1.04);
@@ -1067,15 +1027,6 @@ export default function TvPage({
           white-space: nowrap;
         }
 
-        .remixTeaser {
-          min-height: 100vh;
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr) auto;
-          gap: 10px;
-          padding: 0 28px 0;
-          box-sizing: border-box;
-        }
-
         .remixTeaserCenter {
           min-height: 0;
           display: grid;
@@ -1121,39 +1072,27 @@ export default function TvPage({
 
         @media (max-width: 1600px) {
           .remixPortraitShell {
-            grid-template-columns: minmax(360px, 43%) minmax(0, 1fr);
+            grid-template-columns: minmax(380px, 44%) minmax(0, 1fr);
           }
 
           .remixPortraitContentCol {
-            padding: 0 24px 0 24px;
+            padding: 0 22px 0 22px;
           }
 
-   .remixLandscapeContent {
-  grid-template-rows: minmax(340px, 46vh) minmax(0, 1fr);
-}
-
           .remixPortraitMessageText {
-            font-size: clamp(38px, 4.1vw, 82px);
+            font-size: clamp(40px, 4.1vw, 84px);
           }
 
           .remixPortraitFrom {
             font-size: clamp(28px, 2.2vw, 52px);
           }
 
-.remixLandscapeMessageText {
-  font-size: clamp(38px, 3.5vw, 74px);
-}
-
-          .remixLandscapeFrom {
-            font-size: clamp(26px, 2vw, 48px);
+          .remixInlineMessage {
+            font-size: clamp(40px, 4vw, 82px);
           }
 
-          .remixTextOnlyMessageText {
-            font-size: clamp(42px, 4vw, 86px);
-          }
-
-          .remixTextOnlyFrom {
-            font-size: clamp(28px, 2.2vw, 50px);
+          .remixInlineMessage--textOnly {
+            font-size: clamp(38px, 3.7vw, 74px);
           }
 
           .remixFooterTrack {
@@ -1163,24 +1102,23 @@ export default function TvPage({
 
         @media (max-width: 1100px) {
           .remixLandscapeShell,
-          .remixSlideShell,
           .remixTeaser {
-            padding: 0 16px 0;
+            padding: 0 16px;
             gap: 12px;
           }
 
           .remixPortraitShell {
             grid-template-columns: 1fr;
-            grid-template-rows: minmax(300px, 46vh) minmax(0, 1fr);
+            grid-template-rows: minmax(320px, 46vh) minmax(0, 1fr);
           }
 
           .remixPortraitMediaCol {
-            min-height: 300px;
+            min-height: 320px;
           }
 
           .remixPortraitContentCol {
             min-height: 0;
-            padding: 0 16px 0;
+            padding: 0 16px;
           }
 
           .remixSlideTop--portrait {
@@ -1193,43 +1131,34 @@ export default function TvPage({
           }
 
           .remixBanner {
-            min-width: 0;
-            width: min(100%, 760px);
+            width: min(100%, 620px);
             margin: 0 auto;
           }
 
           .remixBanner--portrait {
-            width: min(100%, 560px);
-          }
-
-          .remixLandscapeContent,
-          .remixTextOnlyContent {
-            grid-template-rows: minmax(220px, 38vh) auto;
-          }
-
-          .remixPortraitMessageWrap,
-          .remixLandscapeMessageWrap,
-          .remixTextOnlyTextWrap {
-            padding: 0 8px 12px;
-          }
-
-          .remixPortraitMessageText,
-          .remixLandscapeMessageText,
-          .remixTextOnlyMessageText {
-            text-align: center;
-            font-size: clamp(34px, 6vw, 60px);
-          }
-
-          .remixPortraitFrom,
-          .remixLandscapeFrom,
-          .remixTextOnlyFrom {
-            text-align: center;
-            font-size: clamp(24px, 4.5vw, 40px);
+            width: min(100%, 360px);
           }
 
           .remixLandscapeMediaFrame,
           .remixTextOnlyMediaFrame {
             width: 100%;
+          }
+
+          .remixLandscapeTextWrap,
+          .remixPortraitMessageWrap {
+            padding-left: 8px;
+            padding-right: 8px;
+          }
+
+          .remixPortraitMessageText,
+          .remixInlineMessage {
+            text-align: center;
+            font-size: clamp(34px, 6vw, 60px);
+          }
+
+          .remixPortraitFrom {
+            text-align: center;
+            font-size: clamp(24px, 4.5vw, 40px);
           }
 
           .remixFooterBars {
@@ -1280,6 +1209,7 @@ function MessageSlide({
         fromName={slide.fromName}
         timerLabel={timerLabel}
         progressPct={progressPct}
+        variant={getTextOnlyVariant(slide.id)}
       />
     );
   }
@@ -1368,10 +1298,10 @@ function LandscapeMessageLayout({
         <div className="remixLandscapeVisualPanel">
           <LandscapeVisualFrame imageUrl={imageUrl} />
         </div>
-
-        <div className="remixLandscapeMessageWrap">
-          <div className="remixMessageText remixLandscapeMessageText">{body}</div>
-          <div className="remixFrom remixLandscapeFrom">{fromName}</div>
+        <div className="remixLandscapeTextWrap">
+          <div className="remixInlineMessage">
+            {joinInlineMessage(body, fromName)}
+          </div>
         </div>
       </div>
       <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
@@ -1385,24 +1315,45 @@ function TextOnlyMessageLayout({
   fromName,
   timerLabel,
   progressPct,
+  variant,
 }: {
   title: string;
   body: string;
   fromName: string;
   timerLabel: string;
   progressPct: number;
+  variant: TextOnlyVariant;
 }) {
+  if (variant === "portrait") {
+    return (
+      <div className="remixPortraitShell">
+        <div className="remixPortraitMediaCol">
+          <PortraitPlaceholderVisualFrame />
+        </div>
+
+        <div className="remixPortraitContentCol">
+          <SlideTop title={title} variant="portrait" />
+          <div className="remixPortraitMessageWrap">
+            <div className="remixMessageText remixPortraitMessageText">{body}</div>
+            <div className="remixFrom remixPortraitFrom">{fromName}</div>
+          </div>
+          <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="remixSlideShell">
+    <div className="remixLandscapeShell">
       <SlideTop title={title} />
       <div className="remixTextOnlyContent">
         <div className="remixTextOnlyVisualWrap">
-          <TextOnlyVisualFrame />
+          <LandscapePlaceholderVisualFrame />
         </div>
-
-        <div className="remixTextOnlyTextWrap">
-          <div className="remixMessageText remixTextOnlyMessageText">{body}</div>
-          <div className="remixFrom remixTextOnlyFrom">{fromName}</div>
+        <div className="remixLandscapeTextWrap">
+          <div className="remixInlineMessage remixInlineMessage--textOnly">
+            {joinInlineMessage(body, fromName)}
+          </div>
         </div>
       </div>
       <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
@@ -1523,7 +1474,23 @@ function LandscapeVisualFrame({ imageUrl }: { imageUrl: string }) {
   );
 }
 
-function TextOnlyVisualFrame() {
+function PortraitPlaceholderVisualFrame() {
+  return (
+    <div className="remixPortraitMediaFrame remixLinen">
+      <div className="remixPhotoCorner--tl" />
+      <div className="remixPhotoCorner--br" />
+      <div className="remixPhotoInner remixPhotoInner--portrait">
+        <div className="remixPlaceholderArt">
+          <div className="remixPlaceholderArtInner">
+            <img src={REMIX_LOGO_URL} alt="Remix placeholder art" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LandscapePlaceholderVisualFrame() {
   return (
     <div className="remixTextOnlyMediaFrame remixLinen">
       <div className="remixPhotoCorner--tl" />
