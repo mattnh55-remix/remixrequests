@@ -348,13 +348,10 @@ export default function TvPage({
     if (!activeSlides.length) return;
 
     setCurrentIndex((prev) => {
-      const currentId = activeSlides[Math.min(prev, activeSlides.length - 1)]?.id;
-      const nextIndex = activeSlides.findIndex((slide) => slide.id === currentId);
-      return nextIndex >= 0 ? nextIndex : 0;
+      const safePrev = Math.min(prev, activeSlides.length - 1);
+      return safePrev >= 0 ? safePrev : 0;
     });
-
-    setSlideStartedAt(Date.now());
-  }, [activeSignature, activeSlides]);
+  }, [activeSignature]);
 
   useEffect(() => {
     if (!activeSlide || !activeSlides.length) return;
@@ -406,9 +403,9 @@ export default function TvPage({
     >
       {activeSlide ? (
         <div key={`${activeSlide.id}-${slideStartedAt}`} className="remixShoutTvFade">
-          {activeSlide.kind === "teaser" ? (
-            <TeaserSlide timerLabel={timerLabel} progressPct={progressPct} />
-          ) : (
+{activeSlide.kind === "teaser" ? (
+  <TeaserSlide />
+) : (
             <MessageSlide
               slide={activeSlide}
               timerLabel={timerLabel}
@@ -883,6 +880,13 @@ export default function TvPage({
           height: 84px;
           position: relative;
         }
+.remixFooter--teaser {
+  height: 84px;
+}
+.remixTeaserTop {
+  display: flex;
+  justify-content: center;
+}
 
         .remixFooterBars {
           position: absolute;
@@ -1274,20 +1278,16 @@ function SlideFooter({
   );
 }
 
-function TeaserSlide({
-  timerLabel,
-  progressPct,
-}: {
-  timerLabel: string;
-  progressPct: number;
-}) {
+function TeaserSlide() {
   return (
     <div className="remixTeaser">
-      <SlideTop
-        title="REMIX SHOUTOUT!"
-        timerLabel={timerLabel}
-        progressPct={progressPct}
-      />
+      <div className="remixTeaserTop">
+        <div className="remixBannerWrap">
+          <div className="remixBanner">
+            <div className="remixBannerText">REMIX SHOUTOUT!</div>
+          </div>
+        </div>
+      </div>
 
       <main className="remixTeaserCenter">
         <div className="remixTeaserInner">
@@ -1297,7 +1297,9 @@ function TeaserSlide({
         </div>
       </main>
 
-      <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
+      <footer className="remixFooter remixFooter--teaser">
+        <div className="remixFooterBars" />
+      </footer>
     </div>
   );
 }
