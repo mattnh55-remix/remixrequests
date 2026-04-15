@@ -2356,6 +2356,7 @@ const isHot = featuredSongs.some((x) => x.id === song.id);
   location={location}
   activeView="request"
   points={balanceValue}
+  onPointsClick={handlePointsAction}
 />
     </PublicTheme>
   );

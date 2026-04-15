@@ -21,6 +21,7 @@ type PublicBottomCommandBarProps = {
   location: string;
   activeView: PublicView;
   points?: number | null;
+  onPointsClick?: () => void;
   className?: string;
   hidden?: boolean;
 };
@@ -92,6 +93,7 @@ export default function PublicBottomCommandBar({
   location,
   activeView,
   points,
+  onPointsClick,
   className,
   hidden,
 }: PublicBottomCommandBarProps) {
@@ -147,7 +149,9 @@ export default function PublicBottomCommandBar({
           mounted && reducedMotion ? "reducedMotion" : "",
           keyboardOpen ? "keyboardOpen" : "",
           hidden ? "isHidden" : "",
-        ].filter(Boolean).join(" ")}
+        ]
+          .filter(Boolean)
+          .join(" ")}
       >
         <div className="rrCmdBar">
           <div className="rrCmdTop">
@@ -169,7 +173,23 @@ export default function PublicBottomCommandBar({
                 </Link>
               ) : null}
 
-              <div className="rrCmdPointsPill" aria-label="Points balance">
+              <div
+                className={`rrCmdPointsPill ${onPointsClick ? "isClickable" : ""}`}
+                aria-label="Points balance"
+                role={onPointsClick ? "button" : undefined}
+                tabIndex={onPointsClick ? 0 : undefined}
+                onClick={onPointsClick}
+                onKeyDown={
+                  onPointsClick
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onPointsClick();
+                        }
+                      }
+                    : undefined
+                }
+              >
                 <span className="rrCmdPointsLabel">Points</span>
                 <span className="rrCmdPointsValue">{points ?? 0}</span>
               </div>
@@ -215,27 +235,28 @@ export default function PublicBottomCommandBar({
           transition:
             transform 180ms ease,
             opacity 180ms ease;
-html, body {
-  height: 100%;
-  overflow-x: hidden;
-}
-body {
-  overscroll-behavior-y: none;
-}
         }
 
-.rrCmdBarWrap {
-  transition: transform 0.25s ease, opacity 0.2s ease;
-}
+        html,
+        body {
+          height: 100%;
+          overflow-x: hidden;
+        }
 
-.rrCmdBarWrap.keyboardOpen,
-.rrCmdBarWrap.isHidden {
-  transform: translateY(120%);
-  opacity: 0;
-  pointer-events: none;
-}
+        body {
+          overscroll-behavior-y: none;
+        }
 
+        .rrCmdBarWrap {
+          transition: transform 0.25s ease, opacity 0.2s ease;
+        }
 
+        .rrCmdBarWrap.keyboardOpen,
+        .rrCmdBarWrap.isHidden {
+          transform: translateY(120%);
+          opacity: 0;
+          pointer-events: none;
+        }
 
         .rrCmdBar {
           pointer-events: auto;
@@ -358,6 +379,29 @@ body {
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
         }
 
+        .rrCmdPointsPill.isClickable {
+          cursor: pointer;
+          transition:
+            transform 140ms ease,
+            box-shadow 180ms ease,
+            border-color 180ms ease,
+            background 180ms ease;
+        }
+
+        .rrCmdPointsPill.isClickable:hover,
+        .rrCmdPointsPill.isClickable:active {
+          transform: translateY(-1px) scale(1.02);
+          border-color: rgba(131, 182, 255, 0.28);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.08),
+            0 8px 18px rgba(0, 0, 0, 0.24);
+        }
+
+        .rrCmdPointsPill.isClickable:focus-visible {
+          outline: 2px solid rgba(157, 206, 255, 0.9);
+          outline-offset: 2px;
+        }
+
         .rrCmdPointsLabel {
           font-size: 10px;
           font-weight: 900;
@@ -448,7 +492,12 @@ body {
           bottom: 8px;
           height: 3px;
           border-radius: 999px;
-          background: linear-gradient(90deg, rgba(110, 168, 255, 0.2), rgba(157, 206, 255, 0.95), rgba(110, 168, 255, 0.2));
+          background: linear-gradient(
+            90deg,
+            rgba(110, 168, 255, 0.2),
+            rgba(157, 206, 255, 0.95),
+            rgba(110, 168, 255, 0.2)
+          );
           box-shadow: 0 0 16px rgba(115, 176, 255, 0.34);
         }
 
@@ -481,7 +530,8 @@ body {
         }
 
         .reducedMotion .rrCmdTab,
-        .reducedMotion .rrCmdAction {
+        .reducedMotion .rrCmdAction,
+        .reducedMotion .rrCmdPointsPill.isClickable {
           transition: none;
         }
 

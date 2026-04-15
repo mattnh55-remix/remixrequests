@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminFromCookie } from "@/lib/adminAuth";
+import { sendShoutoutRejectedSms } from "@/lib/shoutout-status-sms";
 
 function fail(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -20,6 +21,7 @@ export async function POST(req: Request) {
 
     if (!messageId) return fail("Missing messageId");
 
+    // Initial check to see if we even need to run a transaction
     const message = await prisma.screenMessage.findUnique({
       where: { id: messageId },
       select: {
@@ -43,6 +45,7 @@ export async function POST(req: Request) {
       });
     }
 
+    // Atomic transaction for Refund + Status Update
     const result = await prisma.$transaction(async (tx) => {
       const fresh = await tx.screenMessage.findUnique({
         where: { id: messageId },
@@ -56,43 +59,35 @@ export async function POST(req: Request) {
         },
       });
 
-      if (!fresh) {
-        throw new Error("MESSAGE_NOT_FOUND");
-      }
+      if (!fresh) throw new Error("MESSAGE_NOT_FOUND");
 
+      // If already has a refund ID, just update status and move on
       if (fresh.refundLedgerId) {
-        const updated = await tx.screenMessage.update({
+        await tx.screenMessage.update({
           where: { id: fresh.id },
           data: {
             status: "REJECTED",
             rejectedAt: new Date(),
             moderationNotes: note,
           },
-          select: {
-            id: true,
-            refundLedgerId: true,
-            creditsCost: true,
-          },
         });
 
         return {
-          refundLedgerId: updated.refundLedgerId,
+          refundLedgerId: fresh.refundLedgerId,
           refundAmount: 0,
           alreadyRefunded: true,
         };
       }
 
-let refundLedgerId: string | null = null;
+      let refundLedgerId: string | null = null;
       const refundAmount = Number(fresh.creditsCost || 0);
 
       if (refundAmount > 0) {
         const activeSession = await tx.session.findFirst({
           where: {
             locationId: fresh.locationId,
-            // FIX: Use date comparison instead of isActive
             endsAt: { gt: new Date() }, 
           },
-          select: { endsAt: true },
           orderBy: { createdAt: "desc" },
         });
 
@@ -104,7 +99,6 @@ let refundLedgerId: string | null = null;
             reason: "REFUND",
             expiresAt: activeSession?.endsAt ?? null,
           },
-          select: { id: true },
         });
 
         refundLedgerId = refund.id;
@@ -113,8 +107,7 @@ let refundLedgerId: string | null = null;
       await tx.screenMessage.update({
         where: { id: fresh.id },
         data: {
-          // FIX: Must be uppercase "REJECTED" to match your schema
-          status: "REJECTED", 
+          status: "REJECTED",
           rejectedAt: new Date(),
           moderationNotes: note,
           refundLedgerId,
@@ -128,6 +121,7 @@ let refundLedgerId: string | null = null;
       };
     });
 
+    // Post-transaction: Get new balance and send SMS
     const balanceAgg = await prisma.creditLedger.aggregate({
       _sum: { delta: true },
       where: {
@@ -136,15 +130,27 @@ let refundLedgerId: string | null = null;
       },
     });
 
+    const smsResult = await sendShoutoutRejectedSms({
+      locationId: message.locationId,
+      emailHash: message.emailHash,
+      reason: note,
+      refunded: result.refundAmount > 0,
+    });
+
     return NextResponse.json({
       ok: true,
       refunded: result.refundAmount > 0,
       alreadyRefunded: result.alreadyRefunded,
       refundAmount: result.refundAmount,
       balance: Math.max(Number(balanceAgg._sum.delta || 0), 0),
+      texted: Boolean(smsResult?.ok),
+      smsSkipped: Boolean((smsResult as any)?.skipped),
     });
+
   } catch (err: any) {
     console.error("[admin/shoutouts/reject] error:", err?.message || err);
+    // Specific error message for the transaction failure
+    if (err.message === "MESSAGE_NOT_FOUND") return fail("Message disappeared", 404);
     return fail("Could not reject message", 500);
   }
 }

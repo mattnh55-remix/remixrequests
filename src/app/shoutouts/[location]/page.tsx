@@ -568,6 +568,17 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     }
   }
 
+
+function handlePointsAction() {
+  if (!sessionActive || !verified || !identityId) {
+    setShowVerify(true);
+    return;
+  }
+
+  setShowBuy(true);
+}
+
+
   function handleProductClick(nextProductKey: ShoutoutProductKey) {
     const nextProduct =
       SHOUTOUT_PRODUCTS.find((p) => p.key === nextProductKey) || SHOUTOUT_PRODUCTS[0];
@@ -960,12 +971,6 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
         </div>
       </div>
 
-<PublicBottomCommandBar
-  location={location}
-  activeView="shoutouts"
-  points={heroBalance}
-/>
-
       {toastVisible && msg ? (
         <div
           className="rrToast"
@@ -1173,6 +1178,12 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           void startCheckout(packageKey);
         }}
       />
+<PublicBottomCommandBar
+  location={location}
+  activeView="shoutouts"
+  points={balance}
+  onPointsClick={handlePointsAction}
+/>
     </PublicTheme>
   );
 }
