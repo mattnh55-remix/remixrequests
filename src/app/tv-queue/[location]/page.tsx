@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 type QueueItem = {
   id: string;
@@ -28,12 +28,42 @@ type RulesResponse = {
   defaultAlbumArtUrl?: string | null;
 };
 
-const EMPTY_CTA_MESSAGES = [
-  "SCAN THE CODE AT YOUR TABLE",
-  "REQUEST YOUR SONG",
-  "BOOST YOUR FAVORITES",
-  "SEND A SHOUTOUT",
-];
+type VisibleCard = QueueItem & {
+  visualNumber?: number;
+};
+
+const FEATURE_ROTATE_MS = 25000;
+const POLL_QUEUE_MS = 5000;
+const POLL_FEATURED_MS = 30000;
+const POLL_RULES_MS = 45000;
+
+function sameItems(a: QueueItem[], b: QueueItem[]) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i];
+    const right = b[i];
+    if (
+      left?.id !== right?.id ||
+      left?.title !== right?.title ||
+      left?.artist !== right?.artist ||
+      left?.artworkUrl !== right?.artworkUrl ||
+      Number(left?.upvotes || 0) !== Number(right?.upvotes || 0) ||
+      Number(left?.downvotes || 0) !== Number(right?.downvotes || 0) ||
+      Number(left?.score || 0) !== Number(right?.score || 0)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function makeFeaturedPair(items: QueueItem[], start: number): QueueItem[] {
+  if (items.length <= 2) return items;
+
+  const first = items[start % items.length];
+  const second = items[(start + 1) % items.length];
+  return [first, second].filter(Boolean);
+}
 
 export default function TvQueuePortraitPage({
   params,
@@ -42,37 +72,39 @@ export default function TvQueuePortraitPage({
 }) {
   const location = params.location;
 
-  const [playNow, setPlayNow] = useState<QueueItem[]>([]);
   const [upNext, setUpNext] = useState<QueueItem[]>([]);
-  const [boostFlash, setBoostFlash] = useState(false);
-  const [artA, setArtA] = useState<string | null>(null);
-  const [artB, setArtB] = useState<string | null>(null);
-  const [showA, setShowA] = useState(true);
-  const [defaultAlbumArtUrl, setDefaultAlbumArtUrl] = useState<string | null>(null);
   const [featuredSongs, setFeaturedSongs] = useState<QueueItem[]>([]);
+  const [defaultAlbumArtUrl, setDefaultAlbumArtUrl] = useState<string | null>(null);
   const [tvScale, setTvScale] = useState(1);
-  const [ctaIndex, setCtaIndex] = useState(0);
   const [featuredStart, setFeaturedStart] = useState(0);
+  const [sceneKey, setSceneKey] = useState(0);
 
-  const prevTopId = useRef<string | null>(null);
+  const previousRequestIdsRef = useRef<string>("");
+  const previousFeaturedIdsRef = useRef<string>("");
 
-  const nowPlaying = playNow[0] || upNext[0] || null;
-  const queueList = upNext.slice(0, 2);
-  const topIsBoosted = Boolean(
-    nowPlaying && (nowPlaying.isBoosted || nowPlaying.boosted || nowPlaying.wasBoosted)
-  );
-  const showFeatured = queueList.length === 0;
-  const featuredVisible = featuredSongs.length <= 2
-    ? featuredSongs
-    : featuredSongs.slice(featuredStart, featuredStart + 2);
+  const requestCards = useMemo<VisibleCard[]>(() => {
+    return upNext.slice(0, 2).map((item, index) => ({
+      ...item,
+      visualNumber: index + 3,
+    }));
+  }, [upNext]);
+
+  const hasRequests = requestCards.length > 0;
+
+  const featuredCards = useMemo<VisibleCard[]>(() => {
+    return makeFeaturedPair(featuredSongs, featuredStart);
+  }, [featuredSongs, featuredStart]);
+
+  const visibleCards = hasRequests ? requestCards : featuredCards;
+  const mode = hasRequests ? "requests" : "featured";
 
   useEffect(() => {
     function updateScale() {
       const h = window.innerHeight || 1080;
-      const w = window.innerWidth || 1080;
-      const heightScale = h / 1080;
-      const widthScale = w / 720;
-      const nextScale = Math.max(0.92, Math.min(1.55, Math.min(heightScale, widthScale) * 1.08));
+      const w = window.innerWidth || 720;
+      const heightScale = h / 1920;
+      const widthScale = w / 1080;
+      const nextScale = Math.max(0.8, Math.min(1.28, Math.min(heightScale, widthScale) * 1.12));
       setTvScale(Number(nextScale.toFixed(3)));
     }
 
@@ -82,36 +114,55 @@ export default function TvQueuePortraitPage({
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setCtaIndex((prev) => (prev + 1) % EMPTY_CTA_MESSAGES.length);
-    }, 4500);
+    if (hasRequests) return;
 
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
     const timer = window.setInterval(() => {
       setFeaturedStart((prev) => {
         if (featuredSongs.length <= 2) return 0;
-        const next = prev + 2;
-        return next >= featuredSongs.length ? 0 : next;
+        return (prev + 2) % featuredSongs.length;
       });
-    }, 10000);
+      setSceneKey((prev) => prev + 1);
+    }, FEATURE_ROTATE_MS);
 
     return () => window.clearInterval(timer);
-  }, [featuredSongs.length]);
+  }, [featuredSongs.length, hasRequests]);
 
-  async function tickQueue() {
+  useEffect(() => {
+    const requestSignature = requestCards
+      .map((item) => `${item.id}:${item.visualNumber}:${item.upvotes || 0}:${item.downvotes || 0}:${item.score || 0}`)
+      .join("|");
+
+    if (requestSignature && requestSignature !== previousRequestIdsRef.current) {
+      previousRequestIdsRef.current = requestSignature;
+      setSceneKey((prev) => prev + 1);
+    }
+
+    if (!requestSignature) {
+      previousRequestIdsRef.current = "";
+    }
+  }, [requestCards]);
+
+  useEffect(() => {
+    const featuredSignature = featuredCards.map((item) => item.id).join("|");
+
+    if (!hasRequests && featuredSignature && featuredSignature !== previousFeaturedIdsRef.current) {
+      previousFeaturedIdsRef.current = featuredSignature;
+      setSceneKey((prev) => prev + 1);
+    }
+  }, [featuredCards, hasRequests]);
+
+  async function loadQueue() {
     try {
       const res = await fetch(`/api/public/queue/${location}`, {
         cache: "no-store",
       });
+      if (!res.ok) return;
       const data = await res.json();
-      setPlayNow(Array.isArray(data.playNow) ? data.playNow : []);
-      setUpNext(Array.isArray(data.upNext) ? data.upNext : []);
+      const nextItems = Array.isArray(data?.upNext) ? data.upNext.slice(0, 2) : [];
+
+      setUpNext((current) => (sameItems(current, nextItems) ? current : nextItems));
     } catch {
-      setPlayNow([]);
-      setUpNext([]);
+      setUpNext((current) => (current.length === 0 ? current : []));
     }
   }
 
@@ -134,33 +185,33 @@ export default function TvQueuePortraitPage({
       const res = await fetch(`/api/public/featured-songs/${location}`, {
         cache: "no-store",
       });
+      if (!res.ok) return;
       const data = await res.json();
       const items = Array.isArray(data?.items) ? data.items : [];
+      const nextItems = items.map((s: any) => ({
+        id: String(s.id),
+        title: String(s.title || ""),
+        artist: String(s.artist || ""),
+        artworkUrl: s.artworkUrl || undefined,
+        score: 0,
+        upvotes: 0,
+        downvotes: 0,
+      })) as QueueItem[];
 
-      setFeaturedSongs(
-        items.map((s: any) => ({
-          id: String(s.id),
-          title: String(s.title || ""),
-          artist: String(s.artist || ""),
-          artworkUrl: s.artworkUrl || undefined,
-          score: 0,
-          upvotes: 0,
-          downvotes: 0,
-        }))
-      );
+      setFeaturedSongs((current) => (sameItems(current, nextItems) ? current : nextItems));
     } catch {
-      setFeaturedSongs([]);
+      setFeaturedSongs((current) => (current.length === 0 ? current : []));
     }
   }
 
   useEffect(() => {
-    void tickQueue();
+    void loadQueue();
     void loadFeatured();
     void loadRules();
 
-    const queueTimer = window.setInterval(() => void tickQueue(), 3000);
-    const featuredTimer = window.setInterval(() => void loadFeatured(), 15000);
-    const rulesTimer = window.setInterval(() => void loadRules(), 15000);
+    const queueTimer = window.setInterval(() => void loadQueue(), POLL_QUEUE_MS);
+    const featuredTimer = window.setInterval(() => void loadFeatured(), POLL_FEATURED_MS);
+    const rulesTimer = window.setInterval(() => void loadRules(), POLL_RULES_MS);
 
     return () => {
       window.clearInterval(queueTimer);
@@ -169,776 +220,365 @@ export default function TvQueuePortraitPage({
     };
   }, [location]);
 
-  useEffect(() => {
-    const topId = playNow[0]?.id ?? null;
-    if (!topId) return;
-
-    if (prevTopId.current && prevTopId.current !== topId) {
-      setBoostFlash(true);
-      const timer = window.setTimeout(() => setBoostFlash(false), 900);
-      prevTopId.current = topId;
-      return () => window.clearTimeout(timer);
-    }
-
-    prevTopId.current = topId;
-  }, [playNow]);
-
-  useEffect(() => {
-    const next = nowPlaying?.artworkUrl || null;
-
-    if (!artA && !artB) {
-      setArtA(next);
-      setShowA(true);
-      return;
-    }
-
-    const currentVisible = showA ? artA : artB;
-    if (next === currentVisible) return;
-
-    if (showA) {
-      setArtB(next);
-      requestAnimationFrame(() => setShowA(false));
-    } else {
-      setArtA(next);
-      requestAnimationFrame(() => setShowA(true));
-    }
-  }, [nowPlaying?.artworkUrl, artA, artB, showA]);
-
   return (
-    <div
-      className={`remixQueueTvRoot ${boostFlash ? "remixQueueTvFlash" : ""}`}
-      style={{ ["--tvScale" as any]: tvScale } as CSSProperties}
-    >
-      <div className="remixQueueTvGlow remixQueueTvGlowA" />
-      <div className="remixQueueTvGlow remixQueueTvGlowB" />
-      <div className="remixQueueTvGlow remixQueueTvGlowC" />
-      <div className="remixQueueTvBeam remixQueueTvBeamA" />
-      <div className="remixQueueTvBeam remixQueueTvBeamB" />
-      <div className="remixQueueTvGrid" />
+    <div className="remixRequestsBillboardRoot" style={{ ["--tvScale" as any]: tvScale } as CSSProperties}>
+      <div className="remixRequestsBg remixRequestsBgA" />
+      <div className="remixRequestsBg remixRequestsBgB" />
+      <div className="remixRequestsGlow remixRequestsGlowA" />
+      <div className="remixRequestsGlow remixRequestsGlowB" />
 
-      <main className="remixQueueTvStage">
-        <section className="remixQueueHeroCard">
-          <div className="remixQueueHeroTopline">
-            <div className="remixQueueHeroLabelWrap">
-              <span className="remixQueueHeroLabel">Now Playing</span>
-              {topIsBoosted ? (
-                <span className="remixQueueHeroBoost">Boosted</span>
-              ) : null}
-            </div>
-            <div className="remixQueueHeroDots" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-          </div>
+      <main className="remixRequestsStage">
+        <HeaderBadge />
 
-          <div className="remixQueueHeroBody">
-            <div className="remixQueueHeroArtShell">
-              <div className="remixQueueHeroArtFrame">
-                <div className="remixQueueHeroArtAura" />
-                <div className="remixQueueHeroArtLayer" style={{ opacity: showA ? 1 : 0 }}>
-                  <Artwork src={artA} alt="" defaultSrc={defaultAlbumArtUrl} />
-                </div>
-                <div className="remixQueueHeroArtLayer" style={{ opacity: showA ? 0 : 1 }}>
-                  <Artwork src={artB} alt="" defaultSrc={defaultAlbumArtUrl} />
-                </div>
-              </div>
-            </div>
-
-            <div className="remixQueueHeroMeta">
-              <div className={`remixQueueHeroTitle ${!nowPlaying ? "is-empty" : ""}`}>
-                {nowPlaying?.title || "You Control The Music"}
-              </div>
-              <div className={`remixQueueHeroArtist ${!nowPlaying ? "is-empty" : ""}`}>
-                {nowPlaying?.artist || EMPTY_CTA_MESSAGES[ctaIndex]}
-              </div>
-
-              <div className="remixQueueHeroFooter">
-                <AudioPulse />
-                <div className="remixQueueHeroFooterText">
-                  {nowPlaying
-                    ? "Vote and boost from your phone"
-                    : "Pick the next song from your table"}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="remixQueueLowerPanel">
-          <div className="remixQueuePanelHeader">
-            <div className="remixQueuePanelTitle">{showFeatured ? "Featured at Remix" : "Up Next"}</div>
-            <div className="remixQueuePanelKicker">
-              {showFeatured ? "Crowd favorites" : "Big picks coming up"}
-            </div>
-          </div>
-
-          <div className="remixQueueLowerContent">
-            {showFeatured ? (
-              featuredVisible.length > 0 ? (
-                featuredVisible.map((item, index) => (
-                  <FeaturedBillboardCard
-                    key={`${item.id}-${index}`}
-                    item={item}
-                    defaultAlbumArtUrl={defaultAlbumArtUrl}
-                  />
-                ))
-              ) : (
-                <div className="remixQueueLoadingState">Loading vibe...</div>
-              )
-            ) : (
-              queueList.map((item, index) => (
-                <QueueBillboardCard
-                  key={item.id}
+        <section className="remixRequestsCardsViewport">
+          {visibleCards.length === 0 ? (
+            <div className="remixRequestsLoading">Loading featured songs...</div>
+          ) : (
+            <div className="remixRequestsCardsTrack" key={`${mode}-${sceneKey}`}>
+              {visibleCards.map((item, index) => (
+                <BillboardCard
+                  key={`${mode}-${item.id}-${index}`}
                   item={item}
-                  index={index}
+                  side={index === 0 ? "left" : "right"}
                   defaultAlbumArtUrl={defaultAlbumArtUrl}
+                  showNumber={hasRequests}
                 />
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
 
-        <section className="remixQueueBottomBar">
-          <div className="remixQueueBottomText">Scan the code at your table</div>
-          <div className="remixQueueBottomDivider" />
-          <div className="remixQueueBottomText remixQueueBottomTextAccent">
-            Request songs • Vote • Boost • Shoutout
-          </div>
-        </section>
+        <FooterBanner mode={mode} />
       </main>
 
       <style jsx global>{`
-        .remixQueueTvRoot {
-          --bgA: #050816;
-          --bgB: #081226;
-          --bgC: #120820;
-          --line: rgba(255, 255, 255, 0.11);
-          --softLine: rgba(255, 255, 255, 0.06);
-          --text: #ffffff;
-          --muted: rgba(255, 255, 255, 0.78);
-          --cyan: #00f7ff;
-          --pink: #ff39d4;
-          --blue: #5d8cff;
-          --card: rgba(10, 17, 38, 0.78);
-          --cardStrong: rgba(12, 19, 45, 0.9);
-          --glowA: 0 0 calc(20px * var(--tvScale)) rgba(0, 247, 255, 0.16);
-          --glowB: 0 0 calc(26px * var(--tvScale)) rgba(255, 57, 212, 0.18);
-          --shadow: 0 calc(18px * var(--tvScale)) calc(40px * var(--tvScale)) rgba(0, 0, 0, 0.32);
-          position: relative;
+        .remixRequestsBillboardRoot {
+          --bgLeft: #02152f;
+          --bgRight: #2b0c45;
+          --panel: rgba(255, 255, 255, 0.05);
+          --line: rgba(255, 255, 255, 0.14);
+          --text: #fff7ea;
+          --shadowText: #251334;
+          --purpleA: #7854d7;
+          --purpleB: #d95ac5;
+          --pink: #ef6ecb;
+          --blue: #4e72ff;
+          --gold: #ffd661;
+          --orange: #ff8a2a;
           min-height: 100vh;
+          position: relative;
           overflow: hidden;
+          background: linear-gradient(90deg, var(--bgLeft) 0%, #07152d 26%, #130d3b 63%, var(--bgRight) 100%);
           color: var(--text);
-          background:
-            radial-gradient(circle at 18% 12%, rgba(0, 247, 255, 0.11), transparent 28%),
-            radial-gradient(circle at 88% 14%, rgba(255, 57, 212, 0.12), transparent 30%),
-            radial-gradient(circle at 50% 110%, rgba(93, 140, 255, 0.14), transparent 40%),
-            linear-gradient(180deg, var(--bgA) 0%, var(--bgB) 52%, var(--bgC) 100%);
         }
 
-        .remixQueueTvGlow,
-        .remixQueueTvBeam,
-        .remixQueueTvGrid {
-          pointer-events: none;
+        .remixRequestsBg,
+        .remixRequestsGlow {
           position: absolute;
           inset: 0;
+          pointer-events: none;
         }
 
-        .remixQueueTvGlow {
-          border-radius: 999px;
-          filter: blur(calc(80px * var(--tvScale)));
+        .remixRequestsBgA {
+          background:
+            radial-gradient(circle at 16% 80%, rgba(0, 122, 255, 0.12), transparent 28%),
+            radial-gradient(circle at 84% 18%, rgba(237, 78, 201, 0.12), transparent 26%);
+        }
+
+        .remixRequestsBgB {
+          background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 18%, transparent 82%, rgba(255,255,255,0.02));
+        }
+
+        .remixRequestsGlow {
           mix-blend-mode: screen;
-          opacity: 0.22;
-          animation: remixQueueFloatGlow 18s ease-in-out infinite;
-        }
-
-        .remixQueueTvGlowA {
-          width: 52vw;
-          height: 52vw;
-          left: -16vw;
-          top: -12vw;
-          background: radial-gradient(circle, rgba(0, 247, 255, 0.45), transparent 68%);
-        }
-
-        .remixQueueTvGlowB {
-          width: 40vw;
-          height: 40vw;
-          right: -10vw;
-          top: 10vh;
-          background: radial-gradient(circle, rgba(255, 57, 212, 0.4), transparent 70%);
-          animation-delay: -6s;
-        }
-
-        .remixQueueTvGlowC {
-          width: 42vw;
-          height: 42vw;
-          left: 28vw;
-          bottom: -18vw;
-          background: radial-gradient(circle, rgba(93, 140, 255, 0.34), transparent 72%);
-          animation-delay: -10s;
-        }
-
-        .remixQueueTvBeam {
-          mix-blend-mode: screen;
+          filter: blur(calc(90px * var(--tvScale)));
           opacity: 0.18;
-          filter: blur(calc(26px * var(--tvScale)));
         }
 
-        .remixQueueTvBeamA {
-          background: linear-gradient(135deg, transparent 34%, rgba(0, 247, 255, 0.16) 50%, transparent 66%);
-          animation: remixQueueBeamMoveA 14s ease-in-out infinite alternate;
+        .remixRequestsGlowA {
+          background: radial-gradient(circle at 8% 50%, rgba(0, 247, 255, 0.46), transparent 20%);
+          animation: remixRequestsDriftA 16s ease-in-out infinite;
         }
 
-        .remixQueueTvBeamB {
-          background: linear-gradient(225deg, transparent 30%, rgba(255, 57, 212, 0.14) 49%, transparent 68%);
-          animation: remixQueueBeamMoveB 16s ease-in-out infinite alternate;
+        .remixRequestsGlowB {
+          background: radial-gradient(circle at 92% 20%, rgba(255, 57, 212, 0.4), transparent 18%);
+          animation: remixRequestsDriftB 18s ease-in-out infinite;
         }
 
-        .remixQueueTvGrid {
-          opacity: 0.08;
-          background-image:
-            linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
-          background-size: calc(34px * var(--tvScale)) calc(34px * var(--tvScale));
-          mask-image: linear-gradient(180deg, rgba(0,0,0,0.4), rgba(0,0,0,0.95));
-        }
-
-        .remixQueueTvStage {
-          position: relative;
-          z-index: 2;
+        .remixRequestsStage {
           min-height: 100vh;
+          position: relative;
+          z-index: 1;
           display: grid;
-          grid-template-rows: minmax(calc(390px * var(--tvScale)), 0.92fr) minmax(calc(310px * var(--tvScale)), 0.88fr) auto;
-          gap: calc(18px * var(--tvScale));
-          padding: calc(24px * var(--tvScale));
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          gap: calc(34px * var(--tvScale));
+          padding: calc(24px * var(--tvScale)) calc(24px * var(--tvScale)) calc(20px * var(--tvScale));
           box-sizing: border-box;
         }
 
-        .remixQueueHeroCard,
-        .remixQueueLowerPanel,
-        .remixQueueBottomBar {
-          position: relative;
-          border: 1px solid var(--line);
-          background: linear-gradient(180deg, rgba(14, 22, 46, 0.82), rgba(8, 13, 30, 0.84));
-          box-shadow: var(--shadow);
-          overflow: hidden;
-        }
-
-        .remixQueueHeroCard::before,
-        .remixQueueLowerPanel::before,
-        .remixQueueBottomBar::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(135deg, rgba(255,255,255,0.06), transparent 28%, transparent 72%, rgba(255,255,255,0.04));
-          pointer-events: none;
-        }
-
-        .remixQueueHeroCard {
-          border-radius: calc(34px * var(--tvScale));
-          padding: calc(20px * var(--tvScale));
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr);
-          gap: calc(16px * var(--tvScale));
-        }
-
-        .remixQueueHeroTopline {
+        .remixRequestsHeaderWrap {
           display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: calc(12px * var(--tvScale));
-        }
-
-        .remixQueueHeroLabelWrap {
-          display: flex;
-          align-items: center;
-          gap: calc(12px * var(--tvScale));
-          min-width: 0;
-          flex-wrap: wrap;
-        }
-
-        .remixQueueHeroLabel,
-        .remixQueueHeroBoost {
-          display: inline-flex;
-          align-items: center;
-          min-height: calc(38px * var(--tvScale));
-          border-radius: 999px;
-          padding: 0 calc(16px * var(--tvScale));
-          font-size: clamp(13px, calc(17px * var(--tvScale)), 22px);
-          font-weight: 1000;
-          text-transform: uppercase;
-          letter-spacing: 1.2px;
-        }
-
-        .remixQueueHeroLabel {
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.12);
-        }
-
-        .remixQueueHeroBoost {
-          background: linear-gradient(90deg, rgba(255,57,212,0.24), rgba(0,247,255,0.16));
-          border: 1px solid rgba(255,255,255,0.16);
-          box-shadow: var(--glowB);
-        }
-
-        .remixQueueHeroDots {
-          display: inline-flex;
-          align-items: center;
-          gap: calc(8px * var(--tvScale));
-          flex-shrink: 0;
-        }
-
-        .remixQueueHeroDots span {
-          width: calc(10px * var(--tvScale));
-          height: calc(10px * var(--tvScale));
-          border-radius: 999px;
-          background: linear-gradient(180deg, rgba(0,247,255,0.95), rgba(255,57,212,0.9));
-          box-shadow: var(--glowA);
-          animation: remixQueueDotPulse 1.8s ease-in-out infinite;
-        }
-
-        .remixQueueHeroDots span:nth-child(2) { animation-delay: 200ms; }
-        .remixQueueHeroDots span:nth-child(3) { animation-delay: 400ms; }
-
-        .remixQueueHeroBody {
-          min-height: 0;
-          display: grid;
-          grid-template-columns: minmax(calc(240px * var(--tvScale)), 0.9fr) minmax(0, 1.1fr);
-          gap: calc(20px * var(--tvScale));
-          align-items: center;
-        }
-
-        .remixQueueHeroArtShell {
-          display: grid;
-          place-items: center;
-          min-height: 0;
-        }
-
-        .remixQueueHeroArtFrame {
-          position: relative;
-          width: min(100%, calc(360px * var(--tvScale)));
-          aspect-ratio: 1 / 1;
-          border-radius: calc(30px * var(--tvScale));
-          overflow: hidden;
-          border: 1px solid rgba(255,255,255,0.18);
-          background: rgba(255,255,255,0.05);
-          box-shadow: 0 0 calc(32px * var(--tvScale)) rgba(0, 247, 255, 0.14);
-        }
-
-        .remixQueueHeroArtAura {
-          position: absolute;
-          inset: -34%;
-          background:
-            radial-gradient(circle at 30% 24%, rgba(0,247,255,0.24), transparent 55%),
-            radial-gradient(circle at 80% 80%, rgba(255,57,212,0.24), transparent 58%);
-          filter: blur(calc(28px * var(--tvScale)));
-          opacity: 0.9;
-          mix-blend-mode: screen;
-          animation: remixQueueHeroAura 5s ease-in-out infinite;
-          pointer-events: none;
-          z-index: 2;
-        }
-
-        .remixQueueHeroArtLayer {
-          position: absolute;
-          inset: 0;
-          transition: opacity 420ms ease;
-        }
-
-        .remixQueueHeroMeta {
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
           justify-content: center;
-          gap: calc(14px * var(--tvScale));
+          padding-top: calc(4px * var(--tvScale));
         }
 
-        .remixQueueHeroTitle {
-          font-size: clamp(40px, calc(56px * var(--tvScale)), 74px);
+        .remixRequestsHeaderBadge {
+          min-width: min(76vw, calc(720px * var(--tvScale)));
+          max-width: calc(760px * var(--tvScale));
+          background:
+            radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05), transparent 70%),
+            radial-gradient(circle, rgba(85,48,140,0.16) 18%, transparent 19%),
+            linear-gradient(180deg, #8261c9 0%, #6d4eb6 100%);
+          background-size: auto, calc(28px * var(--tvScale)) calc(28px * var(--tvScale)), auto;
+          border: calc(5px * var(--tvScale)) solid #0c0717;
+          clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%);
+          padding: calc(22px * var(--tvScale)) calc(30px * var(--tvScale)) calc(42px * var(--tvScale));
+          text-align: center;
+          box-shadow: 0 calc(18px * var(--tvScale)) calc(32px * var(--tvScale)) rgba(0,0,0,0.3);
+        }
+
+        .remixRequestsHeaderText {
+          font-size: clamp(34px, calc(58px * var(--tvScale)), 86px);
+          font-weight: 1000;
           line-height: 0.95;
-          font-weight: 1000;
-          letter-spacing: -1.6px;
-          text-shadow: 0 0 calc(16px * var(--tvScale)) rgba(255,255,255,0.12);
-          display: -webkit-box;
-          -webkit-line-clamp: 3;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .remixQueueHeroTitle.is-empty {
-          font-size: clamp(42px, calc(62px * var(--tvScale)), 80px);
-          line-height: 0.92;
-        }
-
-        .remixQueueHeroArtist {
-          font-size: clamp(22px, calc(28px * var(--tvScale)), 38px);
-          line-height: 1.08;
-          color: var(--muted);
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .remixQueueHeroArtist.is-empty {
-          color: rgba(255,255,255,0.96);
-          font-weight: 900;
-          letter-spacing: 1.2px;
+          letter-spacing: 1px;
           text-transform: uppercase;
-          animation: remixQueueCtaGlow 2.4s ease-in-out infinite;
+          color: var(--text);
+          text-shadow:
+            calc(4px * var(--tvScale)) calc(4px * var(--tvScale)) 0 rgba(21, 8, 31, 0.7),
+            0 0 calc(12px * var(--tvScale)) rgba(255,255,255,0.1);
         }
 
-        .remixQueueHeroFooter {
-          display: flex;
-          align-items: center;
-          gap: calc(14px * var(--tvScale));
-          margin-top: calc(4px * var(--tvScale));
-          flex-wrap: wrap;
-        }
-
-        .remixQueueHeroFooterText {
-          font-size: clamp(15px, calc(20px * var(--tvScale)), 26px);
-          font-weight: 800;
-          letter-spacing: 0.4px;
-          color: rgba(255,255,255,0.9);
-        }
-
-        .remixQueueLowerPanel {
-          border-radius: calc(30px * var(--tvScale));
-          padding: calc(18px * var(--tvScale));
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr);
-          gap: calc(14px * var(--tvScale));
-        }
-
-        .remixQueuePanelHeader {
-          display: flex;
-          align-items: end;
-          justify-content: space-between;
-          gap: calc(12px * var(--tvScale));
-        }
-
-        .remixQueuePanelTitle {
-          font-size: clamp(28px, calc(40px * var(--tvScale)), 54px);
-          line-height: 1;
-          font-weight: 1000;
-          text-transform: uppercase;
-          letter-spacing: 0.8px;
-        }
-
-        .remixQueuePanelKicker {
-          font-size: clamp(14px, calc(18px * var(--tvScale)), 24px);
-          color: rgba(255,255,255,0.72);
-          text-align: right;
-          font-weight: 800;
-        }
-
-        .remixQueueLowerContent {
+        .remixRequestsCardsViewport {
           min-height: 0;
           display: grid;
-          gap: calc(14px * var(--tvScale));
-          align-content: stretch;
+          align-items: center;
+          overflow: hidden;
         }
 
-        .remixQueueCard {
-          min-height: 0;
+        .remixRequestsCardsTrack {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: calc(28px * var(--tvScale));
+          align-content: center;
+        }
+
+        .remixRequestsCard {
           position: relative;
           display: grid;
-          gap: calc(14px * var(--tvScale));
-          border-radius: calc(24px * var(--tvScale));
-          border: 1px solid rgba(255,255,255,0.1);
-          background: linear-gradient(135deg, rgba(28, 16, 48, 0.88), rgba(13, 18, 42, 0.84));
-          overflow: hidden;
-          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
-        }
-
-        .remixQueueCard::after {
-          content: "";
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
-          transform: translateX(-130%) skewX(-18deg);
-          animation: remixQueueShimmer 8.8s ease-in-out infinite;
-          pointer-events: none;
-        }
-
-        .remixQueueNextCard {
-          grid-template-columns: auto minmax(0, 1fr) auto;
+          grid-template-columns: auto minmax(0, 1fr);
+          gap: calc(18px * var(--tvScale));
           align-items: center;
-          padding: calc(14px * var(--tvScale)) calc(16px * var(--tvScale));
+          max-width: calc(920px * var(--tvScale));
+          width: 100%;
+          justify-self: center;
+          animation-duration: 25s;
+          animation-timing-function: ease-in-out;
+          animation-fill-mode: both;
+          will-change: transform, opacity;
         }
 
-        .remixQueueNextRank {
-          width: calc(60px * var(--tvScale));
-          font-size: clamp(28px, calc(40px * var(--tvScale)), 52px);
-          font-weight: 1000;
-          line-height: 1;
-          text-align: center;
-          text-shadow: 0 0 calc(14px * var(--tvScale)) rgba(255,255,255,0.16);
+        .remixRequestsCard.is-left {
+          animation-name: remixRequestsLeftScene;
         }
 
-        .remixQueueNextMeta {
-          min-width: 0;
-          display: grid;
-          gap: calc(8px * var(--tvScale));
+        .remixRequestsCard.is-right {
+          animation-name: remixRequestsRightScene;
         }
 
-        .remixQueueNextTitle {
-          font-size: clamp(26px, calc(34px * var(--tvScale)), 46px);
-          line-height: 0.98;
-          font-weight: 1000;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .remixQueueNextArtist {
-          font-size: clamp(16px, calc(22px * var(--tvScale)), 30px);
-          color: var(--muted);
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .remixQueueNextStats {
-          display: inline-flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: calc(8px * var(--tvScale));
-        }
-
-        .remixQueueStatPill {
-          min-width: calc(84px * var(--tvScale));
-          min-height: calc(44px * var(--tvScale));
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          padding: 0 calc(16px * var(--tvScale));
-          font-size: clamp(15px, calc(19px * var(--tvScale)), 25px);
-          font-weight: 1000;
-          border: 1px solid rgba(255,255,255,0.14);
-          background: rgba(255,255,255,0.06);
-          white-space: nowrap;
-        }
-
-        .remixQueueStatPill.score {
-          background: rgba(0,247,255,0.1);
-          border-color: rgba(0,247,255,0.25);
-          box-shadow: var(--glowA);
-        }
-
-        .remixQueueFeaturedCard {
-          grid-template-columns: calc(118px * var(--tvScale)) minmax(0, 1fr);
-          align-items: center;
-          padding: calc(14px * var(--tvScale));
-          animation: remixQueueCardFloat 8s ease-in-out infinite;
-        }
-
-        .remixQueueFeaturedCard:nth-child(2) {
-          animation-delay: -1.8s;
-        }
-
-        .remixQueueFeaturedArt {
-          position: relative;
-          width: calc(118px * var(--tvScale));
-          height: calc(118px * var(--tvScale));
-          border-radius: calc(18px * var(--tvScale));
-          overflow: hidden;
-          border: 1px solid rgba(255,255,255,0.16);
-          background: rgba(255,255,255,0.05);
-        }
-
-        .remixQueueFeaturedAura {
-          position: absolute;
-          inset: -38%;
-          background:
-            radial-gradient(circle at 30% 22%, rgba(0,247,255,0.2), transparent 55%),
-            radial-gradient(circle at 78% 78%, rgba(255,57,212,0.2), transparent 58%);
-          filter: blur(calc(18px * var(--tvScale)));
-          opacity: 0.8;
-          mix-blend-mode: screen;
-          animation: remixQueueHeroAura 5.6s ease-in-out infinite;
-        }
-
-        .remixQueueFeaturedMeta {
-          min-width: 0;
-          display: grid;
-          gap: calc(8px * var(--tvScale));
-        }
-
-        .remixQueueFeaturedEyebrow {
-          font-size: clamp(12px, calc(15px * var(--tvScale)), 20px);
-          font-weight: 1000;
-          color: rgba(255,255,255,0.76);
-          text-transform: uppercase;
-          letter-spacing: 1.2px;
-        }
-
-        .remixQueueFeaturedTitle {
-          font-size: clamp(24px, calc(30px * var(--tvScale)), 42px);
-          line-height: 1;
-          font-weight: 1000;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .remixQueueFeaturedArtist {
-          font-size: clamp(16px, calc(21px * var(--tvScale)), 28px);
-          color: var(--muted);
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .remixQueueLoadingState {
-          min-height: calc(130px * var(--tvScale));
+        .remixRequestsCardNumber {
+          width: calc(116px * var(--tvScale));
+          min-width: calc(116px * var(--tvScale));
+          align-self: start;
+          background: linear-gradient(180deg, #5f71ff 0%, #ef63c8 100%);
+          border: calc(4px * var(--tvScale)) solid rgba(13, 6, 22, 0.98);
+          clip-path: polygon(0 0, 100% 0, 100% 82%, 50% 100%, 0 82%);
           display: grid;
           place-items: center;
-          font-size: clamp(18px, calc(24px * var(--tvScale)), 30px);
-          color: var(--muted);
+          padding: calc(16px * var(--tvScale)) 0 calc(26px * var(--tvScale));
+          box-shadow: 0 calc(10px * var(--tvScale)) calc(20px * var(--tvScale)) rgba(0,0,0,0.28);
         }
 
-        .remixQueueBottomBar {
-          border-radius: calc(22px * var(--tvScale));
-          min-height: calc(84px * var(--tvScale));
-          display: flex;
+        .remixRequestsCardNumberText {
+          font-size: clamp(38px, calc(70px * var(--tvScale)), 100px);
+          font-weight: 1000;
+          line-height: 1;
+          color: var(--text);
+          text-shadow: calc(5px * var(--tvScale)) calc(5px * var(--tvScale)) 0 rgba(26, 10, 36, 0.65);
+        }
+
+        .remixRequestsCardMain {
+          min-width: 0;
+          display: grid;
+          grid-template-columns: minmax(calc(240px * var(--tvScale)), calc(360px * var(--tvScale))) 1fr;
+          gap: calc(26px * var(--tvScale));
           align-items: center;
-          justify-content: center;
-          gap: calc(16px * var(--tvScale));
-          padding: calc(14px * var(--tvScale)) calc(18px * var(--tvScale));
-          text-align: center;
-          flex-wrap: wrap;
         }
 
-        .remixQueueBottomText {
-          font-size: clamp(16px, calc(21px * var(--tvScale)), 28px);
+        .remixRequestsCardMain.no-number {
+          grid-template-columns: minmax(calc(270px * var(--tvScale)), calc(420px * var(--tvScale))) 1fr;
+        }
+
+        .remixRequestsArtWrap {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 1 / 1;
+          border-radius: calc(28px * var(--tvScale));
+          overflow: hidden;
+          box-shadow: 0 calc(20px * var(--tvScale)) calc(34px * var(--tvScale)) rgba(0,0,0,0.32);
+          background: rgba(255,255,255,0.04);
+        }
+
+        .remixRequestsArtWrap::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+          pointer-events: none;
+        }
+
+        .remixRequestsCardText {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: calc(10px * var(--tvScale));
+        }
+
+        .remixRequestsTitle {
+          font-size: clamp(34px, calc(66px * var(--tvScale)), 96px);
+          line-height: 0.96;
           font-weight: 1000;
           text-transform: uppercase;
-          letter-spacing: 1px;
-          color: rgba(255,255,255,0.88);
+          color: var(--text);
+          text-shadow: calc(4px * var(--tvScale)) calc(4px * var(--tvScale)) 0 rgba(25, 11, 35, 0.64);
+          word-break: break-word;
         }
 
-        .remixQueueBottomTextAccent {
-          color: #fff;
-          text-shadow:
-            0 0 calc(10px * var(--tvScale)) rgba(0,247,255,0.26),
-            0 0 calc(16px * var(--tvScale)) rgba(255,57,212,0.16);
+        .remixRequestsArtist {
+          font-size: clamp(20px, calc(34px * var(--tvScale)), 52px);
+          line-height: 1;
+          font-weight: 900;
+          text-transform: uppercase;
+          color: var(--text);
+          text-shadow: calc(3px * var(--tvScale)) calc(3px * var(--tvScale)) 0 rgba(25, 11, 35, 0.58);
+          word-break: break-word;
         }
 
-        .remixQueueBottomDivider {
-          width: calc(2px * var(--tvScale));
-          height: calc(28px * var(--tvScale));
-          background: linear-gradient(180deg, rgba(0,247,255,0.1), rgba(255,57,212,0.9), rgba(0,247,255,0.1));
+        .remixRequestsVotes {
+          display: flex;
+          align-items: center;
+          gap: calc(10px * var(--tvScale));
+          flex-wrap: wrap;
+          margin-top: calc(4px * var(--tvScale));
+        }
+
+        .remixRequestsVoteChip,
+        .remixRequestsFireChip {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: calc(6px * var(--tvScale));
+          min-height: calc(44px * var(--tvScale));
+          padding: 0 calc(14px * var(--tvScale));
           border-radius: 999px;
+          font-size: clamp(16px, calc(26px * var(--tvScale)), 40px);
+          font-weight: 1000;
+          box-shadow: 0 calc(6px * var(--tvScale)) calc(14px * var(--tvScale)) rgba(0,0,0,0.2);
         }
 
-        .remixQueueTvFlash::before {
-          content: "";
-          position: fixed;
-          inset: 0;
+        .remixRequestsVoteChip {
+          background: linear-gradient(90deg, #6d6bff 0%, #d86bcb 100%);
+          color: #fff5e5;
+        }
+
+        .remixRequestsFireChip {
+          background: rgba(31, 13, 50, 0.9);
+          border: 2px solid #5873ff;
+          color: #fff5e5;
+        }
+
+        .remixRequestsFooter {
+          display: flex;
+          justify-content: center;
+          padding-bottom: calc(6px * var(--tvScale));
+        }
+
+        .remixRequestsFooterBadge {
+          width: min(86vw, calc(930px * var(--tvScale)));
           background:
-            radial-gradient(circle at 50% 36%, rgba(255,57,212,0.18), transparent 55%),
-            radial-gradient(circle at 42% 64%, rgba(0,247,255,0.12), transparent 60%);
-          animation: remixQueueFlashAnim 900ms ease-out 1;
-          pointer-events: none;
-          z-index: 9999;
-          mix-blend-mode: screen;
+            radial-gradient(circle, rgba(85,48,140,0.16) 18%, transparent 19%),
+            linear-gradient(180deg, #8261c9 0%, #6d4eb6 100%);
+          background-size: calc(28px * var(--tvScale)) calc(28px * var(--tvScale)), auto;
+          border: calc(4px * var(--tvScale)) solid rgba(13, 6, 22, 0.98);
+          padding: calc(20px * var(--tvScale)) calc(26px * var(--tvScale));
+          text-align: center;
+          box-shadow: 0 calc(16px * var(--tvScale)) calc(30px * var(--tvScale)) rgba(0,0,0,0.28);
         }
 
-        @keyframes remixQueueFloatGlow {
-          0% { transform: translate3d(0, 0, 0) scale(1); }
-          50% { transform: translate3d(1.8vw, -1.1vw, 0) scale(1.07); }
-          100% { transform: translate3d(0, 0, 0) scale(1); }
+        .remixRequestsFooterText {
+          font-size: clamp(28px, calc(54px * var(--tvScale)), 82px);
+          line-height: 0.96;
+          font-weight: 1000;
+          text-transform: uppercase;
+          color: var(--text);
+          text-shadow: calc(4px * var(--tvScale)) calc(4px * var(--tvScale)) 0 rgba(25, 11, 35, 0.62);
         }
 
-        @keyframes remixQueueBeamMoveA {
-          0% { transform: translateX(-4%) translateY(-2%) scale(1); }
-          100% { transform: translateX(5%) translateY(3%) scale(1.04); }
+        .remixRequestsLoading {
+          justify-self: center;
+          align-self: center;
+          padding: calc(20px * var(--tvScale)) calc(24px * var(--tvScale));
+          border-radius: calc(24px * var(--tvScale));
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          font-size: clamp(20px, calc(34px * var(--tvScale)), 48px);
+          font-weight: 900;
+          text-transform: uppercase;
         }
 
-        @keyframes remixQueueBeamMoveB {
-          0% { transform: translateX(2%) translateY(2%) scale(1); }
-          100% { transform: translateX(-4%) translateY(-3%) scale(1.05); }
+        @keyframes remixRequestsLeftScene {
+          0% { opacity: 0; transform: translateX(-22%) scale(0.96); }
+          7% { opacity: 1; transform: translateX(0) scale(1); }
+          12%, 80% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+          46% { transform: translate3d(0, calc(-6px * var(--tvScale)), 0) scale(1.012); }
+          63% { transform: translate3d(0, calc(4px * var(--tvScale)), 0) scale(1); }
+          100% { opacity: 0; transform: translateX(-16%) scale(0.975); }
         }
 
-        @keyframes remixQueueHeroAura {
-          0%, 100% { transform: scale(0.98); opacity: 0.72; }
-          50% { transform: scale(1.05); opacity: 0.98; }
+        @keyframes remixRequestsRightScene {
+          0% { opacity: 0; transform: translateX(22%) scale(0.96); }
+          7% { opacity: 1; transform: translateX(0) scale(1); }
+          12%, 80% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+          44% { transform: translate3d(0, calc(5px * var(--tvScale)), 0) scale(1.012); }
+          62% { transform: translate3d(0, calc(-5px * var(--tvScale)), 0) scale(1); }
+          100% { opacity: 0; transform: translateX(16%) scale(0.975); }
         }
 
-        @keyframes remixQueueDotPulse {
-          0%, 100% { transform: scale(0.85); opacity: 0.72; }
-          50% { transform: scale(1.1); opacity: 1; }
+        @keyframes remixRequestsDriftA {
+          0%, 100% { transform: translate3d(0, 0, 0); }
+          50% { transform: translate3d(2vw, -2vh, 0); }
         }
 
-        @keyframes remixQueueShimmer {
-          0% { transform: translateX(-130%) skewX(-18deg); opacity: 0; }
-          20% { opacity: 0.45; }
-          100% { transform: translateX(170%) skewX(-18deg); opacity: 0; }
+        @keyframes remixRequestsDriftB {
+          0%, 100% { transform: translate3d(0, 0, 0); }
+          50% { transform: translate3d(-2vw, 2vh, 0); }
         }
 
-        @keyframes remixQueueCardFloat {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(calc(-4px * var(--tvScale))); }
-        }
-
-        @keyframes remixQueueCtaGlow {
-          0%, 100% {
-            opacity: 0.84;
-            text-shadow:
-              0 0 0 rgba(0,247,255,0),
-              0 0 0 rgba(255,57,212,0);
+        @media (max-width: 900px) {
+          .remixRequestsCard {
+            max-width: 100%;
           }
-          50% {
-            opacity: 1;
-            text-shadow:
-              0 0 calc(10px * var(--tvScale)) rgba(0,247,255,0.3),
-              0 0 calc(16px * var(--tvScale)) rgba(255,57,212,0.18);
-          }
-        }
 
-        @keyframes remixQueueFlashAnim {
-          0% { opacity: 0; }
-          18% { opacity: 1; }
-          100% { opacity: 0; }
-        }
-
-        @media (max-height: 950px) {
-          .remixQueueTvStage {
-            grid-template-rows: minmax(calc(350px * var(--tvScale)), 0.95fr) minmax(calc(280px * var(--tvScale)), 0.85fr) auto;
-          }
-        }
-
-        @media (max-width: 760px) {
-          .remixQueueHeroBody {
+          .remixRequestsCardMain,
+          .remixRequestsCardMain.no-number {
             grid-template-columns: 1fr;
-            gap: calc(16px * var(--tvScale));
+            gap: calc(18px * var(--tvScale));
           }
 
-          .remixQueueHeroArtFrame {
-            width: min(100%, calc(260px * var(--tvScale)));
-          }
-
-          .remixQueuePanelHeader {
-            align-items: start;
-            flex-direction: column;
-          }
-
-          .remixQueueNextCard {
-            grid-template-columns: auto minmax(0, 1fr);
-          }
-
-          .remixQueueNextStats {
-            grid-column: 1 / -1;
-            flex-direction: row;
-            justify-content: flex-start;
-            padding-left: calc(60px * var(--tvScale));
+          .remixRequestsArtWrap {
+            max-width: min(72vw, calc(430px * var(--tvScale)));
           }
         }
       `}</style>
@@ -946,100 +586,70 @@ export default function TvQueuePortraitPage({
   );
 }
 
-function QueueBillboardCard({
+function HeaderBadge() {
+  return (
+    <div className="remixRequestsHeaderWrap">
+      <div className="remixRequestsHeaderBadge">
+        <div className="remixRequestsHeaderText">Remix Requests</div>
+      </div>
+    </div>
+  );
+}
+
+function FooterBanner({ mode }: { mode: "featured" | "requests" }) {
+  return (
+    <div className="remixRequestsFooter">
+      <div className="remixRequestsFooterBadge">
+        <div className="remixRequestsFooterText">
+          {mode === "requests" ? "Vote on the app now!" : "Request on the app now!"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BillboardCard({
   item,
-  index,
+  side,
   defaultAlbumArtUrl,
+  showNumber,
 }: {
-  item: QueueItem;
-  index: number;
+  item: VisibleCard;
+  side: "left" | "right";
   defaultAlbumArtUrl?: string | null;
+  showNumber: boolean;
 }) {
   const upvotes = Number(item.upvotes || 0);
+  const downvotes = Number(item.downvotes || 0);
   const score = Number(item.score || 0);
 
   return (
-    <article className="remixQueueCard remixQueueNextCard">
-      <div className="remixQueueNextRank">{index + 1}</div>
+    <article className={`remixRequestsCard is-${side}`}>
+      {showNumber ? (
+        <div className="remixRequestsCardNumber" aria-hidden="true">
+          <div className="remixRequestsCardNumberText">{item.visualNumber}</div>
+        </div>
+      ) : null}
 
-      <div className="remixQueueNextMeta">
-        <div className="remixQueueNextTitle">{item.title}</div>
-        <div className="remixQueueNextArtist">{item.artist}</div>
-      </div>
+      <div className={`remixRequestsCardMain ${showNumber ? "" : "no-number"}`}>
+        <div className="remixRequestsArtWrap">
+          <Artwork src={item.artworkUrl} alt={`${item.title} artwork`} defaultSrc={defaultAlbumArtUrl} />
+        </div>
 
-      <div className="remixQueueNextStats">
-        <div className="remixQueueStatPill">👍 {upvotes}</div>
-        <div className="remixQueueStatPill score">S {score}</div>
-      </div>
-    </article>
-  );
-}
+        <div className="remixRequestsCardText">
+          <div className="remixRequestsTitle">{item.title}</div>
+          <div className="remixRequestsArtist">{item.artist}</div>
 
-function FeaturedBillboardCard({
-  item,
-  defaultAlbumArtUrl,
-}: {
-  item: QueueItem;
-  defaultAlbumArtUrl?: string | null;
-}) {
-  return (
-    <article className="remixQueueCard remixQueueFeaturedCard">
-      <div className="remixQueueFeaturedArt">
-        <Artwork
-          src={item.artworkUrl}
-          alt={`${item.title} artwork`}
-          defaultSrc={defaultAlbumArtUrl}
-        />
-        <div className="remixQueueFeaturedAura" />
-      </div>
-
-      <div className="remixQueueFeaturedMeta">
-        <div className="remixQueueFeaturedEyebrow">Featured at Remix</div>
-        <div className="remixQueueFeaturedTitle">{item.title}</div>
-        <div className="remixQueueFeaturedArtist">{item.artist}</div>
+          {showNumber ? (
+            <div className="remixRequestsVotes">
+              <div className="remixRequestsVoteChip">{upvotes} 👍</div>
+              <div className="remixRequestsVoteChip">{downvotes} 👎</div>
+              <div className="remixRequestsFireChip">{score} 🔥</div>
+            </div>
+          ) : null}
+        </div>
       </div>
     </article>
-  );
-}
-
-function AudioPulse() {
-  return (
-    <div className="neonEQ" aria-hidden="true">
-      <span /><span /><span /><span /><span />
-      <span /><span /><span /><span /><span />
-      <style jsx>{`
-        .neonEQ {
-          height: calc(28px * var(--tvScale));
-          display: flex;
-          align-items: flex-end;
-          gap: calc(4px * var(--tvScale));
-        }
-
-        .neonEQ > span {
-          width: calc(5px * var(--tvScale));
-          height: calc(10px * var(--tvScale));
-          border-radius: 999px;
-          background: linear-gradient(180deg, rgba(0,247,255,0.92), rgba(255,57,212,0.86));
-          animation: eq 900ms ease-in-out infinite;
-          box-shadow: 0 0 calc(10px * var(--tvScale)) rgba(0,247,255,0.24);
-        }
-
-        .neonEQ > span:nth-child(2) { animation-delay: 120ms; }
-        .neonEQ > span:nth-child(3) { animation-delay: 240ms; }
-        .neonEQ > span:nth-child(4) { animation-delay: 360ms; }
-        .neonEQ > span:nth-child(5) { animation-delay: 480ms; }
-        .neonEQ > span:nth-child(6) { animation-delay: 180ms; }
-        .neonEQ > span:nth-child(7) { animation-delay: 300ms; }
-        .neonEQ > span:nth-child(8) { animation-delay: 420ms; }
-        .neonEQ > span:nth-child(9) { animation-delay: 540ms; }
-        .neonEQ > span:nth-child(10) { animation-delay: 660ms; }
-
-        @keyframes eq {
-          0%, 100% { height: calc(8px * var(--tvScale)); opacity: 0.75; }
-          50% { height: calc(26px * var(--tvScale)); opacity: 1; }
-        }
-      `}</style>
-    </div>
   );
 }
 
@@ -1053,7 +663,6 @@ function Artwork({
   defaultSrc?: string | null;
 }) {
   const [bad, setBad] = useState(false);
-
   const finalSrc = !bad && src ? src : defaultSrc || null;
 
   if (!finalSrc) {
@@ -1065,12 +674,14 @@ function Artwork({
           display: "grid",
           placeItems: "center",
           fontWeight: 1000,
-          opacity: 0.65,
-          fontSize: 28,
-          letterSpacing: 1.2,
+          fontSize: "clamp(24px, 5vw, 44px)",
+          letterSpacing: 1,
+          background: "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))",
+          color: "#fff7ea",
+          textTransform: "uppercase",
         }}
       >
-        REMIX
+        Remix
       </div>
     );
   }
