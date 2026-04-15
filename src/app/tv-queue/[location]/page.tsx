@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 type QueueItem = {
   id: string;
@@ -312,14 +312,14 @@ export default function TvQueuePortraitPage({
           display: grid;
           grid-template-rows: auto minmax(0, 1fr) auto;
           gap: calc(34px * var(--tvScale));
-          padding: calc(24px * var(--tvScale)) calc(24px * var(--tvScale)) calc(20px * var(--tvScale));
+          padding: 0 calc(24px * var(--tvScale)) calc(20px * var(--tvScale));
           box-sizing: border-box;
         }
 
         .remixRequestsHeaderWrap {
           display: flex;
           justify-content: center;
-          padding-top: calc(4px * var(--tvScale));
+          padding-top: 0;
         }
 
         .remixRequestsHeaderBadge {
@@ -327,22 +327,28 @@ export default function TvQueuePortraitPage({
           max-width: calc(760px * var(--tvScale));
           background:
             radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05), transparent 70%),
-            radial-gradient(circle, rgba(85,48,140,0.16) 18%, transparent 19%),
-            linear-gradient(180deg, #8261c9 0%, #6d4eb6 100%);
+            radial-gradient(circle, rgba(44, 22, 76, 0.32) 18%, transparent 19%),
+            linear-gradient(180deg, #7a58c0 0%, #6547a9 100%);
           background-size: auto, calc(28px * var(--tvScale)) calc(28px * var(--tvScale)), auto;
+          background-position: center center, center center, center center;
           border: calc(5px * var(--tvScale)) solid #0c0717;
+          transform: rotate(-8deg);
+          transform-origin: top center;
+          margin-top: calc(-6px * var(--tvScale));
           clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%);
-          padding: calc(22px * var(--tvScale)) calc(30px * var(--tvScale)) calc(42px * var(--tvScale));
+          padding: calc(18px * var(--tvScale)) calc(30px * var(--tvScale)) calc(42px * var(--tvScale));
           text-align: center;
           box-shadow: 0 calc(18px * var(--tvScale)) calc(32px * var(--tvScale)) rgba(0,0,0,0.3);
         }
 
         .remixRequestsHeaderText {
-          font-size: clamp(34px, calc(58px * var(--tvScale)), 86px);
-          font-weight: 1000;
-          line-height: 0.95;
-          letter-spacing: 1px;
+          font-size: clamp(32px, calc(54px * var(--tvScale)), 78px);
+          font-weight: 700;
+          line-height: 1;
+          letter-spacing: 0.5px;
           text-transform: uppercase;
+          white-space: nowrap;
+          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
           color: var(--text);
           text-shadow:
             calc(4px * var(--tvScale)) calc(4px * var(--tvScale)) 0 rgba(21, 8, 31, 0.7),
@@ -378,11 +384,15 @@ export default function TvQueuePortraitPage({
           will-change: transform, opacity;
         }
 
-        .remixRequestsCard.is-left {
+.remixRequestsCard.is-left {
+          justify-self: start;
+          margin-left: calc(22px * var(--tvScale));
           animation-name: remixRequestsLeftScene;
         }
 
         .remixRequestsCard.is-right {
+          justify-self: end;
+          margin-right: calc(4px * var(--tvScale));
           animation-name: remixRequestsRightScene;
         }
 
@@ -401,7 +411,8 @@ export default function TvQueuePortraitPage({
 
         .remixRequestsCardNumberText {
           font-size: clamp(38px, calc(70px * var(--tvScale)), 100px);
-          font-weight: 1000;
+          font-weight: 700;
+          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
           line-height: 1;
           color: var(--text);
           text-shadow: calc(5px * var(--tvScale)) calc(5px * var(--tvScale)) 0 rgba(26, 10, 36, 0.65);
@@ -449,7 +460,8 @@ export default function TvQueuePortraitPage({
         .remixRequestsTitle {
           font-size: clamp(34px, calc(66px * var(--tvScale)), 96px);
           line-height: 0.96;
-          font-weight: 1000;
+          font-weight: 700;
+          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
           text-transform: uppercase;
           color: var(--text);
           text-shadow: calc(4px * var(--tvScale)) calc(4px * var(--tvScale)) 0 rgba(25, 11, 35, 0.64);
@@ -459,7 +471,8 @@ export default function TvQueuePortraitPage({
         .remixRequestsArtist {
           font-size: clamp(20px, calc(34px * var(--tvScale)), 52px);
           line-height: 1;
-          font-weight: 900;
+          font-weight: 700;
+          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
           text-transform: uppercase;
           color: var(--text);
           text-shadow: calc(3px * var(--tvScale)) calc(3px * var(--tvScale)) 0 rgba(25, 11, 35, 0.58);
@@ -484,7 +497,8 @@ export default function TvQueuePortraitPage({
           padding: 0 calc(14px * var(--tvScale));
           border-radius: 999px;
           font-size: clamp(16px, calc(26px * var(--tvScale)), 40px);
-          font-weight: 1000;
+          font-weight: 700;
+          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
           box-shadow: 0 calc(6px * var(--tvScale)) calc(14px * var(--tvScale)) rgba(0,0,0,0.2);
         }
 
@@ -508,8 +522,8 @@ export default function TvQueuePortraitPage({
         .remixRequestsFooterBadge {
           width: min(86vw, calc(930px * var(--tvScale)));
           background:
-            radial-gradient(circle, rgba(85,48,140,0.16) 18%, transparent 19%),
-            linear-gradient(180deg, #8261c9 0%, #6d4eb6 100%);
+            radial-gradient(circle, rgba(44, 22, 76, 0.32) 18%, transparent 19%),
+            linear-gradient(180deg, #7a58c0 0%, #6547a9 100%);
           background-size: calc(28px * var(--tvScale)) calc(28px * var(--tvScale)), auto;
           border: calc(4px * var(--tvScale)) solid rgba(13, 6, 22, 0.98);
           padding: calc(20px * var(--tvScale)) calc(26px * var(--tvScale));
@@ -520,7 +534,8 @@ export default function TvQueuePortraitPage({
         .remixRequestsFooterText {
           font-size: clamp(28px, calc(54px * var(--tvScale)), 82px);
           line-height: 0.96;
-          font-weight: 1000;
+          font-weight: 700;
+          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
           text-transform: uppercase;
           color: var(--text);
           text-shadow: calc(4px * var(--tvScale)) calc(4px * var(--tvScale)) 0 rgba(25, 11, 35, 0.62);
@@ -534,7 +549,8 @@ export default function TvQueuePortraitPage({
           background: rgba(255,255,255,0.05);
           border: 1px solid rgba(255,255,255,0.1);
           font-size: clamp(20px, calc(34px * var(--tvScale)), 48px);
-          font-weight: 900;
+          font-weight: 700;
+          font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
           text-transform: uppercase;
         }
 
@@ -590,9 +606,40 @@ function HeaderBadge() {
   return (
     <div className="remixRequestsHeaderWrap">
       <div className="remixRequestsHeaderBadge">
-        <div className="remixRequestsHeaderText">Remix Requests</div>
+        <div className="remixRequestsHeaderText" aria-label="Remix Requests">
+          <ArchText text="Remix Requests" />
+        </div>
       </div>
     </div>
+  );
+}
+
+function ArchText({ text }: { text: string }) {
+  const chars = text.split("");
+  const mid = (chars.length - 1) / 2;
+
+  return (
+    <span style={{ display: "inline-flex", alignItems: "flex-end", justifyContent: "center" }}>
+      {chars.map((char, index) => {
+        const distance = Math.abs(index - mid);
+        const offset = Math.round(distance * 2.3);
+        const rotation = (index - mid) * 0.8;
+
+        return (
+          <span
+            key={`${char}-${index}`}
+            style={{
+              display: "inline-block",
+              transform: `translateY(${offset}px) rotate(${rotation}deg)`,
+              marginLeft: char === " " ? "0.18em" : 0,
+              marginRight: char === " " ? "0.18em" : 0,
+            }}
+          >
+            {char === " " ? "\u00A0" : char}
+          </span>
+        );
+      })}
+    </span>
   );
 }
 
