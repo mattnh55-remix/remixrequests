@@ -1,6 +1,9 @@
+"use client";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type PublicView = "request" | "queue" | "shoutouts";
+type PointsMode = "auto" | "claim" | "add";
 
 type NavTarget = {
   label: string;
@@ -18,6 +21,7 @@ type PublicBottomCommandBarProps = {
   location: string;
   activeView: PublicView;
   points?: number | null;
+  pointsMode?: PointsMode;
   onPointsClick?: () => void;
   className?: string;
   hidden?: boolean;
@@ -103,6 +107,7 @@ export default function PublicBottomCommandBar({
   location,
   activeView,
   points,
+  pointsMode = "auto",
   onPointsClick,
   className,
   hidden,
@@ -122,7 +127,8 @@ export default function PublicBottomCommandBar({
   const hasAnimatedInitialRef = useRef(false);
 
   const safePoints = Math.max(0, Number(points ?? 0) || 0);
-  const pointsCta = safePoints > 0 ? "ADD MORE" : "CLAIM POINTS";
+  const isClaimMode = pointsMode === "claim" || (pointsMode === "auto" && safePoints <= 0);
+  const pointsCta = isClaimMode ? "CLAIM POINTS" : "ADD MORE";
 
   useEffect(() => {
     setMounted(true);
@@ -247,7 +253,11 @@ export default function PublicBottomCommandBar({
               ]
                 .filter(Boolean)
                 .join(" ")}
-              aria-label={safePoints > 0 ? `You have ${safePoints} points. Add more.` : "Claim points"}
+              aria-label={
+                isClaimMode
+                  ? "Claim points"
+                  : `You have ${safePoints} points. Add more.`
+              }
               onClick={onPointsClick}
               onKeyDown={(e) => {
                 if (!onPointsClick) return;
@@ -269,7 +279,7 @@ export default function PublicBottomCommandBar({
 
       <style jsx>{`
         .rrCmdBarSpacer {
-          height: 176px;
+          height: 194px;
         }
 
         .rrCmdBarWrap {
@@ -310,7 +320,7 @@ export default function PublicBottomCommandBar({
         }
 
         .rrCmdHeader {
-          padding: 18px 20px 92px;
+          padding: 14px 20px 106px;
           text-align: center;
           background:
             radial-gradient(circle at 12% 0%, rgba(74, 132, 255, 0.15) 0%, transparent 30%),
@@ -318,21 +328,21 @@ export default function PublicBottomCommandBar({
         }
 
         .rrCmdHeaderTitle {
-          font-size: clamp(24px, 2.3vw, 42px);
-          line-height: 0.95;
+          font-size: clamp(18px, 1.8vw, 30px);
+          line-height: 0.98;
           font-weight: 1000;
-          letter-spacing: 0.03em;
+          letter-spacing: 0.035em;
           color: #f7f1e6;
           text-transform: uppercase;
-          text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.28);
+          text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.28);
         }
 
         .rrCmdHeaderSubtitle {
-          margin-top: 10px;
-          font-size: clamp(13px, 1vw, 18px);
+          margin-top: 6px;
+          font-size: clamp(11px, 0.9vw, 14px);
           line-height: 1.15;
           font-weight: 800;
-          color: rgba(235, 242, 255, 0.9);
+          color: rgba(235, 242, 255, 0.88);
           text-wrap: balance;
           text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.2);
         }
@@ -349,7 +359,7 @@ export default function PublicBottomCommandBar({
 
         .rrCmdNavBar {
           pointer-events: auto;
-          min-height: 118px;
+          min-height: 110px;
           display: grid;
           grid-template-columns: 1fr 1fr;
           align-items: stretch;
@@ -357,7 +367,7 @@ export default function PublicBottomCommandBar({
           border-radius: 24px;
           overflow: hidden;
           background:
-            linear-gradient(180deg, rgba(98, 28, 255, 0.96) 0%, rgba(87, 18, 236, 0.98) 100%);
+            linear-gradient(180deg, rgba(103, 33, 255, 0.96) 0%, rgba(79, 17, 223, 0.98) 100%);
           border: 1px solid rgba(171, 139, 255, 0.18);
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,0.12),
@@ -368,14 +378,13 @@ export default function PublicBottomCommandBar({
           position: relative;
           display: flex;
           align-items: center;
-          justify-content: center;
-          gap: 14px;
-          min-height: 118px;
+          gap: 10px;
+          min-height: 110px;
           border: 0;
           color: #f7f1e6;
           background: transparent;
           overflow: hidden;
-          transition: transform 120ms ease, filter 180ms ease, background 180ms ease;
+          transition: transform 120ms ease, filter 180ms ease, background 180ms ease, box-shadow 180ms ease;
         }
 
         .rrCmdNavButton + .rrCmdNavButton {
@@ -411,13 +420,15 @@ export default function PublicBottomCommandBar({
         }
 
         .rrCmdNavButton--left {
-          padding: 18px 112px 18px 34px;
+          padding: 16px 96px 16px 26px;
           justify-content: flex-start;
+          text-align: left;
         }
 
         .rrCmdNavButton--right {
-          padding: 18px 34px 18px 112px;
+          padding: 16px 26px 16px 96px;
           justify-content: flex-end;
+          text-align: right;
         }
 
         .rrCmdNavArrow,
@@ -425,27 +436,27 @@ export default function PublicBottomCommandBar({
         .rrCmdNavIcon {
           position: relative;
           z-index: 1;
-          text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.28);
+          text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.28);
         }
 
         .rrCmdNavArrow {
-          font-size: clamp(18px, 1.5vw, 26px);
+          font-size: clamp(15px, 1.2vw, 20px);
           font-weight: 1000;
-          letter-spacing: -0.16em;
+          letter-spacing: -0.12em;
           opacity: 0.9;
         }
 
         .rrCmdNavLabel {
-          font-size: clamp(30px, 2.5vw, 52px);
-          line-height: 0.92;
+          font-size: clamp(20px, 2vw, 34px);
+          line-height: 0.94;
           font-weight: 1000;
-          letter-spacing: 0.01em;
+          letter-spacing: 0.02em;
           text-transform: uppercase;
           white-space: nowrap;
         }
 
         .rrCmdNavIcon {
-          font-size: clamp(32px, 2.6vw, 50px);
+          font-size: clamp(22px, 2vw, 34px);
           line-height: 1;
         }
 
@@ -454,25 +465,25 @@ export default function PublicBottomCommandBar({
           position: absolute;
           left: 50%;
           bottom: 0;
-          transform: translateX(-50%) translateY(-22px);
+          transform: translateX(-50%) translateY(-18px);
           z-index: 2;
-          width: clamp(230px, 22vw, 286px);
-          min-height: 170px;
-          border: 1px solid rgba(97, 176, 255, 0.28);
-          border-radius: 34px;
-          padding: 18px 18px 16px;
+          width: clamp(174px, 17vw, 218px);
+          min-height: 138px;
+          border: 1px solid rgba(97, 176, 255, 0.22);
+          border-radius: 28px;
+          padding: 14px 14px 12px;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
           background:
-            radial-gradient(circle at 50% 0%, rgba(94, 161, 255, 0.2), rgba(14, 31, 68, 0.98) 44%),
-            linear-gradient(180deg, rgba(20, 44, 96, 0.98) 0%, rgba(7, 20, 49, 1) 100%);
+            radial-gradient(circle at 50% 0%, rgba(94, 161, 255, 0.18), rgba(14, 31, 68, 0.98) 42%),
+            linear-gradient(180deg, rgba(17, 40, 89, 0.98) 0%, rgba(7, 20, 49, 1) 100%);
           color: #f7f1e6;
           box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.12),
-            0 16px 30px rgba(7, 22, 56, 0.42),
-            0 0 0 5px rgba(63, 145, 255, 0.12);
+            inset 0 1px 0 rgba(255,255,255,0.1),
+            0 14px 26px rgba(7, 22, 56, 0.4),
+            0 0 0 4px rgba(63, 145, 255, 0.1);
           overflow: hidden;
           transition: transform 120ms ease, box-shadow 180ms ease, filter 180ms ease;
         }
@@ -480,10 +491,10 @@ export default function PublicBottomCommandBar({
         .rrCmdPointsButton::before {
           content: "";
           position: absolute;
-          inset: 12px 12px auto;
-          height: 24px;
+          inset: 10px 10px auto;
+          height: 18px;
           border-radius: 999px;
-          background: rgba(255,255,255,0.06);
+          background: rgba(255,255,255,0.05);
           filter: blur(1px);
         }
 
@@ -494,20 +505,20 @@ export default function PublicBottomCommandBar({
 
         .rrCmdPointsButton.isClickable:hover,
         .rrCmdPointsButton.isClickable:active {
-          transform: translateX(-50%) translateY(-26px) scale(1.015);
+          transform: translateX(-50%) translateY(-21px) scale(1.015);
           filter: brightness(1.03);
           box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.16),
-            0 18px 34px rgba(7, 22, 56, 0.5),
-            0 0 0 6px rgba(82, 159, 255, 0.18);
+            inset 0 1px 0 rgba(255,255,255,0.14),
+            0 16px 30px rgba(7, 22, 56, 0.48),
+            0 0 0 5px rgba(82, 159, 255, 0.16);
         }
 
         .rrCmdPointsButton.isClickable:active {
-          transform: translateX(-50%) translateY(-18px) scale(0.985);
+          transform: translateX(-50%) translateY(-14px) scale(0.985);
           box-shadow:
-            inset 0 10px 18px rgba(0,0,0,0.16),
-            0 10px 18px rgba(7, 22, 56, 0.38),
-            0 0 0 5px rgba(82, 159, 255, 0.14);
+            inset 0 8px 16px rgba(0,0,0,0.16),
+            0 10px 18px rgba(7, 22, 56, 0.34),
+            0 0 0 4px rgba(82, 159, 255, 0.12);
         }
 
         .rrCmdPointsButton:disabled {
@@ -522,7 +533,7 @@ export default function PublicBottomCommandBar({
             transparent 0%,
             transparent 34%,
             rgba(255,255,255,0.04) 42%,
-            rgba(113,200,255,0.18) 50%,
+            rgba(113,200,255,0.16) 50%,
             rgba(255,255,255,0.04) 58%,
             transparent 66%,
             transparent 100%
@@ -530,7 +541,7 @@ export default function PublicBottomCommandBar({
           background-size: 220% 100%;
           animation: rrCmdPointsSheen 7.5s linear infinite;
           mix-blend-mode: screen;
-          opacity: 0.75;
+          opacity: 0.72;
         }
 
         .rrCmdPointsTop,
@@ -538,20 +549,20 @@ export default function PublicBottomCommandBar({
         .rrCmdPointsBottom {
           position: relative;
           z-index: 1;
-          text-shadow: 4px 4px 0 rgba(0,0,0,0.24);
+          text-shadow: 3px 3px 0 rgba(0,0,0,0.24);
         }
 
         .rrCmdPointsTop {
-          font-size: clamp(24px, 1.9vw, 42px);
-          line-height: 0.92;
+          font-size: clamp(16px, 1.35vw, 28px);
+          line-height: 0.94;
           font-weight: 1000;
-          letter-spacing: 0.02em;
+          letter-spacing: 0.03em;
           text-transform: uppercase;
         }
 
         .rrCmdPointsValue {
           margin-top: 2px;
-          font-size: clamp(64px, 5.1vw, 98px);
+          font-size: clamp(44px, 3.7vw, 72px);
           line-height: 0.84;
           font-weight: 1000;
           letter-spacing: -0.04em;
@@ -559,10 +570,10 @@ export default function PublicBottomCommandBar({
 
         .rrCmdPointsBottom {
           margin-top: 4px;
-          font-size: clamp(22px, 1.8vw, 38px);
-          line-height: 0.92;
+          font-size: clamp(14px, 1.25vw, 24px);
+          line-height: 0.96;
           font-weight: 1000;
-          letter-spacing: 0.01em;
+          letter-spacing: 0.03em;
           text-transform: uppercase;
         }
 
@@ -594,92 +605,92 @@ export default function PublicBottomCommandBar({
         @keyframes rrCmdPointsBreath {
           0%, 100% {
             box-shadow:
-              inset 0 1px 0 rgba(255,255,255,0.12),
-              0 16px 30px rgba(7, 22, 56, 0.42),
-              0 0 0 5px rgba(63, 145, 255, 0.12);
+              inset 0 1px 0 rgba(255,255,255,0.1),
+              0 14px 26px rgba(7, 22, 56, 0.4),
+              0 0 0 4px rgba(63, 145, 255, 0.1);
           }
           50% {
             box-shadow:
-              inset 0 1px 0 rgba(255,255,255,0.15),
-              0 18px 34px rgba(7, 22, 56, 0.48),
-              0 0 0 7px rgba(82, 159, 255, 0.18);
+              inset 0 1px 0 rgba(255,255,255,0.13),
+              0 16px 30px rgba(7, 22, 56, 0.46),
+              0 0 0 6px rgba(82, 159, 255, 0.15);
           }
         }
 
         @keyframes rrCmdPointsLand {
-          0% { transform: translateX(-50%) translateY(-16px) scale(0.96); }
-          45% { transform: translateX(-50%) translateY(-30px) scale(1.04); }
-          100% { transform: translateX(-50%) translateY(-22px) scale(1); }
+          0% { transform: translateX(-50%) translateY(-12px) scale(0.96); }
+          45% { transform: translateX(-50%) translateY(-25px) scale(1.04); }
+          100% { transform: translateX(-50%) translateY(-18px) scale(1); }
         }
 
         @media (max-width: 980px) {
-          .rrCmdBarSpacer { height: 186px; }
-          .rrCmdHeader { padding: 16px 16px 90px; }
-          .rrCmdNavButton--left { padding-right: 100px; }
-          .rrCmdNavButton--right { padding-left: 100px; }
-          .rrCmdNavLabel { font-size: clamp(24px, 3vw, 38px); }
-          .rrCmdNavIcon { font-size: clamp(28px, 3vw, 42px); }
-          .rrCmdPointsButton { width: clamp(208px, 30vw, 248px); min-height: 154px; }
+          .rrCmdBarSpacer { height: 198px; }
+          .rrCmdHeader { padding: 14px 16px 104px; }
+          .rrCmdNavButton--left { padding-right: 88px; }
+          .rrCmdNavButton--right { padding-left: 88px; }
+          .rrCmdNavLabel { font-size: clamp(18px, 2.5vw, 28px); }
+          .rrCmdNavIcon { font-size: clamp(20px, 2.5vw, 30px); }
         }
 
         @media (max-width: 720px) {
-          .rrCmdBarSpacer { height: 200px; }
+          .rrCmdBarSpacer { height: 196px; }
           .rrCmdBarWrap { padding-left: 0; padding-right: 0; padding-bottom: 0; }
-          .rrCmdShell { border-left: 0; border-right: 0; border-radius: 26px 26px 0 0; }
-          .rrCmdHeader { padding: 14px 16px 96px; }
-          .rrCmdHeaderTitle { font-size: 22px; }
-          .rrCmdHeaderSubtitle { margin-top: 7px; font-size: 12px; }
+          .rrCmdShell { border-left: 0; border-right: 0; border-radius: 24px 24px 0 0; }
+          .rrCmdHeader { padding: 12px 14px 102px; }
+          .rrCmdHeaderTitle { font-size: 18px; }
+          .rrCmdHeaderSubtitle { margin-top: 5px; font-size: 11px; }
           .rrCmdControlZone { width: 100%; left: 0; transform: none; padding: 0 10px; }
-          .rrCmdNavBar { min-height: 88px; border-radius: 20px; }
-          .rrCmdNavButton { min-height: 88px; gap: 8px; }
-          .rrCmdNavButton--left { padding: 12px 74px 12px 18px; }
-          .rrCmdNavButton--right { padding: 12px 18px 12px 74px; }
-          .rrCmdNavArrow { display: none; }
-          .rrCmdNavLabel { font-size: 18px; }
-          .rrCmdNavIcon { font-size: 24px; }
-          .rrCmdPointsButton {
-            width: 154px;
-            min-height: 126px;
-            border-radius: 26px;
-            padding: 14px 10px 12px;
-            transform: translateX(-50%) translateY(-18px);
-          }
-          .rrCmdPointsButton.isClickable:hover,
-          .rrCmdPointsButton.isClickable:active {
-            transform: translateX(-50%) translateY(-20px) scale(1.01);
-          }
-          .rrCmdPointsButton.isClickable:active {
-            transform: translateX(-50%) translateY(-14px) scale(0.985);
-          }
-          .rrCmdPointsTop { font-size: 18px; }
-          .rrCmdPointsValue { font-size: 50px; }
-          .rrCmdPointsBottom { font-size: 16px; }
-        }
-
-        @media (max-width: 520px) {
-          .rrCmdBarSpacer { height: 192px; }
-          .rrCmdHeader { padding: 12px 14px 90px; }
-          .rrCmdHeaderTitle { font-size: 20px; }
-          .rrCmdHeaderSubtitle {
-            max-width: 290px;
-            margin: 6px auto 0;
-            font-size: 11px;
-          }
-          .rrCmdControlZone { padding: 0 8px; }
-          .rrCmdNavBar { min-height: 76px; }
-          .rrCmdNavButton { min-height: 76px; gap: 6px; }
-          .rrCmdNavButton--left { padding: 10px 62px 10px 14px; }
-          .rrCmdNavButton--right { padding: 10px 14px 10px 62px; }
+          .rrCmdNavBar { min-height: 82px; border-radius: 18px; }
+          .rrCmdNavButton { min-height: 82px; gap: 7px; }
+          .rrCmdNavButton--left { padding: 10px 58px 10px 14px; }
+          .rrCmdNavButton--right { padding: 10px 14px 10px 58px; }
+          .rrCmdNavArrow { font-size: 13px; }
           .rrCmdNavLabel { font-size: 15px; }
           .rrCmdNavIcon { font-size: 19px; }
           .rrCmdPointsButton {
-            width: 136px;
-            min-height: 114px;
+            width: 132px;
+            min-height: 108px;
             border-radius: 22px;
+            padding: 10px 8px 10px;
+            transform: translateX(-50%) translateY(-15px);
           }
-          .rrCmdPointsTop { font-size: 16px; }
-          .rrCmdPointsValue { font-size: 42px; }
-          .rrCmdPointsBottom { font-size: 14px; }
+          .rrCmdPointsButton.isClickable:hover,
+          .rrCmdPointsButton.isClickable:active {
+            transform: translateX(-50%) translateY(-17px) scale(1.01);
+          }
+          .rrCmdPointsButton.isClickable:active {
+            transform: translateX(-50%) translateY(-11px) scale(0.985);
+          }
+          .rrCmdPointsTop { font-size: 13px; }
+          .rrCmdPointsValue { font-size: 38px; }
+          .rrCmdPointsBottom { font-size: 11px; }
+        }
+
+        @media (max-width: 520px) {
+          .rrCmdBarSpacer { height: 188px; }
+          .rrCmdHeader { padding: 11px 12px 98px; }
+          .rrCmdHeaderTitle { font-size: 17px; }
+          .rrCmdHeaderSubtitle {
+            max-width: 270px;
+            margin: 4px auto 0;
+            font-size: 10px;
+          }
+          .rrCmdControlZone { padding: 0 8px; }
+          .rrCmdNavBar { min-height: 74px; }
+          .rrCmdNavButton { min-height: 74px; gap: 5px; }
+          .rrCmdNavButton--left { padding: 10px 52px 10px 12px; }
+          .rrCmdNavButton--right { padding: 10px 12px 10px 52px; }
+          .rrCmdNavArrow { display: none; }
+          .rrCmdNavLabel { font-size: 14px; }
+          .rrCmdNavIcon { font-size: 17px; }
+          .rrCmdPointsButton {
+            width: 122px;
+            min-height: 100px;
+            border-radius: 20px;
+          }
+          .rrCmdPointsTop { font-size: 12px; }
+          .rrCmdPointsValue { font-size: 34px; }
+          .rrCmdPointsBottom { font-size: 10px; }
         }
       `}</style>
     </>

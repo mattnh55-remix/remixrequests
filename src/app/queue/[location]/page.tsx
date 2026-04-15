@@ -1,4 +1,3 @@
-// src/app/queue/[location]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -40,7 +39,12 @@ type QueueRes = {
 type SessionRes = {
   ok?: boolean;
   location?: { slug?: string; name?: string };
-  session?: { id?: string | null; startedAt?: string | null; endsAt?: string | null; active?: boolean };
+  session?: {
+    id?: string | null;
+    startedAt?: string | null;
+    endsAt?: string | null;
+    active?: boolean;
+  };
   balance?: number;
   rules?: {
     enableVoting?: boolean;
@@ -50,6 +54,7 @@ type SessionRes = {
     defaultAlbumArtUrl?: string | null;
   };
 };
+
 type BalanceRes = {
   ok?: boolean;
   balance?: number;
@@ -86,12 +91,20 @@ function getCountdownLabel(endsAtIso?: string | null, active?: boolean) {
   return h > 0 ? `Session ends in ${h}h ${m}m` : `Session ends in ${m}m`;
 }
 
-function TinyArt({ src, alt, defaultSrc }: { src?: string; alt?: string; defaultSrc?: string }) {
+function TinyArt({
+  src,
+  alt,
+  defaultSrc,
+}: {
+  src?: string;
+  alt?: string;
+  defaultSrc?: string;
+}) {
   const [bad, setBad] = useState(false);
   const real = (src || "").trim();
   const fallback = (defaultSrc || "").trim();
 
-  const finalSrc = !bad && real ? real : (fallback || "");
+  const finalSrc = !bad && real ? real : fallback || "";
 
   if (!finalSrc) {
     return (
@@ -232,17 +245,18 @@ function QueueRow({
   const score = Number(item.score || 0);
   const upvotes = Number(item.upvotes || 0);
   const downvotes = Number(item.downvotes || 0);
-  const disableVote = !requestId || !enableVoting || busyVoteId === requestId || isInterstitial;
+  const disableVote =
+    !requestId || !enableVoting || busyVoteId === requestId || isInterstitial;
 
   return (
     <div className={`rrQueueRow ${emphasis ? "rrQueueRow--emphasis" : ""}`}>
       <div className="rrQueueRank">{rank}</div>
 
       <TinyArt
-  src={getArtwork(item)}
-  alt={getTitle(item)}
-  defaultSrc={defaultAlbumArtUrl || ""}
-/>
+        src={getArtwork(item)}
+        alt={getTitle(item)}
+        defaultSrc={defaultAlbumArtUrl || ""}
+      />
 
       <div className="rrQueueCopy">
         <div className="rrQueueTopline">
@@ -251,11 +265,17 @@ function QueueRow({
         </div>
 
         <div className="rrQueueTagRow">
-          {laneLabel ? <span className="rrStatusPill rrStatusPill--live">{laneLabel}</span> : null}
-          {isInterstitial ? <span className="rrTag rrTag--interstitial">Auto Insert</span> : null}
+          {laneLabel ? (
+            <span className="rrStatusPill rrStatusPill--live">{laneLabel}</span>
+          ) : null}
+          {isInterstitial ? (
+            <span className="rrTag rrTag--interstitial">Auto Insert</span>
+          ) : null}
           {isBoosted ? <span className="rrTag rrTag--boost">Boosted</span> : null}
           {item.requestId ? <span className="rrTag rrTag--request">Request</span> : null}
-          {!canVote && !isInterstitial ? <span className="rrMetaPill">verify to vote</span> : null}
+          {!canVote && !isInterstitial ? (
+            <span className="rrMetaPill">verify to vote</span>
+          ) : null}
         </div>
       </div>
 
@@ -292,8 +312,7 @@ function QueueRow({
 
 export default function QueuePage({ params }: { params: { location: string } }) {
   const location = decodeURIComponent(params.location);
-  
-  // State Hooks
+
   const [rulesData, setRulesData] = useState<SessionRes | null>(null);
   const [queueData, setQueueData] = useState<QueueRes>({ playNow: [], upNext: [] });
   const [loading, setLoading] = useState(true);
@@ -303,16 +322,20 @@ export default function QueuePage({ params }: { params: { location: string } }) 
   const [verified, setVerified] = useState(false);
   const [msg, setMsg] = useState("");
   const [busyVoteId, setBusyVoteId] = useState("");
-  
-  // Added these since they were being called in your snippet
-  const [buyReason, setBuyReason] = useState("boost");
-  const [showBuy, setShowBuy] = useState(false);
-
   const mountedRef = useRef(true);
   const sfx = useGunmetalSfx();
 
-  // Helper Functions
   function resetToClaimState() {
+    try {
+      localStorage.removeItem("rr_identityId");
+      localStorage.removeItem("rr_location");
+    } catch {}
+
+    setIdentityId("");
+    setVerified(false);
+  }
+
+  function clearExpiredIdentity() {
     try {
       localStorage.removeItem("rr_identityId");
       localStorage.removeItem("rr_location");
@@ -321,13 +344,9 @@ export default function QueuePage({ params }: { params: { location: string } }) 
     setVerified(false);
   }
 
-  function clearExpiredIdentity() {
-    resetToClaimState();
-  }
-
-  // Effects
   useEffect(() => {
     mountedRef.current = true;
+
     try {
       const nextIdentityId = (localStorage.getItem("rr_identityId") || "").trim();
       const nextLocation = (localStorage.getItem("rr_location") || "").trim();
@@ -338,13 +357,39 @@ export default function QueuePage({ params }: { params: { location: string } }) 
       } else if (nextIdentityId) {
         setIdentityId(nextIdentityId);
       }
+
       if (nextEmail) setEmail(nextEmail);
     } catch {}
 
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+    };
   }, [location]);
 
-  // Balance & Data Fetching
+  useEffect(() => {
+    const readIdentity = () => {
+      try {
+        const nextIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+        const nextEmail = (localStorage.getItem("rr_email") || "").trim();
+        setIdentityId(nextIdentity);
+        if (nextEmail) setEmail(nextEmail);
+      } catch {}
+    };
+
+    readIdentity();
+    window.addEventListener("storage", readIdentity);
+    return () => window.removeEventListener("storage", readIdentity);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const trimmed = email.trim();
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        localStorage.setItem("rr_email", trimmed);
+      }
+    } catch {}
+  }, [email]);
+
   async function fetchBalanceNumber(nextIdentityId?: string): Promise<number> {
     const id = (nextIdentityId ?? identityId ?? "").trim();
     if (!id) return 0;
@@ -354,12 +399,12 @@ export default function QueuePage({ params }: { params: { location: string } }) 
       { cache: "no-store" }
     );
     const data = (await res.json()) as BalanceRes;
-    
+
     if (!data.ok) throw new Error(data.error || "Balance fetch failed");
 
     if (!data.sessionActive) {
       resetToClaimState();
-      return 5; 
+      return 5;
     }
 
     setVerified(true);
@@ -375,6 +420,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
 
   async function loadQueueAndSession(showLoader = false) {
     if (showLoader) setLoading(true);
+
     try {
       const sessionUrl = identityId
         ? `/api/public/session/${location}?identityId=${encodeURIComponent(identityId)}`
@@ -391,6 +437,7 @@ export default function QueuePage({ params }: { params: { location: string } }) 
       if (!mountedRef.current) return;
 
       const sessionActive = Boolean(sessionJson?.session?.active);
+
       if (identityId && !sessionActive) {
         resetToClaimState();
       } else {
@@ -403,34 +450,68 @@ export default function QueuePage({ params }: { params: { location: string } }) 
         upNext: Array.isArray(queueJson?.upNext) ? queueJson.upNext : [],
       });
     } catch {
-      if (mountedRef.current) setMsg("Could not load queue.");
+      if (!mountedRef.current) return;
+      setRulesData(null);
+      setQueueData({ playNow: [], upNext: [] });
+      setMsg("Could not load queue.");
     } finally {
       if (mountedRef.current && showLoader) setLoading(false);
     }
   }
 
-  // Polling & Memoized Data
   useEffect(() => {
     void loadQueueAndSession(true);
-    const queueId = window.setInterval(() => void loadQueueAndSession(), 4500);
+  }, [location, identityId]);
+
+  useEffect(() => {
+    const queueId = window.setInterval(() => {
+      void loadQueueAndSession();
+    }, 4500);
+
     return () => window.clearInterval(queueId);
   }, [location, identityId]);
 
-  const mergedQueue = useMemo(() => {
-    return [
-      ...(queueData.playNow || []).map((item) => ({ ...item, __lane: "playNow" })),
-      ...(queueData.upNext || []).map((item) => ({ ...item, __lane: "upNext" })),
-    ];
-  }, [queueData]);
+  useEffect(() => {
+    const tick = () => {
+      setSessionCountdown(
+        getCountdownLabel(rulesData?.session?.endsAt, rulesData?.session?.active)
+      );
+    };
 
-  // Logic Constants
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [rulesData?.session?.endsAt, rulesData?.session?.active]);
+
+  useEffect(() => {
+    if (identityId) {
+      void bal.refreshOnce();
+    }
+  }, [identityId]);
+
+  const mergedQueue = useMemo(() => {
+    const play = queueData.playNow || [];
+    const next = queueData.upNext || [];
+
+    return [
+      ...play.map((item) => ({ ...item, __lane: "playNow" })),
+      ...next.map((item) => ({ ...item, __lane: "upNext" })),
+    ];
+  }, [queueData.playNow, queueData.upNext]);
+
   const votingOn = Boolean(rulesData?.rules?.enableVoting);
   const upvoteCost = Number(rulesData?.rules?.costUpvote ?? 1);
   const downvoteCost = Number(rulesData?.rules?.costDownvote ?? 1);
   const displayedBalance = verified ? Number(bal.balance ?? 0) : 5;
+  const logoUrl = rulesData?.rules?.logoUrl || REMIX_LOGO_URL;
+  const defaultAlbumArtUrl = rulesData?.rules?.defaultAlbumArtUrl || "";
   const canVote = Boolean(email.trim()) && verified;
 
-  // Navigation Handlers
+  const goToRequests = () => {
+    sfx.playTap();
+    window.location.href = `/request/${encodeURIComponent(location)}`;
+  };
+
   const goToVerify = () => {
     sfx.playTap();
     window.location.href = `/request/${encodeURIComponent(location)}?verify=1`;
@@ -438,7 +519,6 @@ export default function QueuePage({ params }: { params: { location: string } }) 
 
   const goToBuy = (reason: string) => {
     sfx.playTap();
-    setBuyReason(reason); // Correct use of the logic from your snippet
     window.location.href = `/request/${encodeURIComponent(location)}?buy=1&reason=${encodeURIComponent(reason)}`;
   };
 
@@ -451,19 +531,222 @@ export default function QueuePage({ params }: { params: { location: string } }) 
     goToBuy("boost");
   };
 
+  const saveEmail = () => {
+    const trimmed = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      sfx.playError();
+      setMsg("Please enter a valid email.");
+      return;
+    }
+
+    try {
+      localStorage.setItem("rr_email", trimmed);
+    } catch {}
+
+    sfx.playSuccess();
+    setMsg("Email saved. Voting is ready once your session is active.");
+  };
+
   async function doVote(requestId: string, dir: "up" | "down") {
-    // ... (Your voting logic from before remains the same)
+    const needed = dir === "up" ? upvoteCost : downvoteCost;
+    setMsg("");
+
+    if (!email.trim()) {
+      sfx.playError();
+      setMsg("Enter your email to unlock voting.");
+      return;
+    }
+
+    if (!verified) {
+      sfx.playTap();
+      goToVerify();
+      return;
+    }
+
+    if (!votingOn) {
+      sfx.playError();
+      setMsg("Voting is disabled right now.");
+      return;
+    }
+
+    if ((bal.balance ?? 0) < needed) {
+      sfx.playError();
+      goToBuy("notEnough");
+      return;
+    }
+
+    sfx.playTap();
+    setBusyVoteId(requestId);
+
+    try {
+      const storedIdentityId = localStorage.getItem("rr_identityId") || "";
+
+      const res = await fetch(`/api/public/vote`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          location,
+          requestId,
+          vote: dir,
+          identityId: storedIdentityId,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data?.ok) {
+        sfx.playError();
+        const nextMsg = String(data?.error || "Vote failed.");
+        setMsg(nextMsg);
+
+        if (/session has expired/i.test(nextMsg)) {
+          resetToClaimState();
+          goToVerify();
+        }
+
+        await bal.refreshOnce();
+        return;
+      }
+
+      sfx.playSuccess();
+      await Promise.all([loadQueueAndSession(), bal.refreshOnce()]);
+    } catch {
+      sfx.playError();
+      setMsg("Vote failed.");
+    } finally {
+      if (mountedRef.current) setBusyVoteId("");
+    }
   }
 
   return (
     <PublicTheme>
-       {/* ... JSX code ... */}
-<PublicBottomCommandBar
-  location={location}
-  activeView="queue"
-  points={displayedBalance}
-  onPointsClick={handlePointsAction}
-/>
+      <div className="rrHeroGrid">
+        <div className="rrLogoCard">
+          <BrandLogo logoUrl={logoUrl} />
+        </div>
+
+        <div className="rrHeroCard">
+          <h1 className="rrTitle">Remix Playlist</h1>
+          <div className="rrTitleSub">Vote for your favorites to rise to the top!</div>
+          <div className="rrPanelSub" style={{ marginTop: 10 }}>
+            {sessionCountdown}
+          </div>
+        </div>
+
+        <div className="rrPointsCard">
+          <div className="rrPointsStack">
+            <div className="rrHudLabel">Points</div>
+            <div className="rrHudValue">{displayedBalance}</div>
+            <div className="rrPointsActions">
+              <button
+                className="rrBtn"
+                style={{ width: "100%" }}
+                onClick={handlePointsAction}
+              >
+                Add Points
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {verified && !email.trim() ? (
+        <div className="rrPanel">
+          <div className="rrPanelHead">
+            <div>
+              <div className="rrPanelTitle">Finish Setup</div>
+              <div className="rrPanelSub">
+                Enter your email to unlock voting on this device.
+              </div>
+            </div>
+            <span className="rrStatusPill rrStatusPill--warn">Email Needed</span>
+          </div>
+          <div className="rrPanelBody">
+            <div className="rrInlineForm">
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@domain.com"
+                className="rrInput"
+                autoComplete="email"
+                onFocus={() => sfx.playTap()}
+              />
+              <button className="rrBtn" onClick={saveEmail}>
+                Save Email
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {msg ? <div className="rrMessage">{msg}</div> : null}
+
+      {!canVote ? (
+        <div className="rrNoticeCard">
+          <div className="rrNoticeTitle">Voting Access</div>
+          <div className="rrNoticeText">
+            Save your email, then verify from Requests to unlock your 4-hour voting
+            session on this device.
+          </div>
+          <div className="rrNoticeActions">
+            <button className="rrBtnGhost" onClick={goToVerify}>
+              Verify Device
+            </button>
+            <button
+              className="rrBtn"
+              onClick={() => (verified ? goToBuy("vote") : goToVerify())}
+            >
+              {verified ? "Get Points" : "Start Session"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="rrNoticeCard">
+        <div className="rrNoticeTitle">How to use this board</div>
+        <div className="rrNoticeText">
+          Tap thumbs up or thumbs down beside songs in the live queue. Boosted songs
+          stay closest to the front.
+        </div>
+      </div>
+
+      <div className="rrSectionStack">
+        <div className="rrPanel">
+          <div className="rrPanelBody rrPanelBodyGrid">
+            {loading ? (
+              <div className="rrEmpty">Loading queue…</div>
+            ) : mergedQueue.length ? (
+              mergedQueue.map((item, idx) => (
+                <QueueRow
+                  key={String(item.id || item.requestId || idx)}
+                  item={item}
+                  rank={idx + 1}
+                  emphasis={item.__lane === "playNow"}
+                  laneLabel={item.__lane === "playNow" && idx === 0 ? "live lane" : undefined}
+                  enableVoting={votingOn}
+                  canVote={canVote}
+                  costUpvote={upvoteCost}
+                  costDownvote={downvoteCost}
+                  busyVoteId={busyVoteId}
+                  onVote={doVote}
+                  defaultAlbumArtUrl={defaultAlbumArtUrl}
+                />
+              ))
+            ) : (
+              <div className="rrEmpty">
+                Nothing queued yet. Be the first to request a song.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <PublicBottomCommandBar
+        location={location}
+        activeView="queue"
+        points={displayedBalance}
+        onPointsClick={handlePointsAction}
+      />
     </PublicTheme>
   );
 }
