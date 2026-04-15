@@ -853,29 +853,29 @@ function BuyCreditsDrawer({
 ${(p.priceCents / 100).toFixed(2)}
       </div>
 
-      <div className="rrBuyPackUsage">
-        {p.usageHint}
-      </div>
+<div className="rrBuyPackUsage">
+  About {p.creditsLabel.toLowerCase().replace("points", "requests")}
+</div>
     </div>
   </div>
 
   <button
     className={`rrBtn ${p.highlight ? "rrBtn--featuredPack" : ""}`}
     onClick={() => onBuy(p.packageKey)}
-    disabled={buyBusy}
+    disabled={busy}
   >
     {p.cta ?? `Get ${p.creditsLabel}`}
   </button>
 
 </div>
 
-                  <button
-                    className={`rrBtn ${p.highlight ? "rrBtn--featuredPack" : ""}`}
-                    disabled={busy}
-                    onClick={() => onBuy(p.packageKey, p.href)}
-                  >
-                    {busy ? "Opening..." : `Get ${p.creditsLabel}`}
-                  </button>
+<button
+  className={`rrBtn ${p.highlight ? "rrBtn--featuredPack" : ""}`}
+  onClick={() => onBuy(p.packageKey)}
+  disabled={busy}
+>
+  {busy ? "Opening..." : p.cta ?? `Get ${p.creditsLabel}`}
+</button>
                 </div>
               );
             })}
