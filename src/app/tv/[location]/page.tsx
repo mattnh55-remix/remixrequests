@@ -765,12 +765,6 @@ export default function TvPage({
           line-height: 1.06;
         }
 
-        .remixPortraitFrom {
-          margin-top: 28px;
-          text-align: right;
-          font-size: clamp(34px, 2.8vw, 64px);
-        }
-
         .remixLandscapeTextWrap {
           min-height: 0;
           display: flex;
@@ -1097,9 +1091,6 @@ export default function TvPage({
             font-size: clamp(40px, 4.1vw, 84px);
           }
 
-          .remixPortraitFrom {
-            font-size: clamp(28px, 2.2vw, 52px);
-          }
 
           .remixInlineMessage {
             font-size: clamp(40px, 4vw, 82px);
@@ -1168,11 +1159,6 @@ export default function TvPage({
           .remixInlineMessage {
             text-align: center;
             font-size: clamp(34px, 6vw, 60px);
-          }
-
-          .remixPortraitFrom {
-            text-align: center;
-            font-size: clamp(24px, 4.5vw, 40px);
           }
 
           .remixFooterBars {

@@ -586,13 +586,13 @@ function VerifyDrawer({
   }
 
   return (
-<div className="rrOverlay rrOverlay--mobile">
-  <div className="rrDrawer rrDrawer--mobile">
+    <div className="rrOverlay rrOverlay--mobile">
+      <div className="rrDrawer rrDrawer--mobile">
         <div className="rrDrawerHead">
           <div>
-            <div className="rrDrawerTitle">Claim your points</div>
+            <div className="rrDrawerTitle">Get Your Song in the Queue</div>
             <div className="rrDrawerSub">
-              Boost your songs to the front, outvote the crowd, and take over the floor.
+              Quick sign-in unlocks song requests, boosts, voting, and bonus point promos.
             </div>
           </div>
           <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
@@ -610,33 +610,39 @@ function VerifyDrawer({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
+
                 <input
                   className="rrInput"
                   placeholder="Mobile number"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                 />
-                <label className="rrHelper">
+
+                <label className="rrCheckRow">
                   <input
                     type="checkbox"
                     checked={emailOptIn}
                     onChange={(e) => setEmailOptIn(e.target.checked)}
-                    style={{ marginRight: 8 }}
                   />
-                  Email me updates and bonus offers
+                  <span>Email me bonus offers, points, and event updates</span>
                 </label>
-                <label className="rrHelper">
+
+                <label className="rrCheckRow">
                   <input
                     type="checkbox"
                     checked={smsOptIn}
                     onChange={(e) => setSmsOptIn(e.target.checked)}
-                    style={{ marginRight: 8 }}
                   />
-                  Text me verification and promo updates
+                  <span>Text me verification codes and occasional promos</span>
                 </label>
+
                 <button className="rrBtn" disabled={busy} onClick={sendCode}>
-                  {busy ? "Sending..." : "Send verification code"}
+                  {busy ? "Sending code..." : "Start Requesting Songs"}
                 </button>
+
+                <div className="rrHelper">
+                  This only takes a few seconds, then you’re ready to request.
+                </div>
               </>
             ) : (
               <>
@@ -646,9 +652,11 @@ function VerifyDrawer({
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                 />
+
                 <button className="rrBtn" disabled={busy} onClick={confirmCode}>
-                  {busy ? "Verifying..." : "Verify & continue"}
+                  {busy ? "Verifying..." : "Verify & Continue"}
                 </button>
+
                 <button className="rrBtnGhost" disabled={busy} onClick={() => setStep("collect")}>
                   Back
                 </button>
@@ -658,23 +666,27 @@ function VerifyDrawer({
             <div className="rrDivider" />
 
             <div className="rrStack">
-              <div className="rrDrawerTitle rrDrawerTitle--small">Redeem code</div>
-              <input
-                className="rrInput"
-                placeholder="Enter redemption code"
-                value={redeemCode}
-                onChange={(e) => setRedeemCode(e.target.value)}
-              />
-              <button
-                className="rrBtnGhost"
-                disabled={redeemBusy}
-                onClick={() => onRedeem(redeemCode)}
-              >
-                {redeemBusy ? "Redeeming..." : "Redeem code"}
-              </button>
+              <div className="rrDrawerTitle rrDrawerTitle--small">Have a promo or point code?</div>
+
+              <div className="rrInlineForm">
+                <input
+                  className="rrInput"
+                  placeholder="Enter redemption code"
+                  value={redeemCode}
+                  onChange={(e) => setRedeemCode(e.target.value)}
+                />
+
+                <button
+                  className="rrBtnGhost"
+                  disabled={redeemBusy}
+                  onClick={() => onRedeem(redeemCode)}
+                >
+                  {redeemBusy ? "Redeeming..." : "Redeem"}
+                </button>
+              </div>
             </div>
 
-            {msg ? <div className="rrHelper">{msg}</div> : null}
+            {msg ? <div className="rrVerifyMsg">{msg}</div> : null}
           </div>
         </div>
       </div>
