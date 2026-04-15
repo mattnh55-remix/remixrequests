@@ -788,7 +788,7 @@ function BuyCreditsDrawer({
       <div className="rrDrawer rrDrawer--buy" onClick={(e) => e.stopPropagation()}>
         <div className="rrDrawerHead rrDrawerHead--buy">
           <div>
-            <div className="rrDrawerTitle">Take Over the Playlist</div>
+            <div className="rrDrawerTitle">REMIX REQUESTS<br>Take Over the Playlist<br></div>
             <div className="rrDrawerSub">
               Boost your songs to the front, outvote the crowd, and keep the floor moving your way.
             </div>
