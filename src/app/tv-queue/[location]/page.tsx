@@ -1,6 +1,7 @@
+// src/app/tv-queue/[location]/page.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type QueueItem = {
   id: string;
@@ -9,7 +10,7 @@ type QueueItem = {
   title: string;
   artist: string;
   artworkUrl?: string;
-  score: number;
+  score?: number;
   upvotes?: number;
   downvotes?: number;
   requestedByMe?: boolean;
@@ -28,192 +29,198 @@ type RulesResponse = {
   defaultAlbumArtUrl?: string | null;
 };
 
-type VisibleCard = QueueItem & {
-  visualNumber?: number;
-};
+const ROTATE_MS = 25000;
+const QUEUE_POLL_MS = 5000;
+const FEATURED_POLL_MS = 20000;
+const RULES_POLL_MS = 30000;
 
-const FEATURE_ROTATE_MS = 25000;
-const POLL_QUEUE_MS = 5000;
-const POLL_FEATURED_MS = 30000;
-const POLL_RULES_MS = 45000;
+function stableKey(items: QueueItem[]) {
+  return items
+    .map((item) =>
+      [
+        item.id,
+        item.title,
+        item.artist,
+        item.artworkUrl || "",
+        item.score || 0,
+        item.upvotes || 0,
+        item.downvotes || 0,
+        item.isBoosted ? 1 : 0,
+        item.boosted ? 1 : 0,
+        item.wasBoosted ? 1 : 0,
+      ].join("|")
+    )
+    .join("~~");
+}
 
-function sameItems(a: QueueItem[], b: QueueItem[]) {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i += 1) {
-    const left = a[i];
-    const right = b[i];
-    if (
-      left?.id !== right?.id ||
-      left?.title !== right?.title ||
-      left?.artist !== right?.artist ||
-      left?.artworkUrl !== right?.artworkUrl ||
-      Number(left?.upvotes || 0) !== Number(right?.upvotes || 0) ||
-      Number(left?.downvotes || 0) !== Number(right?.downvotes || 0) ||
-      Number(left?.score || 0) !== Number(right?.score || 0)
-    ) {
-      return false;
-    }
+function pickTwo(items: QueueItem[], pairIndex: number) {
+  if (items.length <= 2) return items.slice(0, 2);
+
+  const pairs = Math.ceil(items.length / 2);
+  const safePair = pairIndex % pairs;
+  const start = safePair * 2;
+  return items.slice(start, start + 2);
+}
+
+function decorativeSeed(item: QueueItem) {
+  const seed = `${item.id}-${item.title}-${item.artist}`;
+  let hash = 0;
+
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
   }
-  return true;
+
+  return {
+    up: (hash % 7) + 1,
+    down: hash % 3,
+    fire: (hash % 5) + 1,
+  };
 }
 
-function makeFeaturedPair(items: QueueItem[], start: number): QueueItem[] {
-  if (items.length <= 2) return items;
-
-  const first = items[start % items.length];
-  const second = items[(start + 1) % items.length];
-  return [first, second].filter(Boolean);
-}
-
-export default function TvQueuePortraitPage({
+export default function TvQueuePortraitBillboardPage({
   params,
 }: {
   params: { location: string };
 }) {
   const location = params.location;
 
-  const [upNext, setUpNext] = useState<QueueItem[]>([]);
-  const [featuredSongs, setFeaturedSongs] = useState<QueueItem[]>([]);
+  const [requestItems, setRequestItems] = useState<QueueItem[]>([]);
+  const [featuredItems, setFeaturedItems] = useState<QueueItem[]>([]);
   const [defaultAlbumArtUrl, setDefaultAlbumArtUrl] = useState<string | null>(null);
-  const [tvScale, setTvScale] = useState(1);
-  const [featuredStart, setFeaturedStart] = useState(0);
-  const [sceneKey, setSceneKey] = useState(0);
 
-  const previousRequestIdsRef = useRef<string>("");
-  const previousFeaturedIdsRef = useRef<string>("");
+  const [visiblePair, setVisiblePair] = useState<QueueItem[]>([]);
+  const [sceneMode, setSceneMode] = useState<"requests" | "featured">("featured");
+  const [pairIndex, setPairIndex] = useState(0);
+  const [animCycle, setAnimCycle] = useState(0);
 
-  const requestCards = useMemo<VisibleCard[]>(() => {
-    return upNext.slice(0, 2).map((item, index) => ({
-      ...item,
-      visualNumber: index + 3,
-    }));
-  }, [upNext]);
+  const requestKeyRef = useRef("");
+  const featuredKeyRef = useRef("");
+  const rulesKeyRef = useRef<string | null>(null);
 
-  const hasRequests = requestCards.length > 0;
+  const activePool = useMemo(
+    () => (requestItems.length > 0 ? requestItems : featuredItems),
+    [requestItems, featuredItems]
+  );
 
-  const featuredCards = useMemo<VisibleCard[]>(() => {
-    return makeFeaturedPair(featuredSongs, featuredStart);
-  }, [featuredSongs, featuredStart]);
-
-  const visibleCards = hasRequests ? requestCards : featuredCards;
-  const mode = hasRequests ? "requests" : "featured";
+  const isRequestsMode = requestItems.length > 0;
 
   useEffect(() => {
-    function updateScale() {
-      const h = window.innerHeight || 1080;
-      const w = window.innerWidth || 720;
-      const heightScale = h / 1920;
-      const widthScale = w / 1080;
-      const nextScale = Math.max(0.8, Math.min(1.28, Math.min(heightScale, widthScale) * 1.12));
-      setTvScale(Number(nextScale.toFixed(3)));
-    }
-
-    updateScale();
-    window.addEventListener("resize", updateScale);
-    return () => window.removeEventListener("resize", updateScale);
-  }, []);
+    setSceneMode(isRequestsMode ? "requests" : "featured");
+    setPairIndex(0);
+  }, [isRequestsMode]);
 
   useEffect(() => {
-    if (hasRequests) return;
+    const nextPair = pickTwo(activePool, pairIndex);
+    setVisiblePair(nextPair);
+    setAnimCycle((prev) => prev + 1);
+  }, [activePool, pairIndex, sceneMode]);
+
+  useEffect(() => {
+    const canRotate = activePool.length > 2;
+    if (!canRotate) return;
 
     const timer = window.setInterval(() => {
-      setFeaturedStart((prev) => {
-        if (featuredSongs.length <= 2) return 0;
-        return (prev + 2) % featuredSongs.length;
-      });
-      setSceneKey((prev) => prev + 1);
-    }, FEATURE_ROTATE_MS);
+      setPairIndex((prev) => prev + 1);
+    }, ROTATE_MS);
 
     return () => window.clearInterval(timer);
-  }, [featuredSongs.length, hasRequests]);
+  }, [activePool.length]);
 
   useEffect(() => {
-    const requestSignature = requestCards
-      .map((item) => `${item.id}:${item.visualNumber}:${item.upvotes || 0}:${item.downvotes || 0}:${item.score || 0}`)
-      .join("|");
+    let isMounted = true;
 
-    if (requestSignature && requestSignature !== previousRequestIdsRef.current) {
-      previousRequestIdsRef.current = requestSignature;
-      setSceneKey((prev) => prev + 1);
+    async function loadQueue() {
+      try {
+        const res = await fetch(`/api/public/queue/${location}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const upNext = Array.isArray(data?.upNext) ? data.upNext : [];
+        const items = upNext.slice(0, 10).map((item: any) => ({
+          id: String(item.id ?? item.requestId ?? item.songId ?? `${item.title}-${item.artist}`),
+          requestId: item.requestId ? String(item.requestId) : undefined,
+          songId: item.songId ? String(item.songId) : undefined,
+          title: String(item.title || ""),
+          artist: String(item.artist || ""),
+          artworkUrl: item.artworkUrl || undefined,
+          score: Number(item.score || 0),
+          upvotes: Number(item.upvotes || 0),
+          downvotes: Number(item.downvotes || 0),
+          isBoosted: Boolean(item.isBoosted),
+          boosted: Boolean(item.boosted),
+          wasBoosted: Boolean(item.wasBoosted),
+        })) as QueueItem[];
+
+        const nextKey = stableKey(items);
+        if (isMounted && nextKey !== requestKeyRef.current) {
+          requestKeyRef.current = nextKey;
+          setRequestItems(items);
+        }
+      } catch {
+        // ignore
+      }
     }
 
-    if (!requestSignature) {
-      previousRequestIdsRef.current = "";
+    async function loadFeatured() {
+      try {
+        const res = await fetch(`/api/public/featured-songs/${location}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const items = Array.isArray(data?.items) ? data.items : [];
+        const normalized = items.slice(0, 10).map((item: any) => ({
+          id: String(item.id ?? `${item.title}-${item.artist}`),
+          title: String(item.title || ""),
+          artist: String(item.artist || ""),
+          artworkUrl: item.artworkUrl || undefined,
+          score: 0,
+          upvotes: 0,
+          downvotes: 0,
+        })) as QueueItem[];
+
+        const nextKey = stableKey(normalized);
+        if (isMounted && nextKey !== featuredKeyRef.current) {
+          featuredKeyRef.current = nextKey;
+          setFeaturedItems(normalized);
+        }
+      } catch {
+        // ignore
+      }
     }
-  }, [requestCards]);
 
-  useEffect(() => {
-    const featuredSignature = featuredCards.map((item) => item.id).join("|");
+    async function loadRules() {
+      try {
+        const res = await fetch(`/api/public/rules/${location}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
 
-    if (!hasRequests && featuredSignature && featuredSignature !== previousFeaturedIdsRef.current) {
-      previousFeaturedIdsRef.current = featuredSignature;
-      setSceneKey((prev) => prev + 1);
+        const data = (await res.json()) as RulesResponse;
+        const url = data?.rules?.defaultAlbumArtUrl || data?.defaultAlbumArtUrl || null;
+
+        if (isMounted && url !== rulesKeyRef.current) {
+          rulesKeyRef.current = url;
+          setDefaultAlbumArtUrl(url);
+        }
+      } catch {
+        // ignore
+      }
     }
-  }, [featuredCards, hasRequests]);
 
-  async function loadQueue() {
-    try {
-      const res = await fetch(`/api/public/queue/${location}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      const nextItems = Array.isArray(data?.upNext) ? data.upNext.slice(0, 2) : [];
-
-      setUpNext((current) => (sameItems(current, nextItems) ? current : nextItems));
-    } catch {
-      setUpNext((current) => (current.length === 0 ? current : []));
-    }
-  }
-
-  async function loadRules() {
-    try {
-      const res = await fetch(`/api/public/rules/${location}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) return;
-      const data = (await res.json()) as RulesResponse;
-      const url = data?.rules?.defaultAlbumArtUrl || data?.defaultAlbumArtUrl || null;
-      setDefaultAlbumArtUrl(url);
-    } catch {
-      // ignore
-    }
-  }
-
-  async function loadFeatured() {
-    try {
-      const res = await fetch(`/api/public/featured-songs/${location}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      const items = Array.isArray(data?.items) ? data.items : [];
-      const nextItems = items.map((s: any) => ({
-        id: String(s.id),
-        title: String(s.title || ""),
-        artist: String(s.artist || ""),
-        artworkUrl: s.artworkUrl || undefined,
-        score: 0,
-        upvotes: 0,
-        downvotes: 0,
-      })) as QueueItem[];
-
-      setFeaturedSongs((current) => (sameItems(current, nextItems) ? current : nextItems));
-    } catch {
-      setFeaturedSongs((current) => (current.length === 0 ? current : []));
-    }
-  }
-
-  useEffect(() => {
     void loadQueue();
     void loadFeatured();
     void loadRules();
 
-    const queueTimer = window.setInterval(() => void loadQueue(), POLL_QUEUE_MS);
-    const featuredTimer = window.setInterval(() => void loadFeatured(), POLL_FEATURED_MS);
-    const rulesTimer = window.setInterval(() => void loadRules(), POLL_RULES_MS);
+    const queueTimer = window.setInterval(() => void loadQueue(), QUEUE_POLL_MS);
+    const featuredTimer = window.setInterval(() => void loadFeatured(), FEATURED_POLL_MS);
+    const rulesTimer = window.setInterval(() => void loadRules(), RULES_POLL_MS);
 
     return () => {
+      isMounted = false;
       window.clearInterval(queueTimer);
       window.clearInterval(featuredTimer);
       window.clearInterval(rulesTimer);
@@ -221,475 +228,409 @@ export default function TvQueuePortraitPage({
   }, [location]);
 
   return (
-    <div className="remixRequestsBillboardRoot" style={{ ["--tvScale" as any]: tvScale } as CSSProperties}>
-      <div className="remixRequestsBg remixRequestsBgA" />
-      <div className="remixRequestsBg remixRequestsBgB" />
-      <div className="remixRequestsGlow remixRequestsGlowA" />
-      <div className="remixRequestsGlow remixRequestsGlowB" />
-
-      <main className="remixRequestsStage">
-        <HeaderBadge />
-
-        <section className="remixRequestsCardsViewport">
-          {visibleCards.length === 0 ? (
-            <div className="remixRequestsLoading">Loading featured songs...</div>
-          ) : (
-            <div className="remixRequestsCardsTrack" key={`${mode}-${sceneKey}`}>
-              {visibleCards.map((item, index) => (
-                <BillboardCard
-                  key={`${mode}-${item.id}-${index}`}
-                  item={item}
-                  side={index === 0 ? "left" : "right"}
-                  defaultAlbumArtUrl={defaultAlbumArtUrl}
-                  showNumber={hasRequests}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <FooterBanner mode={mode} />
-      </main>
-
+    <div className="tvBillboardRoot">
       <style jsx global>{`
-        @import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&display=swap");
+        @import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap");
 
-        .remixRequestsBillboardRoot {
+        :root {
           --font-barlow-condensed: "Barlow Condensed";
-          --bgLeft: #02152f;
-          --bgRight: #2b0c45;
-          --panel: rgba(255, 255, 255, 0.05);
-          --line: rgba(255, 255, 255, 0.14);
-          --text: #fff7ea;
-          --shadowText: #251334;
-          --purpleA: #7854d7;
-          --purpleB: #d95ac5;
-          --pink: #ef6ecb;
-          --blue: #4e72ff;
-          --gold: #ffd661;
-          --orange: #ff8a2a;
-          min-height: 100vh;
-          position: relative;
-          overflow: hidden;
-          background: linear-gradient(90deg, var(--bgLeft) 0%, #07152d 26%, #130d3b 63%, var(--bgRight) 100%);
-          color: var(--text);
         }
 
-        .remixRequestsBg,
-        .remixRequestsGlow {
+        html,
+        body {
+          margin: 0;
+          padding: 0;
+          background: #050814;
+        }
+
+        .tvBillboardRoot {
+          position: relative;
+          min-height: 100vh;
+          height: 100vh;
+          overflow: hidden;
+          background:
+            radial-gradient(circle at 22% 72%, rgba(0, 93, 166, 0.38), transparent 34%),
+            radial-gradient(circle at 72% 22%, rgba(109, 27, 140, 0.38), transparent 34%),
+            linear-gradient(90deg, #021f47 0%, #2c0644 100%);
+          color: #f8f4ea;
+          font-family: var(--font-barlow-condensed), sans-serif;
+        }
+
+        .tvBillboardFrame {
           position: absolute;
           inset: 0;
-          pointer-events: none;
-        }
-
-        .remixRequestsBgA {
-          background:
-            radial-gradient(circle at 16% 80%, rgba(0, 122, 255, 0.12), transparent 28%),
-            radial-gradient(circle at 84% 18%, rgba(237, 78, 201, 0.12), transparent 26%);
-        }
-
-        .remixRequestsBgB {
-          background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 18%, transparent 82%, rgba(255,255,255,0.02));
-        }
-
-        .remixRequestsGlow {
-          mix-blend-mode: screen;
-          filter: blur(calc(90px * var(--tvScale)));
-          opacity: 0.18;
-        }
-
-        .remixRequestsGlowA {
-          background: radial-gradient(circle at 8% 50%, rgba(0, 247, 255, 0.46), transparent 20%);
-          animation: remixRequestsDriftA 16s ease-in-out infinite;
-        }
-
-        .remixRequestsGlowB {
-          background: radial-gradient(circle at 92% 20%, rgba(255, 57, 212, 0.4), transparent 18%);
-          animation: remixRequestsDriftB 18s ease-in-out infinite;
-        }
-
-        .remixRequestsStage {
-          min-height: 100vh;
-          position: relative;
-          z-index: 1;
           display: grid;
-          grid-template-rows: auto minmax(0, 1fr) auto;
-          gap: calc(18px * var(--tvScale));
-          padding: 0 calc(18px * var(--tvScale)) 0;
+          grid-template-rows: auto 1fr auto;
+          min-height: 100vh;
+          height: 100vh;
+          padding: 0;
           box-sizing: border-box;
         }
 
-        .remixRequestsHeaderWrap {
+        .tvHeaderWrap,
+        .tvFooterWrap {
+          width: 100%;
           display: flex;
           justify-content: center;
-          padding-top: -2px;
-        }
-
-        .remixRequestsHeaderBadge {
-          width: min(74vw, calc(620px * var(--tvScale)));
-          max-width: calc(620px * var(--tvScale));
-          background:
-            radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05), transparent 70%),
-            linear-gradient(180deg, #7a58c0 0%, #6547a9 100%);
-          border: calc(4px * var(--tvScale)) solid #0c0717;
-          margin-top: 0;
-          clip-path: polygon(0 0, 100% 0, 100% 74%, 50% 100%, 0 74%);
-          padding: calc(8px * var(--tvScale)) calc(20px * var(--tvScale)) calc(16px * var(--tvScale));
-          text-align: center;
-          box-shadow: 0 calc(18px * var(--tvScale)) calc(32px * var(--tvScale)) rgba(0,0,0,0.3);
-          position: relative;
-          overflow: hidden;
-          isolation: isolate;
-        }
-
-        .remixRequestsHeaderBadge::before {
-          content: "";
-          position: absolute;
-          inset: calc(-28px * var(--tvScale));
-          background:
-            radial-gradient(circle, rgba(67, 40, 112, 0.52) 18%, transparent 19%);
-          background-size: calc(28px * var(--tvScale)) calc(28px * var(--tvScale));
-          background-position: center center;
-          transform: none;
-          opacity: 0.9;
-          z-index: 0;
-          pointer-events: none;
-        }
-
-        .remixRequestsHeaderText {
-          position: relative;
-          z-index: 1;
-          font-size: clamp(28px, 3.2vw, 62px);
-          font-weight: 800;
-          line-height: 0.94;
-          letter-spacing: 1px;
-          text-transform: uppercase;
-          white-space: nowrap;
-          font-family: var(--font-barlow-condensed), sans-serif;
-          color: #f8f4ea;
-          text-shadow:
-            4px 4px 0 rgba(0, 0, 0, 0.22),
-            0 2px 0 rgba(0, 0, 0, 0.16);
-        }
-
-        .remixRequestsCardsViewport {
-          min-height: 0;
-          display: grid;
           align-items: center;
-          overflow: hidden;
+          padding: 0;
+          margin: 0;
+          line-height: 0;
         }
 
-        .remixRequestsCardsTrack {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: calc(20px * var(--tvScale));
-          align-content: center;
-        }
-
-        .remixRequestsCard {
-          position: relative;
-          display: grid;
-          grid-template-columns: auto minmax(0, 1fr);
-          gap: calc(14px * var(--tvScale));
-          align-items: center;
-          max-width: calc(860px * var(--tvScale));
-          width: 100%;
-          justify-self: center;
-          animation-duration: 25s;
-          animation-timing-function: ease-in-out;
-          animation-fill-mode: both;
-          will-change: transform, opacity;
-        }
-
-.remixRequestsCard.is-left {
-          justify-self: start;
-          margin-left: calc(16px * var(--tvScale));
-          animation-name: remixRequestsLeftScene;
-        }
-
-        .remixRequestsCard.is-right {
-          justify-self: end;
-          margin-right: calc(48px * var(--tvScale));
-          animation-name: remixRequestsRightScene;
-        }
-
-        .remixRequestsCardNumber {
-          width: calc(116px * var(--tvScale));
-          min-width: calc(116px * var(--tvScale));
+        .tvHeaderWrap {
           align-self: start;
-          background: linear-gradient(180deg, #5f71ff 0%, #ef63c8 100%);
-          border: calc(4px * var(--tvScale)) solid rgba(13, 6, 22, 0.98);
-          clip-path: polygon(0 0, 100% 0, 100% 82%, 50% 100%, 0 82%);
-          display: grid;
-          place-items: center;
-          padding: calc(16px * var(--tvScale)) 0 calc(26px * var(--tvScale));
-          box-shadow: 0 calc(10px * var(--tvScale)) calc(20px * var(--tvScale)) rgba(0,0,0,0.28);
         }
 
-        .remixRequestsCardNumberText {
-          font-size: clamp(38px, calc(70px * var(--tvScale)), 100px);
-          font-weight: 800;
-          font-family: var(--font-barlow-condensed), sans-serif;
-          line-height: 1;
-          color: var(--text);
-          text-shadow: calc(5px * var(--tvScale)) calc(5px * var(--tvScale)) 0 rgba(26, 10, 36, 0.65);
+        .tvFooterWrap {
+          align-self: end;
         }
 
-        .remixRequestsCardMain {
-          min-width: 0;
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: calc(14px * var(--tvScale));
-          align-items: center;
-          justify-items: center;
-        }
-
-        .remixRequestsCardMain.no-number {
-          grid-template-columns: 1fr;
-        }
-
-        .remixRequestsArtWrap {
+        .tvBadge {
           position: relative;
-          width: min(100%, calc(340px * var(--tvScale)));
-          aspect-ratio: 1 / 1;
-          border-radius: calc(28px * var(--tvScale));
           overflow: hidden;
-          box-shadow: 0 calc(20px * var(--tvScale)) calc(34px * var(--tvScale)) rgba(0,0,0,0.32);
-          background: rgba(255,255,255,0.04);
+          background: #8c69d8;
+          border: 4px solid #1f1031;
+          box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
+          line-height: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
-        .remixRequestsArtWrap::after {
+        .tvBadge::before {
           content: "";
           position: absolute;
           inset: 0;
-          border-radius: inherit;
-          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+          background-image: radial-gradient(circle, rgba(65, 36, 113, 0.42) 0 2.5px, transparent 3px);
+          background-size: 28px 28px;
+          background-position: 4px 4px;
+          opacity: 1;
           pointer-events: none;
         }
 
-        .remixRequestsCardText {
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          gap: calc(8px * var(--tvScale));
-          align-items: center;
+        .tvHeaderBadge {
+          width: min(72vw, 520px);
+          min-height: clamp(58px, 7.2vh, 86px);
+          padding: 10px 24px 14px;
+          clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%);
+        }
+
+        .tvFooterBadge {
+          width: min(70vw, 470px);
+          min-height: clamp(48px, 5.8vh, 68px);
+          padding: 8px 18px 10px;
+        }
+
+        .tvHeaderText {
+          position: relative;
+          z-index: 1;
+          white-space: nowrap;
           text-align: center;
-          width: 100%;
-        }
-
-        .remixRequestsTitle {
-          font-size: clamp(30px, calc(56px * var(--tvScale)), 82px);
-          line-height: 0.96;
+          font-family: var(--font-barlow-condensed), sans-serif;
+          font-size: clamp(46px, 4vw, 86px);
+          line-height: 0.94;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          color: #f8f4ea;
+          text-shadow:
+            6px 6px 0 rgba(0, 0, 0, 0.22),
+            0 2px 0 rgba(0, 0, 0, 0.16);
           font-weight: 800;
-          font-family: var(--font-barlow-condensed), sans-serif;
-          text-transform: uppercase;
-          color: var(--text);
-          text-shadow: calc(4px * var(--tvScale)) calc(4px * var(--tvScale)) 0 rgba(25, 11, 35, 0.64);
-          word-break: break-word;
         }
 
-        .remixRequestsArtist {
-          font-size: clamp(18px, calc(28px * var(--tvScale)), 42px);
-          line-height: 1;
-          font-weight: 700;
+        .tvFooterText {
+          position: relative;
+          z-index: 1;
+          white-space: nowrap;
+          text-align: center;
           font-family: var(--font-barlow-condensed), sans-serif;
+          font-size: clamp(22px, 2.2vw, 34px);
+          line-height: 0.92;
+          letter-spacing: 0.7px;
           text-transform: uppercase;
-          color: var(--text);
-          text-shadow: calc(3px * var(--tvScale)) calc(3px * var(--tvScale)) 0 rgba(25, 11, 35, 0.58);
-          word-break: break-word;
+          color: #f8f4ea;
+          text-shadow:
+            4px 4px 0 rgba(0, 0, 0, 0.2),
+            0 2px 0 rgba(0, 0, 0, 0.14);
+          font-weight: 800;
         }
 
-        .remixRequestsVotes {
+        .tvScene {
+          min-height: 0;
           display: flex;
           align-items: center;
-          gap: calc(10px * var(--tvScale));
-          flex-wrap: wrap;
-          margin-top: calc(2px * var(--tvScale));
           justify-content: center;
+          padding: clamp(8px, 1vh, 12px) 0;
+          overflow: hidden;
         }
 
-        .remixRequestsVoteChip,
-        .remixRequestsFireChip {
+        .tvSceneInner {
+          width: 100%;
+          height: 100%;
+          display: grid;
+          align-content: center;
+          justify-items: center;
+          gap: clamp(18px, 2.2vh, 26px);
+        }
+
+        .tvCardShell {
+          width: min(76vw, 398px);
+          display: grid;
+          justify-items: center;
+          align-content: start;
+          gap: clamp(10px, 1.2vh, 14px);
+          position: relative;
+          will-change: transform, opacity;
+        }
+
+        .tvCardShell--top {
+          transform: translateX(-48px);
+        }
+
+        .tvCardShell--bottom {
+          transform: translateX(48px);
+        }
+
+        .tvCardAnimEnterLeft {
+          animation: enterLeft 900ms cubic-bezier(0.22, 1, 0.36, 1) both, floaty 8s ease-in-out 900ms infinite;
+        }
+
+        .tvCardAnimEnterRight {
+          animation: enterRight 900ms cubic-bezier(0.22, 1, 0.36, 1) both, floaty 8s ease-in-out 900ms infinite;
+        }
+
+        .tvCardArtWrap {
+          width: 100%;
+          aspect-ratio: 1 / 1;
+          border-radius: 28px;
+          overflow: hidden;
+          box-shadow: 10px 10px 0 rgba(100, 53, 10, 0.52);
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        .tvCardArtWrap img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .tvCardTitle {
+          width: 100%;
+          text-align: center;
+          font-weight: 800;
+          font-size: clamp(42px, 4.5vw, 64px);
+          line-height: 0.95;
+          letter-spacing: 0.3px;
+          text-transform: uppercase;
+          color: #f8f4ea;
+          text-shadow:
+            5px 5px 0 rgba(0, 0, 0, 0.22),
+            0 2px 0 rgba(0, 0, 0, 0.14);
+        }
+
+        .tvCardArtist {
+          width: 100%;
+          text-align: center;
+          font-weight: 700;
+          font-size: clamp(24px, 2.7vw, 34px);
+          line-height: 1;
+          letter-spacing: 0.2px;
+          text-transform: uppercase;
+          color: #f8f4ea;
+        }
+
+        .tvCardMeta {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: calc(6px * var(--tvScale));
-          min-height: calc(44px * var(--tvScale));
-          padding: 0 calc(14px * var(--tvScale));
-          border-radius: 999px;
-          font-size: clamp(16px, calc(26px * var(--tvScale)), 40px);
-          font-weight: 700;
-          font-family: var(--font-barlow-condensed), sans-serif;
-          box-shadow: 0 calc(6px * var(--tvScale)) calc(14px * var(--tvScale)) rgba(0,0,0,0.2);
+          gap: 14px;
+          min-height: 28px;
         }
 
-        .remixRequestsVoteChip {
-          background: linear-gradient(90deg, #6d6bff 0%, #d86bcb 100%);
-          color: #fff5e5;
-        }
-
-        .remixRequestsFireChip {
-          background: rgba(31, 13, 50, 0.9);
-          border: 2px solid #5873ff;
-          color: #fff5e5;
-        }
-
-        .remixRequestsFooter {
-          display: flex;
+        .tvMetaPill {
+          display: inline-flex;
+          align-items: center;
           justify-content: center;
-          padding-bottom: 0;
-        }
-
-        .remixRequestsFooterBadge {
-          width: min(72vw, calc(720px * var(--tvScale)));
-          background:
-            radial-gradient(circle, rgba(44, 22, 76, 0.32) 18%, transparent 19%),
-            linear-gradient(180deg, #7a58c0 0%, #6547a9 100%);
-          background-size: calc(28px * var(--tvScale)) calc(28px * var(--tvScale)), auto;
-          border: calc(4px * var(--tvScale)) solid rgba(13, 6, 22, 0.98);
-          padding: calc(8px * var(--tvScale)) calc(14px * var(--tvScale));
-          text-align: center;
-          box-shadow: 0 calc(16px * var(--tvScale)) calc(30px * var(--tvScale)) rgba(0,0,0,0.28);
-        }
-
-        .remixRequestsFooterText {
-          font-size: clamp(22px, calc(40px * var(--tvScale)), 62px);
-          line-height: 0.96;
+          min-width: 34px;
+          height: 26px;
+          padding: 0 8px;
+          border-radius: 999px;
+          background: linear-gradient(180deg, #6f6ff2 0%, #c56be2 100%);
+          color: #f8f4ea;
+          font-size: 18px;
           font-weight: 700;
-          font-family: var(--font-barlow-condensed), sans-serif;
-          text-transform: uppercase;
-          color: var(--text);
-          text-shadow: calc(4px * var(--tvScale)) calc(4px * var(--tvScale)) 0 rgba(25, 11, 35, 0.62);
+          box-sizing: border-box;
         }
 
-        .remixRequestsLoading {
-          justify-self: center;
-          align-self: center;
-          padding: calc(20px * var(--tvScale)) calc(24px * var(--tvScale));
-          border-radius: calc(24px * var(--tvScale));
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
-          font-size: clamp(20px, calc(34px * var(--tvScale)), 48px);
-          font-weight: 700;
-          font-family: var(--font-barlow-condensed), sans-serif;
-          text-transform: uppercase;
+        .tvMetaFire {
+          font-size: 22px;
+          line-height: 1;
         }
 
-        @keyframes remixRequestsLeftScene {
-          0% { opacity: 0; transform: translateX(-72px) scale(0.96); }
-          7% { opacity: 1; transform: translateX(0) scale(1); }
-          12%, 80% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-          46% { transform: translate3d(0, calc(-6px * var(--tvScale)), 0) scale(1.012); }
-          63% { transform: translate3d(0, calc(4px * var(--tvScale)), 0) scale(1); }
-          100% { opacity: 0; transform: translateX(-56px) scale(0.975); }
+        .tvRankBadge {
+          position: absolute;
+          left: -52px;
+          top: 16px;
+          width: 70px;
+          height: 92px;
+          background: linear-gradient(180deg, #5c7cff 0%, #ea60c2 100%);
+          clip-path: polygon(0 0, 100% 0, 100% 78%, 52% 100%, 0 78%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 4px solid rgba(24, 15, 39, 0.96);
+          box-sizing: border-box;
+          box-shadow: 4px 6px 0 rgba(0, 0, 0, 0.18);
         }
 
-        @keyframes remixRequestsRightScene {
-          0% { opacity: 0; transform: translateX(116px) scale(0.96); }
-          7% { opacity: 1; transform: translateX(0) scale(1); }
-          12%, 80% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-          44% { transform: translate3d(0, calc(5px * var(--tvScale)), 0) scale(1.012); }
-          62% { transform: translate3d(0, calc(-5px * var(--tvScale)), 0) scale(1); }
-          100% { opacity: 0; transform: translateX(96px) scale(0.975); }
+        .tvRankBadgeText {
+          font-weight: 800;
+          font-size: 52px;
+          line-height: 1;
+          color: #f8f4ea;
+          text-shadow:
+            6px 6px 0 rgba(0, 0, 0, 0.24),
+            0 2px 0 rgba(0, 0, 0, 0.16);
         }
 
-        @keyframes remixRequestsDriftA {
-          0%, 100% { transform: translate3d(0, 0, 0); }
-          50% { transform: translate3d(2vw, -2vh, 0); }
+        @keyframes enterLeft {
+          0% {
+            opacity: 0;
+            transform: translateX(-108px) scale(0.985);
+          }
+          100% {
+            opacity: 1;
+            transform: translateX(-48px) scale(1);
+          }
         }
 
-        @keyframes remixRequestsDriftB {
-          0%, 100% { transform: translate3d(0, 0, 0); }
-          50% { transform: translate3d(-2vw, 2vh, 0); }
+        @keyframes enterRight {
+          0% {
+            opacity: 0;
+            transform: translateX(108px) scale(0.985);
+          }
+          100% {
+            opacity: 1;
+            transform: translateX(48px) scale(1);
+          }
         }
 
-        @media (max-width: 900px) {
-          .remixRequestsCard {
-            max-width: 100%;
+        @keyframes floaty {
+          0%, 100% {
+            margin-top: 0;
+          }
+          50% {
+            margin-top: -4px;
+          }
+        }
+
+        @media (max-height: 900px) {
+          .tvHeaderBadge {
+            width: min(68vw, 470px);
+            min-height: 60px;
+            padding: 8px 20px 12px;
           }
 
-          .remixRequestsCardMain,
-          .remixRequestsCardMain.no-number {
-            grid-template-columns: 1fr;
-            gap: calc(18px * var(--tvScale));
+          .tvFooterBadge {
+            width: min(66vw, 430px);
+            min-height: 42px;
+            padding: 6px 14px 8px;
           }
 
-          .remixRequestsArtWrap {
-            max-width: min(66vw, calc(360px * var(--tvScale)));
+          .tvSceneInner {
+            gap: 16px;
+          }
+
+          .tvCardShell {
+            width: min(72vw, 350px);
+            gap: 8px;
+          }
+
+          .tvCardTitle {
+            font-size: clamp(34px, 4vw, 54px);
+          }
+
+          .tvCardArtist {
+            font-size: clamp(20px, 2.2vw, 28px);
           }
         }
       `}</style>
-    </div>
-  );
-}
 
-function HeaderBadge() {
-  return (
-    <div className="remixRequestsHeaderWrap">
-      <div className="remixRequestsHeaderBadge">
-        <div className="remixRequestsHeaderText" aria-label="Remix Requests">
-          Remix Requests
+      <div className="tvBillboardFrame">
+        <div className="tvHeaderWrap">
+          <div className="tvBadge tvHeaderBadge">
+            <div className="tvHeaderText">REMIX REQUESTS</div>
+          </div>
+        </div>
+
+        <div className="tvScene">
+          <div className="tvSceneInner" key={`${sceneMode}-${animCycle}`}>
+            {visiblePair.map((item, index) => {
+              const decorative = decorativeSeed(item);
+              const rank = isRequestsMode ? index + 3 : null;
+
+              return (
+                <div
+                  key={`${sceneMode}-${item.id}-${index}`}
+                  className={[
+                    "tvCardShell",
+                    index === 0
+                      ? "tvCardShell--top tvCardAnimEnterLeft"
+                      : "tvCardShell--bottom tvCardAnimEnterRight",
+                  ].join(" ")}
+                >
+                  {rank ? (
+                    <div className="tvRankBadge">
+                      <div className="tvRankBadgeText">{rank}.</div>
+                    </div>
+                  ) : null}
+
+                  <div className="tvCardArtWrap">
+                    <Artwork
+                      src={item.artworkUrl}
+                      alt={`${item.title} artwork`}
+                      defaultSrc={defaultAlbumArtUrl}
+                    />
+                  </div>
+
+                  <div className="tvCardTitle">{item.title}</div>
+                  <div className="tvCardArtist">{item.artist}</div>
+
+                  <div className="tvCardMeta">
+                    <span className="tvMetaPill">
+                      {isRequestsMode ? Number(item.upvotes || 0) : decorative.up}
+                    </span>
+                    <span role="img" aria-label="thumbs up">
+                      👍
+                    </span>
+                    <span className="tvMetaPill">
+                      {isRequestsMode ? Number(item.downvotes || 0) : decorative.down}
+                    </span>
+                    <span role="img" aria-label="thumbs down">
+                      👎
+                    </span>
+                    <span className="tvMetaPill">
+                      {isRequestsMode ? Number(item.score || 0) : decorative.fire}
+                    </span>
+                    <span className="tvMetaFire" role="img" aria-label="fire">
+                      🔥
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="tvFooterWrap">
+          <div className="tvBadge tvFooterBadge">
+            <div className="tvFooterText">REQUEST ON THE APP NOW!</div>
+          </div>
         </div>
       </div>
     </div>
-  );
-}
-
-function FooterBanner({ mode }: { mode: "featured" | "requests" }) {
-  return (
-    <div className="remixRequestsFooter">
-      <div className="remixRequestsFooterBadge">
-        <div className="remixRequestsFooterText">
-          {mode === "requests" ? "Vote on the app now!" : "Request on the app now!"}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function BillboardCard({
-  item,
-  side,
-  defaultAlbumArtUrl,
-  showNumber,
-}: {
-  item: VisibleCard;
-  side: "left" | "right";
-  defaultAlbumArtUrl?: string | null;
-  showNumber: boolean;
-}) {
-  const upvotes = Number(item.upvotes || 0);
-  const downvotes = Number(item.downvotes || 0);
-  const score = Number(item.score || 0);
-
-  return (
-    <article className={`remixRequestsCard is-${side}`}>
-      {showNumber ? (
-        <div className="remixRequestsCardNumber" aria-hidden="true">
-          <div className="remixRequestsCardNumberText">{item.visualNumber}</div>
-        </div>
-      ) : null}
-
-      <div className={`remixRequestsCardMain ${showNumber ? "" : "no-number"}`}>
-        <div className="remixRequestsArtWrap">
-          <Artwork src={item.artworkUrl} alt={`${item.title} artwork`} defaultSrc={defaultAlbumArtUrl} />
-        </div>
-
-        <div className="remixRequestsCardText">
-          <div className="remixRequestsTitle">{item.title}</div>
-          <div className="remixRequestsArtist">{item.artist}</div>
-
-          {showNumber ? (
-            <div className="remixRequestsVotes">
-              <div className="remixRequestsVoteChip">{upvotes} 👍</div>
-              <div className="remixRequestsVoteChip">{downvotes} 👎</div>
-              <div className="remixRequestsFireChip">{score} 🔥</div>
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </article>
   );
 }
 
@@ -702,10 +643,10 @@ function Artwork({
   alt: string;
   defaultSrc?: string | null;
 }) {
+  const finalSrc = src || defaultSrc || null;
   const [bad, setBad] = useState(false);
-  const finalSrc = !bad && src ? src : defaultSrc || null;
 
-  if (!finalSrc) {
+  if (!finalSrc || bad) {
     return (
       <div
         style={{
@@ -713,15 +654,15 @@ function Artwork({
           height: "100%",
           display: "grid",
           placeItems: "center",
-          fontWeight: 1000,
-          fontSize: "clamp(24px, 5vw, 44px)",
+          color: "#f8f4ea",
+          fontWeight: 800,
+          fontSize: 34,
           letterSpacing: 1,
-          background: "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))",
-          color: "#fff7ea",
-          textTransform: "uppercase",
+          background:
+            "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))",
         }}
       >
-        Remix
+        REMIX
       </div>
     );
   }
@@ -733,7 +674,6 @@ function Artwork({
       onError={() => setBad(true)}
       loading="lazy"
       referrerPolicy="no-referrer"
-      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
     />
   );
 }
