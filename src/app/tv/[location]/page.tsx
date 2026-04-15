@@ -599,6 +599,15 @@ export default function TvPage({
           }
         }
 
+.remixPortraitInlineFrom {
+  font: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  letter-spacing: inherit;
+  white-space: nowrap;
+}
+
+
         .remixLandscapeShell,
         .remixTeaser {
           min-height: 100vh;
@@ -664,15 +673,20 @@ export default function TvPage({
           padding-right: 84px;
         }
 
+.remixSlideTop--portrait {
+  justify-content: center;
+  padding-right: 0;
+}
+
         .remixBannerWrap {
           display: flex;
           justify-content: center;
           width: 100%;
         }
 
-        .remixBannerWrap--portrait {
-          justify-content: flex-end;
-        }
+.remixBannerWrap--portrait {
+  justify-content: center;
+}
 
         .remixBanner {
           position: relative;
@@ -1267,8 +1281,10 @@ function PortraitMessageLayout({
       <div className="remixPortraitContentCol">
         <SlideTop title={title} variant="portrait" />
         <div className="remixPortraitMessageWrap">
-          <div className="remixMessageText remixPortraitMessageText">{body}</div>
-          <div className="remixFrom remixPortraitFrom">{fromName}</div>
+          <div className="remixMessageText remixPortraitMessageText">
+            {body}
+            <span className="remixPortraitInlineFrom"> {fromName}</span>
+          </div>
         </div>
         <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
       </div>
@@ -1334,9 +1350,11 @@ function TextOnlyMessageLayout({
         <div className="remixPortraitContentCol">
           <SlideTop title={title} variant="portrait" />
           <div className="remixPortraitMessageWrap">
-            <div className="remixMessageText remixPortraitMessageText">{body}</div>
-            <div className="remixFrom remixPortraitFrom">{fromName}</div>
+          <div className="remixMessageText remixPortraitMessageText">
+            {body}
+            <span className="remixPortraitInlineFrom"> {fromName}</span>
           </div>
+        </div>
           <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
         </div>
       </div>

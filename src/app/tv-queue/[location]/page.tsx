@@ -322,7 +322,7 @@ export default function TvQueuePortraitPage({
         .remixRequestsHeaderWrap {
           display: flex;
           justify-content: center;
-          padding-top: 0;
+          padding-top: -2px;
         }
 
         .remixRequestsHeaderBadge {
@@ -586,12 +586,12 @@ export default function TvQueuePortraitPage({
         }
 
         @keyframes remixRequestsRightScene {
-          0% { opacity: 0; transform: translateX(72px) scale(0.96); }
+          0% { opacity: 0; transform: translateX(116px) scale(0.96); }
           7% { opacity: 1; transform: translateX(0) scale(1); }
           12%, 80% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
           44% { transform: translate3d(0, calc(5px * var(--tvScale)), 0) scale(1.012); }
           62% { transform: translate3d(0, calc(-5px * var(--tvScale)), 0) scale(1); }
-          100% { opacity: 0; transform: translateX(56px) scale(0.975); }
+          100% { opacity: 0; transform: translateX(96px) scale(0.975); }
         }
 
         @keyframes remixRequestsDriftA {
