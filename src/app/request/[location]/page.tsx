@@ -1019,10 +1019,10 @@ async function refreshSession() {
       resetToClaimState(true);
       setPendingAction(null);
       setPendingActionToast(false);
-      setShowVerify(false);
       setShowBuy(false);
       setRedeemCode("");
       setMsg("Your session expired. Claim your 5 points to begin again.");
+      setShowVerify(true);
     }
   } catch {}
 }
