@@ -1,5 +1,3 @@
-\"use client\";
-
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type PublicView = "request" | "queue" | "shoutouts";
