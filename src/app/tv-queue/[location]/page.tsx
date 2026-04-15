@@ -252,6 +252,8 @@ export default function TvQueuePortraitPage({
       </main>
 
       <style jsx global>{`
+        @import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&display=swap");
+
         .remixRequestsBillboardRoot {
           --bgLeft: #02152f;
           --bgRight: #2b0c45;
@@ -323,27 +325,41 @@ export default function TvQueuePortraitPage({
         }
 
         .remixRequestsHeaderBadge {
-          min-width: min(76vw, calc(720px * var(--tvScale)));
-          max-width: calc(760px * var(--tvScale));
+          min-width: min(78vw, calc(760px * var(--tvScale)));
+          max-width: calc(800px * var(--tvScale));
           background:
             radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05), transparent 70%),
-            radial-gradient(circle, rgba(44, 22, 76, 0.32) 18%, transparent 19%),
             linear-gradient(180deg, #7a58c0 0%, #6547a9 100%);
-          background-size: auto, calc(28px * var(--tvScale)) calc(28px * var(--tvScale)), auto;
-          background-position: center center, center center, center center;
           border: calc(5px * var(--tvScale)) solid #0c0717;
-          transform: rotate(-8deg);
-          transform-origin: top center;
           margin-top: calc(-6px * var(--tvScale));
           clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%);
           padding: calc(18px * var(--tvScale)) calc(30px * var(--tvScale)) calc(42px * var(--tvScale));
           text-align: center;
           box-shadow: 0 calc(18px * var(--tvScale)) calc(32px * var(--tvScale)) rgba(0,0,0,0.3);
+          position: relative;
+          overflow: hidden;
+          isolation: isolate;
+        }
+
+        .remixRequestsHeaderBadge::before {
+          content: "";
+          position: absolute;
+          inset: calc(-28px * var(--tvScale));
+          background:
+            radial-gradient(circle, rgba(67, 40, 112, 0.52) 18%, transparent 19%);
+          background-size: calc(28px * var(--tvScale)) calc(28px * var(--tvScale));
+          background-position: center center;
+          transform: rotate(-8deg);
+          opacity: 0.9;
+          z-index: 0;
+          pointer-events: none;
         }
 
         .remixRequestsHeaderText {
+          position: relative;
+          z-index: 1;
           font-size: clamp(32px, calc(54px * var(--tvScale)), 78px);
-          font-weight: 700;
+          font-weight: 800;
           line-height: 1;
           letter-spacing: 0.5px;
           text-transform: uppercase;
@@ -460,7 +476,7 @@ export default function TvQueuePortraitPage({
         .remixRequestsTitle {
           font-size: clamp(34px, calc(66px * var(--tvScale)), 96px);
           line-height: 0.96;
-          font-weight: 700;
+          font-weight: 800;
           font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
           text-transform: uppercase;
           color: var(--text);
