@@ -741,6 +741,7 @@ function VerifyDrawer({
       </div>
     </div>
   );
+}
 
 function BuyCreditsDrawer({
   open,
