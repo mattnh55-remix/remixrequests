@@ -628,12 +628,16 @@ function VerifyDrawer({
                   onChange={(e) => setEmail(e.target.value)}
                 />
 
-                <input
-                  className="rrInput"
-                  placeholder="Mobile number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
+<input
+  className="rrInput"
+  type="tel"
+  inputMode="tel"
+  autoComplete="tel"
+  placeholder="Mobile number"
+  value={phone}
+  onChange={(e) => setPhone(e.target.value)}
+/>
+
 
                 <label className="rrCheckRow">
                   <input
