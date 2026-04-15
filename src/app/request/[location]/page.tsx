@@ -808,9 +808,6 @@ function BuyCreditsDrawer({
 
           <div className="rrBuyPackGrid">
             {packs.map((p) => {
-              const pointsNum = Number(String(p.creditsLabel).replace(/\D/g, "")) || 0;
-              const approxRequests = pointsNum;
-
               return (
                 <div
                   key={`${p.packageKey || p.href || p.title}`}
@@ -825,57 +822,30 @@ function BuyCreditsDrawer({
                         </span>
                       ) : null}
                     </div>
-
-                    {p.subtitle ? <div className="rrBuyPackSubtitle">{p.subtitle}</div> : null}
                   </div>
 
-<div className={`rrBuyPackCard ${p.highlight ? "rrBuyPackCard--featured" : ""}`}>
+                  <div className="rrBuyPackValueRow rrBuyPackValueRow--compact">
+                    <div className="rrBuyPackLeft">
+                      <div className="rrBuyPackPoints">{p.creditsLabel}</div>
+                    </div>
 
-  <div className="rrBuyPackTop">
-    <div className="rrBuyPackTitleRow">
-      <div className="rrBuyPackTitle">{p.title}</div>
+                    <div className="rrBuyPackRight">
+                      <div className="rrBuyPackPrice rrBuyPackPrice--compact">
+                        ${(p.priceCents / 100).toFixed(2)}
+                      </div>
+                      <div className="rrBuyPackUsage">
+                        About {p.creditsLabel.toLowerCase().replace("points", "requests")}
+                      </div>
+                    </div>
+                  </div>
 
-      {p.badge ? (
-        <div className={`rrShoutCardBadge rrBuyPackBadge--${p.badge}`}>
-          {p.badge === "featured" ? "BEST VALUE" : p.badge.toUpperCase()}
-        </div>
-      ) : null}
-    </div>
-  </div>
-
-  <div className="rrBuyPackValueRow rrBuyPackValueRow--compact">
-    <div className="rrBuyPackLeft">
-      <div className="rrBuyPackPoints">{p.creditsLabel}</div>
-    </div>
-
-    <div className="rrBuyPackRight">
-      <div className="rrBuyPackPrice rrBuyPackPrice--compact">
-${(p.priceCents / 100).toFixed(2)}
-      </div>
-
-<div className="rrBuyPackUsage">
-  About {p.creditsLabel.toLowerCase().replace("points", "requests")}
-</div>
-    </div>
-  </div>
-
-  <button
-    className={`rrBtn ${p.highlight ? "rrBtn--featuredPack" : ""}`}
-    onClick={() => onBuy(p.packageKey)}
-    disabled={busy}
-  >
-    {p.cta ?? `Get ${p.creditsLabel}`}
-  </button>
-
-</div>
-
-<button
-  className={`rrBtn ${p.highlight ? "rrBtn--featuredPack" : ""}`}
-  onClick={() => onBuy(p.packageKey)}
-  disabled={busy}
->
-  {busy ? "Opening..." : p.cta ?? `Get ${p.creditsLabel}`}
-</button>
+                  <button
+                    className={`rrBtn ${p.highlight ? "rrBtn--featuredPack" : ""}`}
+                    onClick={() => onBuy(p.packageKey, p.href)}
+                    disabled={busy}
+                  >
+                    {busy ? "Opening..." : p.cta ?? `Get ${p.creditsLabel}`}
+                  </button>
                 </div>
               );
             })}
