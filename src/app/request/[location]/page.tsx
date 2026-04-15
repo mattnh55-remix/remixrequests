@@ -590,13 +590,30 @@ function VerifyDrawer({
       <div className="rrDrawer rrDrawer--mobile">
         <div className="rrDrawerHead">
           <div>
-            <div className="rrDrawerTitle">Get Your Song in the Queue</div>
+            <div className="rrDrawerTitle">
+              {step === "code" ? "Enter SMS Verification Code" : "Get Your Song in the Queue"}
+            </div>
             <div className="rrDrawerSub">
-              Quick sign-in unlocks song requests, boosts, voting, and bonus point promos.
+              {step === "code"
+                ? "Enter the code we just texted you to finish signing in."
+                : "Quick sign-in unlocks song requests, boosts, voting, and bonus point promos."}
             </div>
           </div>
-          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
-            Close
+
+          <button
+            className="rrBtnGhost rrCloseBtn"
+            onClick={onClose}
+            style={{
+              minWidth: 44,
+              width: 44,
+              height: 44,
+              padding: 0,
+              fontSize: 24,
+              lineHeight: 1,
+            }}
+            aria-label="Close"
+          >
+            ×
           </button>
         </div>
 
@@ -643,6 +660,42 @@ function VerifyDrawer({
                 <div className="rrHelper">
                   This only takes a few seconds, then you’re ready to request.
                 </div>
+
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: "16px 14px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(90, 146, 255, 0.28)",
+                    background: "rgba(77, 143, 228, 0.06)",
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 1000,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: "#dbe8ff",
+                    }}
+                  >
+                    Have a promo or point code?
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: 14,
+                      lineHeight: 1.45,
+                      color: "#c8d7ef",
+                    }}
+                  >
+                    Enter the code
+                    <br />
+                    after signing in!
+                  </div>
+                </div>
               </>
             ) : (
               <>
@@ -653,38 +706,34 @@ function VerifyDrawer({
                   onChange={(e) => setCode(e.target.value)}
                 />
 
-                <button className="rrBtn" disabled={busy} onClick={confirmCode}>
-                  {busy ? "Verifying..." : "Verify & Continue"}
-                </button>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    gap: 10,
+                    marginTop: 4,
+                  }}
+                >
+                  <button
+                    className="rrBtnGhost"
+                    disabled={busy}
+                    onClick={() => setStep("collect")}
+                    style={{ width: 100, minWidth: 100 }}
+                  >
+                    Back
+                  </button>
 
-                <button className="rrBtnGhost" disabled={busy} onClick={() => setStep("collect")}>
-                  Back
-                </button>
+                  <button
+                    className="rrBtn"
+                    disabled={busy}
+                    onClick={confirmCode}
+                    style={{ width: 100, minWidth: 100 }}
+                  >
+                    {busy ? "Working..." : "Verify"}
+                  </button>
+                </div>
               </>
             )}
-
-            <div className="rrDivider" />
-
-            <div className="rrStack">
-              <div className="rrDrawerTitle rrDrawerTitle--small">Have a promo or point code?</div>
-
-              <div className="rrInlineForm">
-                <input
-                  className="rrInput"
-                  placeholder="Enter redemption code"
-                  value={redeemCode}
-                  onChange={(e) => setRedeemCode(e.target.value)}
-                />
-
-                <button
-                  className="rrBtnGhost"
-                  disabled={redeemBusy}
-                  onClick={() => onRedeem(redeemCode)}
-                >
-                  {redeemBusy ? "Redeeming..." : "Redeem"}
-                </button>
-              </div>
-            </div>
 
             {msg ? <div className="rrVerifyMsg">{msg}</div> : null}
           </div>
@@ -692,7 +741,6 @@ function VerifyDrawer({
       </div>
     </div>
   );
-}
 
 function BuyCreditsDrawer({
   open,
