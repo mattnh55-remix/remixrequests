@@ -326,15 +326,15 @@ export default function TvQueuePortraitPage({
         }
 
         .remixRequestsHeaderBadge {
-          width: min(96vw, calc(1020px * var(--tvScale)));
-          max-width: calc(1020px * var(--tvScale));
+          width: min(74vw, calc(620px * var(--tvScale)));
+          max-width: calc(620px * var(--tvScale));
           background:
             radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05), transparent 70%),
             linear-gradient(180deg, #7a58c0 0%, #6547a9 100%);
-          border: calc(5px * var(--tvScale)) solid #0c0717;
+          border: calc(4px * var(--tvScale)) solid #0c0717;
           margin-top: 0;
-          clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%);
-          padding: calc(10px * var(--tvScale)) calc(28px * var(--tvScale)) calc(26px * var(--tvScale));
+          clip-path: polygon(0 0, 100% 0, 100% 74%, 50% 100%, 0 74%);
+          padding: calc(8px * var(--tvScale)) calc(20px * var(--tvScale)) calc(16px * var(--tvScale));
           text-align: center;
           box-shadow: 0 calc(18px * var(--tvScale)) calc(32px * var(--tvScale)) rgba(0,0,0,0.3);
           position: relative;
@@ -359,7 +359,7 @@ export default function TvQueuePortraitPage({
         .remixRequestsHeaderText {
           position: relative;
           z-index: 1;
-          font-size: clamp(46px, 4vw, 86px);
+          font-size: clamp(28px, 3.2vw, 62px);
           font-weight: 800;
           line-height: 0.94;
           letter-spacing: 1px;
@@ -368,7 +368,7 @@ export default function TvQueuePortraitPage({
           font-family: var(--font-barlow-condensed), sans-serif;
           color: #f8f4ea;
           text-shadow:
-            6px 6px 0 rgba(0, 0, 0, 0.22),
+            4px 4px 0 rgba(0, 0, 0, 0.22),
             0 2px 0 rgba(0, 0, 0, 0.16);
         }
 
@@ -403,13 +403,13 @@ export default function TvQueuePortraitPage({
 
 .remixRequestsCard.is-left {
           justify-self: start;
-          margin-left: calc(8px * var(--tvScale));
+          margin-left: calc(16px * var(--tvScale));
           animation-name: remixRequestsLeftScene;
         }
 
         .remixRequestsCard.is-right {
           justify-self: end;
-          margin-right: calc(22px * var(--tvScale));
+          margin-right: calc(48px * var(--tvScale));
           animation-name: remixRequestsRightScene;
         }
 
@@ -542,19 +542,19 @@ export default function TvQueuePortraitPage({
         }
 
         .remixRequestsFooterBadge {
-          width: min(96vw, calc(960px * var(--tvScale)));
+          width: min(72vw, calc(720px * var(--tvScale)));
           background:
             radial-gradient(circle, rgba(44, 22, 76, 0.32) 18%, transparent 19%),
             linear-gradient(180deg, #7a58c0 0%, #6547a9 100%);
           background-size: calc(28px * var(--tvScale)) calc(28px * var(--tvScale)), auto;
           border: calc(4px * var(--tvScale)) solid rgba(13, 6, 22, 0.98);
-          padding: calc(12px * var(--tvScale)) calc(20px * var(--tvScale));
+          padding: calc(8px * var(--tvScale)) calc(14px * var(--tvScale));
           text-align: center;
           box-shadow: 0 calc(16px * var(--tvScale)) calc(30px * var(--tvScale)) rgba(0,0,0,0.28);
         }
 
         .remixRequestsFooterText {
-          font-size: clamp(28px, calc(54px * var(--tvScale)), 82px);
+          font-size: clamp(22px, calc(40px * var(--tvScale)), 62px);
           line-height: 0.96;
           font-weight: 700;
           font-family: var(--font-barlow-condensed), sans-serif;

@@ -630,12 +630,12 @@ export default function TvPage({
           gap: 10px;
         }
 
-        .remixLandscapeContent {
-          min-height: 0;
-          display: grid;
-          grid-template-rows: minmax(280px, 42vh) minmax(0, 1fr);
-          gap: 16px;
-        }
+.remixLandscapeContent {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(420px, 54vh) minmax(0, 1fr);
+  gap: 22px;
+}
 
         .remixTextOnlyContent {
           min-height: 0;
@@ -679,24 +679,24 @@ export default function TvPage({
           justify-content: flex-end;
         }
 
-        .remixBanner {
-          position: relative;
-          width: min(100vw - 56px, 1280px);
-          min-width: 0;
-          margin-top: 0;
-          padding: 10px 42px 18px;
-          background: linear-gradient(180deg, #18b1a4 0%, #11988d 100%);
-          border-bottom: 8px solid rgba(0, 0, 0, 0.34);
-          clip-path: polygon(0 0, 100% 0, 100% 86%, 50% 100%, 0 86%);
-          box-shadow: 0 14px 24px rgba(0, 0, 0, 0.18);
-          text-align: center;
-          overflow: hidden;
-        }
+.remixBanner {
+  position: relative;
+  width: min(100%, 760px);
+  min-width: 0;
+  margin-top: 0;
+  padding: 10px 34px 16px;
+  background: linear-gradient(180deg, #18b1a4 0%, #11988d 100%);
+  border-bottom: 6px solid rgba(0, 0, 0, 0.34);
+  clip-path: polygon(0 0, 100% 0, 100% 84%, 50% 100%, 0 84%);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.16);
+  text-align: center;
+  overflow: hidden;
+}
 
-        .remixBanner--portrait {
-          width: min(100%, 560px);
-          padding: 10px 28px 16px;
-        }
+.remixBanner--portrait {
+  width: min(100%, 420px);
+  padding: 10px 24px 14px;
+}
 
         .remixBanner--arched {
           transform: perspective(1200px) rotateX(2deg);
@@ -717,21 +717,21 @@ export default function TvPage({
           pointer-events: none;
         }
 
-        .remixBannerText {
-          position: relative;
-          z-index: 2;
-          font-family: var(--font-barlow-condensed), sans-serif;
-          font-size: clamp(46px, 4vw, 86px);
-          line-height: 0.94;
-          letter-spacing: 1px;
-          text-transform: uppercase;
-          color: #f8f4ea;
-          text-shadow: 6px 6px 0 rgba(0, 0, 0, 0.22), 0 2px 0 rgba(0, 0, 0, 0.16);
-        }
+.remixBannerText {
+  position: relative;
+  z-index: 2;
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-size: clamp(42px, 3.2vw, 68px);
+  line-height: 0.94;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #f8f4ea;
+  text-shadow: 5px 5px 0 rgba(0, 0, 0, 0.22), 0 2px 0 rgba(0, 0, 0, 0.16);
+}
 
-        .remixBanner--portrait .remixBannerText {
-          font-size: clamp(38px, 3.1vw, 64px);
-        }
+.remixBanner--portrait .remixBannerText {
+  font-size: clamp(30px, 2.1vw, 44px);
+}
 
         .remixMessageText {
           font-family: var(--font-dm-serif-display), serif;
@@ -762,27 +762,27 @@ export default function TvPage({
           font-size: clamp(34px, 2.8vw, 64px);
         }
 
-        .remixLandscapeMessageWrap {
-          min-height: 0;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-          padding: 0 36px 8px;
-          text-align: center;
-        }
+.remixLandscapeMessageWrap {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 18px 44px 8px;
+  text-align: center;
+}
 
-        .remixLandscapeMessageText {
-          font-size: clamp(40px, 4vw, 84px);
-          line-height: 1.07;
-          text-align: center;
-        }
+.remixLandscapeMessageText {
+  font-size: clamp(46px, 4.2vw, 88px);
+  line-height: 1.06;
+  text-align: center;
+}
 
-        .remixLandscapeFrom {
-          margin-top: 22px;
-          text-align: center;
-          font-size: clamp(30px, 2.4vw, 56px);
-        }
+.remixLandscapeFrom {
+  margin-top: 26px;
+  text-align: center;
+  font-size: clamp(30px, 2.4vw, 56px);
+}
 
         .remixTextOnlyMessageText {
           font-size: clamp(50px, 4.7vw, 104px);
@@ -830,14 +830,14 @@ export default function TvPage({
           box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
         }
 
-        .remixLandscapeMediaFrame {
-          width: min(100%, 980px);
-          height: 100%;
-          background: #c9bcab;
-          overflow: hidden;
-          position: relative;
-          box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
-        }
+.remixLandscapeMediaFrame {
+  width: min(100%, 940px);
+  height: 100%;
+  background: #c9bcab;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+}
 
         .remixTextOnlyMediaFrame {
           width: min(100%, 820px);
@@ -1128,9 +1128,9 @@ export default function TvPage({
             padding: 0 24px 0 24px;
           }
 
-          .remixLandscapeContent {
-            grid-template-rows: minmax(240px, 38vh) minmax(0, 1fr);
-          }
+   .remixLandscapeContent {
+  grid-template-rows: minmax(340px, 46vh) minmax(0, 1fr);
+}
 
           .remixPortraitMessageText {
             font-size: clamp(38px, 4.1vw, 82px);
@@ -1140,9 +1140,9 @@ export default function TvPage({
             font-size: clamp(28px, 2.2vw, 52px);
           }
 
-          .remixLandscapeMessageText {
-            font-size: clamp(34px, 3.3vw, 68px);
-          }
+.remixLandscapeMessageText {
+  font-size: clamp(38px, 3.5vw, 74px);
+}
 
           .remixLandscapeFrom {
             font-size: clamp(26px, 2vw, 48px);
