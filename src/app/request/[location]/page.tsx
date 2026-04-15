@@ -850,7 +850,7 @@ function BuyCreditsDrawer({
 
     <div className="rrBuyPackRight">
       <div className="rrBuyPackPrice rrBuyPackPrice--compact">
-        {formatPrice(p.priceCents)}
+${(p.priceCents / 100).toFixed(2)}
       </div>
 
       <div className="rrBuyPackUsage">
