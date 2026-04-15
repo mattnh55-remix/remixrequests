@@ -437,33 +437,94 @@ export default function TvPage({
           background: #26231f;
         }
 
-        .remixShoutTvRoot {
-          position: relative;
-          min-height: 100vh;
-          width: 100%;
-          overflow: hidden;
-          background:
-            radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.08), transparent 24%),
-            linear-gradient(135deg, var(--remix-bg-a) 0%, var(--remix-bg-b) 100%);
-          color: var(--remix-cream);
-        }
+.remixShoutTvRoot {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 28%, rgba(0, 210, 255, 0.09), transparent 28%),
+    radial-gradient(circle at 82% 22%, rgba(255, 66, 180, 0.08), transparent 26%),
+    radial-gradient(circle at 56% 82%, rgba(0, 255, 170, 0.06), transparent 30%),
+    linear-gradient(135deg, #2d3138 0%, #23272e 42%, #1d2127 100%);
+  color: var(--remix-cream);
+}
 
-        .remixShoutTvFade {
-          min-height: 100vh;
-          width: 100%;
-          animation: remixSlideFade 520ms ease both;
-        }
+.remixShoutTvRoot::before {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 35%, rgba(0, 220, 255, 0.10), transparent 22%),
+    radial-gradient(circle at 78% 26%, rgba(255, 78, 173, 0.09), transparent 20%),
+    radial-gradient(circle at 62% 72%, rgba(0, 255, 170, 0.07), transparent 24%);
+  filter: blur(44px);
+  opacity: 0.85;
+  animation: remixClubGlow 20s ease-in-out infinite alternate;
+  z-index: 0;
+}
 
-        @keyframes remixSlideFade {
-          0% {
-            opacity: 0;
-            transform: scale(1.01);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
+.remixShoutTvRoot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(115deg, rgba(255,255,255,0.025), transparent 32%, rgba(255,255,255,0.012) 52%, transparent 72%);
+  mix-blend-mode: screen;
+  opacity: 0.45;
+  animation: remixLightSweep 26s ease-in-out infinite;
+  z-index: 0;
+}
+
+@keyframes remixClubGlow {
+  0% {
+    transform: translate3d(-1.5%, -1%, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(1.5%, 1%, 0) scale(1.05);
+  }
+  100% {
+    transform: translate3d(0%, -1%, 0) scale(1.02);
+  }
+}
+
+@keyframes remixLightSweep {
+  0% {
+    transform: translateX(-6%);
+    opacity: 0.22;
+  }
+  50% {
+    transform: translateX(4%);
+    opacity: 0.42;
+  }
+  100% {
+    transform: translateX(-2%);
+    opacity: 0.26;
+  }
+}
+
+.remixShoutTvFade {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  width: 100%;
+  animation: remixSlideFade 1100ms cubic-bezier(0.22, 0.8, 0.22, 1) both;
+}
+
+@keyframes remixSlideFade {
+  0% {
+    opacity: 0;
+    transform: scale(1.003);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
 
         @keyframes remixPhotoFloat {
           0% {
@@ -486,33 +547,49 @@ export default function TvPage({
           gap: 14px;
         }
 
-        .remixSlideTop {
-          display: grid;
-          grid-template-columns: minmax(420px, 1fr) 580px;
-          align-items: start;
-          gap: 18px;
-        }
+.remixSlideTop {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 14px;
+}
 
-        .remixBannerWrap {
-          display: flex;
-          justify-content: center;
-        }
+.remixBannerWrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
 
-        .remixBanner {
-          position: relative;
-          min-width: 520px;
-          max-width: 720px;
-          padding: 14px 42px 24px;
-          background:
-            radial-gradient(circle at 50% 0%, rgba(255,255,255,0.08), transparent 46%),
-            radial-gradient(circle, rgba(0,0,0,0.14) 1px, transparent 1px),
-            linear-gradient(180deg, #17aa9d 0%, #14998d 100%);
-          background-size: auto, 28px 28px, auto;
-          border-bottom: 8px solid rgba(0, 0, 0, 0.34);
-          clip-path: polygon(0 0, 100% 0, 100% 82%, 50% 100%, 0 82%);
-          box-shadow: 0 14px 24px rgba(0, 0, 0, 0.18);
-          text-align: center;
-        }
+.remixBanner {
+  position: relative;
+  width: min(100vw - 56px, 1280px);
+  min-width: 0;
+  padding: 16px 42px 26px;
+  background:
+    linear-gradient(8deg, transparent 0, transparent 100%),
+    radial-gradient(circle, rgba(255,255,255,0.16) 1.3px, transparent 1.3px),
+    linear-gradient(180deg, #18b1a4 0%, #11988d 100%);
+  background-size: auto, 22px 22px, auto;
+  background-position: center, 0 0, center;
+  border-bottom: 8px solid rgba(0, 0, 0, 0.34);
+  clip-path: polygon(0 0, 100% 0, 100% 84%, 50% 100%, 0 84%);
+  box-shadow: 0 14px 24px rgba(0, 0, 0, 0.18);
+  text-align: center;
+  overflow: hidden;
+}
+
+.remixBanner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle, rgba(255,255,255,0.24) 1.4px, transparent 1.4px);
+  background-size: 24px 24px;
+  opacity: 0.28;
+  transform: rotate(8deg) scale(1.08);
+  transform-origin: center;
+  pointer-events: none;
+}
 
         .remixBannerText {
           font-family: var(--font-barlow-condensed), sans-serif;
@@ -526,13 +603,15 @@ export default function TvPage({
             0 2px 0 rgba(0, 0, 0, 0.16);
         }
 
-        .remixTimerWrap {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          align-items: center;
-          gap: 14px;
-          padding-top: 16px;
-        }
+.remixTimerWrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding-top: 2px;
+  width: min(100%, 560px);
+  justify-self: end;
+}
 
         .remixTimerTrack {
           position: relative;
