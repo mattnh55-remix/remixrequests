@@ -417,7 +417,6 @@ export default function TvPage({
           )}
         </div>
       ) : null}
-
       <style jsx global>{`
         :root {
           --remix-bg-a: #5f5a52;
@@ -628,77 +627,78 @@ export default function TvPage({
             linear-gradient(180deg, #d8c9b6 0%, #d4c2ae 100%);
         }
 
-.remixPhotoCorner--tl,
-.remixPhotoCorner--br {
-  position: absolute;
-  z-index: 4;
-  width: 160px;
-  height: 92px;
-  pointer-events: none;
-}
+        .remixPhotoCorner--tl,
+        .remixPhotoCorner--br {
+          position: absolute;
+          z-index: 4;
+          width: 160px;
+          height: 92px;
+          pointer-events: none;
+        }
 
-.remixPhotoCorner--tl {
-  top: 0;
-  left: 0;
-}
+        .remixPhotoCorner--tl {
+          top: 0;
+          left: 0;
+        }
 
-.remixPhotoCorner--tl::before,
-.remixPhotoCorner--tl::after,
-.remixPhotoCorner--br::before,
-.remixPhotoCorner--br::after {
-  content: "";
-  position: absolute;
-  display: block;
-}
+        .remixPhotoCorner--tl::before,
+        .remixPhotoCorner--tl::after,
+        .remixPhotoCorner--br::before,
+        .remixPhotoCorner--br::after {
+          content: "";
+          position: absolute;
+          display: block;
+        }
 
-.remixPhotoCorner--tl::before {
-  top: 0;
-  left: 0;
-  width: 112px;
-  height: 18px;
-  background: #007d73;
-  transform: skewX(-38deg);
-  transform-origin: left top;
-}
+        .remixPhotoCorner--tl::before {
+          top: 0;
+          left: 0;
+          width: 112px;
+          height: 18px;
+          background: #007d73;
+          transform: skewX(-38deg);
+          transform-origin: left top;
+        }
 
-.remixPhotoCorner--tl::after {
-  top: 0;
-  left: 0;
-  width: 132px;
-  height: 32px;
-  background: #e4772f;
-  clip-path: polygon(0 0, 100% 0, 84% 100%, 0 100%);
-}
+        .remixPhotoCorner--tl::after {
+          top: 0;
+          left: 0;
+          width: 132px;
+          height: 32px;
+          background: #e4772f;
+          clip-path: polygon(0 0, 100% 0, 84% 100%, 0 100%);
+        }
 
-.remixPhotoCorner--br {
-  right: 0;
-  bottom: 0;
-}
+        .remixPhotoCorner--br {
+          right: 0;
+          bottom: 0;
+        }
 
-.remixPhotoCorner--br::before {
-  right: 0;
-  bottom: 0;
-  width: 112px;
-  height: 18px;
-  background: #7fd0d8;
-  transform: skewX(-38deg);
-  transform-origin: right bottom;
-}
+        .remixPhotoCorner--br::before {
+          right: 0;
+          bottom: 0;
+          width: 112px;
+          height: 18px;
+          background: #7fd0d8;
+          transform: skewX(-38deg);
+          transform-origin: right bottom;
+        }
 
-.remixPhotoCorner--br::after {
-  right: 0;
-  bottom: 0;
-  width: 132px;
-  height: 32px;
-  background: #e4772f;
-  clip-path: polygon(16% 0, 100% 0, 100% 100%, 0 100%);
-}
+        .remixPhotoCorner--br::after {
+          right: 0;
+          bottom: 0;
+          width: 132px;
+          height: 32px;
+          background: #e4772f;
+          clip-path: polygon(16% 0, 100% 0, 100% 100%, 0 100%);
+        }
 
-.remixStandardMediaFrame,
-.remixLandscapeMediaFrame {
-  position: relative;
-  isolation: isolate;
-}
+        .remixStandardMediaFrame,
+        .remixLandscapeMediaFrame {
+          position: relative;
+          isolation: isolate;
+        }
+
         .remixPhotoInner {
           position: absolute;
           inset: 0;
@@ -1049,15 +1049,17 @@ function MessageSlide({
     );
   }
 
+  const imageUrl = slide.imageUrl;
+
   return (
-    <ImageOrientationSwitch src={slide.imageUrl}>
+    <ImageOrientationSwitch src={imageUrl}>
       {(orientation) =>
         orientation === "landscape" ? (
           <LandscapeMessageLayout
             title={slide.title}
             body={slide.body}
             fromName={slide.fromName}
-            imageUrl={slide.imageUrl}
+            imageUrl={imageUrl}
             timerLabel={timerLabel}
             progressPct={progressPct}
           />
@@ -1066,7 +1068,7 @@ function MessageSlide({
             title={slide.title}
             body={slide.body}
             fromName={slide.fromName}
-            imageUrl={slide.imageUrl}
+            imageUrl={imageUrl}
             timerLabel={timerLabel}
             progressPct={progressPct}
           />
@@ -1264,32 +1266,41 @@ function ImageOrientationSwitch({
   src: string;
   children: (orientation: "portrait" | "landscape" | "square") => ReactNode;
 }) {
-  const [orientation, setOrientation] = useState<"portrait" | "landscape" | "square">(
-    "portrait"
-  );
+  const [orientation, setOrientation] = useState<
+    "portrait" | "landscape" | "square"
+  >("portrait");
 
   useEffect(() => {
     let cancelled = false;
 
     const img = new Image();
+
     img.onload = () => {
       if (cancelled) return;
 
       const w = img.naturalWidth || 0;
       const h = img.naturalHeight || 0;
+
       if (!w || !h) {
         setOrientation("square");
         return;
       }
 
       const ratio = w / h;
-      if (ratio > 1.15) setOrientation("landscape");
-      else if (ratio < 0.85) setOrientation("portrait");
-      else setOrientation("square");
+
+      if (ratio > 1.15) {
+        setOrientation("landscape");
+      } else if (ratio < 0.85) {
+        setOrientation("portrait");
+      } else {
+        setOrientation("square");
+      }
     };
 
     img.onerror = () => {
-      if (!cancelled) setOrientation("portrait");
+      if (!cancelled) {
+        setOrientation("portrait");
+      }
     };
 
     img.src = src;
