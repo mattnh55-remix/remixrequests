@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Barlow_Condensed } from 'next/font/google';
 
 type PublicView = "request" | "queue" | "shoutouts";
 type PointsMode = "auto" | "claim" | "add";
@@ -130,6 +131,12 @@ export default function PublicBottomCommandBar({
   const isClaimMode = pointsMode === "claim" || (pointsMode === "auto" && safePoints <= 0);
   const pointsCta = isClaimMode ? "CLAIM POINTS" : "ADD MORE";
 
+const barlowCondensed = Barlow_Condensed({
+  subsets: ['latin'],
+  weight: ['400', '700', '900'],
+  variable: '--font-barlow-condensed',
+});
+
   useEffect(() => {
     setMounted(true);
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -232,11 +239,7 @@ export default function PublicBottomCommandBar({
           .filter(Boolean)
           .join(" ")}
       >
-        <div className="rrCmdShell">
-          <div className="rrCmdHeader">
-            <div className="rrCmdHeaderTitle">{headerCopy.title}</div>
-            <div className="rrCmdHeaderSubtitle">{headerCopy.subtitle}</div>
-          </div>
+        <div className={`rrCmdShell ${barlowCondensed.className}`}>
 
           <div className="rrCmdControlZone">
             <div className="rrCmdNavBar">
@@ -392,7 +395,26 @@ background:
         }
 
 .rrCmdNavButton {
+  background: transparent;
+}
+
+.rrCmdNavButton:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+.rrCmdNavButton:active {
+  background: rgba(255,255,255,0.08);
+}
+
+.rrCmdNavButton {
   animation: rrNavPulse 3s ease-in-out infinite;
+}
+
+.rrCmdNavBar {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -2px 12px rgba(0,0,0,0.25),
+    0 16px 28px rgba(28, 8, 88, 0.34);
 }
 
 @keyframes rrNavPulse {
