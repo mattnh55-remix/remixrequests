@@ -370,7 +370,7 @@ export default function PublicBottomCommandBar({
           border-radius: 24px;
           overflow: hidden;
 background:
-  linear-gradient(180deg, #6d28ff 0%, #4c1bd1 100%);
+  linear-gradient(180deg, #eef4ff; 0%, #4c1bd1 100%);
           border: 1px solid rgba(171, 139, 255, 0.18);
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,0.12),
@@ -393,6 +393,12 @@ background:
         .rrCmdNavButton + .rrCmdNavButton {
           border-left: 1px solid rgba(255,255,255,0.08);
         }
+
+.rrCmdNavButton,
+.rrCmdPointsButton {
+  font: inherit;
+  font-family: inherit;
+}
 
 .rrCmdNavButton {
   background: transparent;
@@ -428,11 +434,11 @@ background:
         }
 
 .rrCmdNavButton:active {
-  transform: translateY(3px) scale(0.97);
-  background: rgba(255,255,255,0.06);
+  transform: translateY(2px) scale(0.985);
+  background: rgba(255,255,255,0.05);
   box-shadow:
-    inset 0 10px 18px rgba(0,0,0,0.25),
-    inset 0 0 0 2px rgba(120,170,255,0.2);
+    inset 0 10px 18px rgba(0,0,0,0.28),
+    inset 0 0 0 2px rgba(116,176,255,0.14);
 }
 
         .rrCmdNavSweep {
@@ -482,21 +488,20 @@ background:
 
 .rrCmdNavLabel {
   font-family: inherit;
-  font-size: clamp(22px, 2.2vw, 36px);
-  line-height: 0.9;
+  font-size: clamp(22px, 2vw, 34px);
+  line-height: 0.88;
   font-weight: 900;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   white-space: nowrap;
-
-  /* THIS is the magic */
   text-shadow:
-    3px 3px 0 rgba(0,0,0,0.35),
-    0 0 10px rgba(120, 170, 255, 0.25);
+    3px 3px 0 rgba(0, 0, 0, 0.38),
+    0 0 12px rgba(116, 176, 255, 0.22);
 }
 
 .rrCmdNavIcon {
-  font-size: clamp(20px, 1.8vw, 28px);
+  font-size: clamp(18px, 1.5vw, 24px);
+  opacity: 0.92;
   filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.35));
 }
 
