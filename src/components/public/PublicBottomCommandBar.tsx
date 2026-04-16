@@ -1,12 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Barlow_Condensed } from 'next/font/google';
-
-const barlowCondensed = Barlow_Condensed({
-  subsets: ["latin"],
-  weight: ["700", "900"],
-});
 
 type PublicView = "request" | "queue" | "shoutouts";
 type PointsMode = "auto" | "claim" | "add";
@@ -238,7 +232,7 @@ export default function PublicBottomCommandBar({
           .filter(Boolean)
           .join(" ")}
       >
-        <div className={`rrCmdShell ${barlowCondensed.className}`}>
+        <div className="rrCmdShell">
 
           <div className="rrCmdControlZone">
             <div className="rrCmdNavBar">
@@ -379,6 +373,7 @@ background:
 
         .rrCmdNavButton {
           position: relative;
+          font-weight: 700;
           display: flex;
           align-items: center;
           gap: 10px;
@@ -394,11 +389,6 @@ background:
           border-left: 1px solid rgba(255,255,255,0.08);
         }
 
-.rrCmdNavButton,
-.rrCmdPointsButton {
-  font: inherit;
-  font-family: inherit;
-}
 
 .rrCmdNavButton {
   background: transparent;
@@ -487,16 +477,18 @@ background:
         }
 
 .rrCmdNavLabel {
-  font-family: inherit;
-  font-size: clamp(22px, 2vw, 34px);
-  line-height: 0.88;
-  font-weight: 900;
-  letter-spacing: 0.06em;
+  font-size: clamp(20px, 2vw, 32px);
+  line-height: 0.9;
+  font-weight: 800; /* was 1000 → looks weird on system fonts */
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   white-space: nowrap;
+
+  /* this is what makes it feel better */
+  color: #ffffff;
+
   text-shadow:
-    3px 3px 0 rgba(0, 0, 0, 0.38),
-    0 0 12px rgba(116, 176, 255, 0.22);
+    2px 2px 0 rgba(0,0,0,0.35);
 }
 
 .rrCmdNavIcon {
