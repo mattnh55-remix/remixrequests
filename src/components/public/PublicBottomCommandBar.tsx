@@ -9,12 +9,8 @@ type NavTarget = {
   label: string;
   href: string;
   icon: string;
+  kicker: string;
   direction: "left" | "right";
-};
-
-type HeaderCopy = {
-  title: string;
-  subtitle: string;
 };
 
 type PublicBottomCommandBarProps = {
@@ -27,31 +23,6 @@ type PublicBottomCommandBarProps = {
   hidden?: boolean;
 };
 
-function getHeaderCopy(activeView: PublicView): HeaderCopy {
-  switch (activeView) {
-    case "request":
-      return {
-        title: "REQUEST A SONG",
-        subtitle: "Browse songs, boost favorites, and watch the queue move.",
-      };
-    case "queue":
-      return {
-        title: "LIVE QUEUE",
-        subtitle: "Track what is coming up and vote your favorites higher.",
-      };
-    case "shoutouts":
-      return {
-        title: "BIG SCREEN SHOUT-OUTS",
-        subtitle: "Send a message to the rink display and keep the energy up.",
-      };
-    default:
-      return {
-        title: "REMIX REQUESTS",
-        subtitle: "Jump between songs, queue, and shout-outs.",
-      };
-  }
-}
-
 function getSideTargets(location: string, activeView: PublicView): NavTarget[] {
   const requestHref = `/request/${location}`;
   const queueHref = `/queue/${location}`;
@@ -60,23 +31,23 @@ function getSideTargets(location: string, activeView: PublicView): NavTarget[] {
   switch (activeView) {
     case "request":
       return [
-        { label: "QUEUE", href: queueHref, icon: "♫", direction: "left" },
-        { label: "SHOUTOUTS", href: shoutoutsHref, icon: "📣", direction: "right" },
+        { label: "QUEUE", kicker: "Up Next", href: queueHref, icon: "♫", direction: "left" },
+        { label: "SHOUTOUTS", kicker: "On Screen", href: shoutoutsHref, icon: "📣", direction: "right" },
       ];
     case "queue":
       return [
-        { label: "REQUEST", href: requestHref, icon: "🎵", direction: "left" },
-        { label: "SHOUTOUTS", href: shoutoutsHref, icon: "📣", direction: "right" },
+        { label: "REQUEST", kicker: "Add Songs", href: requestHref, icon: "🎵", direction: "left" },
+        { label: "SHOUTOUTS", kicker: "On Screen", href: shoutoutsHref, icon: "📣", direction: "right" },
       ];
     case "shoutouts":
       return [
-        { label: "REQUEST", href: requestHref, icon: "🎵", direction: "left" },
-        { label: "QUEUE", href: queueHref, icon: "♫", direction: "right" },
+        { label: "REQUEST", kicker: "Add Songs", href: requestHref, icon: "🎵", direction: "left" },
+        { label: "QUEUE", kicker: "Up Next", href: queueHref, icon: "♫", direction: "right" },
       ];
     default:
       return [
-        { label: "REQUEST", href: requestHref, icon: "🎵", direction: "left" },
-        { label: "QUEUE", href: queueHref, icon: "♫", direction: "right" },
+        { label: "REQUEST", kicker: "Add Songs", href: requestHref, icon: "🎵", direction: "left" },
+        { label: "QUEUE", kicker: "Up Next", href: queueHref, icon: "♫", direction: "right" },
       ];
   }
 }
@@ -91,13 +62,20 @@ function SideNavButton({ target }: { target: NavTarget }) {
         window.location.href = target.href;
       }}
     >
-      <span className="rrCmdNavSweep" aria-hidden="true" />
-      <span className="rrCmdNavArrow" aria-hidden="true">
-        {target.direction === "left" ? "‹‹" : "››"}
-      </span>
-      <span className="rrCmdNavLabel">{target.label}</span>
-      <span className="rrCmdNavIcon" aria-hidden="true">
-        {target.icon}
+      <span className="rrCmdNavGlow" aria-hidden="true" />
+      <span className="rrCmdNavSheen" aria-hidden="true" />
+      <span className="rrCmdNavInner" aria-hidden="true" />
+      <span className="rrCmdNavText">
+        <span className="rrCmdNavKicker">{target.kicker}</span>
+        <span className="rrCmdNavLabelRow">
+          <span className="rrCmdNavArrow" aria-hidden="true">
+            {target.direction === "left" ? "‹‹" : "››"}
+          </span>
+          <span className="rrCmdNavLabel">{target.label}</span>
+          <span className="rrCmdNavIcon" aria-hidden="true">
+            {target.icon}
+          </span>
+        </span>
       </span>
     </button>
   );
@@ -112,7 +90,6 @@ export default function PublicBottomCommandBar({
   className,
   hidden,
 }: PublicBottomCommandBarProps) {
-  const headerCopy = useMemo(() => getHeaderCopy(activeView), [activeView]);
   const targets = useMemo(() => getSideTargets(location, activeView), [location, activeView]);
 
   const [mounted, setMounted] = useState(false);
@@ -233,11 +210,15 @@ export default function PublicBottomCommandBar({
           .join(" ")}
       >
         <div className="rrCmdShell">
+          <span className="rrCmdTopGlow" aria-hidden="true" />
+          <span className="rrCmdTopEdge" aria-hidden="true" />
 
           <div className="rrCmdControlZone">
-            <div className="rrCmdNavBar">
-              <SideNavButton target={targets[0]} />
-              <SideNavButton target={targets[1]} />
+            <div className="rrCmdNavRail">
+              <div className="rrCmdNavBar">
+                <SideNavButton target={targets[0]} />
+                <SideNavButton target={targets[1]} />
+              </div>
             </div>
 
             <button
@@ -246,6 +227,7 @@ export default function PublicBottomCommandBar({
                 "rrCmdPointsButton",
                 onPointsClick ? "isClickable" : "",
                 pointsPulse ? "isPulsePop" : "",
+                isClaimMode ? "isClaimMode" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -264,7 +246,9 @@ export default function PublicBottomCommandBar({
               }}
               disabled={!onPointsClick}
             >
+              <span className="rrCmdPointsHalo" aria-hidden="true" />
               <span className="rrCmdPointsButtonSheen" aria-hidden="true" />
+              <span className="rrCmdPointsInner" aria-hidden="true" />
               <span className="rrCmdPointsTop">POINTS</span>
               <span className="rrCmdPointsValue">{displayPoints}</span>
               <span className="rrCmdPointsBottom">{pointsCta}</span>
@@ -275,7 +259,7 @@ export default function PublicBottomCommandBar({
 
       <style jsx>{`
         .rrCmdBarSpacer {
-          height: 194px;
+          height: 218px;
         }
 
         .rrCmdBarWrap {
@@ -285,7 +269,7 @@ export default function PublicBottomCommandBar({
           bottom: env(safe-area-inset-bottom);
           z-index: 80;
           pointer-events: none;
-          padding: 0 14px calc(14px + env(safe-area-inset-bottom));
+          padding: 0 14px calc(16px + env(safe-area-inset-bottom));
           transition: transform 180ms ease, opacity 180ms ease;
         }
 
@@ -296,206 +280,247 @@ export default function PublicBottomCommandBar({
           pointer-events: none;
         }
 
-.rrCmdShell {
-  position: relative;
-  pointer-events: auto;
-  max-width: 1120px;
-  margin: 0 auto;
-  min-height: 116px;
-  border-radius: 30px 30px 0 0;
-  overflow: visible;
-  border: 1px solid rgba(118, 174, 255, 0.14);
-  border-bottom: 0;
-  background:
-    linear-gradient(90deg, rgba(4, 24, 58, 0.98) 0%, rgba(18, 8, 58, 0.98) 100%);
-  box-shadow:
-    0 22px 50px rgba(0, 0, 0, 0.44),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 0 0 1px rgba(51, 97, 182, 0.1);
-  backdrop-filter: blur(14px) saturate(125%);
-  -webkit-backdrop-filter: blur(14px) saturate(125%);
-}
-
-        .rrCmdHeader {
-          padding: 14px 20px 106px;
-          text-align: center;
+        .rrCmdShell {
+          position: relative;
+          pointer-events: auto;
+          max-width: 1120px;
+          min-height: 122px;
+          margin: 0 auto;
+          border-radius: 32px 32px 0 0;
+          overflow: visible;
+          border: 1px solid rgba(121, 182, 255, 0.16);
+          border-bottom: 0;
           background:
-            radial-gradient(circle at 12% 0%, rgba(74, 132, 255, 0.15) 0%, transparent 30%),
-            radial-gradient(circle at 88% 10%, rgba(121, 74, 255, 0.14) 0%, transparent 34%);
+            radial-gradient(circle at 50% -40%, rgba(85, 145, 255, 0.18), transparent 38%),
+            linear-gradient(90deg, rgba(3, 18, 48, 0.98) 0%, rgba(22, 8, 64, 0.985) 52%, rgba(6, 20, 52, 0.98) 100%);
+          box-shadow:
+            0 22px 50px rgba(0, 0, 0, 0.46),
+            0 0 0 1px rgba(57, 101, 180, 0.11),
+            inset 0 1px 0 rgba(255, 255, 255, 0.07);
+          backdrop-filter: blur(16px) saturate(126%);
+          -webkit-backdrop-filter: blur(16px) saturate(126%);
         }
 
-        .rrCmdHeaderTitle {
-          font-size: clamp(18px, 1.8vw, 30px);
-          line-height: 0.98;
-          font-weight: 1000;
-          letter-spacing: 0.035em;
-          color: #f7f1e6;
-          text-transform: uppercase;
-          text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.28);
+        .rrCmdTopGlow {
+          position: absolute;
+          left: 6%;
+          right: 6%;
+          top: -14px;
+          height: 22px;
+          border-radius: 999px;
+          background: radial-gradient(circle, rgba(106, 169, 255, 0.34) 0%, rgba(106, 169, 255, 0) 72%);
+          filter: blur(10px);
+          opacity: 0.75;
+          pointer-events: none;
         }
 
-        .rrCmdHeaderSubtitle {
-          margin-top: 6px;
-          font-size: clamp(11px, 0.9vw, 14px);
-          line-height: 1.15;
-          font-weight: 800;
-          color: rgba(235, 242, 255, 0.88);
-          text-wrap: balance;
-          text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.2);
+        .rrCmdTopEdge {
+          position: absolute;
+          left: 18px;
+          right: 18px;
+          top: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent 0%, rgba(166, 210, 255, 0.42) 18%, rgba(205, 164, 255, 0.3) 50%, rgba(166, 210, 255, 0.42) 82%, transparent 100%);
+          pointer-events: none;
         }
 
         .rrCmdControlZone {
           position: absolute;
           left: 50%;
-          bottom: calc(14px + env(safe-area-inset-bottom));
+          bottom: calc(16px + env(safe-area-inset-bottom));
           transform: translateX(-50%);
           width: min(1120px, calc(100% - 28px));
-          min-height: 126px;
+          min-height: 136px;
           pointer-events: none;
         }
 
+        .rrCmdNavRail {
+          position: relative;
+          min-height: 92px;
+          padding-top: 8px;
+        }
+
+        .rrCmdNavRail::before {
+          content: "";
+          position: absolute;
+          inset: 6px 0 0;
+          border-radius: 26px;
+          background:
+            linear-gradient(180deg, rgba(18, 39, 95, 0.92) 0%, rgba(32, 10, 87, 0.88) 100%);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            inset 0 -10px 14px rgba(0, 0, 0, 0.22),
+            0 18px 30px rgba(21, 8, 62, 0.42);
+          border: 1px solid rgba(141, 164, 255, 0.12);
+        }
+
         .rrCmdNavBar {
+          position: relative;
+          z-index: 1;
           pointer-events: auto;
-          min-height: 78px;
+          min-height: 92px;
           display: grid;
           grid-template-columns: 1fr 1fr;
           align-items: stretch;
-          gap: 0;
-          border-radius: 24px;
+          gap: 10px;
+          padding: 10px;
+          border-radius: 26px;
           overflow: hidden;
-background:
-  linear-gradient(180deg, #eef4ff; 0%, #4c1bd1 100%);
-          border: 1px solid rgba(171, 139, 255, 0.18);
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.12),
-            0 16px 28px rgba(28, 8, 88, 0.34);
         }
 
         .rrCmdNavButton {
           position: relative;
-          font-weight: 700;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          min-height: 110px;
+          min-height: 72px;
           border: 0;
-          color: #f7f1e6;
-          background: transparent;
+          border-radius: 18px;
+          color: #f8f4ea;
+          background:
+            linear-gradient(180deg, rgba(248, 251, 255, 0.14) 0%, rgba(90, 123, 255, 0.06) 16%, rgba(12, 32, 78, 0.92) 100%);
           overflow: hidden;
-          transition: transform 120ms ease, filter 180ms ease, background 180ms ease, box-shadow 180ms ease;
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.13),
+            inset 0 -8px 18px rgba(0, 0, 0, 0.22),
+            0 10px 18px rgba(6, 17, 48, 0.26);
+          transition: transform 130ms ease, filter 180ms ease, box-shadow 180ms ease;
         }
 
         .rrCmdNavButton + .rrCmdNavButton {
-          border-left: 1px solid rgba(255,255,255,0.08);
-        }
-
-
-.rrCmdNavButton {
-  background: transparent;
-}
-
-.rrCmdNavButton:hover {
-  background: rgba(255,255,255,0.06);
-}
-
-.rrCmdNavButton:active {
-  background: rgba(255,255,255,0.08);
-}
-
-.rrCmdNavButton {
-  animation: rrNavPulse 3s ease-in-out infinite;
-}
-
-.rrCmdNavBar {
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.12),
-    inset 0 -2px 12px rgba(0,0,0,0.25),
-    0 16px 28px rgba(28, 8, 88, 0.34);
-}
-
-@keyframes rrNavPulse {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.06); }
-}
-
-        .rrCmdNavButton:hover,
-        .rrCmdNavButton:active {
-          filter: brightness(1.06);
-        }
-
-.rrCmdNavButton:active {
-  transform: translateY(2px) scale(0.985);
-  background: rgba(255,255,255,0.05);
-  box-shadow:
-    inset 0 10px 18px rgba(0,0,0,0.28),
-    inset 0 0 0 2px rgba(116,176,255,0.14);
-}
-
-        .rrCmdNavSweep {
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(
-            112deg,
-            transparent 0%,
-            transparent 34%,
-            rgba(255,255,255,0.04) 42%,
-            rgba(255,255,255,0.18) 50%,
-            rgba(255,255,255,0.04) 58%,
-            transparent 66%,
-            transparent 100%
-          );
-          background-size: 220% 100%;
-          animation: rrCmdWingSweep 8s linear infinite;
-          mix-blend-mode: screen;
+          margin-left: 0;
         }
 
         .rrCmdNavButton--left {
-          padding: 10px 70px 10px 20px;
-          justify-content: flex-start;
           text-align: left;
         }
 
         .rrCmdNavButton--right {
-          padding: 10px 20px 10px 70px;
-          justify-content: flex-end;
           text-align: right;
         }
 
+        .rrCmdNavGlow,
+        .rrCmdNavSheen,
+        .rrCmdNavInner {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+
+        .rrCmdNavGlow {
+          background:
+            radial-gradient(circle at 18% 20%, rgba(109, 190, 255, 0.26), transparent 34%),
+            radial-gradient(circle at 82% 24%, rgba(194, 114, 255, 0.18), transparent 32%);
+          opacity: 0.9;
+        }
+
+        .rrCmdNavInner {
+          inset: 1px;
+          border-radius: 17px;
+          border: 1px solid rgba(174, 214, 255, 0.08);
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 28%, transparent 100%);
+        }
+
+        .rrCmdNavSheen {
+          background: linear-gradient(
+            112deg,
+            transparent 0%,
+            transparent 34%,
+            rgba(255, 255, 255, 0.03) 42%,
+            rgba(255, 255, 255, 0.14) 50%,
+            rgba(255, 255, 255, 0.03) 58%,
+            transparent 66%,
+            transparent 100%
+          );
+          background-size: 220% 100%;
+          animation: rrCmdWingSweep 7.8s linear infinite;
+          mix-blend-mode: screen;
+        }
+
+        .rrCmdNavText {
+          position: relative;
+          z-index: 1;
+          min-height: 72px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 4px;
+          padding: 11px 16px;
+        }
+
+        .rrCmdNavButton--left .rrCmdNavText {
+          align-items: flex-start;
+          padding-right: 54px;
+        }
+
+        .rrCmdNavButton--right .rrCmdNavText {
+          align-items: flex-end;
+          padding-left: 54px;
+        }
+
+        .rrCmdNavKicker,
         .rrCmdNavArrow,
         .rrCmdNavLabel,
         .rrCmdNavIcon {
           position: relative;
           z-index: 1;
-          text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.28);
+          text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.28);
+        }
+
+        .rrCmdNavKicker {
+          font-size: clamp(9px, 0.82vw, 12px);
+          line-height: 1;
+          font-weight: 800;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: rgba(197, 224, 255, 0.84);
+        }
+
+        .rrCmdNavLabelRow {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .rrCmdNavButton--right .rrCmdNavLabelRow {
+          flex-direction: row-reverse;
         }
 
         .rrCmdNavArrow {
-          font-size: clamp(15px, 1.2vw, 20px);
+          font-size: clamp(12px, 1vw, 16px);
+          line-height: 1;
           font-weight: 1000;
-          letter-spacing: -0.12em;
-          opacity: 0.9;
+          letter-spacing: -0.14em;
+          color: rgba(229, 240, 255, 0.86);
+          opacity: 0.88;
         }
 
-.rrCmdNavLabel {
-  font-size: clamp(20px, 2vw, 32px);
-  line-height: 0.9;
-  font-weight: 800; /* was 1000 → looks weird on system fonts */
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
+        .rrCmdNavLabel {
+          font-size: clamp(18px, 1.55vw, 24px);
+          line-height: 0.96;
+          font-weight: 900;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          white-space: nowrap;
+          color: #ffffff;
+        }
 
-  /* this is what makes it feel better */
-  color: #ffffff;
+        .rrCmdNavIcon {
+          font-size: clamp(15px, 1.15vw, 18px);
+          opacity: 0.94;
+          filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.3));
+        }
 
-  text-shadow:
-    2px 2px 0 rgba(0,0,0,0.35);
-}
+        .rrCmdNavButton:hover,
+        .rrCmdNavButton:active {
+          filter: brightness(1.06);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.16),
+            inset 0 -8px 18px rgba(0, 0, 0, 0.28),
+            0 12px 22px rgba(6, 17, 48, 0.3),
+            0 0 0 1px rgba(117, 178, 255, 0.16);
+        }
 
-.rrCmdNavIcon {
-  font-size: clamp(18px, 1.5vw, 24px);
-  opacity: 0.92;
-  filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.35));
-}
+        .rrCmdNavButton:active {
+          transform: translateY(2px) scale(0.985);
+        }
 
         .rrCmdPointsButton {
           pointer-events: auto;
@@ -504,35 +529,64 @@ background:
           bottom: 0;
           transform: translateX(-50%) translateY(-18px);
           z-index: 2;
-          width: clamp(174px, 17vw, 218px);
-          min-height: 138px;
+          width: clamp(164px, 16vw, 200px);
+          min-height: 124px;
           border: 1px solid rgba(97, 176, 255, 0.22);
           border-radius: 28px;
-          padding: 14px 14px 12px;
+          padding: 12px 12px 11px;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
           background:
-            radial-gradient(circle at 50% 0%, rgba(94, 161, 255, 0.18), rgba(14, 31, 68, 0.98) 42%),
-            linear-gradient(180deg, rgba(17, 40, 89, 0.98) 0%, rgba(7, 20, 49, 1) 100%);
+            radial-gradient(circle at 50% 0%, rgba(92, 161, 255, 0.24), rgba(13, 31, 69, 0.98) 40%),
+            linear-gradient(180deg, rgba(14, 35, 85, 0.98) 0%, rgba(6, 20, 48, 1) 100%);
           color: #f7f1e6;
           box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.1),
-            0 14px 26px rgba(7, 22, 56, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 16px 28px rgba(7, 22, 56, 0.44),
             0 0 0 4px rgba(63, 145, 255, 0.1);
-          overflow: hidden;
+          overflow: visible;
           transition: transform 120ms ease, box-shadow 180ms ease, filter 180ms ease;
+        }
+
+        .rrCmdPointsHalo,
+        .rrCmdPointsButtonSheen,
+        .rrCmdPointsInner {
+          position: absolute;
+          pointer-events: none;
+        }
+
+        .rrCmdPointsHalo {
+          inset: -10px -8px auto;
+          height: 34px;
+          border-radius: 999px;
+          background: radial-gradient(circle, rgba(97, 189, 255, 0.38) 0%, rgba(97, 189, 255, 0) 72%);
+          filter: blur(10px);
+          opacity: 0.75;
+        }
+
+        .rrCmdPointsInner {
+          inset: 1px;
+          border-radius: 27px;
+          border: 1px solid rgba(176, 219, 255, 0.08);
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 30%, transparent 100%);
         }
 
         .rrCmdPointsButton::before {
           content: "";
           position: absolute;
           inset: 10px 10px auto;
-          height: 18px;
+          height: 16px;
           border-radius: 999px;
-          background: rgba(255,255,255,0.05);
+          background: rgba(255, 255, 255, 0.06);
           filter: blur(1px);
+        }
+
+        .rrCmdPointsButton.isClaimMode {
+          background:
+            radial-gradient(circle at 50% 0%, rgba(100, 197, 255, 0.28), rgba(10, 37, 82, 0.98) 42%),
+            linear-gradient(180deg, rgba(12, 55, 112, 0.98) 0%, rgba(8, 28, 64, 1) 100%);
         }
 
         .rrCmdPointsButton.isClickable {
@@ -542,18 +596,18 @@ background:
 
         .rrCmdPointsButton.isClickable:hover,
         .rrCmdPointsButton.isClickable:active {
-          transform: translateX(-50%) translateY(-21px) scale(1.015);
+          transform: translateX(-50%) translateY(-21px) scale(1.016);
           filter: brightness(1.03);
           box-shadow:
-            inset 0 1px 0 rgba(255,255,255,0.14),
-            0 16px 30px rgba(7, 22, 56, 0.48),
+            inset 0 1px 0 rgba(255, 255, 255, 0.14),
+            0 18px 32px rgba(7, 22, 56, 0.48),
             0 0 0 5px rgba(82, 159, 255, 0.16);
         }
 
         .rrCmdPointsButton.isClickable:active {
           transform: translateX(-50%) translateY(-14px) scale(0.985);
           box-shadow:
-            inset 0 8px 16px rgba(0,0,0,0.16),
+            inset 0 8px 16px rgba(0, 0, 0, 0.16),
             0 10px 18px rgba(7, 22, 56, 0.34),
             0 0 0 4px rgba(82, 159, 255, 0.12);
         }
@@ -563,15 +617,14 @@ background:
         }
 
         .rrCmdPointsButtonSheen {
-          position: absolute;
           inset: 0;
           background: linear-gradient(
             112deg,
             transparent 0%,
             transparent 34%,
-            rgba(255,255,255,0.04) 42%,
-            rgba(113,200,255,0.16) 50%,
-            rgba(255,255,255,0.04) 58%,
+            rgba(255, 255, 255, 0.04) 42%,
+            rgba(113, 200, 255, 0.16) 50%,
+            rgba(255, 255, 255, 0.04) 58%,
             transparent 66%,
             transparent 100%
           );
@@ -579,6 +632,7 @@ background:
           animation: rrCmdPointsSheen 7.5s linear infinite;
           mix-blend-mode: screen;
           opacity: 0.72;
+          border-radius: 28px;
         }
 
         .rrCmdPointsTop,
@@ -586,31 +640,32 @@ background:
         .rrCmdPointsBottom {
           position: relative;
           z-index: 1;
-          text-shadow: 3px 3px 0 rgba(0,0,0,0.24);
+          text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.24);
         }
 
         .rrCmdPointsTop {
-          font-size: clamp(16px, 1.35vw, 28px);
+          font-size: clamp(14px, 1.2vw, 20px);
           line-height: 0.94;
           font-weight: 1000;
-          letter-spacing: 0.03em;
+          letter-spacing: 0.08em;
           text-transform: uppercase;
+          color: rgba(232, 243, 255, 0.92);
         }
 
         .rrCmdPointsValue {
           margin-top: 2px;
-          font-size: clamp(44px, 3.7vw, 72px);
+          font-size: clamp(40px, 3.1vw, 60px);
           line-height: 0.84;
           font-weight: 1000;
-          letter-spacing: -0.04em;
+          letter-spacing: -0.05em;
         }
 
         .rrCmdPointsBottom {
-          margin-top: 4px;
-          font-size: clamp(14px, 1.25vw, 24px);
+          margin-top: 3px;
+          font-size: clamp(11px, 0.95vw, 15px);
           line-height: 0.96;
           font-weight: 1000;
-          letter-spacing: 0.03em;
+          letter-spacing: 0.08em;
           text-transform: uppercase;
         }
 
@@ -618,7 +673,7 @@ background:
           animation: rrCmdPointsLand 540ms ease;
         }
 
-        .reducedMotion .rrCmdNavSweep,
+        .reducedMotion .rrCmdNavSheen,
         .reducedMotion .rrCmdPointsButtonSheen,
         .reducedMotion .rrCmdPointsButton.isClickable {
           animation: none;
@@ -630,104 +685,245 @@ background:
         }
 
         @keyframes rrCmdWingSweep {
-          0% { background-position: 135% 0; }
-          100% { background-position: -120% 0; }
+          0% {
+            background-position: 135% 0;
+          }
+          100% {
+            background-position: -120% 0;
+          }
         }
 
         @keyframes rrCmdPointsSheen {
-          0% { background-position: 130% 0; }
-          100% { background-position: -120% 0; }
+          0% {
+            background-position: 130% 0;
+          }
+          100% {
+            background-position: -120% 0;
+          }
         }
 
         @keyframes rrCmdPointsBreath {
-          0%, 100% {
+          0%,
+          100% {
             box-shadow:
-              inset 0 1px 0 rgba(255,255,255,0.1),
-              0 14px 26px rgba(7, 22, 56, 0.4),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1),
+              0 16px 28px rgba(7, 22, 56, 0.44),
               0 0 0 4px rgba(63, 145, 255, 0.1);
           }
           50% {
             box-shadow:
-              inset 0 1px 0 rgba(255,255,255,0.13),
-              0 16px 30px rgba(7, 22, 56, 0.46),
-              0 0 0 6px rgba(82, 159, 255, 0.15);
+              inset 0 1px 0 rgba(255, 255, 255, 0.13),
+              0 18px 32px rgba(7, 22, 56, 0.5),
+              0 0 0 6px rgba(82, 159, 255, 0.16);
           }
         }
 
         @keyframes rrCmdPointsLand {
-          0% { transform: translateX(-50%) translateY(-12px) scale(0.96); }
-          45% { transform: translateX(-50%) translateY(-25px) scale(1.04); }
-          100% { transform: translateX(-50%) translateY(-18px) scale(1); }
+          0% {
+            transform: translateX(-50%) translateY(-12px) scale(0.96);
+          }
+          45% {
+            transform: translateX(-50%) translateY(-25px) scale(1.04);
+          }
+          100% {
+            transform: translateX(-50%) translateY(-18px) scale(1);
+          }
         }
 
         @media (max-width: 980px) {
-          .rrCmdBarSpacer { height: 198px; }
-          .rrCmdHeader { padding: 14px 16px 104px; }
-          .rrCmdNavButton--left { padding-right: 88px; }
-          .rrCmdNavButton--right { padding-left: 88px; }
-          .rrCmdNavLabel { font-size: clamp(18px, 2.5vw, 28px); }
-          .rrCmdNavIcon { font-size: clamp(20px, 2.5vw, 30px); }
+          .rrCmdBarSpacer {
+            height: 214px;
+          }
+
+          .rrCmdNavBar {
+            min-height: 88px;
+          }
+
+          .rrCmdNavLabel {
+            font-size: clamp(17px, 2.3vw, 22px);
+          }
         }
 
         @media (max-width: 720px) {
-          .rrCmdBarSpacer { height: 196px; }
-          .rrCmdBarWrap { padding-left: 0; padding-right: 0; padding-bottom: 0; }
-          .rrCmdShell { border-left: 0; border-right: 0; border-radius: 24px 24px 0 0; }
-          .rrCmdHeader { padding: 12px 14px 102px; }
-          .rrCmdHeaderTitle { font-size: 18px; }
-          .rrCmdHeaderSubtitle { margin-top: 5px; font-size: 11px; }
-          .rrCmdControlZone { width: 100%; left: 0; transform: none; padding: 0 10px; }
-          .rrCmdNavBar { min-height: 82px; border-radius: 18px; }
-          .rrCmdNavButton { min-height: 82px; gap: 7px; }
-          .rrCmdNavButton--left { padding: 10px 58px 10px 14px; }
-          .rrCmdNavButton--right { padding: 10px 14px 10px 58px; }
-          .rrCmdNavArrow { font-size: 13px; }
-          .rrCmdNavLabel { font-size: 15px; }
-          .rrCmdNavIcon { font-size: 19px; }
+          .rrCmdBarSpacer {
+            height: 202px;
+          }
+
+          .rrCmdBarWrap {
+            padding-left: 0;
+            padding-right: 0;
+            padding-bottom: 0;
+          }
+
+          .rrCmdShell {
+            border-left: 0;
+            border-right: 0;
+            border-radius: 24px 24px 0 0;
+          }
+
+          .rrCmdControlZone {
+            width: 100%;
+            left: 0;
+            transform: none;
+            padding: 0 10px;
+            bottom: calc(12px + env(safe-area-inset-bottom));
+          }
+
+          .rrCmdNavRail {
+            min-height: 84px;
+            padding-top: 6px;
+          }
+
+          .rrCmdNavRail::before {
+            border-radius: 20px;
+          }
+
+          .rrCmdNavBar {
+            min-height: 84px;
+            gap: 8px;
+            padding: 8px;
+            border-radius: 20px;
+          }
+
+          .rrCmdNavButton {
+            min-height: 68px;
+            border-radius: 16px;
+          }
+
+          .rrCmdNavInner {
+            border-radius: 15px;
+          }
+
+          .rrCmdNavText {
+            min-height: 68px;
+            gap: 3px;
+            padding: 10px 12px;
+          }
+
+          .rrCmdNavButton--left .rrCmdNavText {
+            padding-right: 40px;
+          }
+
+          .rrCmdNavButton--right .rrCmdNavText {
+            padding-left: 40px;
+          }
+
+          .rrCmdNavKicker {
+            font-size: 8px;
+            letter-spacing: 0.12em;
+          }
+
+          .rrCmdNavArrow {
+            font-size: 11px;
+          }
+
+          .rrCmdNavLabel {
+            font-size: 14px;
+          }
+
+          .rrCmdNavIcon {
+            font-size: 14px;
+          }
+
           .rrCmdPointsButton {
-            width: 132px;
-            min-height: 108px;
+            width: 126px;
+            min-height: 102px;
             border-radius: 22px;
             padding: 10px 8px 10px;
-            transform: translateX(-50%) translateY(-15px);
+            transform: translateX(-50%) translateY(-13px);
           }
+
+          .rrCmdPointsInner,
+          .rrCmdPointsButtonSheen {
+            border-radius: 21px;
+          }
+
           .rrCmdPointsButton.isClickable:hover,
           .rrCmdPointsButton.isClickable:active {
-            transform: translateX(-50%) translateY(-17px) scale(1.01);
+            transform: translateX(-50%) translateY(-15px) scale(1.01);
           }
+
           .rrCmdPointsButton.isClickable:active {
-            transform: translateX(-50%) translateY(-11px) scale(0.985);
+            transform: translateX(-50%) translateY(-10px) scale(0.985);
           }
-          .rrCmdPointsTop { font-size: 13px; }
-          .rrCmdPointsValue { font-size: 38px; }
-          .rrCmdPointsBottom { font-size: 11px; }
+
+          .rrCmdPointsTop {
+            font-size: 12px;
+          }
+
+          .rrCmdPointsValue {
+            font-size: 34px;
+          }
+
+          .rrCmdPointsBottom {
+            font-size: 10px;
+          }
         }
 
         @media (max-width: 520px) {
-          .rrCmdBarSpacer { height: 188px; }
-          .rrCmdHeader { padding: 11px 12px 98px; }
-          .rrCmdHeaderTitle { font-size: 17px; }
-          .rrCmdHeaderSubtitle {
-            max-width: 270px;
-            margin: 4px auto 0;
-            font-size: 10px;
+          .rrCmdBarSpacer {
+            height: 194px;
           }
-          .rrCmdControlZone { padding: 0 8px; }
-          .rrCmdNavBar { min-height: 74px; }
-          .rrCmdNavButton { min-height: 74px; gap: 5px; }
-          .rrCmdNavButton--left { padding: 10px 52px 10px 12px; }
-          .rrCmdNavButton--right { padding: 10px 12px 10px 52px; }
-          .rrCmdNavArrow { display: none; }
-          .rrCmdNavLabel { font-size: 14px; }
-          .rrCmdNavIcon { font-size: 17px; }
+
+          .rrCmdControlZone {
+            padding: 0 8px;
+          }
+
+          .rrCmdNavRail::before {
+            inset: 5px 0 0;
+          }
+
+          .rrCmdNavBar {
+            min-height: 76px;
+            gap: 7px;
+            padding: 7px;
+          }
+
+          .rrCmdNavButton {
+            min-height: 62px;
+          }
+
+          .rrCmdNavText {
+            min-height: 62px;
+          }
+
+          .rrCmdNavKicker {
+            font-size: 7px;
+          }
+
+          .rrCmdNavArrow {
+            display: none;
+          }
+
+          .rrCmdNavLabelRow {
+            gap: 6px;
+          }
+
+          .rrCmdNavLabel {
+            font-size: 13px;
+          }
+
+          .rrCmdNavIcon {
+            font-size: 13px;
+          }
+
           .rrCmdPointsButton {
-            width: 122px;
-            min-height: 100px;
+            width: 118px;
+            min-height: 94px;
             border-radius: 20px;
           }
-          .rrCmdPointsTop { font-size: 12px; }
-          .rrCmdPointsValue { font-size: 34px; }
-          .rrCmdPointsBottom { font-size: 10px; }
+
+          .rrCmdPointsTop {
+            font-size: 11px;
+          }
+
+          .rrCmdPointsValue {
+            font-size: 31px;
+          }
+
+          .rrCmdPointsBottom {
+            font-size: 9px;
+          }
         }
       `}</style>
     </>
