@@ -327,7 +327,7 @@ export default function TvQueuePortraitBillboardPage({
         }
 
         .tvHeaderText {
-          position: fixed;
+  position: relative;
           z-index: 1;
           white-space: nowrap;
           text-align: center;
@@ -345,7 +345,7 @@ export default function TvQueuePortraitBillboardPage({
         }
 
         .tvFooterText {
-          position: fixed;
+          position: relative;
           z-index: 1;
           white-space: nowrap;
           text-align: center;
@@ -385,7 +385,7 @@ export default function TvQueuePortraitBillboardPage({
           justify-items: center;
           align-content: start;
           gap: clamp(10px, 1.2vh, 16px);
-          position: fixed;
+          position: relative;
           will-change: transform, opacity;
         }
 
