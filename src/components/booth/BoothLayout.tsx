@@ -387,6 +387,25 @@ export default function BoothLayout({ location }: { location: string }) {
   window.location.href = "/signin";
 }
 
+  function getBoothAlertAudio(kind: "regular" | "boosted" | "shoutout") {
+    return kind === "boosted"
+      ? boostedRequestAlertRef.current
+      : kind === "shoutout"
+        ? shoutoutAlertRef.current
+        : regularRequestAlertRef.current;
+  }
+
+  function forcePlayBoothAlert(kind: "regular" | "boosted" | "shoutout") {
+    const audio = getBoothAlertAudio(kind);
+    if (!audio) return;
+
+    try {
+      audio.pause();
+      audio.currentTime = 0;
+      void audio.play().catch(() => {});
+    } catch {}
+  }
+
   function playBoothAlert(kind: "regular" | "boosted" | "shoutout") {
     if (!areBoothAlertsEnabled()) return;
 
@@ -394,19 +413,7 @@ export default function BoothLayout({ location }: { location: string }) {
     if (now - lastAlertAtRef.current < ALERT_COOLDOWN_MS) return;
     lastAlertAtRef.current = now;
 
-    const audio =
-      kind === "boosted"
-        ? boostedRequestAlertRef.current
-        : kind === "shoutout"
-          ? shoutoutAlertRef.current
-          : regularRequestAlertRef.current;
-
-    if (!audio) return;
-
-    try {
-      audio.currentTime = 0;
-      void audio.play().catch(() => {});
-    } catch {}
+    forcePlayBoothAlert(kind);
   }
 
 useEffect(() => {
@@ -822,6 +829,32 @@ saveSessionTimerState(location, {
         </div>
 
         <div className="rrTopbarRight">
+    <div className="rrSfxTester" aria-label="Sound test controls">
+      <button
+        type="button"
+        className="rrSfxTestBtn"
+        onClick={() => forcePlayBoothAlert("regular")}
+        title="Test regular request alert"
+      >
+        Req
+      </button>
+      <button
+        type="button"
+        className="rrSfxTestBtn rrSfxTestBtn--boosted"
+        onClick={() => forcePlayBoothAlert("boosted")}
+        title="Test boosted request alert"
+      >
+        Boost
+      </button>
+      <button
+        type="button"
+        className="rrSfxTestBtn rrSfxTestBtn--shoutout"
+        onClick={() => forcePlayBoothAlert("shoutout")}
+        title="Test shoutout alert"
+      >
+        Shout
+      </button>
+    </div>
 
     <div className="rrSteelStack">
     <button
@@ -1154,6 +1187,70 @@ saveSessionTimerState(location, {
         .rrTopbarCenter > div {
           width: 100%;
           max-width: 470px;
+        }
+
+        .rrTopbarRight {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          justify-content: flex-start;
+          gap: 8px;
+        }
+
+        .rrSfxTester {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 6px;
+          border-radius: 999px;
+          border: 1px solid rgba(122, 166, 219, 0.22);
+          background: linear-gradient(180deg, rgba(17, 25, 39, 0.88), rgba(8, 12, 22, 0.92));
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            0 8px 18px rgba(0, 0, 0, 0.2);
+        }
+
+        .rrSfxTestBtn {
+          appearance: none;
+          border: 1px solid rgba(114, 169, 236, 0.26);
+          background: linear-gradient(180deg, rgba(62, 111, 170, 0.9), rgba(27, 55, 95, 0.95));
+          color: #f4f7fc;
+          min-width: 52px;
+          padding: 5px 9px;
+          border-radius: 999px;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+          cursor: pointer;
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.08),
+            0 4px 10px rgba(0, 0, 0, 0.16);
+          transition:
+            transform 120ms ease,
+            filter 120ms ease,
+            box-shadow 120ms ease;
+        }
+
+        .rrSfxTestBtn:hover {
+          filter: brightness(1.06);
+        }
+
+        .rrSfxTestBtn:active {
+          transform: translateY(1px) scale(0.98);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .rrSfxTestBtn--boosted {
+          background: linear-gradient(180deg, rgba(133, 69, 180, 0.94), rgba(74, 28, 112, 0.96));
+          border-color: rgba(184, 117, 242, 0.28);
+        }
+
+        .rrSfxTestBtn--shoutout {
+          background: linear-gradient(180deg, rgba(32, 148, 132, 0.94), rgba(18, 88, 77, 0.96));
+          border-color: rgba(76, 202, 182, 0.26);
         }
 
         .rrTopbarCenter .rrSessionHero,

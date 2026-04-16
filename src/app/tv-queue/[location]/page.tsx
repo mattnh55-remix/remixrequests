@@ -244,9 +244,9 @@ export default function TvQueuePortraitBillboardPage({
         }
 
         .tvBillboardRoot {
-          position: relative;
-          min-height: 100vh;
-          height: 100vh;
+          position: fixed;
+          min-height: 100dvh;
+          height: 100dvh;
           overflow: hidden;
           background:
             radial-gradient(circle at 22% 72%, rgba(0, 93, 166, 0.38), transparent 34%),
@@ -261,8 +261,8 @@ export default function TvQueuePortraitBillboardPage({
           inset: 0;
           display: grid;
           grid-template-rows: auto 1fr auto;
-          min-height: 100vh;
-          height: 100vh;
+          min-height: 100dvh;
+          height: 100dvh;
           padding: 0;
           box-sizing: border-box;
         }
@@ -280,14 +280,16 @@ export default function TvQueuePortraitBillboardPage({
 
         .tvHeaderWrap {
           align-self: start;
+          align-items: flex-start;
         }
 
         .tvFooterWrap {
           align-self: end;
+          align-items: flex-end;
         }
 
         .tvBadge {
-          position: relative;
+          position: fixed;
           overflow: hidden;
           background: #8c69d8;
           border: 4px solid #1f1031;
@@ -310,25 +312,27 @@ export default function TvQueuePortraitBillboardPage({
         }
 
         .tvHeaderBadge {
-          width: min(78vw, 560px);
-          min-height: clamp(58px, 7.2vh, 86px);
-          padding: 10px 24px 14px;
+          width: min(84vw, 680px);
+          min-height: clamp(74px, 8.8vh, 118px);
+          padding: 12px 28px 18px;
+          margin-top: -2px;
           clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%);
         }
 
         .tvFooterBadge {
-          width: min(80vw, 620px);
-          min-height: clamp(46px, 5.4vh, 64px);
-          padding: 8px 18px 10px;
+          width: min(84vw, 760px);
+          min-height: clamp(60px, 6.8vh, 92px);
+          padding: 10px 24px 12px;
+          margin-bottom: -2px;
         }
 
         .tvHeaderText {
-          position: relative;
+          position: fixed;
           z-index: 1;
           white-space: nowrap;
           text-align: center;
           font-family: var(--font-barlow-condensed), sans-serif;
-          font-size: clamp(42px, 3.7vw, 78px);
+          font-size: clamp(46px, 4.1vw, 86px);
           line-height: 0.94;
           letter-spacing: 1px;
           text-transform: uppercase;
@@ -341,12 +345,12 @@ export default function TvQueuePortraitBillboardPage({
         }
 
         .tvFooterText {
-          position: relative;
+          position: fixed;
           z-index: 1;
           white-space: nowrap;
           text-align: center;
           font-family: var(--font-barlow-condensed), sans-serif;
-          font-size: clamp(26px, 2.3vw, 48px);
+          font-size: clamp(30px, 2.8vw, 56px);
           line-height: 0.94;
           letter-spacing: 1px;
           text-transform: uppercase;
@@ -362,7 +366,7 @@ export default function TvQueuePortraitBillboardPage({
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: clamp(8px, 1vh, 12px) 0;
+          padding: clamp(10px, 1.2vh, 16px) 0;
           overflow: hidden;
         }
 
@@ -372,16 +376,16 @@ export default function TvQueuePortraitBillboardPage({
           display: grid;
           align-content: center;
           justify-items: center;
-          gap: clamp(18px, 2.2vh, 26px);
+          gap: clamp(20px, 2.5vh, 34px);
         }
 
         .tvCardShell {
-          width: min(61vw, 320px);
+          width: min(68vw, 372px);
           display: grid;
           justify-items: center;
           align-content: start;
-          gap: clamp(8px, 1vh, 12px);
-          position: relative;
+          gap: clamp(10px, 1.2vh, 16px);
+          position: fixed;
           will-change: transform, opacity;
         }
 
@@ -421,7 +425,7 @@ export default function TvQueuePortraitBillboardPage({
           width: 100%;
           text-align: center;
           font-weight: 700;
-          font-size: clamp(34px, 3.5vw, 50px);
+          font-size: clamp(38px, 4vw, 58px);
           line-height: 0.95;
           letter-spacing: 0.3px;
           text-transform: uppercase;
@@ -435,7 +439,7 @@ export default function TvQueuePortraitBillboardPage({
           width: 100%;
           text-align: center;
           font-weight: 600;
-          font-size: clamp(18px, 2vw, 26px);
+          font-size: clamp(20px, 2.25vw, 30px);
           line-height: 1;
           letter-spacing: 0.2px;
           text-transform: uppercase;
@@ -454,28 +458,28 @@ export default function TvQueuePortraitBillboardPage({
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-width: 29px;
-          height: 22px;
-          padding: 0 7px;
+          min-width: 34px;
+          height: 26px;
+          padding: 0 8px;
           border-radius: 999px;
           background: linear-gradient(180deg, #6f6ff2 0%, #c56be2 100%);
           color: #f8f4ea;
-          font-size: 15px;
+          font-size: 17px;
           font-weight: 700;
           box-sizing: border-box;
         }
 
         .tvMetaFire {
-          font-size: 19px;
+          font-size: 21px;
           line-height: 1;
         }
 
         .tvRankBadge {
           position: absolute;
-          left: -44px;
-          top: 14px;
-          width: 60px;
-          height: 78px;
+          left: -48px;
+          top: 16px;
+          width: 66px;
+          height: 86px;
           background: linear-gradient(180deg, #5c7cff 0%, #ea60c2 100%);
           clip-path: polygon(0 0, 100% 0, 100% 78%, 52% 100%, 0 78%);
           display: flex;
@@ -488,7 +492,7 @@ export default function TvQueuePortraitBillboardPage({
 
         .tvRankBadgeText {
           font-weight: 700;
-          font-size: 44px;
+          font-size: 48px;
           line-height: 1;
           color: #f8f4ea;
           text-shadow:
@@ -499,7 +503,7 @@ export default function TvQueuePortraitBillboardPage({
         @keyframes enterLeft {
           0% {
             opacity: 0;
-            transform: translateX(-108px) scale(0.985);
+            transform: translateX(-24vw) scale(0.985);
           }
           100% {
             opacity: 1;
@@ -510,7 +514,7 @@ export default function TvQueuePortraitBillboardPage({
         @keyframes enterRight {
           0% {
             opacity: 0;
-            transform: translateX(108px) scale(0.985);
+            transform: translateX(24vw) scale(0.985);
           }
           100% {
             opacity: 1;
@@ -529,15 +533,15 @@ export default function TvQueuePortraitBillboardPage({
 
         @media (max-height: 900px) {
           .tvHeaderBadge {
-            width: min(74vw, 500px);
-            min-height: 60px;
-            padding: 8px 20px 12px;
+            width: min(78vw, 560px);
+            min-height: 66px;
+            padding: 10px 22px 14px;
           }
 
           .tvFooterBadge {
-            width: min(76vw, 520px);
-            min-height: 42px;
-            padding: 6px 14px 8px;
+            width: min(82vw, 620px);
+            min-height: 52px;
+            padding: 8px 18px 10px;
           }
 
           .tvSceneInner {
@@ -545,16 +549,16 @@ export default function TvQueuePortraitBillboardPage({
           }
 
           .tvCardShell {
-            width: min(57vw, 282px);
+            width: min(62vw, 320px);
             gap: 8px;
           }
 
           .tvCardTitle {
-            font-size: clamp(30px, 3.4vw, 46px);
+            font-size: clamp(34px, 3.8vw, 52px);
           }
 
           .tvCardArtist {
-            font-size: clamp(18px, 1.9vw, 24px);
+            font-size: clamp(19px, 2.05vw, 26px);
           }
         }
       `}</style>
