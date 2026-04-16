@@ -359,15 +359,15 @@ export default function PublicBottomCommandBar({
 
         .rrCmdNavBar {
           pointer-events: auto;
-          min-height: 110px;
+          min-height: 78px;
           display: grid;
           grid-template-columns: 1fr 1fr;
           align-items: stretch;
           gap: 0;
           border-radius: 24px;
           overflow: hidden;
-          background:
-            linear-gradient(180deg, rgba(103, 33, 255, 0.96) 0%, rgba(79, 17, 223, 0.98) 100%);
+background:
+  linear-gradient(180deg, #6d28ff 0%, #4c1bd1 100%);
           border: 1px solid rgba(171, 139, 255, 0.18);
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,0.12),
@@ -391,15 +391,27 @@ export default function PublicBottomCommandBar({
           border-left: 1px solid rgba(255,255,255,0.08);
         }
 
+.rrCmdNavButton {
+  animation: rrNavPulse 3s ease-in-out infinite;
+}
+
+@keyframes rrNavPulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.06); }
+}
+
         .rrCmdNavButton:hover,
         .rrCmdNavButton:active {
           filter: brightness(1.06);
         }
 
-        .rrCmdNavButton:active {
-          transform: translateY(2px) scale(0.992);
-          box-shadow: inset 0 8px 18px rgba(0,0,0,0.16);
-        }
+.rrCmdNavButton:active {
+  transform: translateY(3px) scale(0.97);
+  background: rgba(255,255,255,0.06);
+  box-shadow:
+    inset 0 10px 18px rgba(0,0,0,0.25),
+    inset 0 0 0 2px rgba(120,170,255,0.2);
+}
 
         .rrCmdNavSweep {
           position: absolute;
@@ -420,13 +432,13 @@ export default function PublicBottomCommandBar({
         }
 
         .rrCmdNavButton--left {
-          padding: 16px 96px 16px 26px;
+          padding: 10px 70px 10px 20px;
           justify-content: flex-start;
           text-align: left;
         }
 
         .rrCmdNavButton--right {
-          padding: 16px 26px 16px 96px;
+          padding: 10px 20px 10px 70px;
           justify-content: flex-end;
           text-align: right;
         }
@@ -446,19 +458,25 @@ export default function PublicBottomCommandBar({
           opacity: 0.9;
         }
 
-        .rrCmdNavLabel {
-          font-size: clamp(20px, 2vw, 34px);
-          line-height: 0.94;
-          font-weight: 1000;
-          letter-spacing: 0.02em;
-          text-transform: uppercase;
-          white-space: nowrap;
-        }
+.rrCmdNavLabel {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-size: clamp(22px, 2.2vw, 36px);
+  line-height: 0.9;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
 
-        .rrCmdNavIcon {
-          font-size: clamp(22px, 2vw, 34px);
-          line-height: 1;
-        }
+  /* THIS is the magic */
+  text-shadow:
+    3px 3px 0 rgba(0,0,0,0.35),
+    0 0 10px rgba(120, 170, 255, 0.25);
+}
+
+.rrCmdNavIcon {
+  font-size: clamp(20px, 1.8vw, 28px);
+  filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.35));
+}
 
         .rrCmdPointsButton {
           pointer-events: auto;
