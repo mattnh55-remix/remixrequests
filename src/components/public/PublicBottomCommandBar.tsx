@@ -257,7 +257,7 @@ export default function PublicBottomCommandBar({
         </div>
       </div>
 
-      <style jsx>{`
+<style jsx global>{`
         .rrCmdBarSpacer {
           height: 218px;
         }
@@ -445,15 +445,15 @@ export default function PublicBottomCommandBar({
           padding: 11px 16px;
         }
 
-        .rrCmdNavButton--left .rrCmdNavText {
-          align-items: flex-start;
-          padding-right: 54px;
-        }
+.rrCmdNavButton--left .rrCmdNavText {
+  align-items: flex-start;
+  padding-right: 108px;
+}
 
-        .rrCmdNavButton--right .rrCmdNavText {
-          align-items: flex-end;
-          padding-left: 54px;
-        }
+.rrCmdNavButton--right .rrCmdNavText {
+  align-items: flex-end;
+  padding-left: 108px;
+}
 
         .rrCmdNavKicker,
         .rrCmdNavArrow,
@@ -730,6 +730,25 @@ export default function PublicBottomCommandBar({
           }
         }
 
+.rrCmdNavLabelRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rrCmdNavLabel {
+  font-size: clamp(18px, 1.55vw, 24px);
+  line-height: 0.96;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
         @media (max-width: 980px) {
           .rrCmdBarSpacer {
             height: 214px;
@@ -800,14 +819,13 @@ export default function PublicBottomCommandBar({
             padding: 10px 12px;
           }
 
-          .rrCmdNavButton--left .rrCmdNavText {
-            padding-right: 40px;
-          }
+.rrCmdNavButton--left .rrCmdNavText {
+  padding-right: 72px;
+}
 
-          .rrCmdNavButton--right .rrCmdNavText {
-            padding-left: 40px;
-          }
-
+.rrCmdNavButton--right .rrCmdNavText {
+  padding-left: 72px;
+}
           .rrCmdNavKicker {
             font-size: 8px;
             letter-spacing: 0.12em;
