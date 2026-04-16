@@ -302,24 +302,25 @@ export default function PublicBottomCommandBar({
           pointer-events: none;
         }
 
-        .rrCmdShell {
-          position: relative;
-          pointer-events: auto;
-          max-width: 1120px;
-          margin: 0 auto;
-          border-radius: 30px 30px 0 0;
-          overflow: hidden;
-          border: 1px solid rgba(118, 174, 255, 0.14);
-          border-bottom: 0;
-          background:
-            linear-gradient(90deg, rgba(4, 24, 58, 0.98) 0%, rgba(18, 8, 58, 0.98) 100%);
-          box-shadow:
-            0 22px 50px rgba(0, 0, 0, 0.44),
-            inset 0 1px 0 rgba(255, 255, 255, 0.06),
-            0 0 0 1px rgba(51, 97, 182, 0.1);
-          backdrop-filter: blur(14px) saturate(125%);
-          -webkit-backdrop-filter: blur(14px) saturate(125%);
-        }
+.rrCmdShell {
+  position: relative;
+  pointer-events: auto;
+  max-width: 1120px;
+  margin: 0 auto;
+  min-height: 116px;
+  border-radius: 30px 30px 0 0;
+  overflow: visible;
+  border: 1px solid rgba(118, 174, 255, 0.14);
+  border-bottom: 0;
+  background:
+    linear-gradient(90deg, rgba(4, 24, 58, 0.98) 0%, rgba(18, 8, 58, 0.98) 100%);
+  box-shadow:
+    0 22px 50px rgba(0, 0, 0, 0.44),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(51, 97, 182, 0.1);
+  backdrop-filter: blur(14px) saturate(125%);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
+}
 
         .rrCmdHeader {
           padding: 14px 20px 106px;
@@ -480,7 +481,7 @@ background:
         }
 
 .rrCmdNavLabel {
-  font-family: var(--font-barlow-condensed), sans-serif;
+  font-family: inherit;
   font-size: clamp(22px, 2.2vw, 36px);
   line-height: 0.9;
   font-weight: 900;
