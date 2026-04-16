@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Barlow_Condensed } from 'next/font/google';
 
+const barlowCondensed = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["700", "900"],
+});
+
 type PublicView = "request" | "queue" | "shoutouts";
 type PointsMode = "auto" | "claim" | "add";
 
@@ -130,12 +135,6 @@ export default function PublicBottomCommandBar({
   const safePoints = Math.max(0, Number(points ?? 0) || 0);
   const isClaimMode = pointsMode === "claim" || (pointsMode === "auto" && safePoints <= 0);
   const pointsCta = isClaimMode ? "CLAIM POINTS" : "ADD MORE";
-
-const barlowCondensed = Barlow_Condensed({
-  subsets: ['latin'],
-  weight: ['400', '700', '900'],
-  variable: '--font-barlow-condensed',
-});
 
   useEffect(() => {
     setMounted(true);
