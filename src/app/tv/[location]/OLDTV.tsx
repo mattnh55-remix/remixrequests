@@ -1,24 +1,37 @@
-// src/app/tv/[location]/page.tsx
-
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  Barlow_Condensed,
+  DM_Serif_Display,
+  Satisfy,
+} from "next/font/google";
 
-type QueueItem = {
-  id: string;
-  title: string;
-  artist: string;
-  artworkUrl?: string;
-  score: number;
-  isBoosted?: boolean;
-  boosted?: boolean;
-  wasBoosted?: boolean;
-};
+const barlowCondensed = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["700"],
+  variable: "--font-barlow-condensed",
+});
+
+const dmSerifDisplay = DM_Serif_Display({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--font-dm-serif-display",
+});
+
+const satisfy = Satisfy({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--font-satisfy",
+});
+
+const REMIX_LOGO_URL =
+  "https://skateremix.com/wp-content/uploads/2026/03/Remix_Globe_Logo_350px.png";
 
 type FeedMessage = {
   id: string;
   title?: string;
-  fromName: string;
+  fromName?: string;
   body?: string;
   messageText?: string;
   imageUrl?: string | null;
@@ -37,6 +50,7 @@ type PlaceholderMessage = {
   fromName: string;
   messageText?: string;
   imageUrl?: string | null;
+  imagePath?: string | null;
   accent?: "gold" | "cyan" | "pink";
   displayDurationSec?: number;
   productTitle?: string;
@@ -50,32 +64,67 @@ type RulesResponse = {
   shoutoutSlideSeconds?: number;
 };
 
+type DisplaySlide =
+  | {
+      id: string;
+      kind: "teaser";
+      durationSec: number;
+    }
+  | {
+      id: string;
+      kind: "message";
+      durationSec: number;
+      title: string;
+      body: string;
+      fromName: string;
+      imageUrl?: string | null;
+      accent: "gold" | "cyan" | "pink";
+      isFallback?: boolean;
+      displayDurationSec?: number;
+      approvedAt?: string;
+      createdAt?: string;
+    };
+
+type Orientation = "portrait" | "landscape" | "square";
+type TextOnlyVariant = "portrait" | "landscape";
+
+const DEFAULT_SLIDE_SECONDS = 20;
+
 const PLACEHOLDER_MESSAGES: PlaceholderMessage[] = [
   {
     id: "placeholder-1",
-    title: "REMIX SHOUT OUTS!",
-    body: "Celebrate a birthday, shout out a friend, or send a message to the rink!",
-    fromName: "Scan the QR to send yours",
+    title: "REMIX SHOUTOUT!",
+    body: "Welcome to Remix! Scan the code, request your song, and send a shout out.",
+    fromName: "-$name",
     accent: "cyan",
+    displayDurationSec: 20,
   },
   {
     id: "placeholder-2",
-    title: "REMIX SHOUT OUTS!",
-    body: "Upload a photo, add your message, and put your moment on the screen.",
-    fromName: "Photo shout outs are live",
+    title: "REMIX SHOUTOUT!",
+    body: "Congrats to our birthday crew tonight. Thanks for celebrating at Remix!",
+    fromName: "-$name",
     accent: "pink",
+    displayDurationSec: 20,
   },
   {
     id: "placeholder-3",
-    title: "REMIX SHOUT OUTS!",
-    body: "Request your favorite song and send a shout out while you skate.",
-    fromName: "Use the QR to get started",
+    title: "REMIX SHOUTOUT!",
+    body: "Happy Birthday Taylor and Hunter!",
+    fromName: "-$name",
     accent: "gold",
+    displayDurationSec: 20,
   },
 ];
 
 function placeholderKey(location: string) {
   return `rr_tv_placeholders:${location}`;
+}
+
+function safeSeconds(value: unknown, fallback: number) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(1, Math.floor(n));
 }
 
 function loadSavedPlaceholders(location: string): PlaceholderMessage[] {
@@ -84,78 +133,41 @@ function loadSavedPlaceholders(location: string): PlaceholderMessage[] {
     if (!raw) return PLACEHOLDER_MESSAGES;
 
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || !parsed.length) {
-      return PLACEHOLDER_MESSAGES;
-    }
+    if (!Array.isArray(parsed) || !parsed.length) return PLACEHOLDER_MESSAGES;
 
     return parsed.map((p: any, i: number) => {
-      const fallback = PLACEHOLDER_MESSAGES[i] || {};
+      const fallback = PLACEHOLDER_MESSAGES[i % PLACEHOLDER_MESSAGES.length];
 
       return {
-        id: p?.id || `msg${i + 1}`,
-
-        title: String(
-          p?.title ??
-            p?.header ??
-            fallback.title ??
-            "REMIX SHOUT OUTS!"
-        ),
-
-        body: String(
-          p?.body ??
-            p?.messageText ??
-            fallback.body ??
-            ""
-        ),
-
+        id: String(p?.id || `placeholder-${i + 1}`),
+        title: String(p?.title ?? p?.header ?? fallback.title ?? "REMIX SHOUTOUT!"),
+        body: String(p?.body ?? p?.messageText ?? fallback.body ?? ""),
         messageText: String(
-          p?.messageText ??
-            p?.body ??
-            fallback.messageText ??
-            fallback.body ??
-            ""
+          p?.messageText ?? p?.body ?? fallback.messageText ?? fallback.body ?? ""
         ),
-
         fromName: String(
           p?.fromName ??
             p?.productLabel ??
             p?.productTitle ??
             fallback.fromName ??
-            "- $name"
+            "- Remix Guests"
         ),
-
         imageUrl: p?.imageUrl ?? null,
-
-        accent: (
-          p?.accent ??
-          fallback.accent ??
-          "cyan"
-        ) as "gold" | "cyan" | "pink",
-
+        imagePath: p?.imagePath ?? null,
+        accent: (p?.accent ?? fallback.accent ?? "cyan") as "gold" | "cyan" | "pink",
         productTitle: String(
-          p?.productTitle ??
-            p?.productLabel ??
-            fallback.productTitle ??
-            "Remix Shout Out"
+          p?.productTitle ?? p?.productLabel ?? fallback.productTitle ?? ""
         ),
-
-        displayDurationSec:
-          typeof p?.displayDurationSec === "number" &&
-          Number.isFinite(p.displayDurationSec)
-            ? p.displayDurationSec
-            : fallback.displayDurationSec,
+        displayDurationSec: safeSeconds(
+          p?.displayDurationSec,
+          fallback.displayDurationSec ?? DEFAULT_SLIDE_SECONDS
+        ),
       };
     });
-  } catch (err) {
-    console.error("Failed to load placeholders", err);
+  } catch (error) {
+    console.error("Failed to load saved shoutout placeholders", error);
     return PLACEHOLDER_MESSAGES;
   }
-}
-
-function safeSeconds(value: unknown, fallback: number) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(1, Math.floor(n));
 }
 
 async function loadShoutoutSlideSeconds(location: string): Promise<number> {
@@ -170,1310 +182,1015 @@ async function loadShoutoutSlideSeconds(location: string): Promise<number> {
       if (!res.ok) continue;
       const data = (await res.json()) as RulesResponse;
       const next = data?.rules?.shoutoutSlideSeconds ?? data?.shoutoutSlideSeconds;
-      const seconds = safeSeconds(next, 10);
+      const seconds = safeSeconds(next, DEFAULT_SLIDE_SECONDS);
       if (seconds > 0) return seconds;
     } catch {
-      // ignore and try next route
+      // ignore
     }
   }
 
-  return 10;
+  return DEFAULT_SLIDE_SECONDS;
 }
 
-export default function TvPage({ params }: { params: { location: string } }) {
+function normalizeMessageSlide(
+  source: FeedMessage | PlaceholderMessage,
+  fallbackDurationSec: number,
+  isFallback = false
+): DisplaySlide {
+  const body = String(source.body ?? source.messageText ?? "").trim();
+
+  return {
+    id: String(source.id || `slide-${Math.random().toString(36).slice(2)}`),
+    kind: "message",
+    title: String(source.title || "REMIX SHOUTOUT!"),
+    body: body || "Your message here...",
+    fromName: String(source.fromName || "- Remix Guest"),
+    imageUrl: source.imageUrl ?? null,
+    accent: (source.accent || "cyan") as "gold" | "cyan" | "pink",
+    durationSec: safeSeconds(source.displayDurationSec, fallbackDurationSec),
+    displayDurationSec: safeSeconds(source.displayDurationSec, fallbackDurationSec),
+    approvedAt: "approvedAt" in source ? source.approvedAt : undefined,
+    createdAt: "createdAt" in source ? source.createdAt : undefined,
+    isFallback,
+  };
+}
+
+function makeTeaserSlide(durationSec: number): DisplaySlide {
+  return {
+    id: "teaser-slide",
+    kind: "teaser",
+    durationSec: safeSeconds(durationSec, DEFAULT_SLIDE_SECONDS),
+  };
+}
+
+function getSlideDuration(slide: DisplaySlide) {
+  return safeSeconds(slide.durationSec, DEFAULT_SLIDE_SECONDS);
+}
+
+function getTextOnlyVariant(id: string): TextOnlyVariant {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) hash += id.charCodeAt(i);
+  return hash % 2 === 0 ? "portrait" : "landscape";
+}
+
+function joinInlineMessage(body: string, fromName: string) {
+  const trimmedBody = body.trim();
+  const formattedFrom = formatFromName(fromName);
+  if (!formattedFrom) return trimmedBody;
+  return `${trimmedBody} ${formattedFrom}`;
+}
+function formatFromName(fromName: string) {
+  const trimmed = fromName.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("-")) return trimmed;
+  return `-${trimmed}`;
+}
+
+export default function TvPage({
+  params,
+}: {
+  params: { location: string };
+}) {
   const location = params.location;
 
-  const [playNow, setPlayNow] = useState<QueueItem[]>([]);
-  const [upNext, setUpNext] = useState<QueueItem[]>([]);
-  const [liveMessage, setLiveMessage] = useState<FeedMessage | null>(null);
-  const [placeholderMessages, setPlaceholderMessages] = useState<PlaceholderMessage[]>(PLACEHOLDER_MESSAGES);
-  const [shoutoutSlideSeconds, setShoutoutSlideSeconds] = useState(10);
-  const [boostFlash, setBoostFlash] = useState(false);
-  const [artA, setArtA] = useState<string | null>(null);
-  const [artB, setArtB] = useState<string | null>(null);
-  const [showA, setShowA] = useState(true);
-  const [timerNowMs, setTimerNowMs] = useState(Date.now());
-  const [isPortraitLayout, setIsPortraitLayout] = useState(false);
-  const [defaultAlbumArtUrl, setDefaultAlbumArtUrl] = useState<string | null>(null);
+  const [liveSlides, setLiveSlides] = useState<DisplaySlide[]>([]);
+  const [placeholderSlides, setPlaceholderSlides] = useState<DisplaySlide[]>([]);
+  const [shoutoutSlideSeconds, setShoutoutSlideSeconds] =
+    useState(DEFAULT_SLIDE_SECONDS);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [slideStartedAt, setSlideStartedAt] = useState(Date.now());
+  const [nowMs, setNowMs] = useState(Date.now());
 
-  const prevTopId = useRef<string | null>(null);
-  const placeholderEpochMsRef = useRef(Date.now());
+  const activeSlides = useMemo(() => {
+    if (liveSlides.length) return liveSlides;
+    return [makeTeaserSlide(shoutoutSlideSeconds), ...placeholderSlides];
+  }, [liveSlides, placeholderSlides, shoutoutSlideSeconds]);
 
-  const requestUrl = useMemo(
-    () => `https://skateremix.com/request/${location}`,
-    [location]
+  const activeSlide = activeSlides[currentIndex] || null;
+
+  const activeSignature = useMemo(
+    () => activeSlides.map((slide) => slide.id).join("|"),
+    [activeSlides]
   );
 
-  const qrSrc = useMemo(() => {
-    const size = isPortraitLayout ? 300 : 320;
-    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(
-      requestUrl
-    )}`;
-  }, [isPortraitLayout, requestUrl]);
-
-  const activePlaceholderMessages =
-  placeholderMessages.length ? placeholderMessages : PLACEHOLDER_MESSAGES;
-
-const slideDurationSec = safeSeconds(shoutoutSlideSeconds, 10);
-const placeholderDurationSec = 20 * 60;
-const placeholderCycleMs = slideDurationSec * 1000;
-
-const placeholderRotationIndex = Math.floor(
-  Math.max(0, timerNowMs - placeholderEpochMsRef.current) / placeholderCycleMs
-);
-
-const featuredFallback =
-  activePlaceholderMessages[
-    placeholderRotationIndex % activePlaceholderMessages.length
-  ];
-
-const featuredMessage = liveMessage || featuredFallback;
-const featuredBody =
-  ("body" in featuredMessage ? featuredMessage.body : undefined) ||
-  ("messageText" in featuredMessage ? featuredMessage.messageText : undefined) ||
-  "";
-const featuredTitle = featuredMessage.title || "REMIX SHOUT OUTS!";
-
-const isPlaceholderMessage = !liveMessage;
-
-const liveLifetimeDurationSec = safeSeconds(
-  liveMessage?.displayDurationSec,
-  placeholderDurationSec
-);
-
-const stableLiveStartMs = liveMessage
-  ? new Date(
-      liveMessage.approvedAt || liveMessage.createdAt || Date.now()
-    ).getTime()
-  : 0;
-
-const elapsedMs = isPlaceholderMessage
-  ? Math.max(0, timerNowMs - placeholderEpochMsRef.current)
-  : Math.max(0, timerNowMs - stableLiveStartMs);
-
-const clampedElapsedMs = isPlaceholderMessage
-  ? Math.min(elapsedMs, placeholderDurationSec * 1000)
-  : Math.min(elapsedMs, liveLifetimeDurationSec * 1000);
-
-const remainingSec = isPlaceholderMessage
-  ? Math.max(0, placeholderDurationSec - Math.floor(clampedElapsedMs / 1000))
-  : Math.max(0, liveLifetimeDurationSec - Math.floor(clampedElapsedMs / 1000));
-
-const progressPct = isPlaceholderMessage
-  ? Math.max(0, 100 - (clampedElapsedMs / (placeholderDurationSec * 1000)) * 100)
-  : Math.max(
-      0,
-      100 - (clampedElapsedMs / (liveLifetimeDurationSec * 1000)) * 100
-    );
-
-const timerMinutes = Math.floor(remainingSec / 60);
-const timerSeconds = remainingSec % 60;
-const timerLabel = `${timerMinutes}:${String(timerSeconds).padStart(2, "0")}`;
-
-const nowPlaying = playNow[0] || upNext[0] || null;
-const queueList = upNext.slice(0, isPortraitLayout ? 6 : 10);
-const topIsBoosted = Boolean(
-  nowPlaying && (nowPlaying.isBoosted || nowPlaying.boosted || nowPlaying.wasBoosted)
-);
-
-  async function tickQueue() {
-    try {
-      const res = await fetch(`/api/public/queue/${location}`, {
-        cache: "no-store",
-      });
-      const data = await res.json();
-      setPlayNow(Array.isArray(data.playNow) ? data.playNow : []);
-      setUpNext(Array.isArray(data.upNext) ? data.upNext : []);
-    } catch {
-      setPlayNow([]);
-      setUpNext([]);
-    }
-  }
-
-  async function tickShoutouts() {
+  async function tickShoutouts(nextFallbackSeconds?: number) {
     try {
       const res = await fetch(`/api/public/shoutouts/feed/${location}`, {
         cache: "no-store",
       });
       const data = await res.json();
 
-      const next =
-        data?.current ||
-        data?.message ||
-        (Array.isArray(data?.items) && data.items.length ? data.items[0] : null) ||
-        null;
+      const feedItems: FeedMessage[] = Array.isArray(data?.items)
+        ? data.items
+        : data?.current
+          ? [data.current]
+          : data?.message
+            ? [data.message]
+            : [];
 
-      setLiveMessage(next);
+      const normalized = feedItems
+        .filter(Boolean)
+        .map((item) =>
+          normalizeMessageSlide(
+            item,
+            nextFallbackSeconds ?? shoutoutSlideSeconds,
+            false
+          )
+        );
+
+      setLiveSlides(normalized);
     } catch {
-      setLiveMessage(null);
+      setLiveSlides([]);
     }
   }
 
   useEffect(() => {
-    placeholderEpochMsRef.current = Date.now();
-    setPlaceholderMessages(loadSavedPlaceholders(location));
+    const initialSeconds = DEFAULT_SLIDE_SECONDS;
+    const nextPlaceholders = loadSavedPlaceholders(location).map((item) =>
+      normalizeMessageSlide(item, initialSeconds, true)
+    );
 
-    void tickQueue();
-    void tickShoutouts();
-    
-    // load default album art
-    fetch(`/api/public/rules/${location}`)
-      .then(r => r.json())
-      .then(d => {
-        const url = d?.rules?.defaultAlbumArtUrl || d?.defaultAlbumArtUrl || null;
-        if (url) setDefaultAlbumArtUrl(url);
-      })
-      .catch(() => {});
+    setPlaceholderSlides(nextPlaceholders);
+    setCurrentIndex(0);
+    setSlideStartedAt(Date.now());
+
+    void tickShoutouts(initialSeconds);
 
     void loadShoutoutSlideSeconds(location).then((seconds) => {
       setShoutoutSlideSeconds(seconds);
+
+      const withFreshSeconds = loadSavedPlaceholders(location).map((item) =>
+        normalizeMessageSlide(item, seconds, true)
+      );
+      setPlaceholderSlides(withFreshSeconds);
+      void tickShoutouts(seconds);
     });
 
-    const q = window.setInterval(() => void tickQueue(), 3000);
-    const s = window.setInterval(() => void tickShoutouts(), 5000);
-    const r = window.setInterval(() => {
-      
-    // load default album art
-    fetch(`/api/public/rules/${location}`)
-      .then(r => r.json())
-      .then(d => {
-        const url = d?.rules?.defaultAlbumArtUrl || d?.defaultAlbumArtUrl || null;
-        if (url) setDefaultAlbumArtUrl(url);
-      })
-      .catch(() => {});
+    const feedInterval = window.setInterval(() => {
+      void tickShoutouts();
+    }, 5000);
 
-    void loadShoutoutSlideSeconds(location).then((seconds) => {
+    const configInterval = window.setInterval(() => {
+      void loadShoutoutSlideSeconds(location).then((seconds) => {
         setShoutoutSlideSeconds(seconds);
-      });
 
-      setPlaceholderMessages(loadSavedPlaceholders(location));
+        const refreshedPlaceholders = loadSavedPlaceholders(location).map((item) =>
+          normalizeMessageSlide(item, seconds, true)
+        );
+
+        setPlaceholderSlides(refreshedPlaceholders);
+        void tickShoutouts(seconds);
+      });
     }, 15000);
 
     const syncPlaceholders = () => {
-      setPlaceholderMessages(loadSavedPlaceholders(location));
+      const synced = loadSavedPlaceholders(location).map((item) =>
+        normalizeMessageSlide(item, shoutoutSlideSeconds, true)
+      );
+      setPlaceholderSlides(synced);
     };
 
     window.addEventListener("storage", syncPlaceholders);
 
     return () => {
-      window.clearInterval(q);
-      window.clearInterval(s);
-      window.clearInterval(r);
+      window.clearInterval(feedInterval);
+      window.clearInterval(configInterval);
       window.removeEventListener("storage", syncPlaceholders);
     };
   }, [location]);
 
   useEffect(() => {
+    setNowMs(Date.now());
+
     const id = window.setInterval(() => {
-      setTimerNowMs(Date.now());
-    }, 1000);
+      setNowMs(Date.now());
+    }, 250);
 
     return () => window.clearInterval(id);
   }, []);
 
   useEffect(() => {
-    const media = window.matchMedia("(orientation: portrait)");
-    const apply = () => setIsPortraitLayout(media.matches);
+    if (!activeSlides.length) return;
 
-    apply();
-
-    const handler = () => apply();
-    if (typeof media.addEventListener === "function") {
-      media.addEventListener("change", handler);
-      return () => media.removeEventListener("change", handler);
-    }
-
-    media.addListener(handler);
-    return () => media.removeListener(handler);
-  }, []);
+    setCurrentIndex((prev) => {
+      const safePrev = Math.min(prev, activeSlides.length - 1);
+      return safePrev >= 0 ? safePrev : 0;
+    });
+  }, [activeSignature]);
 
   useEffect(() => {
-    const topId = playNow[0]?.id ?? null;
-    if (!topId) return;
+    if (!activeSlide || !activeSlides.length) return;
 
-    if (prevTopId.current && prevTopId.current !== topId) {
-      setBoostFlash(true);
-      const t = window.setTimeout(() => setBoostFlash(false), 900);
-      prevTopId.current = topId;
-      return () => window.clearTimeout(t);
-    }
+    const elapsed = nowMs - slideStartedAt;
+    const durationMs = getSlideDuration(activeSlide) * 1000;
 
-    prevTopId.current = topId;
-  }, [playNow]);
+    if (elapsed < durationMs) return;
 
-  useEffect(() => {
-    const next = nowPlaying?.artworkUrl || null;
+    setCurrentIndex((prev) => {
+      if (!activeSlides.length) return 0;
+      return (prev + 1) % activeSlides.length;
+    });
+    setSlideStartedAt(Date.now());
+  }, [activeSlide, activeSlides, nowMs, slideStartedAt]);
 
-    if (!artA && !artB) {
-      setArtA(next);
-      setShowA(true);
-      return;
-    }
+  const liveDisplayStartMs =
+    activeSlide && activeSlide.kind === "message" && !activeSlide.isFallback
+      ? new Date(
+          activeSlide.approvedAt || activeSlide.createdAt || Date.now()
+        ).getTime()
+      : 0;
 
-    const currentVisible = showA ? artA : artB;
-    if (next === currentVisible) return;
+  const liveDisplayDurationSec =
+    activeSlide && activeSlide.kind === "message"
+      ? safeSeconds(activeSlide.displayDurationSec, getSlideDuration(activeSlide))
+      : 0;
 
-    if (showA) {
-      setArtB(next);
-      requestAnimationFrame(() => setShowA(false));
-    } else {
-      setArtA(next);
-      requestAnimationFrame(() => setShowA(true));
-    }
-  }, [nowPlaying?.artworkUrl, artA, artB, showA]);
+  const usingLifetimeTimer =
+    !!activeSlide &&
+    activeSlide.kind === "message" &&
+    !activeSlide.isFallback &&
+    liveDisplayDurationSec > 0;
 
-const queuePanel = isPortraitLayout ? (
-  <PortraitQueuePanel
-    nowPlaying={nowPlaying}
-    queueList={queueList}
-    topIsBoosted={topIsBoosted}
-    showA={showA}
-    artA={artA}
-    artB={artB}
-    qrSrc={qrSrc}
-    defaultAlbumArtUrl={defaultAlbumArtUrl}
-  />
-) : (
-  <LandscapeQueuePanel
-    nowPlaying={nowPlaying}
-    queueList={queueList}
-    topIsBoosted={topIsBoosted}
-    showA={showA}
-    artA={artA}
-    artB={artB}
-    qrSrc={qrSrc}
-    requestUrl={requestUrl}
-    defaultAlbumArtUrl={defaultAlbumArtUrl}
-  />
-);
+  const remainingSec = activeSlide
+    ? usingLifetimeTimer
+      ? Math.max(
+          0,
+          Math.ceil(
+            (liveDisplayDurationSec * 1000 -
+              Math.max(0, nowMs - liveDisplayStartMs)) /
+              1000
+          )
+        )
+      : Math.max(
+          0,
+          Math.ceil(
+            (getSlideDuration(activeSlide) * 1000 - (nowMs - slideStartedAt)) /
+              1000
+          )
+        )
+    : 0;
+
+  const progressPct = activeSlide
+    ? usingLifetimeTimer
+      ? Math.max(
+          0,
+          Math.min(
+            100,
+            100 -
+              (Math.max(0, nowMs - liveDisplayStartMs) /
+                (liveDisplayDurationSec * 1000)) *
+                100
+          )
+        )
+      : Math.max(
+          0,
+          Math.min(
+            100,
+            100 -
+              ((nowMs - slideStartedAt) / (getSlideDuration(activeSlide) * 1000)) *
+                100
+          )
+        )
+    : 100;
+
+  const timerLabel = `${Math.floor(remainingSec / 60)}:${String(
+    remainingSec % 60
+  ).padStart(2, "0")}`;
 
   return (
-    <div className={`neonRoot remixTvRoot ${boostFlash ? "remixTvFlash" : ""}`}>
-      <div className="remixTvOrb remixTvOrbA" />
-      <div className="remixTvOrb remixTvOrbB" />
-      <div className="remixTvOrb remixTvOrbC" />
-
-      <div className={`remixTvWrap ${isPortraitLayout ? "remixTvWrap--portrait" : ""}`}>
-        <section className="neonPanel remixTvShoutoutPanel">
-          <div className="remixTvSectionHeader">
-            <div className="remixTvSectionTitle">{featuredTitle}</div>
-          </div>
-
-          <div
-            key={featuredMessage.id}
-            className={`remixTvBubble remixTvBubble--${featuredMessage.accent || "cyan"}`}
-          >
-            <div className="remixTvBubbleTimerRow">
-              <div className="remixTvBubbleTimerText">{timerLabel}</div>
-              <div className="remixTvBubbleTimerTrack">
-                <div
-                  className="remixTvBubbleTimerFill"
-                  style={{ width: `${progressPct}%` }}
-                >
-                  <span className="remixTvBubbleTimerShimmer" />
-                </div>
-              </div>
-            </div>
-
-            <div className="remixTvBubbleInner">
-              <FeatureBubble
-                imageUrl={featuredMessage.imageUrl}
-                body={featuredBody}
-                fromName={featuredMessage.fromName}
-              />
-            </div>
-
-          </div>
-        </section>
-
-        <section className="remixTvQueueCol">{queuePanel}</section>
-      </div>
+    <div
+      className={[
+        barlowCondensed.variable,
+        dmSerifDisplay.variable,
+        satisfy.variable,
+        "remixShoutTvRoot",
+      ].join(" ")}
+    >
+      {activeSlide ? (
+        <div
+          key={`${activeSlide.id}-${slideStartedAt}`}
+          className="remixShoutTvFade"
+        >
+          {activeSlide.kind === "teaser" ? (
+            <TeaserSlide />
+          ) : (
+            <MessageSlide
+              slide={activeSlide}
+              timerLabel={timerLabel}
+              progressPct={progressPct}
+            />
+          )}
+        </div>
+      ) : null}
 
       <style jsx global>{`
-        .remixTvRoot {
+        :root {
+          --remix-cream: #f4eddf;
+          --remix-shadow: rgba(0, 0, 0, 0.34);
+          --remix-orange: #e4772f;
+          --remix-aqua: #7fd0d8;
+          --remix-gold: #c0ba3d;
+          --remix-deep-teal: #007d73;
+        }
+
+        html,
+        body {
+          background: #26231f;
+        }
+
+        .remixShoutTvRoot {
           position: relative;
+          min-height: 100vh;
+          width: 100%;
           overflow: hidden;
           background:
-            radial-gradient(circle at 18% 16%, rgba(0, 247, 255, 0.07), transparent 28%),
-            radial-gradient(circle at 84% 12%, rgba(255, 57, 212, 0.08), transparent 26%),
-            radial-gradient(circle at 66% 78%, rgba(0, 247, 255, 0.06), transparent 28%),
-            #050814;
+            radial-gradient(circle at 18% 28%, rgba(0, 210, 255, 0.09), transparent 28%),
+            radial-gradient(circle at 82% 22%, rgba(255, 66, 180, 0.08), transparent 26%),
+            radial-gradient(circle at 56% 82%, rgba(0, 255, 170, 0.06), transparent 30%),
+            linear-gradient(135deg, #2d3138 0%, #23272e 42%, #1d2127 100%);
+          color: var(--remix-cream);
         }
 
-        .remixTvOrb {
+        .remixShoutTvRoot::before {
+          content: "";
           position: absolute;
-          border-radius: 999px;
-          filter: blur(76px);
-          opacity: 0.22;
+          inset: -12%;
           pointer-events: none;
+          background:
+            radial-gradient(circle at 20% 35%, rgba(0, 220, 255, 0.1), transparent 22%),
+            radial-gradient(circle at 78% 26%, rgba(255, 78, 173, 0.09), transparent 20%),
+            radial-gradient(circle at 62% 72%, rgba(0, 255, 170, 0.07), transparent 24%);
+          filter: blur(44px);
+          opacity: 0.85;
+          animation: remixClubGlow 20s ease-in-out infinite alternate;
+          z-index: 0;
+        }
+
+        .remixShoutTvRoot::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: linear-gradient(
+            115deg,
+            rgba(255, 255, 255, 0.025),
+            transparent 32%,
+            rgba(255, 255, 255, 0.012) 52%,
+            transparent 72%
+          );
           mix-blend-mode: screen;
-          animation: remixTvOrbFloat 18s ease-in-out infinite;
+          opacity: 0.45;
+          animation: remixLightSweep 26s ease-in-out infinite;
+          z-index: 0;
         }
 
-        .remixTvOrbA {
-          width: 42vw;
-          height: 42vw;
-          left: -10vw;
-          top: -10vw;
-          background: radial-gradient(circle, rgba(0, 247, 255, 0.45), transparent 70%);
+        @keyframes remixClubGlow {
+          0% {
+            transform: translate3d(-1.5%, -1%, 0) scale(1);
+          }
+          50% {
+            transform: translate3d(1.5%, 1%, 0) scale(1.05);
+          }
+          100% {
+            transform: translate3d(0%, -1%, 0) scale(1.02);
+          }
         }
 
-        .remixTvOrbB {
-          width: 36vw;
-          height: 36vw;
-          right: -8vw;
-          top: 6vh;
-          background: radial-gradient(circle, rgba(255, 57, 212, 0.4), transparent 70%);
-          animation-delay: -5s;
+        @keyframes remixLightSweep {
+          0% {
+            transform: translateX(-6%);
+            opacity: 0.22;
+          }
+          50% {
+            transform: translateX(4%);
+            opacity: 0.42;
+          }
+          100% {
+            transform: translateX(-2%);
+            opacity: 0.26;
+          }
         }
 
-        .remixTvOrbC {
-          width: 36vw;
-          height: 36vw;
-          left: 34vw;
-          bottom: -18vw;
-          background: radial-gradient(circle, rgba(69, 126, 255, 0.3), transparent 72%);
-          animation-delay: -10s;
-        }
-
-        @keyframes remixTvOrbFloat {
-          0% { transform: translate3d(0, 0, 0) scale(1); }
-          50% { transform: translate3d(1.8vw, -1.2vw, 0) scale(1.07); }
-          100% { transform: translate3d(0, 0, 0) scale(1); }
-        }
-
-        @keyframes remixTvBubbleFloat {
-          0% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-2px) scale(1.002); }
-          100% { transform: translateY(0px) scale(1); }
-        }
-
-        @keyframes remixTvBubbleIn {
-          0% { opacity: 0; transform: translateY(18px) scale(0.97); }
-          100% { opacity: 1; transform: translateY(0px) scale(1); }
-        }
-
-        @keyframes remixTvPulse {
-          0% { transform: scale(1); opacity: 0.78; }
-          50% { transform: scale(1.08); opacity: 0.35; }
-          100% { transform: scale(1); opacity: 0.78; }
-        }
-
-        @keyframes remixTvFlashAnim {
-          0% { opacity: 0; }
-          18% { opacity: 1; }
-          100% { opacity: 0; }
-        }
-
-        @keyframes remixTvMeterShimmer {
-          0% { transform: translateX(-140px); opacity: 0; }
-          15% { opacity: 0.9; }
-          100% { transform: translateX(340px); opacity: 0; }
-        }
-
-        .remixTvWrap {
+        .remixShoutTvFade {
           position: relative;
-          z-index: 2;
+          z-index: 1;
+          min-height: 100vh;
+          width: 100%;
+          animation: remixSlideFade 1100ms cubic-bezier(0.22, 0.8, 0.22, 1)
+            both;
+        }
+
+        @keyframes remixSlideFade {
+          0% {
+            opacity: 0;
+            transform: scale(1.003);
+            filter: blur(2px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1);
+            filter: blur(0);
+          }
+        }
+
+        @keyframes remixPhotoFloat {
+          0% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.08);
+          }
+          100% {
+            transform: scale(1);
+          }
+        }
+
+.remixPortraitInlineFrom {
+  font: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  letter-spacing: inherit;
+  white-space: nowrap;
+}
+
+
+        .remixLandscapeShell,
+        .remixTeaser {
+          min-height: 100vh;
           display: grid;
-          grid-template-columns: minmax(0, 1.38fr) minmax(420px, 0.94fr);
-          gap: 16px;
-          height: 100vh;
-          padding: 14px;
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          padding: 0 28px;
+          box-sizing: border-box;
+          gap: 8px;
+        }
+
+        .remixPortraitShell {
+          min-height: 100vh;
+          display: grid;
+          grid-template-columns: minmax(470px, 46%) minmax(0, 1fr);
+          padding: 0;
+          box-sizing: border-box;
+          gap: 0;
+        }
+
+        .remixPortraitMediaCol {
+          min-height: 100vh;
+          display: flex;
+          align-items: stretch;
+          justify-content: stretch;
+        }
+
+        .remixPortraitContentCol {
+          min-width: 0;
+          min-height: 100vh;
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          padding: 0 28px 0 32px;
+          gap: 8px;
           box-sizing: border-box;
         }
 
-        .remixTvWrap--portrait {
-          grid-template-columns: 1fr;
-          grid-template-rows: minmax(0, 1.14fr) minmax(0, 0.86fr);
-        }
-
-        .remixTvShoutoutPanel,
-        .remixTvQueuePanel {
-          position: relative;
-          min-height: 0;
-          overflow: hidden;
-        }
-
-        .remixTvShoutoutPanel {
-          padding: 14px 14px 18px;
-          display: grid;
-          grid-template-rows: auto 1fr;
-          gap: 12px;
-          overflow: visible;
-        }
-
-        .remixTvQueueCol {
+        .remixLandscapeContent {
           min-height: 0;
           display: grid;
-        }
-
-        .remixTvQueuePanel {
-          padding: 12px;
-          display: grid;
-          gap: 12px;
-        }
-
-        .remixTvQueuePanel--landscape {
-          grid-template-rows: auto auto auto 1fr auto;
-        }
-
-        .remixTvQueuePanel--portrait {
-          grid-template-rows: auto auto 1fr auto;
-          padding: 12px 12px 14px;
-        }
-
-        .remixTvSectionHeader {
-          display: flex;
-          align-items: center;
-          justify-content: flex-start;
-          padding: 2px 2px 0;
-          position: relative;
-          z-index: 2;
-        }
-
-        .remixTvQueueHeader {
-          padding-bottom: 2px;
-        }
-
-        .remixTvSectionTitle {
-          font-size: clamp(24px, 2vw, 40px);
-          font-weight: 1000;
-          font-style: italic;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          text-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .remixTvBubble {
-          position: relative;
-          min-height: 0;
-          border-radius: 34px 34px 34px 20px;
-          padding: 14px 26px 30px 28px;
-          background:
-            linear-gradient(180deg, rgba(8, 15, 35, 0.96) 0%, rgba(3, 9, 27, 0.98) 100%),
-            radial-gradient(circle at 12% 10%, rgba(0, 247, 255, 0.06), transparent 34%),
-            radial-gradient(circle at 88% 0%, rgba(255, 57, 212, 0.05), transparent 30%);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.08),
-            inset 0 0 0 1px rgba(255, 255, 255, 0.02),
-            0 16px 34px rgba(0, 0, 0, 0.28);
-          animation:
-            remixTvBubbleIn 420ms cubic-bezier(0.2, 0.9, 0.2, 1),
-            remixTvBubbleFloat 7s ease-in-out 420ms infinite;
-          transform-origin: 86% 100%;
-          overflow: hidden;
-          color: rgba(248, 250, 255, 0.96);
-        }
-
-        .remixTvBubble::before {
-          content: "";
-          position: absolute;
-          left: 12px;
-          top: 14px;
-          bottom: 14px;
-          width: 3px;
-          border-radius: 999px;
-          opacity: 0.95;
-        }
-
-        .remixTvBubble--gold::before {
-          background: linear-gradient(180deg, rgba(255, 233, 145, 0.98), rgba(247, 216, 94, 0.84));
-          box-shadow: 0 0 18px rgba(247, 216, 94, 0.5);
-        }
-
-        .remixTvBubble--cyan::before {
-          background: linear-gradient(180deg, rgba(126, 232, 255, 0.98), rgba(64, 211, 255, 0.84));
-          box-shadow: 0 0 18px rgba(64, 211, 255, 0.5);
-        }
-
-        .remixTvBubble--pink::before {
-          background: linear-gradient(180deg, rgba(255, 194, 240, 0.98), rgba(255, 82, 202, 0.84));
-          box-shadow: 0 0 18px rgba(255, 82, 202, 0.45);
-        }
-
-        .remixTvBubbleTimerRow {
-          height: 50px;
-          display: grid;
-          grid-template-columns: 82px 1fr;
-          align-items: center;
-          gap: 14px;
-          margin-bottom: 12px;
-        }
-
-        .remixTvBubbleTimerText {
-          font-size: clamp(20px, 1.5vw, 28px);
-          line-height: 1;
-          font-weight: 1000;
-          font-style: italic;
-          letter-spacing: -0.2px;
-          text-align: left;
-          white-space: nowrap;
-        }
-
-        .remixTvBubbleTimerTrack {
-          position: relative;
-          height: 18px;
-          border-radius: 999px;
-          overflow: hidden;
-          background:
-            linear-gradient(180deg, rgba(255,255,255,0.26), rgba(255,255,255,0.12));
-          box-shadow:
-            inset 0 1px 2px rgba(0,0,0,0.2),
-            inset 0 0 0 1px rgba(255,255,255,0.12);
-        }
-
-        .remixTvBubbleTimerFill {
-          position: absolute;
-          inset: 0 auto 0 0;
-          height: 100%;
-          border-radius: 999px;
-          transition: width 1s linear;
-          overflow: hidden;
-          box-shadow:
-            0 0 10px rgba(255,255,255,0.28),
-            0 0 26px rgba(255,255,255,0.18);
-        }
-
-        .remixTvBubbleTimerShimmer {
-          position: absolute;
-          inset: 0 auto 0 0;
-          width: 140px;
-          background: linear-gradient(
-            90deg,
-            rgba(255,255,255,0) 0%,
-            rgba(255,255,255,0.16) 30%,
-            rgba(255,255,255,0.72) 52%,
-            rgba(255,255,255,0.14) 72%,
-            rgba(255,255,255,0) 100%
-          );
-          filter: blur(2px);
-          animation: remixTvMeterShimmer 2.8s linear infinite;
-          pointer-events: none;
-          mix-blend-mode: screen;
-        }
-
-        .remixTvBubble--gold .remixTvBubbleTimerFill {
-          background:
-            linear-gradient(90deg, #fff6b3 0%, #f7d85e 50%, #ffe891 100%);
-        }
-
-        .remixTvBubble--cyan .remixTvBubbleTimerFill {
-          background:
-            linear-gradient(90deg, #ffffff 0%, #8cecff 24%, #40d3ff 60%, #7ee8ff 100%);
-        }
-
-        .remixTvBubble--pink .remixTvBubbleTimerFill {
-          background:
-            linear-gradient(90deg, #fff2fb 0%, #ff9ae6 26%, #ff52ca 62%, #ffc2f0 100%);
-        }
-
-        .remixTvBubbleInner {
-          width: 100%;
-          height: 100%;
-          min-height: 0;
-        }
-
-        .remixTvBubbleLayout {
-          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
           gap: 18px;
-          align-items: stretch;
-          width: 100%;
-          height: 100%;
+          align-content: start;
+          padding-top: 4px;
+        }
+
+        .remixTextOnlyContent {
           min-height: 0;
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          gap: 18px;
+          align-content: start;
+          padding-top: 4px;
         }
 
-        .remixTvBubbleLayout--textOnly {
-          grid-template-columns: 1fr;
-        }
-
-        .remixTvBubbleLayout--side {
-          grid-template-columns: minmax(390px, 49%) minmax(0, 1fr);
-        }
-
-        .remixTvBubbleLayout--stacked {
-          grid-template-columns: 1fr;
-          grid-template-rows: minmax(260px, 0.78fr) auto;
-        }
-
-        .remixTvBubbleMedia {
-          min-width: 0;
-          min-height: 0;
+        .remixSlideTop {
           display: flex;
-          align-items: stretch;
           justify-content: center;
+          align-items: flex-start;
         }
 
-        .remixTvBubbleText {
-          min-width: 0;
-          min-height: 0;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          padding: 0 8px 32px 2px;
+        .remixSlideTop--portrait {
+          justify-content: flex-end;
+          padding-right: 84px;
         }
 
-        .remixTvBubbleText--imageShort {
-          justify-content: center;
-          gap: 22px;
-        }
-
-        .remixTvBubbleBody {
-          font-size: clamp(34px, 4.5vw, 74px);
-          line-height: 1.02;
-          font-weight: 1000;
-          font-style: italic;
-          letter-spacing: -1.15px;
-          word-break: break-word;
-          text-wrap: balance;
-          overflow-wrap: anywhere;
-          text-shadow: 0 1px 0 rgba(0,0,0,0.24);
-        }
-
-        .remixTvBubbleLayout--textOnly .remixTvBubbleBody {
-          font-size: clamp(36px, 4.8vw, 78px);
-        }
-
-        .remixTvBubbleLayout--side .remixTvBubbleBody,
-        .remixTvBubbleLayout--stacked .remixTvBubbleBody {
-          font-size: clamp(24px, 3.2vw, 50px);
-          line-height: 1.03;
-        }
-
-.remixTvBubbleFrom {
-  margin-top: 18px;
-  padding-bottom: 20px; /* ⬅️ increase this */
-  color: rgba(255,255,255,0.82); /* slightly softer */
-  font-size: clamp(20px, 2vw, 38px);
-  line-height: 1.04;
-  font-weight: 1000;
-  font-style: italic;
-
-  white-space: normal;
-  overflow: visible;
-  text-overflow: unset;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  max-width: 100%;
-
-  transform: translateY(-6px); /* ⬅️ nudges it up visually */
+.remixSlideTop--portrait {
+  justify-content: center;
+  padding-right: 0;
 }
 
-        .remixTvBubbleLayout--side .remixTvBubbleFrom,
-        .remixTvBubbleLayout--stacked .remixTvBubbleFrom {
-          font-size: clamp(16px, 1.5vw, 30px);
-        }
-
-        .remixTvFeatureMediaShell {
-          width: 100%;
-          height: 100%;
-          min-height: 0;
+        .remixBannerWrap {
           display: flex;
-          overflow: hidden;
-          background:
-            linear-gradient(180deg, rgba(10, 26, 42, 0.88), rgba(13, 29, 46, 0.8)),
-            radial-gradient(circle at 50% 18%, rgba(0,247,255,0.08), transparent 52%),
-            radial-gradient(circle at 78% 82%, rgba(255,57,212,0.08), transparent 48%);
-          border-radius: 26px;
-          border: 1px solid rgba(255,255,255,0.14);
-          box-shadow:
-            inset 0 0 0 1px rgba(255,255,255,0.03),
-            0 10px 24px rgba(0,0,0,0.14);
-        }
-
-        .remixTvFeatureMediaShell--portrait {
-          align-items: flex-start;
           justify-content: center;
-          min-height: 600px;
-        }
-
-        .remixTvFeatureMediaShell--landscape,
-        .remixTvFeatureMediaShell--square {
-          align-items: center;
-          justify-content: center;
-          min-height: 220px;
-        }
-
-        .remixTvFeatureMediaImg {
-          display: block;
-        }
-
-        .remixTvFeatureMediaImg--portrait {
-          width: auto;
-          height: auto;
-          max-width: 100%;
-          min-height: 600px;
-          object-fit: contain;
-          object-position: top center;
-        }
-
-        .remixTvFeatureMediaImg--landscape,
-        .remixTvFeatureMediaImg--square {
           width: 100%;
-          height: auto;
-          min-height: 220px;
-          max-height: 100%;
-          object-fit: contain;
-          object-position: center center;
         }
 
-        .remixTvTopCard {
-          display: grid;
-          align-items: center;
-          border-radius: 24px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: linear-gradient(
-            90deg,
-            rgba(8, 16, 40, 0.92),
-            rgba(12, 26, 56, 0.76),
-            rgba(31, 15, 50, 0.66)
-          );
+.remixBannerWrap--portrait {
+  justify-content: center;
+}
+
+        .remixBanner {
           position: relative;
+          width: min(100%, 760px);
+          min-width: 0;
+          padding: 10px 34px 16px;
+          background: linear-gradient(180deg, #18b1a4 0%, #11988d 100%);
+          border-bottom: 6px solid rgba(0, 0, 0, 0.34);
+          clip-path: polygon(0 0, 100% 0, 100% 84%, 50% 100%, 0 84%);
+          box-shadow: 0 10px 18px rgba(0, 0, 0, 0.16);
+          text-align: center;
           overflow: hidden;
         }
 
-        .remixTvTopCardBoosted {
-          box-shadow: var(--glowB);
+        .remixBanner--portrait {
+          width: min(100%, 400px);
+          padding: 10px 22px 14px;
         }
 
-        .remixTvTopCard--landscape {
-          grid-template-columns: 118px 1fr;
-          gap: 16px;
-          min-height: 126px;
-          padding: 12px;
+        .remixBanner--arched {
+          transform: perspective(1200px) rotateX(2deg);
+          transform-origin: center top;
         }
 
-        .remixTvTopCard--portrait {
-          grid-template-columns: 88px 1fr;
-          gap: 12px;
-          min-height: 96px;
-          padding: 10px 12px;
-        }
-
-        .remixTvTopArtWrap {
-          display: flex;
-          align-items: center;
-        }
-
-        .remixTvTopArtFrame {
-          border-radius: 26px;
-          overflow: hidden;
-          position: relative;
-          border: 1px solid rgba(255,255,255,0.18);
-          background: rgba(255,255,255,0.05);
-          box-shadow: var(--glowA), var(--shadow);
-        }
-
-        .remixTvTopCard--landscape .remixTvTopArtFrame {
-          width: 118px;
-          height: 118px;
-        }
-
-        .remixTvTopCard--portrait .remixTvTopArtFrame {
-          width: 88px;
-          height: 88px;
-          border-radius: 22px;
-        }
-
-        .remixTvTopArtLayer {
+        .remixBannerDots {
           position: absolute;
           inset: 0;
-          transition: opacity 420ms ease;
-        }
-
-        .remixTvTopArtGlow {
-          position: absolute;
-          inset: -40%;
-          background:
-            radial-gradient(circle at 30% 25%, rgba(0,247,255,0.24), transparent 55%),
-            radial-gradient(circle at 75% 80%, rgba(255,57,212,0.2), transparent 62%);
-          animation: remixTvPulse 4.5s ease-in-out infinite;
-          filter: blur(20px);
-          opacity: 0.85;
-          z-index: 2;
+          background: radial-gradient(
+            circle,
+            rgba(255, 255, 255, 0.34) 1.5px,
+            transparent 1.5px
+          );
+          background-size: 20px 20px;
+          opacity: 0.55;
+          transform: none;
           pointer-events: none;
-          mix-blend-mode: screen;
         }
 
-        .remixTvTopRibbon {
-          position: absolute;
-          top: 8px;
-          left: -34px;
-          transform: rotate(-17deg);
-          padding: 5px 36px;
-          border-radius: 999px;
-          background: linear-gradient(90deg, rgba(255,57,212,0.9), rgba(0,247,255,0.72));
-          color: #07070c;
-          font-size: 11px;
-          font-weight: 1000;
-          letter-spacing: 1.4px;
+        .remixBannerText {
+          position: relative;
+          z-index: 2;
+          font-family: var(--font-barlow-condensed), sans-serif;
+          font-size: clamp(42px, 3.2vw, 68px);
+          line-height: 0.94;
+          letter-spacing: 1px;
           text-transform: uppercase;
-          box-shadow: var(--glowB);
-          z-index: 5;
+          color: #f8f4ea;
+          text-shadow: 5px 5px 0 rgba(0, 0, 0, 0.22), 0 2px 0 rgba(0, 0, 0, 0.16);
         }
 
-        .remixTvTopMeta {
-          min-width: 0;
+        .remixBanner--portrait .remixBannerText {
+          font-size: clamp(30px, 2.1vw, 44px);
+        }
+
+        .remixMessageText,
+        .remixInlineMessage {
+          font-family: var(--font-dm-serif-display), serif;
+          font-weight: 400;
+          font-style: normal;
+          color: var(--remix-cream);
+          text-shadow: 6px 6px 0 var(--remix-shadow);
+          letter-spacing: -0.02em;
+          overflow-wrap: anywhere;
+        }
+
+        .remixPortraitMessageWrap {
+          min-height: 0;
           display: flex;
           flex-direction: column;
           justify-content: center;
+          padding: 0 12px 14px 8px;
         }
 
-        .remixTvTopLabel {
-          font-weight: 1000;
-          letter-spacing: 1.4px;
-          opacity: 0.72;
-          text-transform: uppercase;
+        .remixPortraitMessageText {
+          font-size: clamp(52px, 4.9vw, 102px);
+          line-height: 1.06;
         }
 
-        .remixTvTopCard--landscape .remixTvTopLabel {
-          font-size: 13px;
-          margin-bottom: 5px;
-        }
-
-        .remixTvTopCard--portrait .remixTvTopLabel {
-          font-size: 11px;
-          margin-bottom: 4px;
-        }
-
-        .remixTvTopSong {
-          line-height: 1;
-          font-weight: 1000;
-          letter-spacing: -0.45px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          text-shadow: 0 0 12px rgba(255,255,255,0.12);
-        }
-
-        .remixTvTopCard--landscape .remixTvTopSong {
-          font-size: clamp(24px, 1.75vw, 34px);
-        }
-
-        .remixTvTopCard--portrait .remixTvTopSong {
-          font-size: clamp(20px, 2.45vw, 28px);
-        }
-
-        .remixTvTopArtist {
-          color: var(--muted);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .remixTvTopCard--landscape .remixTvTopArtist {
-          margin-top: 6px;
-          font-size: clamp(16px, 1vw, 20px);
-        }
-
-        .remixTvTopCard--portrait .remixTvTopArtist {
-          margin-top: 5px;
-          font-size: clamp(13px, 1.6vw, 18px);
-        }
-
-        .remixTvTopMetaRow {
+        .remixLandscapeTextWrap {
+          min-height: 0;
           display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-top: 8px;
-          flex-wrap: wrap;
+          align-items: flex-start;
+          justify-content: center;
+          padding: 6px 20px 2px;
         }
 
-        .remixTvTopBadge {
-          display: inline-flex;
+        .remixInlineMessage {
+          font-size: clamp(50px, 4.8vw, 104px);
+          line-height: 1.06;
+          text-align: center;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          max-width: 100%;
+        }
+
+        .remixInlineMessage--textOnly {
+          font-size: clamp(46px, 4.4vw, 94px);
+        }
+
+        .remixLandscapeVisualPanel,
+        .remixTextOnlyVisualWrap {
+          min-width: 0;
+          min-height: 0;
+          display: flex;
           align-items: center;
           justify-content: center;
-          min-height: 28px;
-          padding: 0 12px;
-          border-radius: 999px;
-          font-size: 12px;
-          font-weight: 1000;
-          letter-spacing: 1px;
-          text-transform: uppercase;
-          border: 1px solid rgba(255,255,255,0.12);
-          background: rgba(255,255,255,0.06);
-          box-shadow: var(--glowA);
         }
 
-        .remixTvTopBadge--boosted {
-          background: linear-gradient(90deg, rgba(255,57,212,0.24), rgba(0,247,255,0.16));
-          box-shadow: var(--glowB);
-        }
-
-        .remixTvTagRow {
-          margin-top: 10px;
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          align-items: center;
-        }
-
-        .remixTvUrl {
-          margin-top: 8px;
-          font-size: 12px;
-          color: var(--muted);
-          white-space: nowrap;
+        .remixPortraitMediaFrame {
+          width: 100%;
+          height: 100%;
+          min-height: 100vh;
+          background: #c9bcab;
           overflow: hidden;
-          text-overflow: ellipsis;
+          position: relative;
+          box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
         }
 
-        .remixTvTop10Header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          font-size: 16px;
-          font-weight: 1000;
-          letter-spacing: 1.6px;
-          text-transform: uppercase;
-          color: rgba(255,255,255,0.8);
-          padding: 2px 4px 0;
-        }
-
-        .remixTvTop10HeaderSub {
-          font-size: 11px;
-          letter-spacing: 1px;
-          opacity: 0.65;
-        }
-
-        .remixTvTop10List {
-          display: grid;
-          gap: 10px;
-          align-content: start;
-          min-height: 0;
+        .remixLandscapeMediaFrame,
+        .remixTextOnlyMediaFrame {
+          width: min(100%, 900px);
+          aspect-ratio: 16 / 9;
+          background: #c9bcab;
           overflow: hidden;
+          position: relative;
+          box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
         }
 
-        .remixTvTop10Row {
-          display: grid;
-          grid-template-columns: 38px 1fr auto;
-          gap: 12px;
-          align-items: center;
-          padding: 12px 14px;
-          border-radius: 20px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: linear-gradient(
-            90deg,
-            rgba(28, 16, 48, 0.76),
-            rgba(16, 18, 45, 0.72),
-            rgba(40, 13, 54, 0.62)
-          );
-          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+        .remixLinen {
+          background:
+            radial-gradient(circle at 20% 18%, rgba(255, 255, 255, 0.16), transparent 26%),
+            repeating-linear-gradient(
+              0deg,
+              rgba(255, 255, 255, 0.06),
+              rgba(255, 255, 255, 0.06) 1px,
+              rgba(0, 0, 0, 0.015) 1px,
+              rgba(0, 0, 0, 0.015) 2px
+            ),
+            repeating-linear-gradient(
+              90deg,
+              rgba(255, 255, 255, 0.055),
+              rgba(255, 255, 255, 0.055) 1px,
+              rgba(0, 0, 0, 0.018) 1px,
+              rgba(0, 0, 0, 0.018) 2px
+            ),
+            linear-gradient(180deg, #d8c9b6 0%, #d4c2ae 100%);
         }
 
-        .remixTvTop10Row--portrait {
-          grid-template-columns: 30px 1fr auto;
-          gap: 10px;
-          padding: 10px 12px;
-          border-radius: 18px;
+        .remixPhotoCorner--tl,
+        .remixPhotoCorner--br {
+          position: absolute;
+          z-index: 4;
+          width: 160px;
+          height: 92px;
+          pointer-events: none;
         }
 
-        .remixTvTop10Pos {
-          font-size: 28px;
-          font-weight: 1000;
-          line-height: 1;
-          text-align: center;
-          color: #fff;
-          text-shadow: 0 0 14px rgba(255,255,255,0.18);
+        .remixPhotoCorner--tl {
+          top: 0;
+          left: 0;
         }
 
-        .remixTvTop10Row--portrait .remixTvTop10Pos {
-          font-size: 22px;
+        .remixPhotoCorner--tl::before,
+        .remixPhotoCorner--tl::after,
+        .remixPhotoCorner--br::before,
+        .remixPhotoCorner--br::after {
+          content: "";
+          position: absolute;
+          display: block;
         }
 
-        .remixTvTop10Text {
-          min-width: 0;
+        .remixPhotoCorner--tl::before {
+          top: 0;
+          left: 0;
+          width: 112px;
+          height: 18px;
+          background: #007d73;
+          transform: skewX(-38deg);
+          transform-origin: left top;
         }
 
-        .remixTvTop10Song {
-          font-size: clamp(16px, 0.95vw, 20px);
-          font-weight: 1000;
-          line-height: 1.12;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+        .remixPhotoCorner--tl::after {
+          top: 0;
+          left: 0;
+          width: 132px;
+          height: 32px;
+          background: #e4772f;
+          clip-path: polygon(0 0, 100% 0, 84% 100%, 0 100%);
         }
 
-        .remixTvTop10Row--portrait .remixTvTop10Song {
-          font-size: clamp(14px, 1.65vw, 18px);
+        .remixPhotoCorner--br {
+          right: 0;
+          bottom: 0;
         }
 
-        .remixTvTop10Artist {
-          margin-top: 4px;
-          font-size: clamp(12px, 0.8vw, 15px);
-          color: var(--muted);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+        .remixPhotoCorner--br::before {
+          right: 0;
+          bottom: 0;
+          width: 112px;
+          height: 18px;
+          background: #7fd0d8;
+          transform: skewX(-38deg);
+          transform-origin: right bottom;
         }
 
-        .remixTvTop10Row--portrait .remixTvTop10Artist {
-          font-size: clamp(11px, 1.28vw, 14px);
-          margin-top: 3px;
+        .remixPhotoCorner--br::after {
+          right: 0;
+          bottom: 0;
+          width: 132px;
+          height: 32px;
+          background: #e4772f;
+          clip-path: polygon(16% 0, 100% 0, 100% 100%, 0 100%);
         }
 
-        .remixTvTop10Score {
-          min-width: 38px;
-          height: 38px;
-          padding: 0 12px;
-          border-radius: 999px;
+        .remixPortraitMediaFrame,
+        .remixLandscapeMediaFrame,
+        .remixTextOnlyMediaFrame {
+          position: relative;
+          isolation: isolate;
+        }
+
+        .remixPhotoInner {
+          position: absolute;
+          inset: 0;
           display: grid;
           place-items: center;
-          font-size: 14px;
-          font-weight: 1000;
-          background: rgba(0,247,255,0.09);
-          border: 1px solid rgba(0,247,255,0.24);
-          box-shadow: var(--glowA);
+          padding: 30px;
         }
 
-        .remixTvTop10Row--portrait .remixTvTop10Score {
-          min-width: 30px;
-          height: 30px;
-          padding: 0 10px;
-          font-size: 12px;
+        .remixPhotoInner--portrait {
+          padding: 0;
         }
 
-        .remixTvEmptyState {
-          padding: 16px 10px;
-          font-size: 18px;
-          color: var(--muted);
+        .remixZoomMedia {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          object-position: center center;
+          transform-origin: center center;
+          animation: remixPhotoFloat 30s ease-in-out infinite;
+          will-change: transform;
         }
 
-        .remixTvEmptyState--portrait {
-          padding: 14px 8px;
-          font-size: 15px;
-          line-height: 1.35;
-        }
-
-        .remixTvBottomCta {
-          border-top: 1px solid rgba(255,255,255,0.12);
-          margin-top: 2px;
-          display: grid;
-          align-items: center;
-        }
-
-        .remixTvBottomCta--landscape {
-          padding-top: 12px;
-          grid-template-columns: 1fr 122px;
-          gap: 16px;
-        }
-
-        .remixTvBottomCta--portrait {
-          padding-top: 10px;
-          grid-template-columns: 1fr 98px;
-          gap: 12px;
-        }
-
-        .remixTvBottomText {
-          line-height: 1.08;
-          font-weight: 1000;
-          font-style: italic;
-          text-transform: uppercase;
-          letter-spacing: 0.35px;
-        }
-
-        .remixTvBottomText--landscape {
-          font-size: clamp(16px, 1vw, 20px);
-          text-align: center;
-        }
-
-        .remixTvBottomText--portrait {
-          font-size: clamp(14px, 1.5vw, 18px);
-          text-align: left;
-        }
-
-        .remixTvBottomTextLineStrong {
-          display: block;
-          color: #fff;
-        }
-
-        .remixTvBottomTextLineMuted {
-          display: block;
-          color: rgba(255,255,255,0.7);
-          margin-top: 4px;
-        }
-
-        .remixTvBottomQrWrap {
-          justify-self: end;
-          border-radius: 16px;
-          border: 1px solid rgba(255,255,255,0.14);
-          background: rgba(255,255,255,0.04);
-        }
-
-        .remixTvBottomQrWrap--landscape {
-          width: 112px;
-          height: 112px;
-          padding: 4px;
-        }
-
-        .remixTvBottomQrWrap--portrait {
-          width: 98px;
-          height: 98px;
-          padding: 4px;
-          border-radius: 14px;
-        }
-
-        .remixTvBottomQr {
+        .remixZoomMedia--portrait {
           width: 100%;
           height: 100%;
           object-fit: cover;
+          object-position: center center;
+        }
+
+        .remixPlaceholderArt {
+          width: 100%;
+          height: 100%;
+          display: grid;
+          place-items: center;
+          padding: 20px;
+          box-sizing: border-box;
+        }
+
+        .remixPlaceholderArtInner {
+          width: min(58%, 320px);
+          aspect-ratio: 1 / 1;
+          display: grid;
+          place-items: center;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.08);
+          box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+        }
+
+        .remixPlaceholderArtInner img {
+          max-width: 74%;
+          max-height: 74%;
+          object-fit: contain;
           display: block;
-          border-radius: 12px;
+          filter: saturate(0.9) contrast(1.04);
         }
 
-        .remixTvPortraitCluster {
-          display: grid;
-          gap: 10px;
+        .remixFooter {
+          height: 84px;
+          position: relative;
+        }
+
+        .remixFooter--teaser {
+          height: 84px;
+        }
+
+        .remixTeaserTop {
+          display: flex;
+          justify-content: center;
+          padding-top: 0;
+        }
+
+        .remixFooterBars {
+          position: absolute;
+          left: -28px;
+          right: -28px;
+          bottom: 0;
+          height: 84px;
+          background: linear-gradient(
+            180deg,
+            transparent 0 6px,
+            var(--remix-orange) 6px 26px,
+            var(--remix-aqua) 26px 46px,
+            var(--remix-gold) 46px 66px,
+            var(--remix-deep-teal) 66px 84px
+          );
+        }
+
+        .remixFooterInner {
+          position: relative;
+          z-index: 2;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 22px;
+          padding: 0 24px 18px;
+        }
+
+        .remixFooterTrack {
+          width: min(100%, 680px);
+          height: 30px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.88);
+          overflow: hidden;
+          box-shadow:
+            inset 0 1px 1px rgba(0, 0, 0, 0.08),
+            0 2px 0 rgba(0, 0, 0, 0.08);
+        }
+
+        .remixFooterFill {
+          height: 100%;
+          border-radius: 999px;
+          background: linear-gradient(90deg, #f7f5ee 0%, #ffffff 100%);
+          transition: width 250ms linear;
+        }
+
+        .remixFooterTime {
+          font-family: var(--font-barlow-condensed), sans-serif;
+          font-size: clamp(28px, 2vw, 52px);
+          line-height: 1;
+          color: #f7f4eb;
+          text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.22);
+          white-space: nowrap;
+        }
+
+        .remixTeaserCenter {
           min-height: 0;
-          grid-template-rows: auto auto 1fr auto;
-        }
-
-        .remixTvPortraitTop10Block {
-          min-height: 0;
           display: grid;
-          grid-template-rows: auto 1fr;
-          gap: 8px;
+          place-items: center;
+          text-align: center;
+          padding: 18px 40px 0;
         }
 
-        .remixTvFlash::before {
-          content: "";
-          position: fixed;
-          inset: 0;
-          background:
-            radial-gradient(circle at 50% 40%, rgba(255,57,212,0.18), transparent 55%),
-            radial-gradient(circle at 40% 60%, rgba(0,247,255,0.14), transparent 60%);
-          animation: remixTvFlashAnim 900ms ease-out 1;
-          pointer-events: none;
-          z-index: 9999;
-          mix-blend-mode: screen;
+        .remixTeaserInner {
+          max-width: 1500px;
+          width: 100%;
         }
 
-        @media (max-width: 1400px) and (orientation: landscape) {
-          .remixTvWrap {
-            grid-template-columns: minmax(0, 1.22fr) minmax(380px, 0.92fr);
+        .remixTeaserLead {
+          font-family: var(--font-barlow-condensed), sans-serif;
+          font-size: clamp(50px, 4.7vw, 108px);
+          line-height: 0.95;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          color: var(--remix-cream);
+          text-shadow: 7px 7px 0 rgba(0, 0, 0, 0.28);
+        }
+
+        .remixTeaserNow {
+          font-family: var(--font-barlow-condensed), sans-serif;
+          font-size: clamp(220px, 23vw, 520px);
+          line-height: 0.82;
+          letter-spacing: -0.05em;
+          text-transform: uppercase;
+          color: var(--remix-cream);
+          text-shadow: 14px 14px 0 rgba(0, 0, 0, 0.32);
+          margin: 14px 0 0;
+        }
+
+        .remixTeaserScript {
+          font-family: var(--font-satisfy), cursive;
+          font-size: clamp(54px, 4.5vw, 110px);
+          line-height: 1.04;
+          color: #76d4db;
+          text-shadow: 6px 6px 0 rgba(0, 0, 0, 0.24);
+          margin-top: 8px;
+        }
+
+        @media (max-width: 1600px) {
+          .remixPortraitShell {
+            grid-template-columns: minmax(380px, 44%) minmax(0, 1fr);
           }
 
-          .remixTvBubbleLayout--side {
-            grid-template-columns: minmax(310px, 46%) minmax(0, 1fr);
+          .remixPortraitContentCol {
+            padding: 0 22px 0 22px;
           }
 
-          .remixTvBubbleLayout--stacked {
-            grid-template-rows: minmax(210px, 0.7fr) auto;
+          .remixPortraitMessageText {
+            font-size: clamp(40px, 4.1vw, 84px);
           }
 
-          .remixTvBubbleLayout--side .remixTvBubbleBody,
-          .remixTvBubbleLayout--stacked .remixTvBubbleBody {
-            font-size: clamp(22px, 3vw, 42px);
+
+          .remixInlineMessage {
+            font-size: clamp(40px, 4vw, 82px);
           }
 
-          .remixTvBubbleLayout--side .remixTvBubbleFrom,
-          .remixTvBubbleLayout--stacked .remixTvBubbleFrom {
-            font-size: clamp(15px, 1.4vw, 24px);
+          .remixInlineMessage--textOnly {
+            font-size: clamp(38px, 3.7vw, 74px);
           }
 
-          .remixTvFeatureMediaShell--portrait {
-            min-height: 500px;
-          }
-
-          .remixTvFeatureMediaShell--landscape,
-          .remixTvFeatureMediaShell--square {
-            min-height: 200px;
-          }
-
-          .remixTvFeatureMediaImg--portrait {
-            min-height: 500px;
-          }
-
-          .remixTvFeatureMediaImg--landscape,
-          .remixTvFeatureMediaImg--square {
-            min-height: 200px;
+          .remixFooterTrack {
+            width: min(100%, 560px);
           }
         }
 
-        @media (orientation: portrait) {
-          .remixTvWrap {
+        @media (max-width: 1100px) {
+          .remixLandscapeShell,
+          .remixTeaser {
+            padding: 0 16px;
+            gap: 12px;
+          }
+
+          .remixPortraitShell {
             grid-template-columns: 1fr;
-            grid-template-rows: minmax(0, 1.14fr) minmax(0, 0.86fr);
-            height: 100vh;
+            grid-template-rows: minmax(320px, 46vh) minmax(0, 1fr);
           }
 
-          .remixTvShoutoutPanel {
-            padding: 12px 12px 14px;
-            gap: 10px;
+          .remixPortraitMediaCol {
+            min-height: 320px;
           }
 
-          .remixTvSectionTitle {
-            font-size: clamp(20px, 4.6vw, 32px);
+          .remixPortraitContentCol {
+            min-height: 0;
+            padding: 0 16px;
           }
 
-          .remixTvBubble {
-            border-radius: 28px 28px 28px 18px;
-            padding: 12px 16px 16px 14px;
+          .remixSlideTop--portrait {
+            justify-content: center;
+            padding-right: 0;
           }
 
-          .remixTvBubbleTimerRow {
-            height: 38px;
-            grid-template-columns: 62px 1fr;
-            gap: 10px;
-            margin-bottom: 10px;
+          .remixBannerWrap--portrait {
+            justify-content: center;
           }
 
-          .remixTvBubbleTimerTrack {
-            height: 14px;
+          .remixBanner {
+            width: min(100%, 620px);
+            margin: 0 auto;
           }
 
-          .remixTvBubbleLayout--side {
-            grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
-            gap: 12px;
+          .remixBanner--portrait {
+            width: min(100%, 360px);
           }
 
-          .remixTvBubbleLayout--stacked {
-            grid-template-rows: minmax(170px, 0.72fr) auto;
-            gap: 12px;
+          .remixLandscapeMediaFrame,
+          .remixTextOnlyMediaFrame {
+            width: 100%;
           }
 
-          .remixTvBubbleLayout--side .remixTvBubbleBody,
-          .remixTvBubbleLayout--stacked .remixTvBubbleBody {
-            font-size: clamp(20px, 4.6vw, 34px);
+          .remixLandscapeTextWrap,
+          .remixPortraitMessageWrap {
+            padding-left: 8px;
+            padding-right: 8px;
           }
 
-          .remixTvBubbleLayout--textOnly .remixTvBubbleBody {
-            font-size: clamp(28px, 6vw, 44px);
+          .remixPortraitMessageText,
+          .remixInlineMessage {
+            text-align: center;
+            font-size: clamp(34px, 6vw, 60px);
           }
 
-          .remixTvBubbleLayout--side .remixTvBubbleFrom,
-          .remixTvBubbleLayout--stacked .remixTvBubbleFrom {
-            font-size: clamp(14px, 2.6vw, 22px);
+          .remixFooterBars {
+            left: -16px;
+            right: -16px;
           }
 
-          .remixTvFeatureMediaShell {
-            border-radius: 18px;
+          .remixFooterInner {
+            padding: 0 10px 18px;
           }
 
-          .remixTvFeatureMediaShell--portrait {
-            min-height: 270px;
+          .remixFooterTrack {
+            width: min(100%, 420px);
+            height: 24px;
           }
 
-          .remixTvFeatureMediaShell--landscape,
-          .remixTvFeatureMediaShell--square {
-            min-height: 160px;
+          .remixTeaserLead {
+            font-size: clamp(36px, 7vw, 60px);
           }
 
-          .remixTvFeatureMediaImg--portrait {
-            min-height: 270px;
+          .remixTeaserNow {
+            font-size: clamp(130px, 24vw, 220px);
           }
 
-          .remixTvFeatureMediaImg--landscape,
-          .remixTvFeatureMediaImg--square {
-            min-height: 160px;
-          }
-
-          .remixTvQueuePanel--portrait {
-            padding: 10px;
-            gap: 10px;
+          .remixTeaserScript {
+            font-size: clamp(34px, 6vw, 56px);
           }
         }
       `}</style>
@@ -1481,239 +1198,268 @@ const queuePanel = isPortraitLayout ? (
   );
 }
 
-function LandscapeQueuePanel({
-  nowPlaying,
-  queueList,
-  topIsBoosted,
-  showA,
-  artA,
-  artB,
-  qrSrc,
-  requestUrl,
-  defaultAlbumArtUrl,
+function MessageSlide({
+  slide,
+  timerLabel,
+  progressPct,
 }: {
-  nowPlaying: QueueItem | null;
-  queueList: QueueItem[];
-  topIsBoosted: boolean;
-  showA: boolean;
-  artA: string | null;
-  artB: string | null;
-  qrSrc: string;
-  requestUrl: string;
-  defaultAlbumArtUrl?: string | null;
+  slide: Extract<DisplaySlide, { kind: "message" }>;
+  timerLabel: string;
+  progressPct: number;
 }) {
+  if (!slide.imageUrl) {
+    return (
+      <TextOnlyMessageLayout
+        title={slide.title}
+        body={slide.body}
+        fromName={slide.fromName}
+        timerLabel={timerLabel}
+        progressPct={progressPct}
+        variant={getTextOnlyVariant(slide.id)}
+      />
+    );
+  }
+
+  const imageUrl = slide.imageUrl;
+
   return (
-    <div className="neonPanel remixTvQueuePanel remixTvQueuePanel--landscape">
-      <div className="remixTvSectionHeader remixTvQueueHeader">
-        <div className="remixTvSectionTitle">Queued Up</div>
-      </div>
-
-<TopCard
-  mode="landscape"
-  nowPlaying={nowPlaying}
-  topIsBoosted={topIsBoosted}
-  showA={showA}
-  artA={artA}
-  artB={artB}
-  defaultAlbumArtUrl={defaultAlbumArtUrl}
->
-        <div className="remixTvTagRow">
-          <div className="tvTag">REMIX REQUESTS</div>
-          <div className="tvTag" style={{ boxShadow: "var(--glowB)" }}>
-            PLAY NOW • UP NEXT
-          </div>
-          <div className="tvTag" style={{ boxShadow: "var(--glowA)" }}>
-            TOP 10
-          </div>
-        </div>
-
-        <div className="neonEQ" aria-hidden="true" style={{ marginTop: 12 }}>
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
-
-        <div className="remixTvUrl">{requestUrl.replace("https://", "")}</div>
-      </TopCard>
-
-      <Top10Block queueList={queueList} mode="landscape" />
-
-      <CtaBlock mode="landscape" qrSrc={qrSrc} />
-    </div>
-  );
-}
-
-function PortraitQueuePanel({
-  nowPlaying,
-  queueList,
-  topIsBoosted,
-  showA,
-  artA,
-  artB,
-  qrSrc,
-  defaultAlbumArtUrl,
-}: {
-  nowPlaying: QueueItem | null;
-  queueList: QueueItem[];
-  topIsBoosted: boolean;
-  showA: boolean;
-  artA: string | null;
-  artB: string | null;
-  qrSrc: string;
-  defaultAlbumArtUrl?: string | null;
-}) {
-  return (
-    <div className="neonPanel remixTvQueuePanel remixTvQueuePanel--portrait">
-      <div className="remixTvPortraitCluster">
-        <div className="remixTvSectionHeader remixTvQueueHeader">
-          <div className="remixTvSectionTitle">Queued Up</div>
-        </div>
-
-<TopCard
-  mode="portrait"
-  nowPlaying={nowPlaying}
-  topIsBoosted={topIsBoosted}
-  showA={showA}
-  artA={artA}
-  artB={artB}
-  defaultAlbumArtUrl={defaultAlbumArtUrl}
->
-          <div className="remixTvTopMetaRow">
-            <div className="remixTvTopBadge">Top 10 Live</div>
-            {topIsBoosted ? <div className="remixTvTopBadge remixTvTopBadge--boosted">Boosted</div> : null}
-          </div>
-        </TopCard>
-
-        <div className="remixTvPortraitTop10Block">
-          <Top10Block queueList={queueList} mode="portrait" />
-        </div>
-
-        <CtaBlock mode="portrait" qrSrc={qrSrc} />
-      </div>
-    </div>
-  );
-}
-
-function TopCard({
-  mode,
-  nowPlaying,
-  topIsBoosted,
-  showA,
-  artA,
-  artB,
-  children,
-  defaultAlbumArtUrl,
-}: {
-  mode: "landscape" | "portrait";
-  nowPlaying: QueueItem | null;
-  topIsBoosted: boolean;
-  showA: boolean;
-  artA: string | null;
-  artB: string | null;
-  children?: ReactNode;
-  defaultAlbumArtUrl?: string | null;
-}) {
-  return (
-    <div className={`remixTvTopCard remixTvTopCard--${mode} ${topIsBoosted ? "remixTvTopCardBoosted" : ""}`}>
-      <div className="remixTvTopArtWrap">
-        <div className="remixTvTopArtFrame">
-          <div className="remixTvTopArtGlow" />
-          <div className="remixTvTopArtLayer" style={{ opacity: showA ? 1 : 0 }}>
-            <Artwork src={artA} alt="" defaultSrc={defaultAlbumArtUrl} />
-          </div>
-          <div className="remixTvTopArtLayer" style={{ opacity: showA ? 0 : 1 }}>
-            <Artwork src={artB} alt="" defaultSrc={defaultAlbumArtUrl} />
-          </div>
-          {topIsBoosted && mode === "landscape" ? <div className="remixTvTopRibbon">BOOSTED</div> : null}
-        </div>
-      </div>
-
-      <div className="remixTvTopMeta">
-        <div className="remixTvTopLabel">Now Playing</div>
-        <div className="remixTvTopSong">{nowPlaying?.title || "No requests yet"}</div>
-        <div className="remixTvTopArtist">
-          {nowPlaying?.artist || "Scan the QR to get started"}
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Top10Block({
-  queueList,
-  mode,
-}: {
-  queueList: QueueItem[];
-  mode: "landscape" | "portrait";
-}) {
-  return (
-    <>
-      <div className="remixTvTop10Header">
-        <span>Top 10</span>
-        {mode === "portrait" ? (
-          <span className="remixTvTop10HeaderSub">Up next favorites</span>
-        ) : null}
-      </div>
-
-      <div className="remixTvTop10List">
-        {queueList.length === 0 ? (
-          <div className={`remixTvEmptyState ${mode === "portrait" ? "remixTvEmptyState--portrait" : ""}`}>
-            No requests yet — scan the QR and start the vibe.
-          </div>
+    <ImageOrientationSwitch src={imageUrl}>
+      {(orientation) =>
+        orientation === "landscape" ? (
+          <LandscapeMessageLayout
+            title={slide.title}
+            body={slide.body}
+            fromName={slide.fromName}
+            imageUrl={imageUrl}
+            timerLabel={timerLabel}
+            progressPct={progressPct}
+          />
         ) : (
-          queueList.map((item, index) => (
-            <div
-              className={`remixTvTop10Row ${mode === "portrait" ? "remixTvTop10Row--portrait" : ""}`}
-              key={item.id}
-            >
-              <div className="remixTvTop10Pos">{index + 1}</div>
-
-              <div className="remixTvTop10Text">
-                <div className="remixTvTop10Song">{item.title}</div>
-                <div className="remixTvTop10Artist">{item.artist}</div>
-              </div>
-
-              <div className="remixTvTop10Score">{item.score}</div>
-            </div>
-          ))
-        )}
-      </div>
-    </>
+          <PortraitMessageLayout
+            title={slide.title}
+            body={slide.body}
+            fromName={slide.fromName}
+            imageUrl={imageUrl}
+            timerLabel={timerLabel}
+            progressPct={progressPct}
+          />
+        )
+      }
+    </ImageOrientationSwitch>
   );
 }
 
-function CtaBlock({
-  mode,
-  qrSrc,
+function PortraitMessageLayout({
+  title,
+  body,
+  fromName,
+  imageUrl,
+  timerLabel,
+  progressPct,
 }: {
-  mode: "landscape" | "portrait";
-  qrSrc: string;
+  title: string;
+  body: string;
+  fromName: string;
+  imageUrl: string;
+  timerLabel: string;
+  progressPct: number;
 }) {
   return (
-    <div className={`remixTvBottomCta remixTvBottomCta--${mode}`}>
-      <div className={`remixTvBottomText remixTvBottomText--${mode}`}>
-        {mode === "portrait" ? (
-          <>
-            <span className="remixTvBottomTextLineStrong">Scan to request a song</span>
-            <span className="remixTvBottomTextLineMuted">or send a shout out to the screen</span>
-          </>
-        ) : (
-          <>
-            <div>SCAN TO</div>
-            <div>REQUEST SONG OR</div>
-            <div>SEND MESSAGE</div>
-          </>
-        )}
+    <div className="remixPortraitShell">
+      <div className="remixPortraitMediaCol">
+        <PortraitVisualFrame imageUrl={imageUrl} />
       </div>
 
-      <div className={`remixTvBottomQrWrap remixTvBottomQrWrap--${mode}`}>
+      <div className="remixPortraitContentCol">
+        <SlideTop title={title} variant="portrait" />
+        <div className="remixPortraitMessageWrap">
+          <div className="remixMessageText remixPortraitMessageText">
+            {body}
+  <span className="remixPortraitInlineFrom"> {formatFromName(fromName)}</span>
+          </div>
+        </div>
+        <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
+      </div>
+    </div>
+  );
+}
+
+function LandscapeMessageLayout({
+  title,
+  body,
+  fromName,
+  imageUrl,
+  timerLabel,
+  progressPct,
+}: {
+  title: string;
+  body: string;
+  fromName: string;
+  imageUrl: string;
+  timerLabel: string;
+  progressPct: number;
+}) {
+  return (
+    <div className="remixLandscapeShell">
+      <SlideTop title={title} />
+      <div className="remixLandscapeContent">
+        <div className="remixLandscapeVisualPanel">
+          <LandscapeVisualFrame imageUrl={imageUrl} />
+        </div>
+        <div className="remixLandscapeTextWrap">
+          <div className="remixInlineMessage">
+            {joinInlineMessage(body, fromName)}
+          </div>
+        </div>
+      </div>
+      <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
+    </div>
+  );
+}
+
+function TextOnlyMessageLayout({
+  title,
+  body,
+  fromName,
+  timerLabel,
+  progressPct,
+  variant,
+}: {
+  title: string;
+  body: string;
+  fromName: string;
+  timerLabel: string;
+  progressPct: number;
+  variant: TextOnlyVariant;
+}) {
+  if (variant === "portrait") {
+    return (
+      <div className="remixPortraitShell">
+        <div className="remixPortraitMediaCol">
+          <PortraitPlaceholderVisualFrame />
+        </div>
+
+        <div className="remixPortraitContentCol">
+          <SlideTop title={title} variant="portrait" />
+          <div className="remixPortraitMessageWrap">
+          <div className="remixMessageText remixPortraitMessageText">
+            {body}
+            <span className="remixPortraitInlineFrom"> {formatFromName(fromName)}</span>
+          </div>
+        </div>
+          <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="remixLandscapeShell">
+      <SlideTop title={title} />
+      <div className="remixTextOnlyContent">
+        <div className="remixTextOnlyVisualWrap">
+          <LandscapePlaceholderVisualFrame />
+        </div>
+        <div className="remixLandscapeTextWrap">
+          <div className="remixInlineMessage remixInlineMessage--textOnly">
+            {joinInlineMessage(body, fromName)}
+          </div>
+        </div>
+      </div>
+      <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
+    </div>
+  );
+}
+
+function SlideTop({
+  title,
+  variant = "default",
+}: {
+  title: string;
+  variant?: "default" | "portrait";
+}) {
+  const topClass =
+    variant === "portrait"
+      ? "remixSlideTop remixSlideTop--portrait"
+      : "remixSlideTop";
+  const wrapClass =
+    variant === "portrait"
+      ? "remixBannerWrap remixBannerWrap--portrait"
+      : "remixBannerWrap";
+  const bannerClass =
+    variant === "portrait"
+      ? "remixBanner remixBanner--portrait remixBanner--arched"
+      : "remixBanner remixBanner--arched";
+
+  return (
+    <div className={topClass}>
+      <div className={wrapClass}>
+        <div className={bannerClass}>
+          <div className="remixBannerDots" />
+          <div className="remixBannerText">{title || "REMIX SHOUTOUT!"}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SlideFooter({
+  timerLabel,
+  progressPct,
+}: {
+  timerLabel: string;
+  progressPct: number;
+}) {
+  return (
+    <footer className="remixFooter">
+      <div className="remixFooterBars" />
+      <div className="remixFooterInner">
+        <div className="remixFooterTrack" aria-hidden="true">
+          <div className="remixFooterFill" style={{ width: `${progressPct}%` }} />
+        </div>
+        <div className="remixFooterTime">{timerLabel}</div>
+      </div>
+    </footer>
+  );
+}
+
+function TeaserSlide() {
+  return (
+    <div className="remixTeaser">
+      <div className="remixTeaserTop">
+        <div className="remixBannerWrap">
+          <div className="remixBanner remixBanner--arched">
+            <div className="remixBannerDots" />
+            <div className="remixBannerText">REMIX SHOUTOUT!</div>
+          </div>
+        </div>
+      </div>
+
+      <main className="remixTeaserCenter">
+        <div className="remixTeaserInner">
+          <div className="remixTeaserLead">YOUR MESSAGE HERE...</div>
+          <div className="remixTeaserNow">NOW!</div>
+          <div className="remixTeaserScript">Scan the Code at your Table!</div>
+        </div>
+      </main>
+
+      <footer className="remixFooter remixFooter--teaser">
+        <div className="remixFooterBars" />
+      </footer>
+    </div>
+  );
+}
+
+function PortraitVisualFrame({ imageUrl }: { imageUrl: string }) {
+  return (
+    <div className="remixPortraitMediaFrame remixLinen">
+      <div className="remixPhotoCorner--tl" />
+      <div className="remixPhotoCorner--br" />
+      <div className="remixPhotoInner remixPhotoInner--portrait">
         <img
-          src={qrSrc}
-          alt="QR code to request songs"
-          className="remixTvBottomQr"
+          src={imageUrl}
+          alt=""
+          className="remixZoomMedia remixZoomMedia--portrait"
           referrerPolicy="no-referrer"
         />
       </div>
@@ -1721,158 +1467,103 @@ function CtaBlock({
   );
 }
 
-function FeatureBubble({
-  imageUrl,
-  body,
-  fromName,
-}: {
-  imageUrl?: string | null;
-  body: string;
-  fromName: string;
-}) {
-  const [layout, setLayout] = useState<"side" | "stacked" | "textOnly">(
-    imageUrl ? "side" : "textOnly"
-  );
-
-  const isShortMessage = body.trim().length <= 70;
-  const textClassName = `remixTvBubbleText${
-    imageUrl && isShortMessage ? " remixTvBubbleText--imageShort" : ""
-  }`;
-
-  if (!imageUrl) {
-    return (
-      <div className="remixTvBubbleLayout remixTvBubbleLayout--textOnly">
-        <div className={textClassName}>
-          <div>
-            <div className="remixTvBubbleBody">{body}</div>
-          </div>
-          <div className="remixTvBubbleFrom">— {fromName}</div>
-        </div>
-      </div>
-    );
-  }
-
+function LandscapeVisualFrame({ imageUrl }: { imageUrl: string }) {
   return (
-    <ImageOrientationFrame
-      src={imageUrl}
-      onOrientation={(orientation) => {
-        setLayout(orientation === "portrait" ? "side" : "stacked");
-      }}
-    >
-      {(media) => (
-        <div
-          className={`remixTvBubbleLayout ${
-            layout === "stacked"
-              ? "remixTvBubbleLayout--stacked"
-              : "remixTvBubbleLayout--side"
-          }`}
-        >
-          <div className="remixTvBubbleMedia">{media}</div>
-
-          <div className={textClassName}>
-            <div>
-              <div className="remixTvBubbleBody">{body}</div>
-            </div>
-            <div className="remixTvBubbleFrom">— {fromName}</div>
-          </div>
-        </div>
-      )}
-    </ImageOrientationFrame>
+    <div className="remixLandscapeMediaFrame remixLinen">
+      <div className="remixPhotoCorner--tl" />
+      <div className="remixPhotoCorner--br" />
+      <div className="remixPhotoInner">
+        <img
+          src={imageUrl}
+          alt=""
+          className="remixZoomMedia"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    </div>
   );
 }
 
-function Artwork({ src, alt, defaultSrc }: { src?: string | null; alt: string; defaultSrc?: string | null }) {
-  const [bad, setBad] = useState(false);
-
-  const finalSrc = !bad && src ? src : (defaultSrc || null);
-
-  if (!finalSrc) {
-    return (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "grid",
-          placeItems: "center",
-          fontWeight: 1000,
-          opacity: 0.65,
-          fontSize: 22,
-          letterSpacing: 1.2,
-        }}
-      >
-        REMIX
-      </div>
-    );
-  }
-
+function PortraitPlaceholderVisualFrame() {
   return (
-    <img
-      src={finalSrc}
-      alt={alt}
-      onError={() => setBad(true)}
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-    />
+    <div className="remixPortraitMediaFrame remixLinen">
+      <div className="remixPhotoCorner--tl" />
+      <div className="remixPhotoCorner--br" />
+      <div className="remixPhotoInner remixPhotoInner--portrait">
+        <div className="remixPlaceholderArt">
+          <div className="remixPlaceholderArtInner">
+            <img src={REMIX_LOGO_URL} alt="Remix placeholder art" />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
-function ImageOrientationFrame({
+function LandscapePlaceholderVisualFrame() {
+  return (
+    <div className="remixTextOnlyMediaFrame remixLinen">
+      <div className="remixPhotoCorner--tl" />
+      <div className="remixPhotoCorner--br" />
+      <div className="remixPhotoInner">
+        <div className="remixPlaceholderArt">
+          <div className="remixPlaceholderArtInner">
+            <img src={REMIX_LOGO_URL} alt="Remix placeholder art" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImageOrientationSwitch({
   src,
-  onOrientation,
   children,
 }: {
   src: string;
-  onOrientation: (orientation: "portrait" | "landscape" | "square") => void;
-  children: (media: ReactNode) => ReactNode;
+  children: (orientation: Orientation) => ReactNode;
 }) {
-  const [bad, setBad] = useState(false);
-  const [mode, setMode] = useState<"portrait" | "landscape" | "square">("square");
+  const [orientation, setOrientation] = useState<Orientation>("portrait");
 
-  if (bad) {
-    return (
-      <div className="remixTvBubbleLayout remixTvBubbleLayout--textOnly">
-        <div className="remixTvBubbleText">
-          <div className="remixTvBubbleBody">Image unavailable</div>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    let cancelled = false;
 
-  const media = (
-    <div className={`remixTvFeatureMediaShell remixTvFeatureMediaShell--${mode}`}>
-      <img
-        src={src}
-        alt=""
-        referrerPolicy="no-referrer"
-        className={`remixTvFeatureMediaImg remixTvFeatureMediaImg--${mode}`}
-        onError={() => setBad(true)}
-        onLoad={(e) => {
-          const img = e.currentTarget;
-          const w = img.naturalWidth || 0;
-          const h = img.naturalHeight || 0;
+    const img = new Image();
 
-          if (!w || !h) {
-            setMode("square");
-            onOrientation("square");
-            return;
-          }
+    img.onload = () => {
+      if (cancelled) return;
 
-          const ratio = w / h;
-          if (ratio > 1.15) {
-            setMode("landscape");
-            onOrientation("landscape");
-          } else if (ratio < 0.85) {
-            setMode("portrait");
-            onOrientation("portrait");
-          } else {
-            setMode("square");
-            onOrientation("square");
-          }
-        }}
-      />
-    </div>
-  );
+      const w = img.naturalWidth || 0;
+      const h = img.naturalHeight || 0;
 
-  return <>{children(media)}</>;
+      if (!w || !h) {
+        setOrientation("square");
+        return;
+      }
+
+      const ratio = w / h;
+
+      if (ratio > 1.15) {
+        setOrientation("landscape");
+      } else if (ratio < 0.85) {
+        setOrientation("portrait");
+      } else {
+        setOrientation("square");
+      }
+    };
+
+    img.onerror = () => {
+      if (!cancelled) {
+        setOrientation("portrait");
+      }
+    };
+
+    img.src = src;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  return <>{children(orientation)}</>;
 }
