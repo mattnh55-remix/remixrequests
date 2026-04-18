@@ -734,7 +734,7 @@ export default function TvQueuePortraitPremiumPage({
               {activeItem ? (
                 <>
                   <div className="tvModeRow">
-                    <div className="tvModePill">{isRequestsMode ? "Up Next Queue" : "Staff Picks"}</div>
+                    <div className="tvModePill">{isRequestsMode ? "Up Next Queue" : "YOUR FAVS"}</div>
                     {isRequestsMode && (activeItem.isBoosted || activeItem.boosted || activeItem.wasBoosted) ? (
                       <div className="tvBoostPill">Boosted</div>
                     ) : null}
@@ -770,7 +770,11 @@ export default function TvQueuePortraitPremiumPage({
 
                   <div className="tvQueueStrip">
                     <div className="tvQueueStripTitle">
-                      {nextUp.length > 0 ? (isRequestsMode ? "Also coming up" : "More featured picks") : "Now showing"}
+                     {nextUp.length > 0 && (
+  <div className="subHeader">
+    {isRequestsMode ? "Also coming up" : "More featured picks"}
+  </div>
+)}
                     </div>
 
                     {nextUp.length > 0 ? (
@@ -814,7 +818,7 @@ export default function TvQueuePortraitPremiumPage({
         </div>
 
         <div className="tvFooterCTA">
-          <div className="tvFooterCTAInner">Request on the app now</div>
+          <div className="tvFooterCTAInner">Request on the app now!</div>
         </div>
       </div>
     </div>
