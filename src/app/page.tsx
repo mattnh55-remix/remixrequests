@@ -276,8 +276,7 @@ export default function HomePage() {
                   <div
                     key={song.id}
                     className="rrFeaturedRow"
-                    onClick={() => router.push(`/request/${encodeURIComponent(location)}`)}
-                  >
+                    onClick={() => window.location.href = "https://remixrequests.vercel.app/request/remixrequests"}>
                     <div className="rrFeaturedArtWrap">
                       <img
                         src={song.artworkUrl || REMIX_LOGO_URL}
@@ -305,7 +304,7 @@ export default function HomePage() {
 
             <button
               className="rrViewMoreBtn"
-              onClick={() => router.push(`/request/${encodeURIComponent(location)}`)}
+              onClick={() => window.location.href = "https://remixrequests.vercel.app/request/remixrequests"}
             >
               VIEW MORE
             </button>
