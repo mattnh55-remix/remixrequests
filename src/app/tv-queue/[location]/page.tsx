@@ -13,8 +13,6 @@ type QueueItem = {
   score?: number;
   upvotes?: number;
   downvotes?: number;
-  requestedByMe?: boolean;
-  sourceType?: string;
   priority?: string;
   isBoosted?: boolean;
   boosted?: boolean;
@@ -29,7 +27,7 @@ type RulesResponse = {
   defaultAlbumArtUrl?: string | null;
 };
 
-const ROTATE_MS = 25000;
+const ROTATE_MS = 12000;
 const QUEUE_POLL_MS = 5000;
 const FEATURED_POLL_MS = 20000;
 const RULES_POLL_MS = 30000;
@@ -53,15 +51,6 @@ function stableKey(items: QueueItem[]) {
     .join("~~");
 }
 
-function pickTwo(items: QueueItem[], pairIndex: number) {
-  if (items.length <= 2) return items.slice(0, 2);
-
-  const pairs = Math.ceil(items.length / 2);
-  const safePair = pairIndex % pairs;
-  const start = safePair * 2;
-  return items.slice(start, start + 2);
-}
-
 function decorativeSeed(item: QueueItem) {
   const seed = `${item.id}-${item.title}-${item.artist}`;
   let hash = 0;
@@ -71,7 +60,7 @@ function decorativeSeed(item: QueueItem) {
   }
 
   return {
-    up: (hash % 7) + 1,
+    up: (hash % 7) + 2,
     down: hash % 3,
     fire: (hash % 5) + 1,
   };
@@ -87,40 +76,31 @@ export default function TvQueuePortraitBillboardPage({
   const [requestItems, setRequestItems] = useState<QueueItem[]>([]);
   const [featuredItems, setFeaturedItems] = useState<QueueItem[]>([]);
   const [defaultAlbumArtUrl, setDefaultAlbumArtUrl] = useState<string | null>(null);
-
-  const [visiblePair, setVisiblePair] = useState<QueueItem[]>([]);
-  const [sceneMode, setSceneMode] = useState<"requests" | "featured">("featured");
-  const [pairIndex, setPairIndex] = useState(0);
-  const [animCycle, setAnimCycle] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const requestKeyRef = useRef("");
   const featuredKeyRef = useRef("");
   const rulesKeyRef = useRef<string | null>(null);
 
-  const activePool = useMemo(
-    () => (requestItems.length > 0 ? requestItems : featuredItems),
-    [requestItems, featuredItems]
-  );
-
   const isRequestsMode = requestItems.length > 0;
 
-  useEffect(() => {
-    setSceneMode(isRequestsMode ? "requests" : "featured");
-    setPairIndex(0);
-  }, [isRequestsMode]);
+  const activePool = useMemo(
+    () => (isRequestsMode ? requestItems : featuredItems),
+    [isRequestsMode, requestItems, featuredItems]
+  );
+
+  const activeItem = activePool.length > 0 ? activePool[activeIndex % activePool.length] : null;
+  const nextUp = activePool.slice(1, 4);
 
   useEffect(() => {
-    const nextPair = pickTwo(activePool, pairIndex);
-    setVisiblePair(nextPair);
-    setAnimCycle((prev) => prev + 1);
-  }, [activePool, pairIndex, sceneMode]);
+    setActiveIndex(0);
+  }, [isRequestsMode, requestItems.length, featuredItems.length]);
 
   useEffect(() => {
-    const canRotate = activePool.length > 2;
-    if (!canRotate) return;
+    if (activePool.length <= 1) return;
 
     const timer = window.setInterval(() => {
-      setPairIndex((prev) => prev + 1);
+      setActiveIndex((prev) => (prev + 1) % activePool.length);
     }, ROTATE_MS);
 
     return () => window.clearInterval(timer);
@@ -131,9 +111,7 @@ export default function TvQueuePortraitBillboardPage({
 
     async function loadQueue() {
       try {
-        const res = await fetch(`/api/public/queue/${location}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(`/api/public/queue/${location}`, { cache: "no-store" });
         if (!res.ok) return;
 
         const data = await res.json();
@@ -165,9 +143,7 @@ export default function TvQueuePortraitBillboardPage({
 
     async function loadFeatured() {
       try {
-        const res = await fetch(`/api/public/featured-songs/${location}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(`/api/public/featured-songs/${location}`, { cache: "no-store" });
         if (!res.ok) return;
 
         const data = await res.json();
@@ -194,9 +170,7 @@ export default function TvQueuePortraitBillboardPage({
 
     async function loadRules() {
       try {
-        const res = await fetch(`/api/public/rules/${location}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(`/api/public/rules/${location}`, { cache: "no-store" });
         if (!res.ok) return;
 
         const data = (await res.json()) as RulesResponse;
@@ -227,8 +201,10 @@ export default function TvQueuePortraitBillboardPage({
     };
   }, [location]);
 
+  const decorative = activeItem ? decorativeSeed(activeItem) : null;
+
   return (
-    <div className="tvBillboardRoot">
+    <div className="tvPortraitRoot">
       <style jsx global>{`
         @import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap");
 
@@ -240,399 +216,502 @@ export default function TvQueuePortraitBillboardPage({
         body {
           margin: 0;
           padding: 0;
-          background: #050814;
-        }
-
-        .tvBillboardRoot {
-          position: fixed;
-          min-height: 100dvh;
-          height: 100dvh;
+          width: 100%;
+          min-height: 100%;
+          background: #040612;
           overflow: hidden;
-          background:
-            radial-gradient(circle at 22% 72%, rgba(0, 93, 166, 0.38), transparent 34%),
-            radial-gradient(circle at 72% 22%, rgba(109, 27, 140, 0.38), transparent 34%),
-            linear-gradient(90deg, #021f47 0%, #2c0644 100%);
-          color: #f8f4ea;
-          font-family: var(--font-barlow-condensed), sans-serif;
         }
 
-        .tvBillboardFrame {
-          position: absolute;
-          inset: 0;
-          display: grid;
-          grid-template-rows: auto 1fr auto;
-          min-height: 100dvh;
-          height: 100dvh;
-          padding: 0;
+        * {
           box-sizing: border-box;
         }
 
-        .tvHeaderWrap,
-        .tvFooterWrap {
-          width: 100%;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          padding: 0;
-          margin: 0;
-          line-height: 0;
-        }
-
-        .tvHeaderWrap {
-          align-self: start;
-          align-items: flex-start;
-        }
-
-        .tvFooterWrap {
-          align-self: end;
-          align-items: flex-end;
-        }
-
-        .tvBadge {
+        .tvPortraitRoot {
           position: fixed;
+          inset: 0;
+          width: 100vw;
+          height: 100dvh;
           overflow: hidden;
-          background: #8c69d8;
-          border: 4px solid #1f1031;
-          box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
-          line-height: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          color: #f8f4ea;
+          font-family: var(--font-barlow-condensed), sans-serif;
+          background:
+            radial-gradient(circle at 20% 15%, rgba(143, 82, 255, 0.22), transparent 26%),
+            radial-gradient(circle at 84% 22%, rgba(0, 211, 255, 0.14), transparent 22%),
+            radial-gradient(circle at 50% 86%, rgba(255, 102, 196, 0.16), transparent 24%),
+            linear-gradient(180deg, #06091a 0%, #090f27 48%, #050816 100%);
         }
 
-        .tvBadge::before {
-          content: "";
+        .tvPortraitChrome {
           position: absolute;
           inset: 0;
-          background-image: radial-gradient(circle, rgba(65, 36, 113, 0.42) 0 2.5px, transparent 3px);
-          background-size: 28px 28px;
-          background-position: 4px 4px;
-          opacity: 1;
           pointer-events: none;
+          opacity: 0.52;
+          background-image:
+            linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+          background-size: 100% 22px, 22px 100%;
+          mask-image: linear-gradient(180deg, transparent, black 10%, black 90%, transparent);
         }
 
-        .tvHeaderBadge {
-          width: min(84vw, 680px);
-          min-height: clamp(74px, 8.8vh, 118px);
-          padding: 12px 28px 18px;
-          margin-top: -2px;
-          clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%);
-        }
-
-        .tvFooterBadge {
-          width: min(84vw, 760px);
-          min-height: clamp(60px, 6.8vh, 92px);
-          padding: 10px 24px 12px;
-          margin-bottom: -2px;
-        }
-
-        .tvHeaderText {
-  position: relative;
-          z-index: 1;
-          white-space: nowrap;
-          text-align: center;
-          font-family: var(--font-barlow-condensed), sans-serif;
-          font-size: clamp(46px, 4.1vw, 86px);
-          line-height: 0.94;
-          letter-spacing: 1px;
-          text-transform: uppercase;
-          transform: translateY(-8px);
-          color: #f8f4ea;
-          text-shadow:
-            4px 4px 0 rgba(0, 0, 0, 0.22),
-            0 2px 0 rgba(0, 0, 0, 0.16);
-          font-weight: 700;
-        }
-
-        .tvFooterText {
+        .tvPortraitFrame {
           position: relative;
           z-index: 1;
-          white-space: nowrap;
-          text-align: center;
-          font-family: var(--font-barlow-condensed), sans-serif;
-          font-size: clamp(30px, 2.8vw, 56px);
-          line-height: 0.94;
-          letter-spacing: 1px;
-          text-transform: uppercase;
-          color: #f8f4ea;
-          text-shadow:
-            4px 4px 0 rgba(0, 0, 0, 0.22),
-            0 2px 0 rgba(0, 0, 0, 0.16);
-          font-weight: 700;
-        }
-
-        .tvScene {
-          min-height: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: clamp(10px, 1.2vh, 16px) 0;
-          overflow: hidden;
-        }
-
-        .tvSceneInner {
           width: 100%;
           height: 100%;
           display: grid;
-          align-content: center;
-          justify-items: center;
-          gap: clamp(20px, 2.5vh, 34px);
+          grid-template-rows: auto 1fr auto;
+          padding: 22px 18px 22px;
+          gap: 16px;
         }
 
-        .tvCardShell {
-          width: min(68vw, 372px);
-          display: grid;
-          justify-items: center;
-          align-content: start;
-          gap: clamp(10px, 1.2vh, 16px);
+        .tvTopBadge,
+        .tvBottomBadge {
           position: relative;
-          will-change: transform, opacity;
+          overflow: hidden;
+          border-radius: 22px;
+          border: 3px solid rgba(181, 129, 255, 0.45);
+          background:
+            linear-gradient(180deg, rgba(150, 98, 242, 0.96), rgba(98, 56, 182, 0.96));
+          box-shadow:
+            0 10px 24px rgba(0, 0, 0, 0.35),
+            inset 0 1px 0 rgba(255, 255, 255, 0.18);
         }
 
-        .tvCardShell--top {
-          transform: translateX(-48px);
+        .tvTopBadge::before,
+        .tvBottomBadge::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background-image: radial-gradient(circle, rgba(33, 10, 63, 0.28) 0 2px, transparent 2.6px);
+          background-size: 24px 24px;
+          opacity: 0.85;
         }
 
-        .tvCardShell--bottom {
-          transform: translateX(48px);
+        .tvTopBadge {
+          padding: 14px 18px 18px;
         }
 
-        .tvCardAnimEnterLeft {
-          animation: enterLeft 900ms cubic-bezier(0.22, 1, 0.36, 1) both, floaty 8s ease-in-out 900ms infinite;
+        .tvBottomBadge {
+          padding: 13px 16px;
         }
 
-        .tvCardAnimEnterRight {
-          animation: enterRight 900ms cubic-bezier(0.22, 1, 0.36, 1) both, floaty 8s ease-in-out 900ms infinite;
+        .tvBadgeText {
+          position: relative;
+          z-index: 1;
+          text-align: center;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          line-height: 0.92;
+          font-weight: 800;
+          color: #fff7ee;
+          text-shadow: 0 3px 0 rgba(36, 14, 64, 0.5);
         }
 
-        .tvCardArtWrap {
+        .tvBadgeText--top {
+          font-size: clamp(34px, 9vw, 62px);
+        }
+
+        .tvBadgeText--bottom {
+          font-size: clamp(24px, 6.8vw, 40px);
+        }
+
+        .tvStage {
+          min-height: 0;
+          display: grid;
+          align-content: stretch;
+        }
+
+        .tvCard {
+          position: relative;
+          min-height: 0;
+          height: 100%;
+          border-radius: 34px;
+          padding: 18px;
+          display: grid;
+          grid-template-rows: auto auto auto auto 1fr;
+          gap: 14px;
+          background:
+            linear-gradient(180deg, rgba(14, 20, 45, 0.94), rgba(8, 12, 29, 0.98));
+          border: 2px solid rgba(118, 144, 255, 0.24);
+          box-shadow:
+            0 24px 60px rgba(0, 0, 0, 0.38),
+            inset 0 1px 0 rgba(255, 255, 255, 0.07);
+          overflow: hidden;
+        }
+
+        .tvCard::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(circle at top right, rgba(154, 87, 255, 0.22), transparent 24%),
+            radial-gradient(circle at bottom left, rgba(0, 214, 255, 0.12), transparent 22%);
+          pointer-events: none;
+        }
+
+        .tvModeRow {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .tvModePill,
+        .tvBoostPill,
+        .tvMiniPill {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          font-weight: 700;
+        }
+
+        .tvModePill {
+          min-height: 38px;
+          padding: 0 16px;
+          font-size: clamp(18px, 4.5vw, 24px);
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #f8f4ea;
+        }
+
+        .tvBoostPill {
+          min-height: 38px;
+          padding: 0 16px;
+          font-size: clamp(18px, 4.5vw, 24px);
+          background: linear-gradient(180deg, #ff8c5f, #ff4fb3);
+          color: white;
+          box-shadow: 0 8px 18px rgba(255, 89, 177, 0.22);
+          animation: pulseGlow 2.2s ease-in-out infinite;
+        }
+
+        .tvArtworkWrap {
+          position: relative;
+          z-index: 1;
           width: 100%;
           aspect-ratio: 1 / 1;
-          border-radius: 24px;
+          min-height: 0;
+          border-radius: 28px;
           overflow: hidden;
-          box-shadow: 8px 8px 0 rgba(100, 53, 10, 0.52);
-          background: rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.06);
+          box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
         }
 
-        .tvCardArtWrap img {
+        .tvArtworkWrap img {
           width: 100%;
           height: 100%;
           object-fit: cover;
           display: block;
+          animation: slowZoom 14s ease-in-out infinite alternate;
         }
 
-        .tvCardTitle {
-          width: 100%;
+        .tvSongInfo {
+          position: relative;
+          z-index: 1;
           text-align: center;
-          font-weight: 700;
-          font-size: clamp(38px, 4vw, 58px);
-          line-height: 0.95;
-          letter-spacing: 0.3px;
+          display: grid;
+          gap: 8px;
+        }
+
+        .tvTitle {
+          font-size: clamp(34px, 9vw, 62px);
+          line-height: 0.92;
+          font-weight: 800;
           text-transform: uppercase;
-          color: #f8f4ea;
-          text-shadow:
-            5px 5px 0 rgba(0, 0, 0, 0.22),
-            0 2px 0 rgba(0, 0, 0, 0.14);
+          text-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
         }
 
-        .tvCardArtist {
-          width: 100%;
-          text-align: center;
+        .tvArtist {
+          font-size: clamp(22px, 5.8vw, 34px);
+          line-height: 0.98;
           font-weight: 600;
-          font-size: clamp(20px, 2.25vw, 30px);
-          line-height: 1;
-          letter-spacing: 0.2px;
           text-transform: uppercase;
-          color: #f8f4ea;
+          color: rgba(248, 244, 234, 0.82);
         }
 
-        .tvCardMeta {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
+        .tvStatsRow {
+          position: relative;
+          z-index: 1;
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
           gap: 10px;
-          min-height: 28px;
         }
 
-        .tvMetaPill {
-          display: inline-flex;
+        .tvStatCard {
+          border-radius: 18px;
+          padding: 12px 8px 10px;
+          text-align: center;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .tvStatValue {
+          font-size: clamp(24px, 6vw, 36px);
+          line-height: 1;
+          font-weight: 800;
+        }
+
+        .tvStatLabel {
+          margin-top: 6px;
+          font-size: clamp(14px, 3.4vw, 18px);
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          color: rgba(248, 244, 234, 0.66);
+        }
+
+        .tvQueueStrip {
+          position: relative;
+          z-index: 1;
+          align-self: end;
+          display: grid;
+          gap: 10px;
+        }
+
+        .tvQueueStripTitle {
+          font-size: clamp(18px, 4.4vw, 24px);
+          text-transform: uppercase;
+          letter-spacing: 1.1px;
+          color: rgba(248, 244, 234, 0.68);
+        }
+
+        .tvQueueList {
+          display: grid;
+          gap: 8px;
+        }
+
+        .tvQueueRow {
+          display: grid;
+          grid-template-columns: auto 1fr auto;
           align-items: center;
-          justify-content: center;
-          min-width: 34px;
-          height: 26px;
-          padding: 0 8px;
+          gap: 10px;
+          padding: 10px 12px;
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .tvQueueRank {
+          width: 34px;
+          height: 34px;
           border-radius: 999px;
-          background: linear-gradient(180deg, #6f6ff2 0%, #c56be2 100%);
-          color: #f8f4ea;
-          font-size: 17px;
+          display: grid;
+          place-items: center;
+          font-size: 18px;
+          font-weight: 800;
+          background: linear-gradient(180deg, #8f68ff, #4fc3ff);
+          color: white;
+        }
+
+        .tvQueueText {
+          min-width: 0;
+        }
+
+        .tvQueueSong {
+          font-size: clamp(18px, 4.5vw, 24px);
+          line-height: 0.98;
           font-weight: 700;
-          box-sizing: border-box;
+          text-transform: uppercase;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
-        .tvMetaFire {
-          font-size: 21px;
+        .tvQueueArtist {
+          margin-top: 2px;
+          font-size: clamp(14px, 3.5vw, 18px);
+          color: rgba(248, 244, 234, 0.7);
+          text-transform: uppercase;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tvMiniPill {
+          min-height: 30px;
+          padding: 0 10px;
+          font-size: clamp(14px, 3.3vw, 18px);
+          background: rgba(255, 255, 255, 0.09);
+          color: white;
+        }
+
+        .tvEmptyState {
+          position: relative;
+          z-index: 1;
+          height: 100%;
+          display: grid;
+          place-items: center;
+          text-align: center;
+          padding: 10px;
+        }
+
+        .tvEmptyInner {
+          display: grid;
+          gap: 16px;
+          max-width: 88%;
+        }
+
+        .tvEmptyKicker {
+          font-size: clamp(20px, 5vw, 28px);
+          letter-spacing: 1.2px;
+          text-transform: uppercase;
+          color: rgba(248, 244, 234, 0.62);
+        }
+
+        .tvEmptyHeadline {
+          font-size: clamp(42px, 11vw, 72px);
+          line-height: 0.9;
+          font-weight: 800;
+          text-transform: uppercase;
+        }
+
+        .tvEmptySub {
+          font-size: clamp(22px, 5.5vw, 32px);
           line-height: 1;
+          color: rgba(248, 244, 234, 0.78);
+          text-transform: uppercase;
         }
 
-        .tvRankBadge {
-          position: absolute;
-          left: -48px;
-          top: 16px;
-          width: 66px;
-          height: 86px;
-          background: linear-gradient(180deg, #5c7cff 0%, #ea60c2 100%);
-          clip-path: polygon(0 0, 100% 0, 100% 78%, 52% 100%, 0 78%);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border: 4px solid rgba(24, 15, 39, 0.96);
-          box-sizing: border-box;
-          box-shadow: 4px 6px 0 rgba(0, 0, 0, 0.18);
-        }
-
-        .tvRankBadgeText {
-          font-weight: 700;
-          font-size: 48px;
-          line-height: 1;
-          color: #f8f4ea;
-          text-shadow:
-            6px 6px 0 rgba(0, 0, 0, 0.24),
-            0 2px 0 rgba(0, 0, 0, 0.16);
-        }
-
-        @keyframes enterLeft {
-          0% {
-            opacity: 0;
-            transform: translateX(-24vw) scale(0.985);
-          }
+        @keyframes pulseGlow {
+          0%,
           100% {
-            opacity: 1;
-            transform: translateX(-48px) scale(1);
-          }
-        }
-
-        @keyframes enterRight {
-          0% {
-            opacity: 0;
-            transform: translateX(24vw) scale(0.985);
-          }
-          100% {
-            opacity: 1;
-            transform: translateX(48px) scale(1);
-          }
-        }
-
-        @keyframes floaty {
-          0%, 100% {
-            margin-top: 0;
+            transform: scale(1);
+            box-shadow: 0 8px 18px rgba(255, 89, 177, 0.22);
           }
           50% {
-            margin-top: -4px;
+            transform: scale(1.03);
+            box-shadow: 0 14px 28px rgba(255, 89, 177, 0.34);
           }
         }
 
-        @media (max-height: 900px) {
-          .tvHeaderBadge {
-            width: min(78vw, 560px);
-            min-height: 66px;
-            padding: 10px 22px 14px;
+        @keyframes slowZoom {
+          0% {
+            transform: scale(1.01);
+          }
+          100% {
+            transform: scale(1.06);
+          }
+        }
+
+        @media (max-width: 430px) {
+          .tvPortraitFrame {
+            padding: 14px 12px 14px;
+            gap: 12px;
           }
 
-          .tvFooterBadge {
-            width: min(82vw, 620px);
-            min-height: 52px;
-            padding: 8px 18px 10px;
+          .tvCard {
+            border-radius: 28px;
+            padding: 14px;
+            gap: 12px;
           }
 
-          .tvSceneInner {
-            gap: 16px;
+          .tvTopBadge {
+            padding: 12px 14px 15px;
           }
 
-          .tvCardShell {
-            width: min(62vw, 320px);
-            gap: 8px;
-          }
-
-          .tvCardTitle {
-            font-size: clamp(34px, 3.8vw, 52px);
-          }
-
-          .tvCardArtist {
-            font-size: clamp(19px, 2.05vw, 26px);
+          .tvBottomBadge {
+            padding: 11px 12px;
           }
         }
       `}</style>
 
-      <div className="tvBillboardFrame">
-        <div className="tvHeaderWrap">
-          <div className="tvBadge tvHeaderBadge">
-            <div className="tvHeaderText">REMIX REQUESTS</div>
+      <div className="tvPortraitChrome" />
+
+      <div className="tvPortraitFrame">
+        <div className="tvTopBadge">
+          <div className="tvBadgeText tvBadgeText--top">
+            {isRequestsMode ? "Remix Requests" : "Featured At Remix"}
           </div>
         </div>
 
-        <div className="tvScene">
-          <div className="tvSceneInner" key={`${sceneMode}-${animCycle}`}>
-            {visiblePair.map((item, index) => {
-              const decorative = decorativeSeed(item);
-              const rank = isRequestsMode ? index + 3 : null;
-
-              return (
-                <div
-                  key={`${sceneMode}-${item.id}-${index}`}
-                  className={[
-                    "tvCardShell",
-                    index === 0
-                      ? "tvCardShell--top tvCardAnimEnterLeft"
-                      : "tvCardShell--bottom tvCardAnimEnterRight",
-                  ].join(" ")}
-                >
-                  {rank ? (
-                    <div className="tvRankBadge">
-                      <div className="tvRankBadgeText">{rank}.</div>
-                    </div>
+        <div className="tvStage">
+          <div className="tvCard">
+            {activeItem ? (
+              <>
+                <div className="tvModeRow">
+                  <div className="tvModePill">{isRequestsMode ? "Up Next Queue" : "Staff Picks"}</div>
+                  {isRequestsMode && (activeItem.isBoosted || activeItem.boosted || activeItem.wasBoosted) ? (
+                    <div className="tvBoostPill">Boosted</div>
                   ) : null}
+                </div>
 
-                  <div className="tvCardArtWrap">
-                    <Artwork
-                      src={item.artworkUrl}
-                      alt={`${item.title} artwork`}
-                      defaultSrc={defaultAlbumArtUrl}
-                    />
+                <div className="tvArtworkWrap">
+                  <Artwork
+                    src={activeItem.artworkUrl}
+                    alt={`${activeItem.title} artwork`}
+                    defaultSrc={defaultAlbumArtUrl}
+                  />
+                </div>
+
+                <div className="tvSongInfo">
+                  <div className="tvTitle">{activeItem.title}</div>
+                  <div className="tvArtist">{activeItem.artist}</div>
+                </div>
+
+                <div className="tvStatsRow">
+                  <div className="tvStatCard">
+                    <div className="tvStatValue">{isRequestsMode ? Number(activeItem.upvotes || 0) : decorative?.up}</div>
+                    <div className="tvStatLabel">👍 Likes</div>
                   </div>
-
-                  <div className="tvCardTitle">{item.title}</div>
-                  <div className="tvCardArtist">{item.artist}</div>
-
-                  <div className="tvCardMeta">
-                    <span className="tvMetaPill">
-                      {isRequestsMode ? Number(item.upvotes || 0) : decorative.up}
-                    </span>
-                    <span role="img" aria-label="thumbs up">
-                      👍
-                    </span>
-                    <span className="tvMetaPill">
-                      {isRequestsMode ? Number(item.downvotes || 0) : decorative.down}
-                    </span>
-                    <span role="img" aria-label="thumbs down">
-                      👎
-                    </span>
-                    <span className="tvMetaPill">
-                      {isRequestsMode ? Number(item.score || 0) : decorative.fire}
-                    </span>
-                    <span className="tvMetaFire" role="img" aria-label="fire">
-                      🔥
-                    </span>
+                  <div className="tvStatCard">
+                    <div className="tvStatValue">{isRequestsMode ? Number(activeItem.score || 0) : decorative?.fire}</div>
+                    <div className="tvStatLabel">🔥 Heat</div>
+                  </div>
+                  <div className="tvStatCard">
+                    <div className="tvStatValue">{isRequestsMode ? Number(activeItem.downvotes || 0) : decorative?.down}</div>
+                    <div className="tvStatLabel">👎 Drops</div>
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="tvQueueStrip">
+                  <div className="tvQueueStripTitle">
+                    {nextUp.length > 0 ? (isRequestsMode ? "Also coming up" : "More featured picks") : "Now showing"}
+                  </div>
+
+                  {nextUp.length > 0 ? (
+                    <div className="tvQueueList">
+                      {nextUp.map((item, idx) => (
+                        <div className="tvQueueRow" key={item.id}>
+                          <div className="tvQueueRank">{idx + 2}</div>
+                          <div className="tvQueueText">
+                            <div className="tvQueueSong">{item.title}</div>
+                            <div className="tvQueueArtist">{item.artist}</div>
+                          </div>
+                          <div className="tvMiniPill">
+                            {isRequestsMode ? `${Number(item.score || 0)} pts` : "Pick"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="tvQueueRow">
+                      <div className="tvQueueRank">1</div>
+                      <div className="tvQueueText">
+                        <div className="tvQueueSong">{activeItem.title}</div>
+                        <div className="tvQueueArtist">{activeItem.artist}</div>
+                      </div>
+                      <div className="tvMiniPill">Live</div>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="tvEmptyState">
+                <div className="tvEmptyInner">
+                  <div className="tvEmptyKicker">Nothing in queue yet</div>
+                  <div className="tvEmptyHeadline">Request the next song</div>
+                  <div className="tvEmptySub">Scan the code at your table and get your pick on screen</div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="tvFooterWrap">
-          <div className="tvBadge tvFooterBadge">
-            <div className="tvFooterText">REQUEST ON THE APP NOW!</div>
-          </div>
+        <div className="tvBottomBadge">
+          <div className="tvBadgeText tvBadgeText--bottom">Request on the app now</div>
         </div>
       </div>
     </div>
@@ -663,11 +742,12 @@ function Artwork({
           fontWeight: 800,
           fontSize: 34,
           letterSpacing: 1,
+          textTransform: "uppercase",
           background:
-            "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))",
+            "linear-gradient(135deg, rgba(143,104,255,0.42), rgba(50,184,255,0.18), rgba(255,255,255,0.06))",
         }}
       >
-        REMIX
+        Remix
       </div>
     );
   }
