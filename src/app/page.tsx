@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import PublicTheme from "../components/ui/public/PublicTheme";
 import confetti from "canvas-confetti";
 
@@ -97,6 +97,8 @@ function decorativeStats(song: FeaturedSong) {
 
 export default function HomePage() {
   const router = useRouter();
+  const params = useParams<{ location: string }>();
+  const location = params.location ?? "";
 
   const [activeChallenge, setActiveChallenge] = useState<BonusChallengeConfig | null>(null);
   const [challengeModalOpen, setChallengeModalOpen] = useState(false);
@@ -104,10 +106,12 @@ export default function HomePage() {
   const [featuredSongs, setFeaturedSongs] = useState<FeaturedSong[]>([]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && !localStorage.getItem("rr_location")) {
-      localStorage.setItem("rr_location", "remix");
+    if (typeof window !== "undefined" && location) {
+      localStorage.setItem("rr_location", location);
     }
+  }, [location]);
 
+  useEffect(() => {
     confetti({
       particleCount: 80,
       spread: 70,
@@ -124,16 +128,16 @@ export default function HomePage() {
 
     const loadPageData = async () => {
       try {
-        const nextLocation =
-          typeof window !== "undefined"
-            ? localStorage.getItem("rr_location") || "remix"
-            : "remix";
+        if (!location) {
+          console.warn("No location param found, skipping loadPageData");
+          return;
+        }
 
         const [sessionRes, featuredRes] = await Promise.all([
-          fetch(`/api/public/session/${encodeURIComponent(nextLocation)}`, {
+          fetch(`/api/public/session/${encodeURIComponent(location)}`, {
             cache: "no-store",
           }),
-          fetch(`/api/public/featured-songs/${encodeURIComponent(nextLocation)}`, {
+          fetch(`/api/public/featured-songs/${encodeURIComponent(location)}`, {
             cache: "no-store",
           }),
         ]);
@@ -153,12 +157,7 @@ export default function HomePage() {
     void loadPageData();
 
     return () => window.clearTimeout(timer);
-  }, []);
-
-  const location =
-    typeof window !== "undefined"
-      ? localStorage.getItem("rr_location") || "remix"
-      : "remix";
+  }, [location]);
 
   const openChallenge = () => {
     if (activeChallenge?.linkUrl) {
