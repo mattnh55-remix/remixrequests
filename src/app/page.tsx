@@ -97,8 +97,7 @@ function decorativeStats(song: FeaturedSong) {
 
 export default function HomePage() {
   const router = useRouter();
-  const params = useParams<{ location: string }>();
-  const location = params.location ?? "";
+const location = "remixrequests";
 
   const [activeChallenge, setActiveChallenge] = useState<BonusChallengeConfig | null>(null);
   const [challengeModalOpen, setChallengeModalOpen] = useState(false);
