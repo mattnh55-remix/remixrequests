@@ -1127,21 +1127,27 @@ async function refreshSession() {
     } catch {}
   }
 
-  async function loadSongs() {
-    try {
-      const qs = new URLSearchParams();
-      if (search) qs.set("search", search);
-      if (tag) qs.set("tag", tag);
+async function loadSongs() {
+  try {
+    const qs = new URLSearchParams();
+    const trimmedSearch = search.trim();
 
-      const res = await fetch(`/api/public/songs/${location}?${qs.toString()}`, {
-        cache: "no-store",
-      });
-      const data = await res.json();
-      setSongs(Array.isArray(data?.items) ? data.items : []);
-    } catch {
-      setSongs([]);
+    if (trimmedSearch) {
+      qs.set("search", trimmedSearch);
+    } else if (tag) {
+      qs.set("tag", tag);
     }
+
+    const res = await fetch(`/api/public/songs/${location}?${qs.toString()}`, {
+      cache: "no-store",
+    });
+
+    const data = await res.json();
+    setSongs(Array.isArray(data?.items) ? data.items : []);
+  } catch {
+    setSongs([]);
   }
+}
 
   useEffect(() => {
     void refreshSession();
@@ -1772,7 +1778,7 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
       <div>
         <div className="rrPanelTitle">Search & Browse</div>
         <div className="rrPanelSub">
-          Use tags to narrow the catalog, then hold to request or boost.
+        Browse by tag, or search the full music library by song or artist.
         </div>
       </div>
       <span className="rrStatusPill rrStatusPill--live">Live</span>
@@ -1783,7 +1789,11 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
         className="rrInput"
         placeholder="Search songs or artists..."
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        onChange={(e) => {
+  const next = e.target.value;
+  setSearch(next);
+  if (next.trim()) setTag("");
+}}
         onFocus={() => sfx.playTap()}
       />
 
