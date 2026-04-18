@@ -655,78 +655,6 @@ export default function TvQueuePortraitPremiumPage({
           text-transform: uppercase;
           color: rgba(249, 244, 234, 0.78);
         }
-.tvQueueDivider {
-  position: relative;
-  width: min(78%, 520px);
-  height: 18px;
-  margin: 12px auto 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.tvQueueDividerLine {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 2px;
-  border-radius: 999px;
-  background:
-    linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(168, 124, 255, 0.34) 18%,
-      rgba(245, 199, 255, 0.92) 50%,
-      rgba(168, 124, 255, 0.34) 82%,
-      rgba(255, 255, 255, 0) 100%
-    );
-  box-shadow:
-    0 0 10px rgba(168, 124, 255, 0.34),
-    0 0 22px rgba(104, 72, 255, 0.2);
-}
-
-.tvQueueDividerGlow {
-  position: absolute;
-  left: -24%;
-  top: 50%;
-  width: 24%;
-  height: 10px;
-  transform: translateY(-50%) skewX(-28deg);
-  border-radius: 999px;
-  background:
-    linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.08) 18%,
-      rgba(255, 255, 255, 0.78) 50%,
-      rgba(255, 255, 255, 0.08) 82%,
-      rgba(255, 255, 255, 0) 100%
-    );
-  filter: blur(1px);
-  opacity: 0.95;
-  animation: tvQueueDividerSweep 3.8s ease-in-out infinite;
-}
-
-@keyframes tvQueueDividerSweep {
-  0% {
-    left: -26%;
-    opacity: 0;
-  }
-  10% {
-    opacity: 0.95;
-  }
-  50% {
-    opacity: 1;
-  }
-  90% {
-    opacity: 0.95;
-  }
-  100% {
-    left: 102%;
-    opacity: 0;
-  }
-}
 
         @keyframes premiumPulse {
           0%,
@@ -841,15 +769,6 @@ export default function TvQueuePortraitPremiumPage({
                   </div>
 
                   <div className="tvQueueStrip">
-                    <div className="tvQueueStripTitle">
-                      {nextUp.length > 0 && (
-  <div className="tvQueueDivider" aria-hidden="true">
-    <span className="tvQueueDividerLine" />
-    <span className="tvQueueDividerGlow" />
-  </div>
-)}
-                    </div>
-
                     {nextUp.length > 0 ? (
                       <div className="tvQueueList">
                         {nextUp.map((item, idx) => (
