@@ -734,7 +734,7 @@ export default function TvQueuePortraitPremiumPage({
               {activeItem ? (
                 <>
                   <div className="tvModeRow">
-                    <div className="tvModePill">{isRequestsMode ? "Up Next Queue" : "YOUR FAVS"}</div>
+                    <div className="tvModePill">{isRequestsMode ? "COMING UP" : "YOUR FAVS"}</div>
                     {isRequestsMode && (activeItem.isBoosted || activeItem.boosted || activeItem.wasBoosted) ? (
                       <div className="tvBoostPill">Boosted</div>
                     ) : null}
