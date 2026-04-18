@@ -238,8 +238,7 @@ export default function HomePage() {
 
             <button
               className="rrEnterBtn"
-              onClick={() => router.push(`/request/${encodeURIComponent(location)}`)}
-            >
+              onClick={() => window.location.href = "https://remixrequests.vercel.app/request/remixrequests"}>
               <span className="rrEnterBtnGlow" />
               <span className="rrEnterBtnText">ENTER REMIX SPOT</span>
               <span className="rrEnterBtnArrow">→</span>
