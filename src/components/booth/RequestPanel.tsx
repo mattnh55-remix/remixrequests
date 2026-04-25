@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import StatusBadge from "./StatusBadge";
 import type { BoothMode, RequestItem } from "./types";
 
@@ -16,6 +16,36 @@ type IncomingItem = RequestItem & {
   incomingLane: "PLAY_NOW" | "UP_NEXT";
 };
 
+const TIMER_FALLBACK_FIELDS = ["createdAt", "requestedAt", "submittedAt", "queuedAt", "updatedAt"];
+
+function getIncomingStartedAt(item: RequestItem): number | null {
+  const rawItem = item as unknown as Record<string, unknown>;
+
+  for (const field of TIMER_FALLBACK_FIELDS) {
+    const value = rawItem[field];
+
+    if (value instanceof Date) {
+      const nextTime = value.getTime();
+      if (Number.isFinite(nextTime)) return nextTime;
+    }
+
+    if (typeof value === "string" || typeof value === "number") {
+      const nextTime = new Date(value).getTime();
+      if (Number.isFinite(nextTime)) return nextTime;
+    }
+  }
+
+  return null;
+}
+
+function formatElapsedTime(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 export default function RequestPanel({
   playNow,
   upNext,
@@ -23,6 +53,9 @@ export default function RequestPanel({
   onAccept,
   onReject,
 }: RequestPanelProps) {
+  const firstSeenAtRef = useRef<Map<string, number>>(new Map());
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
   const incomingItems = useMemo<IncomingItem[]>(() => {
     const merged: IncomingItem[] = [
       ...playNow.map((item) => ({ ...item, incomingLane: "PLAY_NOW" as const })),
@@ -44,6 +77,34 @@ export default function RequestPanel({
       return 0;
     });
   }, [playNow, upNext]);
+
+  useEffect(() => {
+    const activeIds = new Set(incomingItems.map((item) => item.id));
+    const firstSeenAt = firstSeenAtRef.current;
+    const rightNow = Date.now();
+
+    incomingItems.forEach((item) => {
+      if (!firstSeenAt.has(item.id)) {
+        firstSeenAt.set(item.id, getIncomingStartedAt(item) ?? rightNow);
+      }
+    });
+
+    for (const itemId of firstSeenAt.keys()) {
+      if (!activeIds.has(itemId)) {
+        firstSeenAt.delete(itemId);
+      }
+    }
+  }, [incomingItems]);
+
+  useEffect(() => {
+    if (!incomingItems.length) return;
+
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [incomingItems.length]);
 
   return (
     <section className={`boothPanel ${mode === "performance" ? "boothPanel--compact" : ""}`}>
@@ -69,11 +130,19 @@ export default function RequestPanel({
                   : safeScore < 0
                     ? "requestVoteRail__score--down"
                     : "";
+              const startedAt = firstSeenAtRef.current.get(item.id) ?? getIncomingStartedAt(item) ?? nowMs;
+              const elapsedSeconds = Math.max(0, Math.floor((nowMs - startedAt) / 1000));
+              const timerTone =
+                elapsedSeconds >= 180
+                  ? "requestTimer--urgent"
+                  : elapsedSeconds >= 60
+                    ? "requestTimer--warming"
+                    : "";
 
               return (
                 <div
                   key={item.id}
-                  className={`requestRow ${item.boosted ? "requestRow--boosted" : ""}`}
+                  className={`requestRow requestRow--populated ${item.boosted ? "requestRow--boosted" : ""}`}
                 >
                   <div className="requestIndex">{index + 1}</div>
 
@@ -116,6 +185,11 @@ export default function RequestPanel({
                       Reject
                     </button>
                   </div>
+
+                  <div className={`requestTimer ${timerTone}`} aria-label="Time waiting">
+                    <span className="requestTimer__label">Waiting</span>
+                    <span className="requestTimer__time">{formatElapsedTime(elapsedSeconds)}</span>
+                  </div>
                 </div>
               );
             })}
@@ -141,19 +215,45 @@ export default function RequestPanel({
         }
 
         .requestRow {
+          position: relative;
+          isolation: isolate;
           display: grid;
-          grid-template-columns: 34px minmax(0, 1fr) auto auto;
+          grid-template-columns: 34px minmax(0, 1fr) auto auto auto;
           gap: 10px;
           align-items: center;
           padding: 10px 12px;
           border-radius: 6px;
           border: 1px solid rgba(255, 255, 255, 0.08);
           background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.015));
+          overflow: hidden;
+        }
+
+        .requestRow::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          z-index: -1;
+          border-radius: inherit;
+          opacity: 0;
+          background:
+            radial-gradient(circle at 12% 50%, rgba(89, 160, 255, 0.22), transparent 34%),
+            radial-gradient(circle at 82% 50%, rgba(255, 118, 214, 0.16), transparent 36%);
+          pointer-events: none;
+        }
+
+        .requestRow--populated::before {
+          animation: requestRowPulse 2.8s ease-in-out infinite;
         }
 
         .requestRow--boosted {
           border-color: rgba(255, 118, 118, 0.24);
           box-shadow: inset 3px 0 0 rgba(255, 118, 118, 0.9);
+        }
+
+        .requestRow--boosted::before {
+          background:
+            radial-gradient(circle at 12% 50%, rgba(255, 118, 118, 0.24), transparent 34%),
+            radial-gradient(circle at 82% 50%, rgba(255, 205, 104, 0.14), transparent 36%);
         }
 
         .requestIndex {
@@ -248,15 +348,99 @@ export default function RequestPanel({
           justify-content: flex-end;
         }
 
+        .requestTimer {
+          min-width: 76px;
+          min-height: 40px;
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          padding: 5px 9px;
+          border-radius: 8px;
+          border: 1px solid rgba(89, 160, 255, 0.26);
+          background: linear-gradient(180deg, rgba(14, 24, 39, 0.98), rgba(8, 12, 20, 0.98));
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.05),
+            0 0 14px rgba(89, 160, 255, 0.08);
+          color: rgba(239, 245, 255, 0.92);
+          white-space: nowrap;
+        }
+
+        .requestTimer__label {
+          font-size: 9px;
+          line-height: 1;
+          font-weight: 1000;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(193, 209, 236, 0.68);
+        }
+
+        .requestTimer__time {
+          font-variant-numeric: tabular-nums;
+          font-size: 15px;
+          line-height: 1;
+          font-weight: 1000;
+          color: #fbfdff;
+        }
+
+        .requestTimer--warming {
+          border-color: rgba(255, 205, 104, 0.34);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.05),
+            0 0 16px rgba(255, 205, 104, 0.12);
+        }
+
+        .requestTimer--urgent {
+          border-color: rgba(255, 118, 118, 0.4);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,0.05),
+            0 0 18px rgba(255, 118, 118, 0.16);
+          animation: requestTimerUrgent 1.15s ease-in-out infinite;
+        }
+
+        @keyframes requestRowPulse {
+          0%,
+          100% {
+            opacity: 0.2;
+          }
+          50% {
+            opacity: 0.82;
+          }
+        }
+
+        @keyframes requestTimerUrgent {
+          0%,
+          100% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.035);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .requestRow--populated::before,
+          .requestTimer--urgent {
+            animation: none;
+          }
+        }
+
         @media (max-width: 980px) {
           .requestRow {
-            grid-template-columns: 34px minmax(0, 1fr);
+            grid-template-columns: 34px minmax(0, 1fr) auto;
             align-items: start;
           }
 
           .requestVoteRail,
           .requestActions {
             grid-column: 2;
+          }
+
+          .requestTimer {
+            grid-column: 3;
+            grid-row: 1 / span 3;
+            align-self: center;
           }
 
           .requestActions {
@@ -274,8 +458,14 @@ export default function RequestPanel({
           }
 
           .requestVoteRail,
-          .requestActions {
+          .requestActions,
+          .requestTimer {
             grid-column: auto;
+            grid-row: auto;
+          }
+
+          .requestTimer {
+            align-items: flex-start;
           }
         }
       `}</style>
