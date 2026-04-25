@@ -1317,17 +1317,17 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
     sfx.playTap();
   }
 
-  function handlePointsAction() {
-    sfx.playTap();
+function handlePointsAction() {
+  sfx.playTap();
 
-    if (shouldClaimPoints) {
-      setBuyReason("boost");
-      setShowVerify(true);
-      return;
-    }
-
-    openBuy("boost");
+  if (shouldClaimPoints) {
+    setBuyReason("boost");
+    setShowVerify(true);
+    return;
   }
+
+  openBuy("boost");
+}
 
   async function redeem(codeInput?: string) {
     const code = String(codeInput ?? redeemCode ?? "").trim();
@@ -1675,9 +1675,12 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
   }
 
   const logoUrl = rules?.rules?.logoUrl || REMIX_LOGO_URL;
-  const shouldClaimPoints =
-    !sessionActive || !verified || !identityId || Number(bal.balance || 0) <= 0;
-  const balanceValue = shouldClaimPoints ? "CLAIM POINTS" : Number(bal.balance || 0);
+const shouldClaimPoints =
+  !sessionActive || !verified || !identityId || Number(bal.balance || 0) <= 0;
+
+const balanceValue = shouldClaimPoints
+  ? "CLAIM POINTS"
+  : Number(bal.balance || 0);
   const requestCost = Number(rules?.rules?.costRequest ?? 1);
   const playNowCost = Number(rules?.rules?.costPlayNow ?? 5);
 
@@ -1754,8 +1757,9 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
             <div className="rrHudLabel">Points</div>
             <div className="rrHudValue">{balanceValue}</div>
             <div className="rrPointsActions">
-              <button className="rrBtn" style={{ width: "100%" }} onClick={handlePointsAction}>
-                {shouldClaimPoints ? "CLAIM POINTS" : "Add Points"}
+<button className="rrBtn" style={{ width: "100%" }} onClick={handlePointsAction}>
+  {shouldClaimPoints ? "CLAIM POINTS" : "Add Points"}
+</button>
               </button>
             </div>
           </div>
@@ -2369,7 +2373,7 @@ const isHot = featuredSongs.some((x) => x.id === song.id);
 <PublicBottomCommandBar
   location={location}
   activeView="request"
-  points={balanceValue as any}
+  points={balanceValue}
   onPointsClick={handlePointsAction}
 />
     </PublicTheme>
