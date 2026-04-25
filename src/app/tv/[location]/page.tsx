@@ -1,1569 +1,1881 @@
+// src/app/shoutouts/[location]/page.tsx
+
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import confetti from "canvas-confetti";
+import PublicTheme from "../../../components/ui/public/PublicTheme";
 import {
-  Barlow_Condensed,
-  DM_Serif_Display,
-  Satisfy,
-} from "next/font/google";
-
-const barlowCondensed = Barlow_Condensed({
-  subsets: ["latin"],
-  weight: ["700"],
-  variable: "--font-barlow-condensed",
-});
-
-const dmSerifDisplay = DM_Serif_Display({
-  subsets: ["latin"],
-  weight: ["400"],
-  variable: "--font-dm-serif-display",
-});
-
-const satisfy = Satisfy({
-  subsets: ["latin"],
-  weight: ["400"],
-  variable: "--font-satisfy",
-});
+  SHOUTOUT_PRODUCTS,
+  type ShoutoutProductKey,
+} from "@/lib/shoutoutProducts";
+import PublicBottomCommandBar from "@/components/public/PublicBottomCommandBar";
 
 const REMIX_LOGO_URL =
   "https://skateremix.com/wp-content/uploads/2026/03/Remix_Globe_Logo_350px.png";
 
-type FeedMessage = {
-  id: string;
-  title?: string;
-  fromName?: string;
-  body?: string;
-  messageText?: string;
-  imageUrl?: string | null;
-  accent?: "gold" | "cyan" | "pink";
-  productKey?: string;
-  productTitle?: string;
-  displayDurationSec?: number;
-  approvedAt?: string;
-  createdAt?: string;
+type BalanceRes = { ok: boolean; balance?: number; error?: string };
+
+type SessionRes = {
+  location?: { slug: string; name: string };
+  session?: { id: string; endsAt: string };
+  rules?: {
+    logoUrl?: string | null;
+    buyUrl?: string | null;
+    packTier1PriceCents?: number | null;
+    packTier2PriceCents?: number | null;
+    packTier3PriceCents?: number | null;
+    packTier4PriceCents?: number | null;
+  };
 };
 
-type PlaceholderMessage = {
+type PackageKey = "5_10" | "10_25" | "15_35" | "20_50";
+
+type UiPack = {
   id: string;
   title: string;
-  body: string;
+  subtitle: string;
+  creditsLabel: string;
+  priceCents?: number;
+  packageKey?: PackageKey;
+  highlight?: boolean;
+  badge?: string;
+  cta?: string;
+  href?: string;
+};
+
+type DrawerProps = {
+  open: boolean;
+  onClose: () => void;
   fromName: string;
-  messageText?: string;
-  imageUrl?: string | null;
-  imagePath?: string | null;
-  accent?: "gold" | "cyan" | "pink";
-  displayDurationSec?: number;
-  productTitle?: string;
+  setFromName: (value: string) => void;
+  messageText: string;
+  setMessageText: (value: string) => void;
+  charsUsed: number;
+  charsMax: number;
+  selectedProduct: (typeof SHOUTOUT_PRODUCTS)[number];
+  busy: boolean;
+  canSend: boolean;
+  canAfford: boolean;
+  onSubmit: () => void;
+  onGetPoints: () => void;
+  photoFile: File | null;
+  setPhotoFile: (file: File | null) => void;
+  photoPreviewUrl: string;
+  setPhotoPreviewUrl: (value: string) => void;
+  usageRightsAccepted: boolean;
+  setUsageRightsAccepted: (value: boolean) => void;
+  photoPreviewUnsupported: boolean;
+  setPhotoPreviewUnsupported: (value: boolean) => void;
 };
 
-type RulesResponse = {
-  ok?: boolean;
-  rules?: {
-    shoutoutSlideSeconds?: number;
-  } | null;
-  shoutoutSlideSeconds?: number;
+type BuyDrawerProps = {
+  open: boolean;
+  onClose: () => void;
+  packs: UiPack[];
+  buyUrl?: string | null;
+  redeemBusy: boolean;
+  onRedeem: (code: string) => void;
+  onBuy: (packageKey: PackageKey) => void;
 };
 
-type DisplaySlide =
-  | {
-      id: string;
-      kind: "teaser";
-      durationSec: number;
-    }
-  | {
-      id: string;
-      kind: "message";
-      durationSec: number;
-      title: string;
-      body: string;
-      fromName: string;
-      imageUrl?: string | null;
-      accent: "gold" | "cyan" | "pink";
-      isFallback?: boolean;
-      displayDurationSec?: number;
-      approvedAt?: string;
-      createdAt?: string;
-    };
+type VerifyDrawerProps = {
+  open: boolean;
+  location: string;
+  email: string;
+  setEmail: (value: string) => void;
+  onRedeem: (code: string) => void;
+  redeemBusy: boolean;
+  onVerified?: (payload?: {
+    balance?: number;
+    note?: string;
+    welcomeGranted?: boolean;
+  }) => void;
+  onClose: () => void;
+};
 
-type Orientation = "portrait" | "landscape" | "square";
-type TextOnlyVariant = "portrait" | "landscape";
+type SubmitRes = {
+  ok: boolean;
+  error?: string;
+  balance?: number;
+  credits?: { balance?: number };
+  session?: { balance?: number };
+  note?: string;
+};
 
-const DEFAULT_SLIDE_SECONDS = 20;
+type UploadPhotoRes = {
+  ok: boolean;
+  error?: string;
+  balance?: number;
+  previewUrl?: string | null;
+  note?: string;
+};
 
-const PLACEHOLDER_MESSAGES: PlaceholderMessage[] = [
-  {
-    id: "placeholder-1",
-    title: "REMIX SHOUTOUT!",
-    body: "Welcome to Remix! Scan the code, request your song, and send a shout out.",
-    fromName: "-The Remix Crew",
-    accent: "cyan",
-    displayDurationSec: 20,
-  },
-  {
-    id: "placeholder-2",
-    title: "REMIX SHOUTOUT!",
-    body: "Happy Birthday to all those celebrating with us today!",
-    fromName: "-$name",
-    accent: "pink",
-    displayDurationSec: 20,
-  },
-  {
-    id: "placeholder-3",
-    title: "REMIX SHOUTOUT!",
-    body: "Get Your Photos on the Big Screen! Send a shoutout now!",
-    fromName: "-Remix Crew!",
-    accent: "gold",
-    displayDurationSec: 20,
-  },
-];
+type RewardFlash = {
+  key: number;
+  title: string;
+  subtitle?: string;
+  kicker?: string;
+};
 
-function placeholderKey(location: string) {
-  return `rr_tv_placeholders:${location}`;
+const BUY_URL_BY_LOCATION: Record<string, string> = {
+  // remixrequests: "https://your-square-link"
+};
+
+const PHOTO_ACCEPT = "image/jpeg,image/png,image/heic,image/heif";
+
+function getProductBadge(product: (typeof SHOUTOUT_PRODUCTS)[number]) {
+  if (product.creditsCost === 18 && !product.hasImage) return "Best Value";
+  if (product.hasImage && product.creditsCost === 18) return "Big Moment";
+  if (product.creditsCost === 8 && !product.hasImage) return "Popular";
+  if (product.hasImage && product.creditsCost === 6) return "Photo";
+  return "";
 }
 
-function safeSeconds(value: unknown, fallback: number) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(1, Math.floor(n));
+function getProductMinutes(product: (typeof SHOUTOUT_PRODUCTS)[number]) {
+  const title = `${product.title} ${product.description}`.toLowerCase();
+  if (title.includes("60")) return "60 mins";
+  if (title.includes("20")) return "20 mins";
+  return "5 mins";
 }
 
-function loadSavedPlaceholders(location: string): PlaceholderMessage[] {
-  try {
-    const raw = localStorage.getItem(placeholderKey(location));
-    if (!raw) return PLACEHOLDER_MESSAGES;
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || !parsed.length) return PLACEHOLDER_MESSAGES;
-
-    return parsed.map((p: any, i: number) => {
-      const fallback = PLACEHOLDER_MESSAGES[i % PLACEHOLDER_MESSAGES.length];
-
-      return {
-        id: String(p?.id || `placeholder-${i + 1}`),
-        title: String(p?.title ?? p?.header ?? fallback.title ?? "REMIX SHOUTOUT!"),
-        body: String(p?.body ?? p?.messageText ?? fallback.body ?? ""),
-        messageText: String(
-          p?.messageText ?? p?.body ?? fallback.messageText ?? fallback.body ?? ""
-        ),
-        fromName: String(
-          p?.fromName ??
-            p?.productLabel ??
-            p?.productTitle ??
-            fallback.fromName ??
-            "- Remix Guests"
-        ),
-        imageUrl: p?.imageUrl ?? null,
-        imagePath: p?.imagePath ?? null,
-        accent: (p?.accent ?? fallback.accent ?? "cyan") as "gold" | "cyan" | "pink",
-        productTitle: String(
-          p?.productTitle ?? p?.productLabel ?? fallback.productTitle ?? ""
-        ),
-        displayDurationSec: safeSeconds(
-          p?.displayDurationSec,
-          fallback.displayDurationSec ?? DEFAULT_SLIDE_SECONDS
-        ),
-      };
-    });
-  } catch (error) {
-    console.error("Failed to load saved shoutout placeholders", error);
-    return PLACEHOLDER_MESSAGES;
-  }
+function formatMoney(cents?: number) {
+  return `$${((Number(cents ?? 0) || 0) / 100).toFixed(2)}`;
 }
 
-async function loadShoutoutSlideSeconds(location: string): Promise<number> {
-  const endpoints = [
-    `/api/public/rules/${location}`,
-    `/api/admin/rules/get/${location}`,
-  ];
+function BrandLogo({ logoUrl }: { logoUrl?: string | null }) {
+  const src = (logoUrl || REMIX_LOGO_URL || "").trim();
 
-  for (const endpoint of endpoints) {
-    try {
-      const res = await fetch(endpoint, { cache: "no-store" });
-      if (!res.ok) continue;
-      const data = (await res.json()) as RulesResponse;
-      const next = data?.rules?.shoutoutSlideSeconds ?? data?.shoutoutSlideSeconds;
-      const seconds = safeSeconds(next, DEFAULT_SLIDE_SECONDS);
-      if (seconds > 0) return seconds;
-    } catch {
-      // ignore
-    }
+  if (src) {
+    return (
+      <div className="rrBrandLogo">
+        <img src={src} alt="Remix logo" />
+      </div>
+    );
   }
 
-  return DEFAULT_SLIDE_SECONDS;
+  return <div className="rrBrandBadge">REMIX</div>;
 }
 
-function normalizeMessageSlide(
-  source: FeedMessage | PlaceholderMessage,
-  fallbackDurationSec: number,
-  isFallback = false
-): DisplaySlide {
-  const body = String(source.body ?? source.messageText ?? "").trim();
-
-  return {
-    id: String(source.id || `slide-${Math.random().toString(36).slice(2)}`),
-    kind: "message",
-    title: String(source.title || "REMIX SHOUTOUT!"),
-    body: body || "Your message here...",
-    fromName: String(source.fromName || "- Remix Guest"),
-    imageUrl: source.imageUrl ?? null,
-    accent: (source.accent || "cyan") as "gold" | "cyan" | "pink",
-    durationSec: safeSeconds(source.displayDurationSec, fallbackDurationSec),
-    displayDurationSec: safeSeconds(source.displayDurationSec, fallbackDurationSec),
-    approvedAt: "approvedAt" in source ? source.approvedAt : undefined,
-    createdAt: "createdAt" in source ? source.createdAt : undefined,
-    isFallback,
-  };
-}
-
-function makeTeaserSlide(durationSec: number): DisplaySlide {
-  return {
-    id: "teaser-slide",
-    kind: "teaser",
-    durationSec: safeSeconds(durationSec, DEFAULT_SLIDE_SECONDS),
-  };
-}
-
-function getSlideDuration(slide: DisplaySlide) {
-  return safeSeconds(slide.durationSec, DEFAULT_SLIDE_SECONDS);
-}
-
-function getTextOnlyVariant(id: string): TextOnlyVariant {
-  let hash = 0;
-  for (let i = 0; i < id.length; i += 1) hash += id.charCodeAt(i);
-  return hash % 2 === 0 ? "portrait" : "landscape";
-}
-
-function joinInlineMessage(body: string, fromName: string) {
-  const trimmedBody = body.trim();
-  const formattedFrom = formatFromName(fromName);
-  if (!formattedFrom) return trimmedBody;
-  return `${trimmedBody} ${formattedFrom}`;
-}
-function formatFromName(fromName: string) {
-  const trimmed = fromName.trim();
-  if (!trimmed) return "";
-  if (trimmed.startsWith("-")) return trimmed;
-  return `-${trimmed}`;
-}
-
-export default function TvPage({
+export default function ShoutoutsPage({
   params,
 }: {
   params: { location: string };
 }) {
   const location = params.location;
 
-  const [liveSlides, setLiveSlides] = useState<DisplaySlide[]>([]);
-  const [placeholderSlides, setPlaceholderSlides] = useState<DisplaySlide[]>([]);
-  const [shoutoutSlideSeconds, setShoutoutSlideSeconds] =
-    useState(DEFAULT_SLIDE_SECONDS);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [slideStartedAt, setSlideStartedAt] = useState(Date.now());
-  const [nowMs, setNowMs] = useState(Date.now());
+  const [sessionActive, setSessionActive] = useState(true);
+  const [identityId, setIdentityId] = useState("");
+  const [email, setEmail] = useState("");
+  const [verified, setVerified] = useState(false);
+  const [locationName, setLocationName] = useState("Remix");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [rulesData, setRulesData] = useState<SessionRes | null>(null);
+  const [balance, setBalance] = useState(0);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [fromName, setFromName] = useState("");
+  const [messageText, setMessageText] = useState("");
+  const [productKey, setProductKey] =
+    useState<ShoutoutProductKey>("TEXT_BASIC");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
+  const [photoPreviewUnsupported, setPhotoPreviewUnsupported] = useState(false);
+  const [usageRightsAccepted, setUsageRightsAccepted] = useState(false);
+  const [rewardFlash, setRewardFlash] = useState<RewardFlash | null>(null);
 
-  const activeSlides = useMemo(() => {
-    if (liveSlides.length) return liveSlides;
-    return [makeTeaserSlide(shoutoutSlideSeconds), ...placeholderSlides];
-  }, [liveSlides, placeholderSlides, shoutoutSlideSeconds]);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [showComposer, setShowComposer] = useState(false);
+  const [showBuy, setShowBuy] = useState(false);
+  const [showVerify, setShowVerify] = useState(false);
+  const [redeemBusy, setRedeemBusy] = useState(false);
+  const [pendingComposerAfterBuy, setPendingComposerAfterBuy] = useState(false);
+  const [sessionCountdown, setSessionCountdown] = useState("");
+  const [pressedProductKey, setPressedProductKey] =
+    useState<ShoutoutProductKey | null>(null);
+  const [holdToast, setHoldToast] = useState(false);
 
-  const activeSlide = activeSlides[currentIndex] || null;
+  const openTimerRef = useRef<number | null>(null);
+  const rewardFlashTimerRef = useRef<number | null>(null);
 
-  const activeSignature = useMemo(
-    () => activeSlides.map((slide) => slide.id).join("|"),
-    [activeSlides]
+  const selectedProduct = useMemo(
+    () =>
+      SHOUTOUT_PRODUCTS.find((p) => p.key === productKey) ||
+      SHOUTOUT_PRODUCTS[0],
+    [productKey],
   );
 
-  async function tickShoutouts(nextFallbackSeconds?: number) {
+  const canUseSelectedProduct =
+    selectedProduct.enabled || selectedProduct.hasImage;
+
+  async function refreshSession() {
     try {
-      const res = await fetch(`/api/public/shoutouts/feed/${location}`, {
+      const res = await fetch(`/api/public/session/${location}`, {
         cache: "no-store",
       });
-      const data = await res.json();
-
-      const feedItems: FeedMessage[] = Array.isArray(data?.items)
-        ? data.items
-        : data?.current
-          ? [data.current]
-          : data?.message
-            ? [data.message]
-            : [];
-
-      const normalized = feedItems
-        .filter(Boolean)
-        .map((item) =>
-          normalizeMessageSlide(
-            item,
-            nextFallbackSeconds ?? shoutoutSlideSeconds,
-            false
-          )
-        );
-
-      setLiveSlides(normalized);
+      const data = (await res.json()) as SessionRes;
+      setRulesData(data);
+      if (data?.location?.name) setLocationName(data.location.name);
+      if (data?.rules?.logoUrl) setLogoUrl(data.rules.logoUrl);
     } catch {
-      setLiveSlides([]);
+      // ignore
     }
   }
 
-  useEffect(() => {
-    const initialSeconds = DEFAULT_SLIDE_SECONDS;
-    const nextPlaceholders = loadSavedPlaceholders(location).map((item) =>
-      normalizeMessageSlide(item, initialSeconds, true)
-    );
+  async function refreshBalance(nextIdentityId?: string) {
+    const id = (nextIdentityId ?? identityId ?? "").trim();
+    if (!id) return;
 
-    setPlaceholderSlides(nextPlaceholders);
-    setCurrentIndex(0);
-    setSlideStartedAt(Date.now());
-
-    void tickShoutouts(initialSeconds);
-
-    void loadShoutoutSlideSeconds(location).then((seconds) => {
-      setShoutoutSlideSeconds(seconds);
-
-      const withFreshSeconds = loadSavedPlaceholders(location).map((item) =>
-        normalizeMessageSlide(item, seconds, true)
+    try {
+      const res = await fetch(
+        `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
+        { cache: "no-store" },
       );
-      setPlaceholderSlides(withFreshSeconds);
-      void tickShoutouts(seconds);
-    });
+      const data = (await res.json()) as BalanceRes;
 
-    const feedInterval = window.setInterval(() => {
-      void tickShoutouts();
-    }, 5000);
-
-    const configInterval = window.setInterval(() => {
-      void loadShoutoutSlideSeconds(location).then((seconds) => {
-        setShoutoutSlideSeconds(seconds);
-
-        const refreshedPlaceholders = loadSavedPlaceholders(location).map((item) =>
-          normalizeMessageSlide(item, seconds, true)
-        );
-
-        setPlaceholderSlides(refreshedPlaceholders);
-        void tickShoutouts(seconds);
-      });
-    }, 15000);
-
-    const syncPlaceholders = () => {
-      const synced = loadSavedPlaceholders(location).map((item) =>
-        normalizeMessageSlide(item, shoutoutSlideSeconds, true)
-      );
-      setPlaceholderSlides(synced);
-    };
-
-    window.addEventListener("storage", syncPlaceholders);
-
-    return () => {
-      window.clearInterval(feedInterval);
-      window.clearInterval(configInterval);
-      window.removeEventListener("storage", syncPlaceholders);
-    };
-  }, [location]);
-
-  useEffect(() => {
-    setNowMs(Date.now());
-
-    const id = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, 250);
-
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    if (!activeSlides.length) return;
-
-    setCurrentIndex((prev) => {
-      const safePrev = Math.min(prev, activeSlides.length - 1);
-      return safePrev >= 0 ? safePrev : 0;
-    });
-  }, [activeSignature]);
-
-  useEffect(() => {
-    if (!activeSlide || !activeSlides.length) return;
-
-    const elapsed = nowMs - slideStartedAt;
-    const durationMs = getSlideDuration(activeSlide) * 1000;
-
-    if (elapsed < durationMs) return;
-
-    setCurrentIndex((prev) => {
-      if (!activeSlides.length) return 0;
-      return (prev + 1) % activeSlides.length;
-    });
-    setSlideStartedAt(Date.now());
-  }, [activeSlide, activeSlides, nowMs, slideStartedAt]);
-
-  const liveDisplayStartMs =
-    activeSlide && activeSlide.kind === "message" && !activeSlide.isFallback
-      ? new Date(
-          activeSlide.approvedAt || activeSlide.createdAt || Date.now()
-        ).getTime()
-      : 0;
-
-  const liveDisplayDurationSec =
-    activeSlide && activeSlide.kind === "message"
-      ? safeSeconds(activeSlide.displayDurationSec, getSlideDuration(activeSlide))
-      : 0;
-
-  const usingLifetimeTimer =
-    !!activeSlide &&
-    activeSlide.kind === "message" &&
-    !activeSlide.isFallback &&
-    liveDisplayDurationSec > 0;
-
-  const remainingSec = activeSlide
-    ? usingLifetimeTimer
-      ? Math.max(
-          0,
-          Math.ceil(
-            (liveDisplayDurationSec * 1000 -
-              Math.max(0, nowMs - liveDisplayStartMs)) /
-              1000
-          )
-        )
-      : Math.max(
-          0,
-          Math.ceil(
-            (getSlideDuration(activeSlide) * 1000 - (nowMs - slideStartedAt)) /
-              1000
-          )
-        )
-    : 0;
-
-  const progressPct = activeSlide
-    ? usingLifetimeTimer
-      ? Math.max(
-          0,
-          Math.min(
-            100,
-            100 -
-              (Math.max(0, nowMs - liveDisplayStartMs) /
-                (liveDisplayDurationSec * 1000)) *
-                100
-          )
-        )
-      : Math.max(
-          0,
-          Math.min(
-            100,
-            100 -
-              ((nowMs - slideStartedAt) / (getSlideDuration(activeSlide) * 1000)) *
-                100
-          )
-        )
-    : 100;
-
-  const timerLabel = `${Math.floor(remainingSec / 60)}:${String(
-    remainingSec % 60
-  ).padStart(2, "0")}`;
-
-  return (
-    <div
-      className={[
-        barlowCondensed.variable,
-        dmSerifDisplay.variable,
-        satisfy.variable,
-        "remixShoutTvRoot",
-      ].join(" ")}
-    >
-      {activeSlide ? (
-        <div
-          key={`${activeSlide.id}-${slideStartedAt}`}
-          className="remixShoutTvFade"
-        >
-          {activeSlide.kind === "teaser" ? (
-            <TeaserSlide />
-          ) : (
-            <MessageSlide
-              slide={activeSlide}
-              timerLabel={timerLabel}
-              progressPct={progressPct}
-            />
-          )}
-        </div>
-      ) : null}
-
-      <style jsx global>{`
-        :root {
-          --remix-cream: #f4eddf;
-          --remix-shadow: rgba(0, 0, 0, 0.34);
-          --remix-orange: #e4772f;
-          --remix-aqua: #7fd0d8;
-          --remix-gold: #c0ba3d;
-          --remix-deep-teal: #007d73;
-        }
-
-        html,
-        body {
-          background: #26231f;
-        }
-
-        .remixShoutTvRoot {
-          position: relative;
-          min-height: 100vh;
-          width: 100%;
-          overflow: hidden;
-          background:
-            radial-gradient(circle at 18% 28%, rgba(0, 210, 255, 0.09), transparent 28%),
-            radial-gradient(circle at 82% 22%, rgba(255, 66, 180, 0.08), transparent 26%),
-            radial-gradient(circle at 56% 82%, rgba(0, 255, 170, 0.06), transparent 30%),
-            linear-gradient(135deg, #2d3138 0%, #23272e 42%, #1d2127 100%);
-          color: var(--remix-cream);
-        }
-
-        .remixShoutTvRoot::before {
-          content: "";
-          position: absolute;
-          inset: -12%;
-          pointer-events: none;
-          background:
-            radial-gradient(circle at 20% 35%, rgba(0, 220, 255, 0.1), transparent 22%),
-            radial-gradient(circle at 78% 26%, rgba(255, 78, 173, 0.09), transparent 20%),
-            radial-gradient(circle at 62% 72%, rgba(0, 255, 170, 0.07), transparent 24%);
-          filter: blur(44px);
-          opacity: 0.85;
-          animation: remixClubGlow 20s ease-in-out infinite alternate;
-          z-index: 0;
-        }
-
-        .remixShoutTvRoot::after {
-          content: "";
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          background: linear-gradient(
-            115deg,
-            rgba(255, 255, 255, 0.025),
-            transparent 32%,
-            rgba(255, 255, 255, 0.012) 52%,
-            transparent 72%
-          );
-          mix-blend-mode: screen;
-          opacity: 0.45;
-          animation: remixLightSweep 26s ease-in-out infinite;
-          z-index: 0;
-        }
-
-        @keyframes remixClubGlow {
-          0% {
-            transform: translate3d(-1.5%, -1%, 0) scale(1);
-          }
-          50% {
-            transform: translate3d(1.5%, 1%, 0) scale(1.05);
-          }
-          100% {
-            transform: translate3d(0%, -1%, 0) scale(1.02);
-          }
-        }
-
-        @keyframes remixLightSweep {
-          0% {
-            transform: translateX(-6%);
-            opacity: 0.22;
-          }
-          50% {
-            transform: translateX(4%);
-            opacity: 0.42;
-          }
-          100% {
-            transform: translateX(-2%);
-            opacity: 0.26;
-          }
-        }
-
-        .remixShoutTvFade {
-          position: relative;
-          z-index: 1;
-          min-height: 100vh;
-          width: 100%;
-          animation: remixSlideFade 1100ms cubic-bezier(0.22, 0.8, 0.22, 1)
-            both;
-        }
-
-        @keyframes remixSlideFade {
-          0% {
-            opacity: 0;
-            transform: scale(1.003);
-            filter: blur(2px);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1);
-            filter: blur(0);
-          }
-        }
-
-        @keyframes remixPhotoFloat {
-          0% {
-            transform: scale(1);
-          }
-          50% {
-            transform: scale(1.08);
-          }
-          100% {
-            transform: scale(1);
-          }
-        }
-
-.remixPortraitInlineFrom {
-  font: inherit;
-  color: inherit;
-  text-shadow: inherit;
-  letter-spacing: inherit;
-  white-space: nowrap;
-}
-
-
-        .remixLandscapeShell,
-        .remixTeaser {
-          min-height: 100vh;
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr) auto;
-          padding: 0 28px;
-          box-sizing: border-box;
-          gap: 8px;
-        }
-
-        .remixPortraitShell {
-          min-height: 100vh;
-          display: grid;
-          grid-template-columns: minmax(470px, 46%) minmax(0, 1fr);
-          padding: 0;
-          box-sizing: border-box;
-          gap: 0;
-        }
-
-        .remixPortraitMediaCol {
-          min-height: 100vh;
-          display: flex;
-          align-items: stretch;
-          justify-content: stretch;
-        }
-
-        .remixPortraitContentCol {
-          min-width: 0;
-          min-height: 100vh;
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr) auto;
-          padding: 0 28px 0 32px;
-          gap: 8px;
-          box-sizing: border-box;
-        }
-
-        .remixLandscapeContent {
-          min-height: 0;
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr);
-          gap: 18px;
-          align-content: start;
-          padding-top: 4px;
-        }
-
-        .remixTextOnlyContent {
-          min-height: 0;
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr);
-          gap: 18px;
-          align-content: start;
-          padding-top: 4px;
-        }
-
-        .remixSlideTop {
-          display: flex;
-          justify-content: center;
-          align-items: flex-start;
-        }
-
-        .remixSlideTop--portrait {
-          justify-content: flex-end;
-          padding-right: 84px;
-        }
-
-.remixSlideTop--portrait {
-  justify-content: center;
-  padding-right: 0;
-}
-
-        .remixBannerWrap {
-          display: flex;
-          justify-content: center;
-          width: 100%;
-        }
-
-.remixBannerWrap--portrait {
-  justify-content: center;
-}
-
-        .remixBanner {
-          position: relative;
-          width: min(100%, 760px);
-          min-width: 0;
-          padding: 10px 34px 16px;
-          background: linear-gradient(180deg, #18b1a4 0%, #11988d 100%);
-          border-bottom: 6px solid rgba(0, 0, 0, 0.34);
-          clip-path: polygon(0 0, 100% 0, 100% 84%, 50% 100%, 0 84%);
-          box-shadow: 0 10px 18px rgba(0, 0, 0, 0.16);
-          text-align: center;
-          overflow: hidden;
-        }
-
-        .remixBanner--portrait {
-          width: min(100%, 400px);
-          padding: 10px 22px 14px;
-        }
-
-        .remixBanner--arched {
-          transform: perspective(1200px) rotateX(2deg);
-          transform-origin: center top;
-        }
-
-        .remixBannerDots {
-          position: absolute;
-          inset: 0;
-          background: radial-gradient(
-            circle,
-            rgba(255, 255, 255, 0.34) 1.5px,
-            transparent 1.5px
-          );
-          background-size: 20px 20px;
-          opacity: 0.55;
-          transform: none;
-          pointer-events: none;
-        }
-
-        .remixBannerText {
-          position: relative;
-          z-index: 2;
-          font-family: var(--font-barlow-condensed), sans-serif;
-          font-size: clamp(42px, 3.2vw, 68px);
-          line-height: 0.94;
-          letter-spacing: 1px;
-          text-transform: uppercase;
-          color: #f8f4ea;
-          text-shadow: 5px 5px 0 rgba(0, 0, 0, 0.22), 0 2px 0 rgba(0, 0, 0, 0.16);
-        }
-
-        .remixBanner--portrait .remixBannerText {
-          font-size: clamp(30px, 2.1vw, 44px);
-        }
-
-        .remixMessageText,
-        .remixInlineMessage {
-          font-family: var(--font-dm-serif-display), serif;
-          font-weight: 400;
-          font-style: normal;
-          color: var(--remix-cream);
-          text-shadow: 6px 6px 0 var(--remix-shadow);
-          letter-spacing: -0.02em;
-          overflow-wrap: anywhere;
-        }
-
-        .remixPortraitMessageWrap {
-          min-height: 0;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          padding: 0 12px 14px 8px;
-        }
-
-        .remixPortraitMessageText {
-          font-size: clamp(52px, 4.9vw, 102px);
-          line-height: 1.06;
-        }
-
-        .remixLandscapeTextWrap {
-          min-height: 0;
-          display: flex;
-          align-items: flex-start;
-          justify-content: center;
-          padding: 6px 20px 2px;
-        }
-
-        .remixInlineMessage {
-          font-size: clamp(50px, 4.8vw, 104px);
-          line-height: 1.06;
-          text-align: center;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-          max-width: 100%;
-        }
-
-        .remixInlineMessage--textOnly {
-          font-size: clamp(46px, 4.4vw, 94px);
-        }
-
-        .remixLandscapeVisualPanel,
-        .remixTextOnlyVisualWrap {
-          min-width: 0;
-          min-height: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .remixPortraitMediaFrame {
-          width: 100%;
-          height: 100%;
-          min-height: 100vh;
-          background: #c9bcab;
-          overflow: hidden;
-          position: relative;
-          box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
-        }
-
-        .remixLandscapeMediaFrame,
-        .remixTextOnlyMediaFrame {
-          width: min(100%, 900px);
-          aspect-ratio: 16 / 9;
-          background: #c9bcab;
-          overflow: hidden;
-          position: relative;
-          box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
-        }
-
-        .remixLinen {
-          background:
-            radial-gradient(circle at 20% 18%, rgba(255, 255, 255, 0.16), transparent 26%),
-            repeating-linear-gradient(
-              0deg,
-              rgba(255, 255, 255, 0.06),
-              rgba(255, 255, 255, 0.06) 1px,
-              rgba(0, 0, 0, 0.015) 1px,
-              rgba(0, 0, 0, 0.015) 2px
-            ),
-            repeating-linear-gradient(
-              90deg,
-              rgba(255, 255, 255, 0.055),
-              rgba(255, 255, 255, 0.055) 1px,
-              rgba(0, 0, 0, 0.018) 1px,
-              rgba(0, 0, 0, 0.018) 2px
-            ),
-            linear-gradient(180deg, #d8c9b6 0%, #d4c2ae 100%);
-        }
-
-        .remixPhotoCorner--tl,
-        .remixPhotoCorner--br {
-          position: absolute;
-          z-index: 4;
-          width: 160px;
-          height: 92px;
-          pointer-events: none;
-        }
-
-        .remixPhotoCorner--tl {
-          top: 0;
-          left: 0;
-        }
-
-        .remixPhotoCorner--tl::before,
-        .remixPhotoCorner--tl::after,
-        .remixPhotoCorner--br::before,
-        .remixPhotoCorner--br::after {
-          content: "";
-          position: absolute;
-          display: block;
-        }
-
-        .remixPhotoCorner--tl::before {
-          top: 0;
-          left: 0;
-          width: 112px;
-          height: 18px;
-          background: #007d73;
-          transform: skewX(-38deg);
-          transform-origin: left top;
-        }
-
-        .remixPhotoCorner--tl::after {
-          top: 0;
-          left: 0;
-          width: 132px;
-          height: 32px;
-          background: #e4772f;
-          clip-path: polygon(0 0, 100% 0, 84% 100%, 0 100%);
-        }
-
-        .remixPhotoCorner--br {
-          right: 0;
-          bottom: 0;
-        }
-
-        .remixPhotoCorner--br::before {
-          right: 0;
-          bottom: 0;
-          width: 112px;
-          height: 18px;
-          background: #7fd0d8;
-          transform: skewX(-38deg);
-          transform-origin: right bottom;
-        }
-
-        .remixPhotoCorner--br::after {
-          right: 0;
-          bottom: 0;
-          width: 132px;
-          height: 32px;
-          background: #e4772f;
-          clip-path: polygon(16% 0, 100% 0, 100% 100%, 0 100%);
-        }
-
-        .remixPortraitMediaFrame,
-        .remixLandscapeMediaFrame,
-        .remixTextOnlyMediaFrame {
-          position: relative;
-          isolation: isolate;
-        }
-
-        .remixPhotoInner {
-          position: absolute;
-          inset: 0;
-          display: grid;
-          place-items: center;
-          padding: 30px;
-        }
-
-        .remixPhotoInner--portrait {
-          padding: 0;
-        }
-
-        .remixZoomMedia {
-          width: 100%;
-          height: 100%;
-          object-fit: contain;
-          object-position: center center;
-          transform-origin: center center;
-          animation: remixPhotoFloat 30s ease-in-out infinite;
-          will-change: transform;
-        }
-
-        .remixZoomMedia--portrait {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          object-position: center center;
-        }
-
-        .remixPlaceholderArt {
-          width: 100%;
-          height: 100%;
-          display: grid;
-          place-items: center;
-          padding: 20px;
-          box-sizing: border-box;
-        }
-
-        .remixPlaceholderArtInner {
-          width: min(58%, 320px);
-          aspect-ratio: 1 / 1;
-          display: grid;
-          place-items: center;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.08);
-          box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
-        }
-
-        .remixPlaceholderArtInner img {
-          max-width: 74%;
-          max-height: 74%;
-          object-fit: contain;
-          display: block;
-          filter: saturate(0.9) contrast(1.04);
-        }
-
-        .remixFooter {
-          height: 84px;
-          position: relative;
-        }
-
-        .remixFooter--teaser {
-          height: 84px;
-        }
-
-        .remixTeaserTop {
-          display: flex;
-          justify-content: center;
-          padding-top: 0;
-        }
-
-        .remixFooterBars {
-          position: absolute;
-          left: -28px;
-          right: -28px;
-          bottom: 0;
-          height: 84px;
-          background: linear-gradient(
-            180deg,
-            transparent 0 6px,
-            var(--remix-orange) 6px 26px,
-            var(--remix-aqua) 26px 46px,
-            var(--remix-gold) 46px 66px,
-            var(--remix-deep-teal) 66px 84px
-          );
-        }
-
-        .remixFooterInner {
-          position: relative;
-          z-index: 2;
-          height: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          gap: 22px;
-          padding: 0 24px 18px;
-        }
-
-        .remixFooterTrack {
-          width: min(100%, 680px);
-          height: 30px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.88);
-          overflow: hidden;
-          box-shadow:
-            inset 0 1px 1px rgba(0, 0, 0, 0.08),
-            0 2px 0 rgba(0, 0, 0, 0.08);
-        }
-
-        .remixFooterFill {
-          height: 100%;
-          border-radius: 999px;
-          background: linear-gradient(90deg, #f7f5ee 0%, #ffffff 100%);
-          transition: width 250ms linear;
-        }
-
-        .remixFooterTime {
-          font-family: var(--font-barlow-condensed), sans-serif;
-          font-size: clamp(28px, 2vw, 52px);
-          line-height: 1;
-          color: #f7f4eb;
-          text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.22);
-          white-space: nowrap;
-        }
-
-        .remixTeaserCenter {
-          min-height: 0;
-          display: grid;
-          place-items: center;
-          text-align: center;
-          padding: 18px 40px 0;
-        }
-
-        .remixTeaserInner {
-          max-width: 1500px;
-          width: 100%;
-        }
-
-        .remixTeaserLead {
-          font-family: var(--font-barlow-condensed), sans-serif;
-          font-size: clamp(50px, 4.7vw, 108px);
-          line-height: 0.95;
-          letter-spacing: 1px;
-          text-transform: uppercase;
-          color: var(--remix-cream);
-          text-shadow: 7px 7px 0 rgba(0, 0, 0, 0.28);
-        }
-
-        .remixTeaserNow {
-          font-family: var(--font-barlow-condensed), sans-serif;
-          font-size: clamp(220px, 23vw, 520px);
-          line-height: 0.82;
-          letter-spacing: -0.05em;
-          text-transform: uppercase;
-          color: var(--remix-cream);
-          text-shadow: 14px 14px 0 rgba(0, 0, 0, 0.32);
-          margin: 14px 0 0;
-        }
-
-        .remixTeaserScript {
-          font-family: var(--font-satisfy), cursive;
-          font-size: clamp(54px, 4.5vw, 110px);
-          line-height: 1.04;
-          color: #76d4db;
-          text-shadow: 6px 6px 0 rgba(0, 0, 0, 0.24);
-          margin-top: 8px;
+      if (!res.ok || !data.ok) {
+        if (res.status === 401 || res.status === 403 || res.status === 404) {
+          resetPublicSessionState();
         }
-
-        @media (max-width: 1600px) {
-          .remixPortraitShell {
-            grid-template-columns: minmax(380px, 44%) minmax(0, 1fr);
-          }
-
-          .remixPortraitContentCol {
-            padding: 0 22px 0 22px;
-          }
-
-          .remixPortraitMessageText {
-            font-size: clamp(40px, 4.1vw, 84px);
-          }
-
-
-          .remixInlineMessage {
-            font-size: clamp(40px, 4vw, 82px);
-          }
-
-          .remixInlineMessage--textOnly {
-            font-size: clamp(38px, 3.7vw, 74px);
-          }
-
-          .remixFooterTrack {
-            width: min(100%, 560px);
-          }
-        }
-
-        @media (max-width: 1100px) {
-          .remixLandscapeShell,
-          .remixTeaser {
-            padding: 0 16px;
-            gap: 12px;
-          }
-
-          .remixPortraitShell {
-            grid-template-columns: 1fr;
-            grid-template-rows: minmax(320px, 46vh) minmax(0, 1fr);
-          }
-
-          .remixPortraitMediaCol {
-            min-height: 320px;
-          }
-
-          .remixPortraitContentCol {
-            min-height: 0;
-            padding: 0 16px;
-          }
-
-          .remixSlideTop--portrait {
-            justify-content: center;
-            padding-right: 0;
-          }
-
-          .remixBannerWrap--portrait {
-            justify-content: center;
-          }
-
-          .remixBanner {
-            width: min(100%, 620px);
-            margin: 0 auto;
-          }
-
-          .remixBanner--portrait {
-            width: min(100%, 360px);
-          }
-
-          .remixLandscapeMediaFrame,
-          .remixTextOnlyMediaFrame {
-            width: 100%;
-          }
-
-          .remixLandscapeTextWrap,
-          .remixPortraitMessageWrap {
-            padding-left: 8px;
-            padding-right: 8px;
-          }
-
-          .remixPortraitMessageText,
-          .remixInlineMessage {
-            text-align: center;
-            font-size: clamp(34px, 6vw, 60px);
-          }
-
-          .remixFooterBars {
-            left: -16px;
-            right: -16px;
-          }
-
-          .remixFooterInner {
-            padding: 0 10px 18px;
-          }
-
-          .remixFooterTrack {
-            width: min(100%, 420px);
-            height: 24px;
-          }
-
-          .remixTeaserLead {
-            font-size: clamp(36px, 7vw, 60px);
-          }
-
-          .remixTeaserNow {
-            font-size: clamp(130px, 24vw, 220px);
-          }
-
-          .remixTeaserScript {
-            font-size: clamp(34px, 6vw, 56px);
-          }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-function MessageSlide({
-  slide,
-  timerLabel,
-  progressPct,
-}: {
-  slide: Extract<DisplaySlide, { kind: "message" }>;
-  timerLabel: string;
-  progressPct: number;
-}) {
-  if (!slide.imageUrl) {
-    return (
-      <TextOnlyMessageLayout
-        title={slide.title}
-        body={slide.body}
-        fromName={slide.fromName}
-        timerLabel={timerLabel}
-        progressPct={progressPct}
-        variant={getTextOnlyVariant(slide.id)}
-      />
-    );
-  }
-
-  const imageUrl = slide.imageUrl;
-
-  return (
-    <ImageOrientationSwitch src={imageUrl}>
-      {(orientation) =>
-        orientation === "landscape" ? (
-          <LandscapeMessageLayout
-            title={slide.title}
-            body={slide.body}
-            fromName={slide.fromName}
-            imageUrl={imageUrl}
-            timerLabel={timerLabel}
-            progressPct={progressPct}
-          />
-        ) : (
-          <PortraitMessageLayout
-            title={slide.title}
-            body={slide.body}
-            fromName={slide.fromName}
-            imageUrl={imageUrl}
-            timerLabel={timerLabel}
-            progressPct={progressPct}
-          />
-        )
-      }
-    </ImageOrientationSwitch>
-  );
-}
-
-function PortraitMessageLayout({
-  title,
-  body,
-  fromName,
-  imageUrl,
-  timerLabel,
-  progressPct,
-}: {
-  title: string;
-  body: string;
-  fromName: string;
-  imageUrl: string;
-  timerLabel: string;
-  progressPct: number;
-}) {
-  return (
-    <div className="remixPortraitShell">
-      <div className="remixPortraitMediaCol">
-        <PortraitVisualFrame imageUrl={imageUrl} />
-      </div>
-
-      <div className="remixPortraitContentCol">
-        <SlideTop title={title} variant="portrait" />
-        <div className="remixPortraitMessageWrap">
-          <div className="remixMessageText remixPortraitMessageText">
-            {body}
-  <span className="remixPortraitInlineFrom"> {formatFromName(fromName)}</span>
-          </div>
-        </div>
-        <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
-      </div>
-    </div>
-  );
-}
-
-function LandscapeMessageLayout({
-  title,
-  body,
-  fromName,
-  imageUrl,
-  timerLabel,
-  progressPct,
-}: {
-  title: string;
-  body: string;
-  fromName: string;
-  imageUrl: string;
-  timerLabel: string;
-  progressPct: number;
-}) {
-  return (
-    <div className="remixLandscapeShell">
-      <SlideTop title={title} />
-      <div className="remixLandscapeContent">
-        <div className="remixLandscapeVisualPanel">
-          <LandscapeVisualFrame imageUrl={imageUrl} />
-        </div>
-        <div className="remixLandscapeTextWrap">
-          <div className="remixInlineMessage">
-            {joinInlineMessage(body, fromName)}
-          </div>
-        </div>
-      </div>
-      <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
-    </div>
-  );
-}
-
-function TextOnlyMessageLayout({
-  title,
-  body,
-  fromName,
-  timerLabel,
-  progressPct,
-  variant,
-}: {
-  title: string;
-  body: string;
-  fromName: string;
-  timerLabel: string;
-  progressPct: number;
-  variant: TextOnlyVariant;
-}) {
-  if (variant === "portrait") {
-    return (
-      <div className="remixPortraitShell">
-        <div className="remixPortraitMediaCol">
-          <PortraitPlaceholderVisualFrame />
-        </div>
-
-        <div className="remixPortraitContentCol">
-          <SlideTop title={title} variant="portrait" />
-          <div className="remixPortraitMessageWrap">
-          <div className="remixMessageText remixPortraitMessageText">
-            {body}
-            <span className="remixPortraitInlineFrom"> {formatFromName(fromName)}</span>
-          </div>
-        </div>
-          <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="remixLandscapeShell">
-      <SlideTop title={title} />
-      <div className="remixTextOnlyContent">
-        <div className="remixTextOnlyVisualWrap">
-          <LandscapePlaceholderVisualFrame />
-        </div>
-        <div className="remixLandscapeTextWrap">
-          <div className="remixInlineMessage remixInlineMessage--textOnly">
-            {joinInlineMessage(body, fromName)}
-          </div>
-        </div>
-      </div>
-      <SlideFooter timerLabel={timerLabel} progressPct={progressPct} />
-    </div>
-  );
-}
-
-function SlideTop({
-  title,
-  variant = "default",
-}: {
-  title: string;
-  variant?: "default" | "portrait";
-}) {
-  const topClass =
-    variant === "portrait"
-      ? "remixSlideTop remixSlideTop--portrait"
-      : "remixSlideTop";
-  const wrapClass =
-    variant === "portrait"
-      ? "remixBannerWrap remixBannerWrap--portrait"
-      : "remixBannerWrap";
-  const bannerClass =
-    variant === "portrait"
-      ? "remixBanner remixBanner--portrait remixBanner--arched"
-      : "remixBanner remixBanner--arched";
-
-  return (
-    <div className={topClass}>
-      <div className={wrapClass}>
-        <div className={bannerClass}>
-          <div className="remixBannerDots" />
-          <div className="remixBannerText">{title || "REMIX SHOUTOUT!"}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SlideFooter({
-  timerLabel,
-  progressPct,
-}: {
-  timerLabel: string;
-  progressPct: number;
-}) {
-  return (
-    <footer className="remixFooter">
-      <div className="remixFooterBars" />
-      <div className="remixFooterInner">
-        <div className="remixFooterTrack" aria-hidden="true">
-          <div className="remixFooterFill" style={{ width: `${progressPct}%` }} />
-        </div>
-        <div className="remixFooterTime">{timerLabel}</div>
-      </div>
-    </footer>
-  );
-}
-
-function TeaserSlide() {
-  return (
-    <div className="remixTeaser">
-      <div className="remixTeaserTop">
-        <div className="remixBannerWrap">
-          <div className="remixBanner remixBanner--arched">
-            <div className="remixBannerDots" />
-            <div className="remixBannerText">REMIX SHOUTOUT!</div>
-          </div>
-        </div>
-      </div>
-
-      <main className="remixTeaserCenter">
-        <div className="remixTeaserInner">
-          <div className="remixTeaserLead">YOUR MESSAGE HERE...</div>
-          <div className="remixTeaserNow">NOW!</div>
-          <div className="remixTeaserScript">Scan the Code at your Table!</div>
-        </div>
-      </main>
-
-      <footer className="remixFooter remixFooter--teaser">
-        <div className="remixFooterBars" />
-      </footer>
-    </div>
-  );
-}
-
-function PortraitVisualFrame({ imageUrl }: { imageUrl: string }) {
-  return (
-    <div className="remixPortraitMediaFrame remixLinen">
-      <div className="remixPhotoCorner--tl" />
-      <div className="remixPhotoCorner--br" />
-      <div className="remixPhotoInner remixPhotoInner--portrait">
-        <img
-          src={imageUrl}
-          alt=""
-          className="remixZoomMedia remixZoomMedia--portrait"
-          referrerPolicy="no-referrer"
-        />
-      </div>
-    </div>
-  );
-}
-
-function LandscapeVisualFrame({ imageUrl }: { imageUrl: string }) {
-  return (
-    <div className="remixLandscapeMediaFrame remixLinen">
-      <div className="remixPhotoCorner--tl" />
-      <div className="remixPhotoCorner--br" />
-      <div className="remixPhotoInner">
-        <img
-          src={imageUrl}
-          alt=""
-          className="remixZoomMedia"
-          referrerPolicy="no-referrer"
-        />
-      </div>
-    </div>
-  );
-}
-
-function PortraitPlaceholderVisualFrame() {
-  return (
-    <div className="remixPortraitMediaFrame remixLinen">
-      <div className="remixPhotoCorner--tl" />
-      <div className="remixPhotoCorner--br" />
-      <div className="remixPhotoInner remixPhotoInner--portrait">
-        <div className="remixPlaceholderArt">
-          <div className="remixPlaceholderArtInner">
-            <img src={REMIX_LOGO_URL} alt="Remix placeholder art" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LandscapePlaceholderVisualFrame() {
-  return (
-    <div className="remixTextOnlyMediaFrame remixLinen">
-      <div className="remixPhotoCorner--tl" />
-      <div className="remixPhotoCorner--br" />
-      <div className="remixPhotoInner">
-        <div className="remixPlaceholderArt">
-          <div className="remixPlaceholderArtInner">
-            <img src={REMIX_LOGO_URL} alt="Remix placeholder art" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ImageOrientationSwitch({
-  src,
-  children,
-}: {
-  src: string;
-  children: (orientation: Orientation) => ReactNode;
-}) {
-  const [orientation, setOrientation] = useState<Orientation>("portrait");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const img = new Image();
-
-    img.onload = () => {
-      if (cancelled) return;
-
-      const w = img.naturalWidth || 0;
-      const h = img.naturalHeight || 0;
-
-      if (!w || !h) {
-        setOrientation("square");
         return;
       }
 
-      const ratio = w / h;
+      const nextBalance = Number(data.balance ?? 0);
+      setBalance(nextBalance);
+      setSessionActive(true);
+      setVerified(true);
+      setIdentityId(id);
+    } catch {
+      // ignore
+    }
+  }
 
-      if (ratio > 1.15) {
-        setOrientation("landscape");
-      } else if (ratio < 0.85) {
-        setOrientation("portrait");
-      } else {
-        setOrientation("square");
-      }
-    };
+  function fireConfetti() {
+    confetti({
+      particleCount: 70,
+      spread: 72,
+      startVelocity: 30,
+      origin: { y: 0.58 },
+      colors: ["#00e5ff", "#ff3d9a", "#ffffff"],
+      scalar: 0.9,
+    });
 
-    img.onerror = () => {
-      if (!cancelled) {
-        setOrientation("portrait");
-      }
-    };
+    window.setTimeout(() => {
+      confetti({
+        particleCount: 34,
+        spread: 58,
+        startVelocity: 22,
+        origin: { y: 0.62 },
+        colors: ["#00e5ff", "#ff3d9a"],
+        scalar: 0.8,
+      });
+    }, 120);
+  }
 
-    img.src = src;
+  function showRewardFlash(title: string, subtitle?: string, kicker = "NICE") {
+    setRewardFlash({
+      key: Date.now(),
+      title,
+      subtitle,
+      kicker,
+    });
 
+    if (rewardFlashTimerRef.current != null) {
+      window.clearTimeout(rewardFlashTimerRef.current);
+    }
+
+    rewardFlashTimerRef.current = window.setTimeout(() => {
+      setRewardFlash(null);
+    }, 1800);
+  }
+
+  function celebratePointsAward(points?: number | null, subtitle?: string) {
+    const value = Number(points ?? 0);
+    fireConfetti();
+    showRewardFlash(
+      value > 0 ? `+${value} POINTS` : "POINTS ADDED",
+      subtitle || "Ready to make it big on screen",
+      "JACKPOT",
+    );
+  }
+
+  function celebrateShoutoutSent(productTitle: string) {
+    fireConfetti();
+    showRewardFlash(
+      "SHOUT-OUT SENT",
+      `${productTitle} is heading to the booth for approval.`,
+      "ON AIR",
+    );
+  }
+
+  function persistPendingShoutoutResume(nextProductKey?: ShoutoutProductKey) {
+    try {
+      sessionStorage.setItem(
+        "rr_shoutout_resume",
+        JSON.stringify({
+          location,
+          productKey: nextProductKey ?? productKey,
+          ts: Date.now(),
+        }),
+      );
+    } catch {
+      // ignore
+    }
+  }
+
+  function clearPendingShoutoutResume() {
+    try {
+      sessionStorage.removeItem("rr_shoutout_resume");
+    } catch {
+      // ignore
+    }
+  }
+
+  function resetPublicSessionState() {
+    setSessionActive(false);
+    setVerified(false);
+    setIdentityId("");
+    setBalance(0);
+    setShowBuy(false);
+    setShowComposer(false);
+    setPendingComposerAfterBuy(false);
+    clearPendingShoutoutResume();
+
+    try {
+      localStorage.removeItem("rr_identityId");
+      localStorage.removeItem("rr_email");
+      sessionStorage.removeItem("rr_shoutout_resume");
+    } catch {
+      // ignore
+    }
+  }
+
+  function resetComposerMedia() {
+    setPhotoFile(null);
+    setPhotoPreviewUrl("");
+    setPhotoPreviewUnsupported(false);
+    setUsageRightsAccepted(false);
+  }
+
+  function openBuyForShoutout(nextProductKey?: ShoutoutProductKey) {
+    persistPendingShoutoutResume(nextProductKey);
+    setPendingComposerAfterBuy(true);
+    setShowBuy(true);
+  }
+
+  useEffect(() => {
+    void refreshSession();
+  }, [location]);
+
+  useEffect(() => {
     return () => {
-      cancelled = true;
+      if (openTimerRef.current) window.clearTimeout(openTimerRef.current);
+      if (rewardFlashTimerRef.current)
+        window.clearTimeout(rewardFlashTimerRef.current);
     };
-  }, [src]);
+  }, []);
 
-  return <>{children(orientation)}</>;
+  useEffect(() => {
+    try {
+      const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+      const lsEmail = (localStorage.getItem("rr_email") || "").trim();
+      const lsLocation = (localStorage.getItem("rr_location") || "").trim();
+
+      if (lsIdentity) {
+        setIdentityId(lsIdentity);
+        void refreshBalance(lsIdentity);
+      }
+
+      if (lsEmail) setEmail(lsEmail);
+
+      if (location && lsLocation !== location) {
+        localStorage.setItem("rr_location", String(location));
+      }
+    } catch {
+      // ignore
+    }
+  }, [location]);
+
+  useEffect(() => {
+    const tick = () => {
+      const endsAt = rulesData?.session?.endsAt;
+      if (!endsAt) {
+        setSessionCountdown("");
+        return;
+      }
+      const endMs = new Date(endsAt).getTime();
+      const now = Date.now();
+      const diff = Math.max(0, endMs - now);
+      if (diff <= 0) {
+        setSessionCountdown("Session ended");
+        return;
+      }
+      const totalMin = Math.floor(diff / 60000);
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+      if (h <= 0 && m <= 2) setSessionCountdown("Ending soon");
+      else if (h <= 0) setSessionCountdown(`Ends in ${m}m`);
+      else setSessionCountdown(`Ends in ${h}h ${m}m`);
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [rulesData?.session?.endsAt]);
+
+  useEffect(() => {
+    async function resumeAfterCheckout() {
+      try {
+        const raw = sessionStorage.getItem("rr_shoutout_resume");
+        if (!raw) return;
+
+        const parsed = JSON.parse(raw) as {
+          location?: string;
+          productKey?: ShoutoutProductKey;
+          ts?: number;
+        };
+
+        if (!parsed || parsed.location !== location) return;
+
+        const ageMs = Date.now() - Number(parsed.ts || 0);
+        if (!Number.isFinite(ageMs) || ageMs > 1000 * 60 * 30) {
+          clearPendingShoutoutResume();
+          return;
+        }
+
+        if (parsed.productKey) {
+          setProductKey(parsed.productKey);
+        }
+
+        const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+        const beforeBalance = balance;
+
+        if (lsIdentity) {
+          await refreshBalance(lsIdentity);
+        }
+
+        setPendingComposerAfterBuy(true);
+
+        if (lsIdentity) {
+          const res = await fetch(
+            `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(lsIdentity)}`,
+            { cache: "no-store" },
+          );
+          const data = (await res.json()) as BalanceRes;
+          if (data.ok) {
+            const nextBalance = Number(data.balance ?? 0);
+            setBalance(nextBalance);
+            if (nextBalance > beforeBalance) {
+              setShowBuy(false);
+              celebratePointsAward(
+                nextBalance - beforeBalance,
+                "Points loaded for your shout-out",
+              );
+              setMsg("Points added. Finish your shout-out.");
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    void resumeAfterCheckout();
+    // intentionally on mount/location
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
+
+  useEffect(() => {
+    if (!msg) {
+      setToastVisible(false);
+      return;
+    }
+
+    setToastVisible(true);
+
+    if (holdToast) return;
+
+    const id = window.setTimeout(() => setToastVisible(false), 3200);
+    return () => window.clearTimeout(id);
+  }, [msg, holdToast]);
+
+  useEffect(() => {
+    if (!pendingComposerAfterBuy) return;
+    if (!canUseSelectedProduct) return;
+
+    if (balance >= selectedProduct.creditsCost) {
+      clearPendingShoutoutResume();
+      setPendingComposerAfterBuy(false);
+      setShowBuy(false);
+      setShowComposer(true);
+      setMsg("Points added. Finish your shout-out.");
+    }
+  }, [
+    pendingComposerAfterBuy,
+    balance,
+    selectedProduct,
+    canUseSelectedProduct,
+  ]);
+
+  useEffect(() => {
+    if (!selectedProduct.hasImage) {
+      resetComposerMedia();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProduct.hasImage]);
+
+  async function redeem(codeInput?: string) {
+    const code = String(codeInput || "").trim();
+    if (!code) {
+      setMsg("Enter a redemption code.");
+      return;
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setMsg("Enter a valid email first.");
+      return;
+    }
+
+    if (!verified && !identityId) {
+      setMsg("Please verify to redeem a code.");
+      setShowVerify(true);
+      return;
+    }
+
+    setRedeemBusy(true);
+    try {
+      const res = await fetch(`/api/public/redeem/${location}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        setMsg(data.error || "Could not redeem code.");
+        return;
+      }
+
+      const pointsAdded = Number(data.pointsAdded ?? 0);
+
+      setShowVerify(false);
+      setShowBuy(false);
+      celebratePointsAward(pointsAdded, "Code redeemed successfully");
+      setMsg(
+        pointsAdded > 0
+          ? `Redeemed +${pointsAdded} points!`
+          : "Code redeemed successfully.",
+      );
+
+      const nextBalance = data?.balance ?? null;
+      if (typeof nextBalance === "number") setBalance(nextBalance);
+      else await refreshBalance();
+    } catch {
+      setMsg("Could not redeem code.");
+    } finally {
+      setRedeemBusy(false);
+    }
+  }
+
+  async function startCheckout(packageKey: PackageKey) {
+    if (!identityId) {
+      setMsg("Please verify before buying points.");
+      setShowVerify(true);
+      return;
+    }
+
+    persistPendingShoutoutResume();
+
+    try {
+      const res = await fetch("/api/square/create-checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          location,
+          identityId,
+          packageKey,
+          returnPath: `/shoutouts/${location}`,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data?.ok || !data?.checkoutUrl) {
+        setMsg(data?.error || "Could not start checkout.");
+        return;
+      }
+
+      window.location.href = data.checkoutUrl;
+    } catch {
+      setMsg("Could not start checkout.");
+    }
+  }
+
+  function handlePointsAction() {
+    if (!sessionActive || !verified || !identityId || balance <= 0) {
+      setShowVerify(true);
+      return;
+    }
+
+    setShowBuy(true);
+  }
+
+  function handleProductClick(nextProductKey: ShoutoutProductKey) {
+    const nextProduct =
+      SHOUTOUT_PRODUCTS.find((p) => p.key === nextProductKey) ||
+      SHOUTOUT_PRODUCTS[0];
+
+    if (openTimerRef.current) {
+      window.clearTimeout(openTimerRef.current);
+    }
+
+    setPressedProductKey(nextProductKey);
+    setProductKey(nextProductKey);
+    setMsg("");
+
+    openTimerRef.current = window.setTimeout(() => {
+      setPressedProductKey(null);
+
+      if (!sessionActive || !verified || !identityId || balance <= 0) {
+        setMsg("Claim your intro points to send a shout-out.");
+        setShowVerify(true);
+        return;
+      }
+
+      if (!nextProduct.enabled && !nextProduct.hasImage) {
+        setMsg("That shout-out option is currently unavailable.");
+        return;
+      }
+
+      if (balance < nextProduct.creditsCost) {
+        setMsg(
+          `You need ${nextProduct.creditsCost} points for this shout-out.`,
+        );
+        openBuyForShoutout(nextProductKey);
+        return;
+      }
+
+      clearPendingShoutoutResume();
+      setShowComposer(true);
+    }, 120);
+  }
+
+  async function submit() {
+    setMsg("");
+
+    const cleanFrom = fromName.trim();
+    const cleanBody = messageText.trim();
+
+    if (!sessionActive || !verified || !identityId || balance <= 0) {
+      setMsg("Claim your intro points to send a shout-out.");
+      setShowVerify(true);
+      return;
+    }
+
+    if (balance < selectedProduct.creditsCost) {
+      setMsg(
+        `You need ${selectedProduct.creditsCost} points for this shout-out.`,
+      );
+      setShowComposer(false);
+      openBuyForShoutout();
+      return;
+    }
+
+    if (!cleanFrom || !cleanBody) {
+      setMsg("Please fill out your name and message.");
+      return;
+    }
+
+    if (!canUseSelectedProduct) {
+      setMsg("That shout-out option is currently unavailable.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      if (selectedProduct.hasImage) {
+        if (!photoFile) {
+          setMsg("Please choose a photo.");
+          return;
+        }
+
+        if (!usageRightsAccepted) {
+          setMsg("Please confirm you have permission to upload this photo.");
+          return;
+        }
+
+        const form = new FormData();
+        form.append("location", location);
+        form.append("identityId", identityId);
+        form.append("email", email);
+        form.append("fromName", cleanFrom);
+        form.append("messageText", cleanBody);
+        form.append("productKey", productKey);
+        form.append(
+          "usageRightsAccepted",
+          usageRightsAccepted ? "true" : "false",
+        );
+        form.append("file", photoFile);
+
+        const res = await fetch("/api/public/shoutouts/upload-photo", {
+          method: "POST",
+          body: form,
+        });
+
+        const data = (await res.json()) as UploadPhotoRes;
+        if (!data.ok) {
+          setMsg(data.error || "Photo upload failed.");
+          return;
+        }
+
+        celebrateShoutoutSent(selectedProduct.title);
+        setMsg(
+          data.note || `✅ ${selectedProduct.title} submitted for approval!`,
+        );
+        setMessageText("");
+        setFromName("");
+        resetComposerMedia();
+        setShowComposer(false);
+
+        if (typeof data.balance === "number") setBalance(data.balance);
+        else await refreshBalance();
+
+        return;
+      }
+
+      const res = await fetch("/api/public/shoutouts/submit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          location,
+          identityId,
+          email,
+          fromName: cleanFrom,
+          messageText: cleanBody,
+          productKey,
+        }),
+      });
+
+      const data = (await res.json()) as SubmitRes;
+      if (!data.ok) {
+        setMsg(
+          data.error ||
+            "This message can’t be submitted as written. Please revise and try again.",
+        );
+        return;
+      }
+
+      celebrateShoutoutSent(selectedProduct.title);
+      setMsg(`✅ ${selectedProduct.title} submitted for approval!`);
+      setMessageText("");
+      setFromName("");
+      setShowComposer(false);
+
+      const nextBalance =
+        data?.balance ??
+        data?.credits?.balance ??
+        data?.session?.balance ??
+        null;
+      if (typeof nextBalance === "number") setBalance(nextBalance);
+      else await refreshBalance();
+    } catch {
+      setMsg(
+        selectedProduct.hasImage
+          ? "Photo upload failed."
+          : "This message can’t be submitted as written. Please revise and try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const charsUsed = messageText.length;
+  const charsMax = 80;
+  const canAfford = balance >= selectedProduct.creditsCost;
+  const canSend =
+    canUseSelectedProduct &&
+    canAfford &&
+    !busy &&
+    (!selectedProduct.hasImage || (!!photoFile && usageRightsAccepted));
+  const shouldClaimPoints =
+    !sessionActive || !verified || !identityId || balance <= 0;
+  const heroBalance = shouldClaimPoints ? 5 : balance;
+
+  const buyUrl = useMemo(() => {
+    const fromMap = BUY_URL_BY_LOCATION[location];
+    if (fromMap) return fromMap;
+
+    const fromEnv = process.env.NEXT_PUBLIC_REMIXREQUESTS_BUY_URL;
+    if (fromEnv) return fromEnv;
+
+    return rulesData?.rules?.buyUrl ?? null;
+  }, [location, rulesData]);
+
+  const uiPacks: UiPack[] = useMemo(() => {
+    const priceTier1 = Number(rulesData?.rules?.packTier1PriceCents ?? 500);
+    const priceTier2 = Number(rulesData?.rules?.packTier2PriceCents ?? 1000);
+    const priceTier3 = Number(rulesData?.rules?.packTier3PriceCents ?? 1500);
+    const priceTier4 = Number(rulesData?.rules?.packTier4PriceCents ?? 2000);
+
+    return [
+      {
+        id: "tier1",
+        title: "Quick Boost",
+        subtitle: "Perfect for 1–2 shout-outs",
+        creditsLabel: "10 points",
+        badge: "Fast",
+        cta: "Get Points",
+        href: buyUrl ?? undefined,
+        priceCents: priceTier1,
+        packageKey: "5_10",
+      },
+      {
+        id: "tier2",
+        title: "Party Pack",
+        subtitle: "The sweet spot for groups",
+        creditsLabel: "25 points",
+        highlight: true,
+        badge: "Featured",
+        cta: "Lock In",
+        href: buyUrl ?? undefined,
+        priceCents: priceTier2,
+        packageKey: "10_25",
+      },
+      {
+        id: "tier3",
+        title: "Bonus Pack",
+        subtitle: "More messages. More moments.",
+        creditsLabel: "35 points",
+        badge: "Hot Deal",
+        cta: "Level Up",
+        href: buyUrl ?? undefined,
+        priceCents: priceTier3,
+        packageKey: "15_35",
+      },
+      {
+        id: "tier4",
+        title: "All Night",
+        subtitle: "Best value for a busy session",
+        creditsLabel: "50 points",
+        badge: "Best Value",
+        cta: "Go Big",
+        href: buyUrl ?? undefined,
+        priceCents: priceTier4,
+        packageKey: "20_50",
+      },
+    ];
+  }, [rulesData, buyUrl]);
+
+  return (
+    <PublicTheme>
+      <div className="rrHeroGrid">
+        <div className="rrLogoCard">
+          <BrandLogo logoUrl={logoUrl} />
+        </div>
+
+        <div className="rrHeroCard">
+          <h1 className="rrTitle">Shout-Outs</h1>
+          <div className="rrTitleSub">
+            Get your message up on the big screen!
+          </div>
+        </div>
+
+        <div className="rrPointsCard">
+          <div className="rrPointsStack">
+            <div className="rrHudLabel">Points</div>
+            <div className="rrHudValue">{heroBalance}</div>
+            <div className="rrPointsActions">
+              <button
+                className="rrBtn"
+                style={{ width: "100%" }}
+                onClick={() => {
+                  if (shouldClaimPoints) {
+                    setShowVerify(true);
+                    return;
+                  }
+                  setShowBuy(true);
+                }}
+              >
+                {shouldClaimPoints ? "CLAIM POINTS" : "Add Points"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rrPanel">
+        <div className="rrPanelHead rrPanelHead--centered">
+          <div>
+            <div className="rrPanelTitle">Pick Your Shout-Out</div>
+            <div className="rrPanelSub">
+              Choose a format, then add your message!
+            </div>
+          </div>
+        </div>
+
+        <div className="rrPanelBody">
+          <div className="rrProductGrid">
+            {SHOUTOUT_PRODUCTS.map((product) => {
+              const selected = product.key === productKey;
+              const pressed = product.key === pressedProductKey;
+              const canUseProduct = product.enabled || product.hasImage;
+              const badge = getProductBadge(product);
+              const minutes = getProductMinutes(product);
+              const badgeClass =
+                badge === "Best Value"
+                  ? "rrShoutCardBadge--value"
+                  : badge === "Popular"
+                    ? "rrShoutCardBadge--popular"
+                    : badge === "Photo" || product.hasImage
+                      ? "rrShoutCardBadge--photo"
+                      : "";
+
+              return (
+                <button
+                  key={product.key}
+                  type="button"
+                  onClick={() => handleProductClick(product.key)}
+                  className={[
+                    "rrShoutCard",
+                    selected ? "rrShoutCard--selected" : "",
+                    pressed ? "rrShoutCard--pressed" : "",
+                    !canUseProduct ? "rrShoutCard--disabled" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <div className="rrShoutCardTop">
+                    {badge ? (
+                      <span
+                        className={[
+                          "rrShoutCardBadge",
+                          badgeClass,
+                          selected ? "rrShoutCardBadge--featured" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                      >
+                        {badge}
+                      </span>
+                    ) : (
+                      <span className="rrShoutCardBadge">Shout-Out</span>
+                    )}
+
+                    {product.hasImage ? (
+                      <span className="rrShoutPhotoChip">
+                        <span className="rrShoutPhotoIcon">+</span>
+                        Photo
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="rrShoutCardCopy">
+                    <div className="rrShoutCardTitle">{product.title}</div>
+                    <div className="rrShoutCardDesc">{product.description}</div>
+                  </div>
+
+                  <div className="rrShoutCardMeta">
+                    <span className="rrMetaPill">{minutes}</span>
+                    <span className="rrMetaPill rrMetaPill--points">
+                      {product.creditsCost}pts
+                    </span>
+                    {!canUseProduct ? (
+                      <span className="rrStatusPill rrStatusPill--warn">
+                        {product.comingSoon ? "Coming Soon" : "Unavailable"}
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="rrPanel">
+        <div className="rrPanelHead rrPanelHead--centered">
+          <div>
+            <div className="rrPanelTitle">How It Works</div>
+            <div className="rrPanelSub">
+              Choose your shout out, submit details and send to the booth for
+              approval!
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rrFooterBar">
+        <div className="rrFooterInner">
+          <button
+            className="rrBtn rrFooterCta"
+            onClick={() => {
+              if (shouldClaimPoints) {
+                setShowVerify(true);
+                return;
+              }
+              setShowComposer(true);
+            }}
+          >
+            {shouldClaimPoints ? "CLAIM POINTS TO SEND" : "Send Shout-Out"}
+          </button>
+
+          <button
+            className="rrBtnGhost"
+            onClick={() => {
+              if (shouldClaimPoints) {
+                setShowVerify(true);
+                return;
+              }
+              setShowBuy(true);
+            }}
+          >
+            {shouldClaimPoints ? "CLAIM POINTS" : "Add Points"}
+          </button>
+        </div>
+      </div>
+
+      {toastVisible && msg ? (
+        <div
+          className="rrToast"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 140,
+            display: "grid",
+            placeItems: "center",
+            padding: "16px",
+            background: "rgba(2, 5, 10, 0.38)",
+            backdropFilter: "blur(6px)",
+          }}
+        >
+          <div
+            className="rrToastInner"
+            style={{
+              width: "min(460px, calc(100vw - 24px))",
+              gridTemplateColumns: "1fr",
+              justifyItems: "center",
+              textAlign: "center",
+              padding: "14px 14px 12px",
+              gap: "10px",
+              borderRadius: "16px",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.48)",
+            }}
+          >
+            <div
+              className="rrToastText"
+              style={{ fontSize: "14px", lineHeight: 1.4 }}
+            >
+              {msg}
+            </div>
+
+            <button
+              className="rrBtnGhost"
+              onClick={() => {
+                setMsg("");
+                setToastVisible(false);
+                setHoldToast(false);
+              }}
+              style={{ minWidth: "110px" }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {rewardFlash ? (
+        <div
+          key={rewardFlash.key}
+          style={{
+            position: "fixed",
+            inset: 0,
+            pointerEvents: "none",
+            zIndex: 160,
+            display: "grid",
+            placeItems: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              minWidth: 260,
+              maxWidth: "min(92vw, 380px)",
+              borderRadius: 26,
+              padding: "22px 24px",
+              textAlign: "center",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.18)",
+              background:
+                "radial-gradient(circle at top, rgba(21,146,162,0.30), rgba(13,18,28,0.97) 54%), linear-gradient(135deg, rgba(52,62,84,0.96), rgba(16,21,31,0.98))",
+              boxShadow:
+                "0 22px 70px rgba(0,0,0,0.52), 0 0 38px rgba(21,146,162,0.16), inset 0 1px 0 rgba(255,255,255,0.08)",
+              animation: "rrRewardPop 1800ms ease forwards",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 13,
+                letterSpacing: "0.24em",
+                opacity: 0.7,
+                fontWeight: 900,
+              }}
+            >
+              {rewardFlash.kicker || "NICE"}
+            </div>
+            <div
+              style={{
+                fontSize: 34,
+                fontWeight: 1000,
+                lineHeight: 1,
+                marginTop: 8,
+              }}
+            >
+              {rewardFlash.title}
+            </div>
+            {rewardFlash.subtitle ? (
+              <div style={{ marginTop: 10, fontSize: 14, opacity: 0.88 }}>
+                {rewardFlash.subtitle}
+              </div>
+            ) : null}
+            <div
+              style={{
+                width: 110,
+                height: 3,
+                margin: "14px auto 0",
+                borderRadius: 999,
+                background:
+                  "linear-gradient(90deg, rgba(255,61,154,0.15), rgba(255,255,255,0.85), rgba(0,229,255,0.18))",
+              }}
+            />
+          </div>
+
+          <style jsx>{`
+            @keyframes rrRewardPop {
+              0% {
+                transform: scale(0.82) translateY(14px);
+                opacity: 0;
+              }
+              12% {
+                transform: scale(1.04) translateY(0);
+                opacity: 1;
+              }
+              82% {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+              }
+              100% {
+                transform: scale(0.96) translateY(-10px);
+                opacity: 0;
+              }
+            }
+          `}</style>
+        </div>
+      ) : null}
+
+      <VerifyDrawer
+        open={showVerify}
+        location={location}
+        email={email}
+        setEmail={setEmail}
+        onRedeem={(code: string) => {
+          void redeem(code);
+        }}
+        redeemBusy={redeemBusy}
+        onVerified={(payload?: {
+          balance?: number;
+          note?: string;
+          welcomeGranted?: boolean;
+        }) => {
+          setVerified(true);
+          setShowVerify(false);
+
+          try {
+            const lsIdentity = (
+              localStorage.getItem("rr_identityId") || ""
+            ).trim();
+            const lsEmail = (localStorage.getItem("rr_email") || "").trim();
+
+            if (lsIdentity) setIdentityId(lsIdentity);
+            if (lsEmail) setEmail(lsEmail);
+            else if (email.trim())
+              localStorage.setItem("rr_email", email.trim());
+
+            if (typeof payload?.balance === "number") {
+              setBalance(payload.balance);
+            } else if (lsIdentity) {
+              void refreshBalance(lsIdentity);
+            }
+          } catch {
+            // ignore
+          }
+
+          if (payload?.welcomeGranted || Number(payload?.balance ?? 0) > 0) {
+            celebratePointsAward(
+              payload?.balance ?? 5,
+              payload?.note || "Your intro points are ready",
+            );
+          }
+
+          setMsg(payload?.note || "✅ Verified! Your intro points are ready.");
+        }}
+        onClose={() => setShowVerify(false)}
+      />
+
+      <ShoutoutComposerDrawer
+        open={showComposer}
+        onClose={() => {
+          setShowComposer(false);
+          if (!selectedProduct.hasImage) return;
+          resetComposerMedia();
+        }}
+        fromName={fromName}
+        setFromName={setFromName}
+        messageText={messageText}
+        setMessageText={setMessageText}
+        charsUsed={charsUsed}
+        charsMax={charsMax}
+        selectedProduct={selectedProduct}
+        busy={busy}
+        canSend={canSend}
+        canAfford={canAfford}
+        onSubmit={submit}
+        onGetPoints={() => {
+          setShowComposer(false);
+          openBuyForShoutout();
+        }}
+        photoFile={photoFile}
+        setPhotoFile={setPhotoFile}
+        photoPreviewUrl={photoPreviewUrl}
+        setPhotoPreviewUrl={setPhotoPreviewUrl}
+        photoPreviewUnsupported={photoPreviewUnsupported}
+        setPhotoPreviewUnsupported={setPhotoPreviewUnsupported}
+        usageRightsAccepted={usageRightsAccepted}
+        setUsageRightsAccepted={setUsageRightsAccepted}
+      />
+
+      <BuyCreditsDrawer
+        open={showBuy}
+        onClose={() => {
+          setShowBuy(false);
+          void refreshBalance();
+        }}
+        packs={uiPacks}
+        buyUrl={buyUrl}
+        redeemBusy={redeemBusy}
+        onRedeem={(code: string) => {
+          void redeem(code);
+        }}
+        onBuy={(packageKey: PackageKey) => {
+          void startCheckout(packageKey);
+        }}
+      />
+      <PublicBottomCommandBar
+        location={location}
+        activeView="shoutouts"
+        points={balance}
+        onPointsClick={handlePointsAction}
+      />
+    </PublicTheme>
+  );
+}
+
+function ShoutoutComposerDrawer({
+  open,
+  onClose,
+  fromName,
+  setFromName,
+  messageText,
+  setMessageText,
+  charsUsed,
+  charsMax,
+  selectedProduct,
+  busy,
+  canSend,
+  canAfford,
+  onSubmit,
+  onGetPoints,
+  photoFile,
+  setPhotoFile,
+  photoPreviewUrl,
+  setPhotoPreviewUrl,
+  usageRightsAccepted,
+  setUsageRightsAccepted,
+  photoPreviewUnsupported,
+  setPhotoPreviewUnsupported,
+}: DrawerProps) {
+  if (!open) return null;
+
+  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const nextFile = event.target.files?.[0] || null;
+    setPhotoFile(nextFile);
+
+    if (photoPreviewUrl) {
+      URL.revokeObjectURL(photoPreviewUrl);
+      setPhotoPreviewUrl("");
+    }
+
+    setPhotoPreviewUnsupported(false);
+
+    if (!nextFile) return;
+
+    const lowerName = String(nextFile.name || "").toLowerCase();
+    const lowerType = String(nextFile.type || "").toLowerCase();
+
+    const isHeicLike =
+      lowerType.includes("heic") ||
+      lowerType.includes("heif") ||
+      lowerName.endsWith(".heic") ||
+      lowerName.endsWith(".heif");
+
+    if (isHeicLike) {
+      setPhotoPreviewUnsupported(true);
+      return;
+    }
+
+    setPhotoPreviewUrl(URL.createObjectURL(nextFile));
+  }
+
+  return (
+    <div className="rrOverlay">
+      <div className="rrDrawer">
+        <div className="rrDrawerHead">
+          <div>
+            <div className="rrDrawerTitle">{selectedProduct.title}</div>
+            <div className="rrDrawerSub">
+              Add your message, then send it in for approval.
+            </div>
+          </div>
+          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        <div
+          className="rrDrawerBody"
+          style={{ maxHeight: "78vh", overflowY: "auto" }}
+        >
+          <div className="rrStack">
+            <div className="rrField">
+              <div className="rrFieldLabel">From</div>
+              <input
+                className="rrInput"
+                value={fromName}
+                onChange={(e) => setFromName(e.target.value)}
+                maxLength={24}
+                placeholder="Your name"
+              />
+            </div>
+
+            <div className="rrField">
+              <div className="rrFieldMetaRow">
+                <div className="rrFieldLabel">Message</div>
+                <div className="rrFieldMetaText">
+                  {charsUsed}/{charsMax}
+                </div>
+              </div>
+              <textarea
+                className="rrTextarea"
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                maxLength={charsMax}
+                placeholder="Happy birthday Ava! Have the best skate night ever!"
+                rows={4}
+              />
+            </div>
+
+            {selectedProduct.hasImage ? (
+              <div className="rrField">
+                <div className="rrFieldLabel">Photo</div>
+
+                <label className="rrUploadBox">
+                  <input
+                    type="file"
+                    accept={PHOTO_ACCEPT}
+                    onChange={handlePhotoChange}
+                  />
+                  <div className="rrHelper">
+                    Upload JPG, PNG, HEIC, or HEIF.
+                  </div>
+                </label>
+
+                {photoPreviewUrl ? (
+                  <div className="rrUploadPreview">
+                    <img src={photoPreviewUrl} alt="Selected upload preview" />
+                    <div className="rrHelper">
+                      Preview only — your full photo will be reviewed before it
+                      appears on screen.
+                    </div>
+                  </div>
+                ) : photoPreviewUnsupported && photoFile ? (
+                  <div className="rrMessage">
+                    Selected file: <strong>{photoFile.name}</strong>
+                    <div className="rrHelper" style={{ marginTop: 4 }}>
+                      Preview is not available for this image type on this
+                      device, but the upload can still succeed.
+                    </div>
+                  </div>
+                ) : null}
+
+                <label className="rrCheckRow">
+                  <input
+                    type="checkbox"
+                    checked={usageRightsAccepted}
+                    onChange={(e) => setUsageRightsAccepted(e.target.checked)}
+                  />
+                  <span>
+                    I have permission to upload and display this photo on the
+                    screen.
+                  </span>
+                </label>
+              </div>
+            ) : null}
+
+            <div className="rrShoutComposerSummary">
+              <div className="rrPackTitle">{selectedProduct.title}</div>
+              <div className="rrHelper">{selectedProduct.description}</div>
+              <div className="rrShoutCardMeta">
+                <span className="rrMetaPill">
+                  {selectedProduct.creditsCost}pts
+                </span>
+                <span className="rrMetaPill">
+                  {getProductMinutes(selectedProduct)}
+                </span>
+              </div>
+            </div>
+
+            <div className="rrActionStack">
+              {canAfford ? (
+                <button
+                  className="rrBtn rrBtn--full"
+                  onClick={onSubmit}
+                  disabled={!canSend}
+                >
+                  {busy ? "Submitting..." : "Send Shout-Out"}
+                </button>
+              ) : (
+                <button className="rrBtn rrBtn--full" onClick={onGetPoints}>
+                  Get {selectedProduct.creditsCost} Points
+                </button>
+              )}
+
+              <button className="rrBtnGhost rrBtn--full" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VerifyDrawer({
+  open,
+  location,
+  email,
+  setEmail,
+  onRedeem,
+  redeemBusy,
+  onVerified,
+  onClose,
+}: VerifyDrawerProps) {
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"collect" | "code">("collect");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [emailOptIn, setEmailOptIn] = useState(true);
+  const [smsOptIn, setSmsOptIn] = useState(true);
+
+  useEffect(() => {
+    if (!open) {
+      setPhone("");
+      setCode("");
+      setStep("collect");
+      setMsg("");
+    }
+  }, [open]);
+
+  if (!open) return null;
+
+  async function sendCode() {
+    setBusy(true);
+    setMsg("");
+
+    try {
+      const res = await fetch(`/api/public/auth/start`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          location,
+          email,
+          phone,
+          emailOptIn,
+          smsOptIn,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        setMsg(data.error || "Could not send code.");
+        return;
+      }
+
+      setStep("code");
+      setMsg("Code sent.");
+    } catch {
+      setMsg("Could not send code.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmCode() {
+    setBusy(true);
+    setMsg("");
+
+    try {
+      const res = await fetch(`/api/public/auth/verify`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          location,
+          email,
+          phone,
+          code,
+          emailOptIn,
+          smsOptIn,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        setMsg(data.error || "Code verification failed.");
+        return;
+      }
+
+      const nextIdentityId = String(
+        data.identityId || data.identity?.id || "",
+      ).trim();
+      const nextEmail = String(data.email || email || "").trim();
+
+      try {
+        if (nextIdentityId)
+          localStorage.setItem("rr_identityId", nextIdentityId);
+        if (location) localStorage.setItem("rr_location", String(location));
+        if (nextEmail) localStorage.setItem("rr_email", nextEmail);
+      } catch {}
+
+      onVerified?.({
+        balance: typeof data.balance === "number" ? data.balance : undefined,
+        note: data.note,
+        welcomeGranted: Boolean(data.welcomeGranted),
+      });
+
+      onClose();
+    } catch {
+      setMsg("Code verification failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rrOverlay rrOverlay--mobile">
+      <div className="rrDrawer rrDrawer--mobile">
+        <div className="rrDrawerHead">
+          <div>
+            <div className="rrDrawerTitle">
+              {step === "code"
+                ? "Enter SMS Verification Code"
+                : "Get Your Shout-Out Live"}
+            </div>
+            <div className="rrDrawerSub">
+              {step === "code"
+                ? "Enter the code we just texted you to finish signing in."
+                : "Quick sign-in unlocks shout-outs, requests, boosts, and bonus point promos."}
+            </div>
+          </div>
+
+          <button
+            className="rrBtnGhost rrCloseBtn"
+            onClick={onClose}
+            style={{
+              minWidth: 44,
+              width: 44,
+              height: 44,
+              padding: 0,
+              fontSize: 24,
+              lineHeight: 1,
+            }}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="rrDrawerBody">
+          <div className="rrStack">
+            {step === "collect" ? (
+              <>
+                <input
+                  className="rrInput"
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+
+                <input
+                  className="rrInput"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="Mobile number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+
+                <label className="rrCheckRow">
+                  <input
+                    type="checkbox"
+                    checked={emailOptIn}
+                    onChange={(e) => setEmailOptIn(e.target.checked)}
+                  />
+                  <span>Email me bonus offers, points, and event updates</span>
+                </label>
+
+                <label className="rrCheckRow">
+                  <input
+                    type="checkbox"
+                    checked={smsOptIn}
+                    onChange={(e) => setSmsOptIn(e.target.checked)}
+                  />
+                  <span>Text me verification codes and occasional promos</span>
+                </label>
+
+                <button className="rrBtn" disabled={busy} onClick={sendCode}>
+                  {busy ? "Sending code..." : "Start Sending Shout-Outs"}
+                </button>
+
+                <div className="rrHelper">
+                  This only takes a few seconds, then you’re ready to send.
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: "16px 14px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(90, 146, 255, 0.28)",
+                    background: "rgba(77, 143, 228, 0.06)",
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 1000,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: "#dbe8ff",
+                    }}
+                  >
+                    Have a promo or point code?
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: 14,
+                      lineHeight: 1.45,
+                      color: "#c8d7ef",
+                    }}
+                  >
+                    Enter the code
+                    <br />
+                    after signing in!
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <input
+                  className="rrInput"
+                  placeholder="Enter verification code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    gap: 10,
+                    marginTop: 4,
+                  }}
+                >
+                  <button
+                    className="rrBtnGhost"
+                    disabled={busy}
+                    onClick={() => setStep("collect")}
+                    style={{ width: 100, minWidth: 100 }}
+                  >
+                    Back
+                  </button>
+
+                  <button
+                    className="rrBtn"
+                    disabled={busy}
+                    onClick={confirmCode}
+                    style={{ width: 100, minWidth: 100 }}
+                  >
+                    {busy ? "Working..." : "Verify"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {msg ? <div className="rrVerifyMsg">{msg}</div> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BuyCreditsDrawer({
+  open,
+  onClose,
+  packs,
+  buyUrl,
+  onRedeem,
+  redeemBusy,
+  onBuy,
+}: BuyDrawerProps) {
+  const [showRedeem, setShowRedeem] = useState(false);
+  const [redeemCode, setRedeemCode] = useState("");
+
+  if (!open) return null;
+
+  return (
+    <div className="rrOverlay" onClick={onClose}>
+      <div
+        className="rrDrawer rrDrawer--buy"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="rrDrawerHead rrDrawerHead--buy">
+          <div>
+            <div className="rrDrawerTitle">Get Points to Go Live</div>
+            <div className="rrDrawerSub">
+              More points means more messages, more visibility, and more fun on
+              screen.
+            </div>
+          </div>
+          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        <div className="rrDrawerBody">
+          <div className="rrBuyLead">
+            <div className="rrBuyLeadTitle">Make your message stand out.</div>
+            <div className="rrBuyLeadText">
+              Load up once, then use points for shout-outs, requests, and boosts
+              without stopping every time.
+            </div>
+          </div>
+
+          <div className="rrBuyPackGrid">
+            {packs.map((p) => (
+              <div
+                key={p.id}
+                className={`rrBuyPackCard ${p.highlight ? "rrBuyPackCard--featured" : ""}`}
+              >
+                <div className="rrBuyPackTop">
+                  <div className="rrBuyPackTitleRow">
+                    <div className="rrBuyPackTitle">{p.title}</div>
+                    {p.badge ? (
+                      <span
+                        className={`rrMetaPill ${p.highlight ? "rrBuyPackBadge--featured" : ""}`}
+                      >
+                        {p.badge}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rrBuyPackValueRow rrBuyPackValueRow--compact">
+                  <div className="rrBuyPackLeft">
+                    <div className="rrBuyPackPoints">{p.creditsLabel}</div>
+                  </div>
+
+                  <div className="rrBuyPackRight">
+                    <div className="rrBuyPackPrice rrBuyPackPrice--compact">
+                      {formatMoney(p.priceCents)}
+                    </div>
+                    <div className="rrBuyPackUsage">
+                      About{" "}
+                      {String(p.creditsLabel)
+                        .toLowerCase()
+                        .replace("points", "shout-outs")}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  className={`rrBtn ${p.highlight ? "rrBtn--featuredPack" : ""}`}
+                  onClick={() => {
+                    if (p.packageKey) {
+                      onBuy(p.packageKey);
+                      return;
+                    }
+                    if (p.href || buyUrl) {
+                      window.location.href = p.href || buyUrl || "/";
+                    }
+                  }}
+                >
+                  {p.cta || `Get ${p.creditsLabel}`}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="rrDivider" />
+
+          <div className="rrStack">
+            {!showRedeem ? (
+              <button
+                className="rrBtnGhost"
+                onClick={() => setShowRedeem(true)}
+              >
+                Have a Code?
+              </button>
+            ) : (
+              <>
+                <div className="rrDrawerTitle rrDrawerTitle--small">
+                  Redeem Code
+                </div>
+                <div className="rrInlineForm">
+                  <input
+                    className="rrInput"
+                    placeholder="Enter redeem code"
+                    value={redeemCode}
+                    onChange={(e) => setRedeemCode(e.target.value)}
+                  />
+                  <button
+                    className="rrBtnGhost"
+                    disabled={redeemBusy}
+                    onClick={() => {
+                      onRedeem(redeemCode);
+                      setRedeemCode("");
+                    }}
+                  >
+                    {redeemBusy ? "Checking..." : "Redeem"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
