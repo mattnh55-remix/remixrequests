@@ -5,7 +5,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import confetti from "canvas-confetti";
 import PublicTheme from "../../../components/ui/public/PublicTheme";
-import { SHOUTOUT_PRODUCTS, type ShoutoutProductKey } from "@/lib/shoutoutProducts";
+import {
+  SHOUTOUT_PRODUCTS,
+  type ShoutoutProductKey,
+} from "@/lib/shoutoutProducts";
 import PublicBottomCommandBar from "@/components/public/PublicBottomCommandBar";
 
 const REMIX_LOGO_URL =
@@ -83,7 +86,11 @@ type VerifyDrawerProps = {
   setEmail: (value: string) => void;
   onRedeem: (code: string) => void;
   redeemBusy: boolean;
-  onVerified?: (payload?: { balance?: number; note?: string; welcomeGranted?: boolean }) => void;
+  onVerified?: (payload?: {
+    balance?: number;
+    note?: string;
+    welcomeGranted?: boolean;
+  }) => void;
   onClose: () => void;
 };
 
@@ -150,7 +157,11 @@ function BrandLogo({ logoUrl }: { logoUrl?: string | null }) {
   return <div className="rrBrandBadge">REMIX</div>;
 }
 
-export default function ShoutoutsPage({ params }: { params: { location: string } }) {
+export default function ShoutoutsPage({
+  params,
+}: {
+  params: { location: string };
+}) {
   const location = params.location;
 
   const [sessionActive, setSessionActive] = useState(true);
@@ -164,7 +175,8 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   const [toastVisible, setToastVisible] = useState(false);
   const [fromName, setFromName] = useState("");
   const [messageText, setMessageText] = useState("");
-  const [productKey, setProductKey] = useState<ShoutoutProductKey>("TEXT_BASIC");
+  const [productKey, setProductKey] =
+    useState<ShoutoutProductKey>("TEXT_BASIC");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
   const [photoPreviewUnsupported, setPhotoPreviewUnsupported] = useState(false);
@@ -179,22 +191,28 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   const [redeemBusy, setRedeemBusy] = useState(false);
   const [pendingComposerAfterBuy, setPendingComposerAfterBuy] = useState(false);
   const [sessionCountdown, setSessionCountdown] = useState("");
-  const [pressedProductKey, setPressedProductKey] = useState<ShoutoutProductKey | null>(null);
+  const [pressedProductKey, setPressedProductKey] =
+    useState<ShoutoutProductKey | null>(null);
   const [holdToast, setHoldToast] = useState(false);
 
   const openTimerRef = useRef<number | null>(null);
   const rewardFlashTimerRef = useRef<number | null>(null);
 
   const selectedProduct = useMemo(
-    () => SHOUTOUT_PRODUCTS.find((p) => p.key === productKey) || SHOUTOUT_PRODUCTS[0],
-    [productKey]
+    () =>
+      SHOUTOUT_PRODUCTS.find((p) => p.key === productKey) ||
+      SHOUTOUT_PRODUCTS[0],
+    [productKey],
   );
 
-  const canUseSelectedProduct = selectedProduct.enabled || selectedProduct.hasImage;
+  const canUseSelectedProduct =
+    selectedProduct.enabled || selectedProduct.hasImage;
 
   async function refreshSession() {
     try {
-      const res = await fetch(`/api/public/session/${location}`, { cache: "no-store" });
+      const res = await fetch(`/api/public/session/${location}`, {
+        cache: "no-store",
+      });
       const data = (await res.json()) as SessionRes;
       setRulesData(data);
       if (data?.location?.name) setLocationName(data.location.name);
@@ -211,22 +229,13 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     try {
       const res = await fetch(
         `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(id)}`,
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       const data = (await res.json()) as BalanceRes;
 
       if (!res.ok || !data.ok) {
         if (res.status === 401 || res.status === 403 || res.status === 404) {
-          setSessionActive(false);
-          setVerified(false);
-          setIdentityId("");
-          setBalance(0);
-
-          try {
-            localStorage.removeItem("rr_identityId");
-          } catch {
-            // ignore
-          }
+          resetPublicSessionState();
         }
         return;
       }
@@ -286,7 +295,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     showRewardFlash(
       value > 0 ? `+${value} POINTS` : "POINTS ADDED",
       subtitle || "Ready to make it big on screen",
-      "JACKPOT"
+      "JACKPOT",
     );
   }
 
@@ -295,7 +304,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     showRewardFlash(
       "SHOUT-OUT SENT",
       `${productTitle} is heading to the booth for approval.`,
-      "ON AIR"
+      "ON AIR",
     );
   }
 
@@ -307,7 +316,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
           location,
           productKey: nextProductKey ?? productKey,
           ts: Date.now(),
-        })
+        }),
       );
     } catch {
       // ignore
@@ -316,6 +325,25 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
 
   function clearPendingShoutoutResume() {
     try {
+      sessionStorage.removeItem("rr_shoutout_resume");
+    } catch {
+      // ignore
+    }
+  }
+
+  function resetPublicSessionState() {
+    setSessionActive(false);
+    setVerified(false);
+    setIdentityId("");
+    setBalance(0);
+    setShowBuy(false);
+    setShowComposer(false);
+    setPendingComposerAfterBuy(false);
+    clearPendingShoutoutResume();
+
+    try {
+      localStorage.removeItem("rr_identityId");
+      localStorage.removeItem("rr_email");
       sessionStorage.removeItem("rr_shoutout_resume");
     } catch {
       // ignore
@@ -342,7 +370,8 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
   useEffect(() => {
     return () => {
       if (openTimerRef.current) window.clearTimeout(openTimerRef.current);
-      if (rewardFlashTimerRef.current) window.clearTimeout(rewardFlashTimerRef.current);
+      if (rewardFlashTimerRef.current)
+        window.clearTimeout(rewardFlashTimerRef.current);
     };
   }, []);
 
@@ -429,7 +458,7 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
         if (lsIdentity) {
           const res = await fetch(
             `/api/public/balance?location=${encodeURIComponent(location)}&identityId=${encodeURIComponent(lsIdentity)}`,
-            { cache: "no-store" }
+            { cache: "no-store" },
           );
           const data = (await res.json()) as BalanceRes;
           if (data.ok) {
@@ -437,7 +466,10 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
             setBalance(nextBalance);
             if (nextBalance > beforeBalance) {
               setShowBuy(false);
-              celebratePointsAward(nextBalance - beforeBalance, "Points loaded for your shout-out");
+              celebratePointsAward(
+                nextBalance - beforeBalance,
+                "Points loaded for your shout-out",
+              );
               setMsg("Points added. Finish your shout-out.");
             }
           }
@@ -477,7 +509,12 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       setShowComposer(true);
       setMsg("Points added. Finish your shout-out.");
     }
-  }, [pendingComposerAfterBuy, balance, selectedProduct, canUseSelectedProduct]);
+  }, [
+    pendingComposerAfterBuy,
+    balance,
+    selectedProduct,
+    canUseSelectedProduct,
+  ]);
 
   useEffect(() => {
     if (!selectedProduct.hasImage) {
@@ -523,7 +560,11 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
       setShowVerify(false);
       setShowBuy(false);
       celebratePointsAward(pointsAdded, "Code redeemed successfully");
-      setMsg(pointsAdded > 0 ? `Redeemed +${pointsAdded} points!` : "Code redeemed successfully.");
+      setMsg(
+        pointsAdded > 0
+          ? `Redeemed +${pointsAdded} points!`
+          : "Code redeemed successfully.",
+      );
 
       const nextBalance = data?.balance ?? null;
       if (typeof nextBalance === "number") setBalance(nextBalance);
@@ -568,20 +609,19 @@ export default function ShoutoutsPage({ params }: { params: { location: string }
     }
   }
 
+  function handlePointsAction() {
+    if (!sessionActive || !verified || !identityId || balance <= 0) {
+      setShowVerify(true);
+      return;
+    }
 
-function handlePointsAction() {
-  if (!sessionActive || !verified || !identityId) {
-    setShowVerify(true);
-    return;
+    setShowBuy(true);
   }
-
-  setShowBuy(true);
-}
-
 
   function handleProductClick(nextProductKey: ShoutoutProductKey) {
     const nextProduct =
-      SHOUTOUT_PRODUCTS.find((p) => p.key === nextProductKey) || SHOUTOUT_PRODUCTS[0];
+      SHOUTOUT_PRODUCTS.find((p) => p.key === nextProductKey) ||
+      SHOUTOUT_PRODUCTS[0];
 
     if (openTimerRef.current) {
       window.clearTimeout(openTimerRef.current);
@@ -594,7 +634,7 @@ function handlePointsAction() {
     openTimerRef.current = window.setTimeout(() => {
       setPressedProductKey(null);
 
-      if (!sessionActive || !verified || !identityId) {
+      if (!sessionActive || !verified || !identityId || balance <= 0) {
         setMsg("Claim your intro points to send a shout-out.");
         setShowVerify(true);
         return;
@@ -606,7 +646,9 @@ function handlePointsAction() {
       }
 
       if (balance < nextProduct.creditsCost) {
-        setMsg(`You need ${nextProduct.creditsCost} points for this shout-out.`);
+        setMsg(
+          `You need ${nextProduct.creditsCost} points for this shout-out.`,
+        );
         openBuyForShoutout(nextProductKey);
         return;
       }
@@ -622,14 +664,16 @@ function handlePointsAction() {
     const cleanFrom = fromName.trim();
     const cleanBody = messageText.trim();
 
-    if (!sessionActive || !verified || !identityId) {
+    if (!sessionActive || !verified || !identityId || balance <= 0) {
       setMsg("Claim your intro points to send a shout-out.");
       setShowVerify(true);
       return;
     }
 
     if (balance < selectedProduct.creditsCost) {
-      setMsg(`You need ${selectedProduct.creditsCost} points for this shout-out.`);
+      setMsg(
+        `You need ${selectedProduct.creditsCost} points for this shout-out.`,
+      );
       setShowComposer(false);
       openBuyForShoutout();
       return;
@@ -665,7 +709,10 @@ function handlePointsAction() {
         form.append("fromName", cleanFrom);
         form.append("messageText", cleanBody);
         form.append("productKey", productKey);
-        form.append("usageRightsAccepted", usageRightsAccepted ? "true" : "false");
+        form.append(
+          "usageRightsAccepted",
+          usageRightsAccepted ? "true" : "false",
+        );
         form.append("file", photoFile);
 
         const res = await fetch("/api/public/shoutouts/upload-photo", {
@@ -680,7 +727,9 @@ function handlePointsAction() {
         }
 
         celebrateShoutoutSent(selectedProduct.title);
-        setMsg(data.note || `✅ ${selectedProduct.title} submitted for approval!`);
+        setMsg(
+          data.note || `✅ ${selectedProduct.title} submitted for approval!`,
+        );
         setMessageText("");
         setFromName("");
         resetComposerMedia();
@@ -708,7 +757,8 @@ function handlePointsAction() {
       const data = (await res.json()) as SubmitRes;
       if (!data.ok) {
         setMsg(
-          data.error || "This message can’t be submitted as written. Please revise and try again."
+          data.error ||
+            "This message can’t be submitted as written. Please revise and try again.",
         );
         return;
       }
@@ -719,14 +769,18 @@ function handlePointsAction() {
       setFromName("");
       setShowComposer(false);
 
-      const nextBalance = data?.balance ?? data?.credits?.balance ?? data?.session?.balance ?? null;
+      const nextBalance =
+        data?.balance ??
+        data?.credits?.balance ??
+        data?.session?.balance ??
+        null;
       if (typeof nextBalance === "number") setBalance(nextBalance);
       else await refreshBalance();
     } catch {
       setMsg(
         selectedProduct.hasImage
           ? "Photo upload failed."
-          : "This message can’t be submitted as written. Please revise and try again."
+          : "This message can’t be submitted as written. Please revise and try again.",
       );
     } finally {
       setBusy(false);
@@ -741,7 +795,12 @@ function handlePointsAction() {
     canAfford &&
     !busy &&
     (!selectedProduct.hasImage || (!!photoFile && usageRightsAccepted));
-  const heroBalance = !sessionActive ? 5 : !verified && !identityId ? 5 : balance;
+  const shouldClaimPoints =
+    !sessionActive || !verified || !identityId || balance <= 0;
+  const pointsDisplay = shouldClaimPoints ? "CLAIM POINTS" : String(balance);
+  const commandBarPoints = shouldClaimPoints
+    ? ("CLAIM POINTS" as unknown as number)
+    : balance;
 
   const buyUrl = useMemo(() => {
     const fromMap = BUY_URL_BY_LOCATION[location];
@@ -817,26 +876,32 @@ function handlePointsAction() {
 
         <div className="rrHeroCard">
           <h1 className="rrTitle">Shout-Outs</h1>
-          <div className="rrTitleSub">Get your message up on the big screen!</div>
+          <div className="rrTitleSub">
+            Get your message up on the big screen!
+          </div>
         </div>
 
         <div className="rrPointsCard">
           <div className="rrPointsStack">
             <div className="rrHudLabel">Points</div>
-            <div className="rrHudValue">{heroBalance}</div>
+            <div
+              className={`rrHudValue ${shouldClaimPoints ? "rrHudValue--claim" : ""}`}
+            >
+              {pointsDisplay}
+            </div>
             <div className="rrPointsActions">
               <button
                 className="rrBtn"
                 style={{ width: "100%" }}
                 onClick={() => {
-                  if (!sessionActive || !verified || !identityId) {
+                  if (shouldClaimPoints) {
                     setShowVerify(true);
                     return;
                   }
                   setShowBuy(true);
                 }}
               >
-                {sessionActive && verified && identityId ? "Add Points" : "Claim Points"}
+                {shouldClaimPoints ? "CLAIM POINTS" : "Add Points"}
               </button>
             </div>
           </div>
@@ -847,7 +912,9 @@ function handlePointsAction() {
         <div className="rrPanelHead rrPanelHead--centered">
           <div>
             <div className="rrPanelTitle">Pick Your Shout-Out</div>
-            <div className="rrPanelSub">Choose a format, then add your message!</div>
+            <div className="rrPanelSub">
+              Choose a format, then add your message!
+            </div>
           </div>
         </div>
 
@@ -914,7 +981,9 @@ function handlePointsAction() {
 
                   <div className="rrShoutCardMeta">
                     <span className="rrMetaPill">{minutes}</span>
-                    <span className="rrMetaPill rrMetaPill--points">{product.creditsCost}pts</span>
+                    <span className="rrMetaPill rrMetaPill--points">
+                      {product.creditsCost}pts
+                    </span>
                     {!canUseProduct ? (
                       <span className="rrStatusPill rrStatusPill--warn">
                         {product.comingSoon ? "Coming Soon" : "Unavailable"}
@@ -933,7 +1002,8 @@ function handlePointsAction() {
           <div>
             <div className="rrPanelTitle">How It Works</div>
             <div className="rrPanelSub">
-              Choose your shout out, submit details and send to the booth for approval!
+              Choose your shout out, submit details and send to the booth for
+              approval!
             </div>
           </div>
         </div>
@@ -944,29 +1014,27 @@ function handlePointsAction() {
           <button
             className="rrBtn rrFooterCta"
             onClick={() => {
-              if (!sessionActive || !verified || !identityId) {
+              if (shouldClaimPoints) {
                 setShowVerify(true);
                 return;
               }
               setShowComposer(true);
             }}
           >
-            {!verified || !identityId
-  ? "Claim Points to Send"
-  : "Send Shout-Out"}
+            {shouldClaimPoints ? "CLAIM POINTS TO SEND" : "Send Shout-Out"}
           </button>
 
           <button
             className="rrBtnGhost"
             onClick={() => {
-              if (!sessionActive || !verified || !identityId) {
+              if (shouldClaimPoints) {
                 setShowVerify(true);
                 return;
               }
               setShowBuy(true);
             }}
           >
-            Add Points
+            {shouldClaimPoints ? "CLAIM POINTS" : "Add Points"}
           </button>
         </div>
       </div>
@@ -998,7 +1066,10 @@ function handlePointsAction() {
               boxShadow: "0 24px 60px rgba(0, 0, 0, 0.48)",
             }}
           >
-            <div className="rrToastText" style={{ fontSize: "14px", lineHeight: 1.4 }}>
+            <div
+              className="rrToastText"
+              style={{ fontSize: "14px", lineHeight: 1.4 }}
+            >
               {msg}
             </div>
 
@@ -1046,10 +1117,24 @@ function handlePointsAction() {
               animation: "rrRewardPop 1800ms ease forwards",
             }}
           >
-            <div style={{ fontSize: 13, letterSpacing: "0.24em", opacity: 0.7, fontWeight: 900 }}>
+            <div
+              style={{
+                fontSize: 13,
+                letterSpacing: "0.24em",
+                opacity: 0.7,
+                fontWeight: 900,
+              }}
+            >
               {rewardFlash.kicker || "NICE"}
             </div>
-            <div style={{ fontSize: 34, fontWeight: 1000, lineHeight: 1, marginTop: 8 }}>
+            <div
+              style={{
+                fontSize: 34,
+                fontWeight: 1000,
+                lineHeight: 1,
+                marginTop: 8,
+              }}
+            >
               {rewardFlash.title}
             </div>
             {rewardFlash.subtitle ? (
@@ -1063,7 +1148,8 @@ function handlePointsAction() {
                 height: 3,
                 margin: "14px auto 0",
                 borderRadius: 999,
-                background: "linear-gradient(90deg, rgba(255,61,154,0.15), rgba(255,255,255,0.85), rgba(0,229,255,0.18))",
+                background:
+                  "linear-gradient(90deg, rgba(255,61,154,0.15), rgba(255,255,255,0.85), rgba(0,229,255,0.18))",
               }}
             />
           </div>
@@ -1100,17 +1186,24 @@ function handlePointsAction() {
           void redeem(code);
         }}
         redeemBusy={redeemBusy}
-        onVerified={(payload?: { balance?: number; note?: string; welcomeGranted?: boolean }) => {
+        onVerified={(payload?: {
+          balance?: number;
+          note?: string;
+          welcomeGranted?: boolean;
+        }) => {
           setVerified(true);
           setShowVerify(false);
 
           try {
-            const lsIdentity = (localStorage.getItem("rr_identityId") || "").trim();
+            const lsIdentity = (
+              localStorage.getItem("rr_identityId") || ""
+            ).trim();
             const lsEmail = (localStorage.getItem("rr_email") || "").trim();
 
             if (lsIdentity) setIdentityId(lsIdentity);
             if (lsEmail) setEmail(lsEmail);
-            else if (email.trim()) localStorage.setItem("rr_email", email.trim());
+            else if (email.trim())
+              localStorage.setItem("rr_email", email.trim());
 
             if (typeof payload?.balance === "number") {
               setBalance(payload.balance);
@@ -1122,7 +1215,10 @@ function handlePointsAction() {
           }
 
           if (payload?.welcomeGranted || Number(payload?.balance ?? 0) > 0) {
-            celebratePointsAward(payload?.balance ?? 5, payload?.note || "Your intro points are ready");
+            celebratePointsAward(
+              payload?.balance ?? 5,
+              payload?.note || "Your intro points are ready",
+            );
           }
 
           setMsg(payload?.note || "✅ Verified! Your intro points are ready.");
@@ -1178,12 +1274,12 @@ function handlePointsAction() {
           void startCheckout(packageKey);
         }}
       />
-<PublicBottomCommandBar
-  location={location}
-  activeView="shoutouts"
-  points={balance}
-  onPointsClick={handlePointsAction}
-/>
+      <PublicBottomCommandBar
+        location={location}
+        activeView="shoutouts"
+        points={commandBarPoints}
+        onPointsClick={handlePointsAction}
+      />
     </PublicTheme>
   );
 }
@@ -1250,12 +1346,19 @@ function ShoutoutComposerDrawer({
         <div className="rrDrawerHead">
           <div>
             <div className="rrDrawerTitle">{selectedProduct.title}</div>
-            <div className="rrDrawerSub">Add your message, then send it in for approval.</div>
+            <div className="rrDrawerSub">
+              Add your message, then send it in for approval.
+            </div>
           </div>
-          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>Close</button>
+          <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
+            Close
+          </button>
         </div>
 
-        <div className="rrDrawerBody" style={{ maxHeight: "78vh", overflowY: "auto" }}>
+        <div
+          className="rrDrawerBody"
+          style={{ maxHeight: "78vh", overflowY: "auto" }}
+        >
           <div className="rrStack">
             <div className="rrField">
               <div className="rrFieldLabel">From</div>
@@ -1271,7 +1374,9 @@ function ShoutoutComposerDrawer({
             <div className="rrField">
               <div className="rrFieldMetaRow">
                 <div className="rrFieldLabel">Message</div>
-                <div className="rrFieldMetaText">{charsUsed}/{charsMax}</div>
+                <div className="rrFieldMetaText">
+                  {charsUsed}/{charsMax}
+                </div>
               </div>
               <textarea
                 className="rrTextarea"
@@ -1288,22 +1393,30 @@ function ShoutoutComposerDrawer({
                 <div className="rrFieldLabel">Photo</div>
 
                 <label className="rrUploadBox">
-                  <input type="file" accept={PHOTO_ACCEPT} onChange={handlePhotoChange} />
-                  <div className="rrHelper">Upload JPG, PNG, HEIC, or HEIF.</div>
+                  <input
+                    type="file"
+                    accept={PHOTO_ACCEPT}
+                    onChange={handlePhotoChange}
+                  />
+                  <div className="rrHelper">
+                    Upload JPG, PNG, HEIC, or HEIF.
+                  </div>
                 </label>
 
                 {photoPreviewUrl ? (
                   <div className="rrUploadPreview">
                     <img src={photoPreviewUrl} alt="Selected upload preview" />
                     <div className="rrHelper">
-                      Preview only — your full photo will be reviewed before it appears on screen.
+                      Preview only — your full photo will be reviewed before it
+                      appears on screen.
                     </div>
                   </div>
                 ) : photoPreviewUnsupported && photoFile ? (
                   <div className="rrMessage">
                     Selected file: <strong>{photoFile.name}</strong>
                     <div className="rrHelper" style={{ marginTop: 4 }}>
-                      Preview is not available for this image type on this device, but the upload can still succeed.
+                      Preview is not available for this image type on this
+                      device, but the upload can still succeed.
                     </div>
                   </div>
                 ) : null}
@@ -1314,7 +1427,10 @@ function ShoutoutComposerDrawer({
                     checked={usageRightsAccepted}
                     onChange={(e) => setUsageRightsAccepted(e.target.checked)}
                   />
-                  <span>I have permission to upload and display this photo on the screen.</span>
+                  <span>
+                    I have permission to upload and display this photo on the
+                    screen.
+                  </span>
                 </label>
               </div>
             ) : null}
@@ -1323,14 +1439,22 @@ function ShoutoutComposerDrawer({
               <div className="rrPackTitle">{selectedProduct.title}</div>
               <div className="rrHelper">{selectedProduct.description}</div>
               <div className="rrShoutCardMeta">
-                <span className="rrMetaPill">{selectedProduct.creditsCost}pts</span>
-                <span className="rrMetaPill">{getProductMinutes(selectedProduct)}</span>
+                <span className="rrMetaPill">
+                  {selectedProduct.creditsCost}pts
+                </span>
+                <span className="rrMetaPill">
+                  {getProductMinutes(selectedProduct)}
+                </span>
               </div>
             </div>
 
             <div className="rrActionStack">
               {canAfford ? (
-                <button className="rrBtn rrBtn--full" onClick={onSubmit} disabled={!canSend}>
+                <button
+                  className="rrBtn rrBtn--full"
+                  onClick={onSubmit}
+                  disabled={!canSend}
+                >
                   {busy ? "Submitting..." : "Send Shout-Out"}
                 </button>
               ) : (
@@ -1435,11 +1559,14 @@ function VerifyDrawer({
         return;
       }
 
-      const nextIdentityId = String(data.identityId || data.identity?.id || "").trim();
+      const nextIdentityId = String(
+        data.identityId || data.identity?.id || "",
+      ).trim();
       const nextEmail = String(data.email || email || "").trim();
 
       try {
-        if (nextIdentityId) localStorage.setItem("rr_identityId", nextIdentityId);
+        if (nextIdentityId)
+          localStorage.setItem("rr_identityId", nextIdentityId);
         if (location) localStorage.setItem("rr_location", String(location));
         if (nextEmail) localStorage.setItem("rr_email", nextEmail);
       } catch {}
@@ -1464,7 +1591,9 @@ function VerifyDrawer({
         <div className="rrDrawerHead">
           <div>
             <div className="rrDrawerTitle">
-              {step === "code" ? "Enter SMS Verification Code" : "Get Your Shout-Out Live"}
+              {step === "code"
+                ? "Enter SMS Verification Code"
+                : "Get Your Shout-Out Live"}
             </div>
             <div className="rrDrawerSub">
               {step === "code"
@@ -1619,7 +1748,15 @@ function VerifyDrawer({
   );
 }
 
-function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, onBuy }: BuyDrawerProps) {
+function BuyCreditsDrawer({
+  open,
+  onClose,
+  packs,
+  buyUrl,
+  onRedeem,
+  redeemBusy,
+  onBuy,
+}: BuyDrawerProps) {
   const [showRedeem, setShowRedeem] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
 
@@ -1627,12 +1764,16 @@ function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, 
 
   return (
     <div className="rrOverlay" onClick={onClose}>
-      <div className="rrDrawer rrDrawer--buy" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="rrDrawer rrDrawer--buy"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="rrDrawerHead rrDrawerHead--buy">
           <div>
             <div className="rrDrawerTitle">Get Points to Go Live</div>
             <div className="rrDrawerSub">
-              More points means more messages, more visibility, and more fun on screen.
+              More points means more messages, more visibility, and more fun on
+              screen.
             </div>
           </div>
           <button className="rrBtnGhost rrCloseBtn" onClick={onClose}>
@@ -1644,7 +1785,8 @@ function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, 
           <div className="rrBuyLead">
             <div className="rrBuyLeadTitle">Make your message stand out.</div>
             <div className="rrBuyLeadText">
-              Load up once, then use points for shout-outs, requests, and boosts without stopping every time.
+              Load up once, then use points for shout-outs, requests, and boosts
+              without stopping every time.
             </div>
           </div>
 
@@ -1658,7 +1800,9 @@ function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, 
                   <div className="rrBuyPackTitleRow">
                     <div className="rrBuyPackTitle">{p.title}</div>
                     {p.badge ? (
-                      <span className={`rrMetaPill ${p.highlight ? "rrBuyPackBadge--featured" : ""}`}>
+                      <span
+                        className={`rrMetaPill ${p.highlight ? "rrBuyPackBadge--featured" : ""}`}
+                      >
                         {p.badge}
                       </span>
                     ) : null}
@@ -1675,7 +1819,10 @@ function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, 
                       {formatMoney(p.priceCents)}
                     </div>
                     <div className="rrBuyPackUsage">
-                      About {String(p.creditsLabel).toLowerCase().replace("points", "shout-outs")}
+                      About{" "}
+                      {String(p.creditsLabel)
+                        .toLowerCase()
+                        .replace("points", "shout-outs")}
                     </div>
                   </div>
                 </div>
@@ -1702,12 +1849,17 @@ function BuyCreditsDrawer({ open, onClose, packs, buyUrl, onRedeem, redeemBusy, 
 
           <div className="rrStack">
             {!showRedeem ? (
-              <button className="rrBtnGhost" onClick={() => setShowRedeem(true)}>
+              <button
+                className="rrBtnGhost"
+                onClick={() => setShowRedeem(true)}
+              >
                 Have a Code?
               </button>
             ) : (
               <>
-                <div className="rrDrawerTitle rrDrawerTitle--small">Redeem Code</div>
+                <div className="rrDrawerTitle rrDrawerTitle--small">
+                  Redeem Code
+                </div>
                 <div className="rrInlineForm">
                   <input
                     className="rrInput"
