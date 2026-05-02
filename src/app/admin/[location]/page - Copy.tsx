@@ -75,6 +75,7 @@ type PlaceholderMessage = {
   body: string;
   fromName: string;
   imageUrl?: string | null;
+  imagePath?: string | null;
   accent?: "gold" | "cyan" | "pink";
   productTitle?: string;
 };
@@ -245,6 +246,25 @@ type AdminShoutoutsResponse = {
   blockedCount?: number;
 };
 
+type DashboardLedgerStats = {
+  baselineAt: string | null;
+  activeUsers: number;
+  verifiedUsers: number;
+  liveQueueCount: number;
+  boostedQueueCount: number;
+  standardQueueCount: number;
+  redemptionCodesLoaded: number;
+  totalQualifyingUsers: number;
+  pointsIssued: number;
+  pointsRedeemed: number;
+  pointsAvailable: number;
+  purchaseCount: number;
+  estimatedRevenueCents: number;
+  welcomeUsers: number;
+  redeemedUsers: number;
+};
+
+
 const DEFAULT_PLACEHOLDERS: PlaceholderMessage[] = [
   {
     id: "msg1",
@@ -252,6 +272,7 @@ const DEFAULT_PLACEHOLDERS: PlaceholderMessage[] = [
     body: "Happy Birthday Taylor and Hunter!",
     fromName: "-$name",
     imageUrl: null,
+    imagePath: null,
     accent: "cyan",
     productTitle: "Basic Text Shout Out",
   },
@@ -261,6 +282,7 @@ const DEFAULT_PLACEHOLDERS: PlaceholderMessage[] = [
     body: "Congrats to our birthday crew tonight. Thanks for celebrating at Remix!",
     fromName: "-$name",
     imageUrl: null,
+    imagePath: null,
     accent: "gold",
     productTitle: "Remix Roller Text Shout Out",
   },
@@ -270,6 +292,7 @@ const DEFAULT_PLACEHOLDERS: PlaceholderMessage[] = [
     body: "Welcome to Remix! Scan the code, request your song, and send a shout out.",
     fromName: "-$name",
     imageUrl: null,
+    imagePath: null,
     accent: "pink",
     productTitle: "VIP Text Shout Out",
   },
@@ -393,6 +416,7 @@ function loadSavedPlaceholders(location: string): PlaceholderMessage[] {
       body: String(p?.body || DEFAULT_PLACEHOLDERS[i]?.body || ""),
       fromName: String(p?.fromName || DEFAULT_PLACEHOLDERS[i]?.fromName || "-$name"),
       imageUrl: p?.imageUrl || null,
+      imagePath: p?.imagePath || null,
       accent: (p?.accent || DEFAULT_PLACEHOLDERS[i]?.accent || "cyan") as "gold" | "cyan" | "pink",
       productTitle: String(p?.productTitle || DEFAULT_PLACEHOLDERS[i]?.productTitle || "Remix Shout Out"),
     }));
@@ -513,6 +537,90 @@ function queueBuckets(items: RequestItem[]) {
   };
 }
 
+function dashboardStatsStorageKey(location: string) {
+  return `rr_admin_dashboard_stats_reset:${location}`;
+}
+
+function readDashboardBaseline(location: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(dashboardStatsStorageKey(location));
+  } catch {
+    return null;
+  }
+}
+
+function writeDashboardBaseline(location: string, value: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (!value) {
+      localStorage.removeItem(dashboardStatsStorageKey(location));
+      return;
+    }
+    localStorage.setItem(dashboardStatsStorageKey(location), value);
+  } catch {}
+}
+
+function normalizeReason(reason?: string) {
+  return String(reason || "").trim().toUpperCase();
+}
+
+function isWelcomeReason(reason?: string) {
+  const raw = normalizeReason(reason);
+  return raw.includes("WELCOME") || raw.includes("VERIFY");
+}
+
+function isRedeemReason(reason?: string) {
+  const raw = normalizeReason(reason);
+  return raw.includes("REDEEM");
+}
+
+function isPurchaseReason(reason?: string) {
+  const raw = normalizeReason(reason);
+  return raw.includes("PURCHASE") || raw.includes("PAYMENT") || raw.includes("CHECKOUT") || raw.includes("PACK");
+}
+
+function isSpendReason(reason?: string) {
+  const raw = normalizeReason(reason);
+  return (
+    raw.includes("REQUEST") ||
+    raw.includes("UPVOTE") ||
+    raw.includes("DOWNVOTE") ||
+    raw.includes("PLAY_NOW") ||
+    raw.includes("BOOST") ||
+    raw.includes("SHOUTOUT") ||
+    raw.includes("MESSAGE")
+  );
+}
+
+function estimatePurchaseRevenueCents(delta: number, rules: RulesState | null) {
+  const amount = Math.max(0, Number(delta || 0));
+  if (!amount || !rules) return 0;
+
+  const packMap: Record<number, number> = {
+    10: Number(rules.packTier1PriceCents || 500),
+    25: Number(rules.packTier2PriceCents || 1000),
+    35: Number(rules.packTier3PriceCents || 1500),
+    50: Number(rules.packTier4PriceCents || 2000),
+  };
+
+  return packMap[amount] || 0;
+}
+
+function formatCurrencyFromCents(cents: number) {
+  return `$${centsToDollars(cents)}`;
+}
+
+function formatDashboardSince(value: string | null) {
+  if (!value) return "All time";
+  try {
+    return `Since ${new Date(value).toLocaleString()}`;
+  } catch {
+    return "Custom range";
+  }
+}
+
+
 export default function AdminPage({ params }: { params: { location: string } }) {
   const location = params.location;
   const router = useRouter();
@@ -559,6 +667,7 @@ useEffect(() => {
   const [messageRules, setMessageRules] = useState<MessageRulesState | null>(null);
   const [messageRulesDirty, setMessageRulesDirty] = useState(false);
   const [placeholders, setPlaceholders] = useState<PlaceholderMessage[]>(DEFAULT_PLACEHOLDERS);
+  const [placeholderUploadBusyId, setPlaceholderUploadBusyId] = useState<string>("");
   const [users, setUsers] = useState<SessionUser[]>([]);
   const [recentUsers, setRecentUsers] = useState<RecentUserItem[]>([]);
   const [recentUsersTotal, setRecentUsersTotal] = useState(0);
@@ -599,6 +708,25 @@ const [newStaffUsername, setNewStaffUsername] = useState("");
 const [newStaffPin, setNewStaffPin] = useState("");
 const [newStaffRole, setNewStaffRole] = useState<StaffRole>("STAFF");
 const [currentStaffUsername, setCurrentStaffUsername] = useState("");
+
+  const [dashboardLedgerStats, setDashboardLedgerStats] = useState<DashboardLedgerStats>({
+    baselineAt: null,
+    activeUsers: 0,
+    verifiedUsers: 0,
+    liveQueueCount: 0,
+    boostedQueueCount: 0,
+    standardQueueCount: 0,
+    redemptionCodesLoaded: 0,
+    totalQualifyingUsers: 0,
+    pointsIssued: 0,
+    pointsRedeemed: 0,
+    pointsAvailable: 0,
+    purchaseCount: 0,
+    estimatedRevenueCents: 0,
+    welcomeUsers: 0,
+    redeemedUsers: 0,
+  });
+  const [dashboardStatsBusy, setDashboardStatsBusy] = useState(false);
 
   const [editBusy, setEditBusy] = useState(false);
   const [editMessageId, setEditMessageId] = useState("");
@@ -1257,6 +1385,43 @@ setMsg(data?.delta === 0 ? "✅ Balance already matched target." : "✅ User bal
   function updatePlaceholder(index: number, patch: Partial<PlaceholderMessage>) {
     setPlaceholders((curr) => curr.map((item, i) => (i === index ? { ...item, ...patch } : item)));
   }
+  async function uploadPlaceholderPhoto(index: number, file: File) {
+    const target = placeholders[index];
+    if (!target) return;
+
+    setMsg("");
+    setPlaceholderUploadBusyId(target.id);
+
+    try {
+      const form = new FormData();
+      form.append("location", location);
+      form.append("placeholderId", target.id);
+      form.append("file", file);
+
+      const res = await fetch("/api/admin/shoutouts/upload-placeholder-photo", {
+        method: "POST",
+        body: form,
+      });
+
+      const data: any = await safeJson(res);
+
+      if (!data?.ok) {
+        setMsg(data?.error || "Could not upload placeholder photo.");
+        return;
+      }
+
+      updatePlaceholder(index, {
+        imagePath: data.imagePath || null,
+        imageUrl: data.signedImageUrl || null,
+      });
+
+      setMsg("✅ Placeholder photo uploaded.");
+    } catch {
+      setMsg("Could not upload placeholder photo.");
+    } finally {
+      setPlaceholderUploadBusyId("");
+    }
+  }
 
   function savePlaceholderSettings() {
     savePlaceholders(location, placeholders);
@@ -1301,6 +1466,136 @@ async function saveShoutoutSettings() {
     setShoutoutSettingsMsg("Could not save TV rotation settings.");
   }
 }
+
+
+  async function loadDashboardLedgerStats() {
+    const baselineAt = readDashboardBaseline(location);
+    setDashboardStatsBusy(true);
+
+    try {
+      const pageSize = 100;
+      let page = 1;
+      let total = 0;
+      const allUsers: RecentUserItem[] = [];
+
+      while (true) {
+        const params = new URLSearchParams({
+          page: String(page),
+          pageSize: String(pageSize),
+          filter: "qualifying",
+        });
+
+        const res = await fetch(`/api/admin/user-history/${location}?${params.toString()}`, {
+          cache: "no-store",
+        });
+
+        const data = (await safeJson(res)) as RecentUsersResponse;
+        const items = Array.isArray(data.items) ? data.items : [];
+        total = Number(data.total || total || 0);
+        allUsers.push(...items);
+
+        if (items.length < pageSize || allUsers.length >= total) break;
+        page += 1;
+      }
+
+      let issued = 0;
+      let redeemed = 0;
+      let purchaseCount = 0;
+      let estimatedRevenueCents = 0;
+      let welcomeUsers = 0;
+      let redeemedUsers = 0;
+
+      for (const user of allUsers) {
+        try {
+          const params = new URLSearchParams({
+            location,
+            emailHash: user.emailHash,
+          });
+
+          const res = await fetch(`/api/admin/user-history/detail?${params.toString()}`, {
+            cache: "no-store",
+          });
+
+          const data = await safeJson(res);
+          const entries = Array.isArray((data as any)?.ledger) ? (data as any).ledger : [];
+          let userHadWelcome = false;
+          let userHadRedeem = false;
+
+          for (const entry of entries) {
+            const createdAt = entry?.createdAt ? String(entry.createdAt) : "";
+            if (baselineAt && createdAt && new Date(createdAt).getTime() < new Date(baselineAt).getTime()) {
+              continue;
+            }
+
+            const delta = Number(entry?.delta || 0);
+            const reason = String(entry?.reason || "");
+
+            if (delta > 0 && (isWelcomeReason(reason) || isRedeemReason(reason) || isPurchaseReason(reason))) {
+              issued += delta;
+
+              if (isWelcomeReason(reason)) userHadWelcome = true;
+              if (isRedeemReason(reason)) userHadRedeem = true;
+              if (isPurchaseReason(reason)) {
+                purchaseCount += 1;
+                estimatedRevenueCents += estimatePurchaseRevenueCents(delta, rules);
+              }
+            }
+
+            if (delta < 0 && isSpendReason(reason)) {
+              redeemed += Math.abs(delta);
+            }
+          }
+
+          if (userHadWelcome) welcomeUsers += 1;
+          if (userHadRedeem) redeemedUsers += 1;
+        } catch {}
+      }
+
+      setDashboardLedgerStats({
+        baselineAt,
+        activeUsers: users.length,
+        verifiedUsers: users.filter((u) => u.verified).length,
+        liveQueueCount: pendingRequests.length,
+        boostedQueueCount: requestBuckets.boosts.length,
+        standardQueueCount: requestBuckets.next.length,
+        redemptionCodesLoaded: codes.length,
+        totalQualifyingUsers: total || allUsers.length,
+        pointsIssued: issued,
+        pointsRedeemed: redeemed,
+        pointsAvailable: Math.max(0, issued - redeemed),
+        purchaseCount,
+        estimatedRevenueCents,
+        welcomeUsers,
+        redeemedUsers,
+      });
+    } catch {
+      setDashboardLedgerStats((curr) => ({
+        ...curr,
+        baselineAt,
+        activeUsers: users.length,
+        verifiedUsers: users.filter((u) => u.verified).length,
+        liveQueueCount: pendingRequests.length,
+        boostedQueueCount: requestBuckets.boosts.length,
+        standardQueueCount: requestBuckets.next.length,
+        redemptionCodesLoaded: codes.length,
+      }));
+    } finally {
+      setDashboardStatsBusy(false);
+    }
+  }
+
+  function resetDashboardStatsWindow() {
+    const nextBaseline = new Date().toISOString();
+    writeDashboardBaseline(location, nextBaseline);
+    void loadDashboardLedgerStats();
+    setMsg("✅ Dashboard money + points snapshot reset for this location on this browser.");
+  }
+
+  function clearDashboardStatsWindow() {
+    writeDashboardBaseline(location, null);
+    void loadDashboardLedgerStats();
+    setMsg("✅ Dashboard money + points snapshot returned to all-time view.");
+  }
 
   const effectiveTop10CutoffHour = Number(rules?.top10AdultCutoffHour ?? 21);
   const effectiveTop10CutoffMinute = Number(rules?.top10AdultCutoffMinute ?? 0);
@@ -1380,6 +1675,11 @@ useEffect(() => {
   void loadStaffUsers();
 }, [checkingAuth, tab, currentStaffRole]);
 
+useEffect(() => {
+  if (checkingAuth || tab !== "dashboard") return;
+  void loadDashboardLedgerStats();
+}, [checkingAuth, tab, location, users.length, pendingRequests.length, requestBuckets.boosts.length, requestBuckets.next.length, codes.length, rules]);
+
 
 if (checkingAuth) {
   return <div style={{ padding: 40 }}>Loading...</div>;
@@ -1414,26 +1714,86 @@ if (checkingAuth) {
         </div>
 
 
-<div className="admTabs">
-  <TabButton active={tab === "dashboard"} onClick={() => setTab("dashboard")}>Dashboard</TabButton>
-  <TabButton active={tab === "songs"} onClick={() => setTab("songs")}>Songs</TabButton>
-  <TabButton active={tab === "requestSettings"} onClick={() => setTab("requestSettings")}>Request Settings</TabButton>
-  <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>Top 10</TabButton>
-  <TabButton active={tab === "users"} onClick={() => setTab("users")}>Users & Points</TabButton>
-  <TabButton active={tab === "shoutoutSettings"} onClick={() => setTab("shoutoutSettings")}>Shoutout Settings</TabButton>
+<div style={{ display: "grid", gap: 8, marginBottom: 10 }}>
+  <div className="admTabs" style={{ marginBottom: 0 }}>
+    <TabButton active={tab === "dashboard"} onClick={() => setTab("dashboard")}>
+      Dashboard
+    </TabButton>
 
-<a href={`/booth/${location}`} className="admTab admTabLink">
-  DJ BOOTH
-</a>
+    <TabButton active={tab === "songs"} onClick={() => setTab("songs")}>
+      Songs
+    </TabButton>
 
- <a href={`/admin/${location}/interstitials`} className="admTab admTabLink">
-    INTERSTITIALS
-  </a>
-  {currentStaffRole === "SUPER_ADMIN" ? (
-  <TabButton active={tab === "staff"} onClick={() => setTab("staff")}>
-    Staff Users
-  </TabButton>
-) : null}
+    <TabButton active={tab === "requestSettings"} onClick={() => setTab("requestSettings")}>
+      Request Settings
+    </TabButton>
+
+    <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>
+      Top 10
+    </TabButton>
+
+    <TabButton active={tab === "users"} onClick={() => setTab("users")}>
+      Users & Points
+    </TabButton>
+
+    <TabButton active={tab === "shoutoutSettings"} onClick={() => setTab("shoutoutSettings")}>
+      Shoutout Settings
+    </TabButton>
+
+    {currentStaffRole === "SUPER_ADMIN" ? (
+      <TabButton active={tab === "staff"} onClick={() => setTab("staff")}>
+        Staff Users
+      </TabButton>
+    ) : null}
+  </div>
+
+  <div
+    className="admTabs"
+    style={{
+      marginBottom: 0,
+      paddingTop: 0,
+      borderTop: "1px solid rgba(255,255,255,0.04)",
+    }}
+  >
+    <a
+      href={`/booth/${location}`}
+      className="admTab admTabLink"
+      style={{
+        minHeight: 34,
+        padding: "0 12px",
+        fontSize: 11,
+        letterSpacing: "0.08em",
+      }}
+    >
+      DJ Booth
+    </a>
+
+    <a
+      href={`/admin/${location}/interstitials`}
+      className="admTab admTabLink"
+      style={{
+        minHeight: 34,
+        padding: "0 12px",
+        fontSize: 11,
+        letterSpacing: "0.08em",
+      }}
+    >
+      Interstitials
+    </a>
+
+    <a
+      href="/admin/import"
+      className="admTab admTabLink"
+      style={{
+        minHeight: 34,
+        padding: "0 12px",
+        fontSize: 11,
+        letterSpacing: "0.08em",
+      }}
+    >
+      <i>Spotify Import</i>
+    </a>
+  </div>
 </div>
 
 
@@ -1441,78 +1801,150 @@ if (checkingAuth) {
 
         {tab === "dashboard" && (
           <>
-            <div className="admMetricGrid" style={{ marginBottom: 10 }}>
-              <MetricCard label="Pending requests" value={pendingRequests.length} sub={`${requestBuckets.boosts.length} boosted / ${requestBuckets.next.length} standard`} />
-              <MetricCard label="Pending shout-outs" value={pendingMessages.length} sub={`${approvedMessages.length} approved • ${activeMessages.length} active`} />
-              <MetricCard label="Blocked" value={blockedCount} sub={`${rejectedMessages.length} rejected`} />
-              <MetricCard label="Users" value={users.length} sub={`${codes.length} redemption codes loaded`} />
-            </div>
-
-            <div className="admGridMain">
-              <Panel title="Request queue" sub="Live DJ queue with quick action controls.">
-                <div className="admFieldStack">
-                  <div className="admSubPanel">
-                    <div className="admSubTitleRow">
-                      <div className="admSubTitleText">Cost snapshot</div>
-                      <span className="admPill">Live rules</span>
-                    </div>
-                    <div className="admSubCopy">
-                      {(() => {
-                        const c = rulesCostsFromRules(rules);
-                        return <>Request <b>{c.costRequest}</b> • Boost <b>{c.costPlayNow}</b> • Upvote <b>{c.costUpvote}</b> • Downvote <b>{c.costDownvote}</b></>;
-                      })()}
-                    </div>
+            <Panel
+              title="Tonight at a glance"
+              sub="A cleaner landing screen with live operational context, top song focus, and money + point flow."
+            >
+              <div className="admDashboardHero" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 0.85fr)", gap: 10, alignItems: "stretch" }}>
+                <div className="admDashboardHeroMain">
+                  <div className="admDashboardEyebrow">LIVE SNAPSHOT</div>
+                  <div className="admDashboardHeadline">
+                    {dashboardStatsBusy ? "Refreshing live dashboard…" : top10[0] ? `${top10[0].title} is leading right now.` : "Dashboard ready for tonight."}
                   </div>
+                  <div className="admDashboardSub">
+                    {top10[0]
+                      ? `${top10[0].artist} • Score ${top10[0].score}${top10[0].requestCount ? ` • ${top10[0].requestCount} requests` : ""}`
+                      : "Your deep controls now live inside the tabs. This front page is focused on quick pulse, top activity, and money flow."}
+                  </div>
+                </div>
 
-                  <div className="admBoostBand">Boosted queue • paid to play next</div>
-                  {requestBuckets.boosts.length === 0 ? <EmptyState>No Play Now requests.</EmptyState> : requestBuckets.boosts.map((q) => <QueueRow key={q.id} q={q} onPlayed={() => markPlayed(q.id)} onReject={() => rejectRequest(q.id)} />)}
+                <div className="admDashboardHeroStats" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, alignContent: "start" }}>
+                  <DashboardHeroStat label="Queue live" value={dashboardLedgerStats.liveQueueCount} sub={`${dashboardLedgerStats.boostedQueueCount} boosted • ${dashboardLedgerStats.standardQueueCount} standard`} />
+                  <DashboardHeroStat label="Active users" value={dashboardLedgerStats.activeUsers} sub={`${dashboardLedgerStats.verifiedUsers} verified`} />
+                  <DashboardHeroStat label="Points issued" value={dashboardLedgerStats.pointsIssued} sub={formatDashboardSince(dashboardLedgerStats.baselineAt)} />
+                  <DashboardHeroStat label="Purchased $" value={formatCurrencyFromCents(dashboardLedgerStats.estimatedRevenueCents)} sub={`${dashboardLedgerStats.purchaseCount} purchases`} />
+                </div>
+              </div>
+            </Panel>
 
-                  <div className="admSubTitleText" style={{ marginTop: 2 }}>Up next</div>
-                  {requestBuckets.next.length === 0 ? <EmptyState>No queued requests yet.</EmptyState> : requestBuckets.next.map((q, i) => <QueueRow key={q.id} q={q} index={i + 1} onPlayed={() => markPlayed(q.id)} onReject={() => rejectRequest(q.id)} />)}
+            <div className="admDashboardTriGrid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10, alignItems: "start" }}>
+              <Panel title="Stats" sub="Usage snapshot without diving into the deeper tabs.">
+                <div className="admDashboardMiniGrid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+                  <DashboardMiniStat label="Songs in queue" value={dashboardLedgerStats.liveQueueCount} tone="live" />
+                  <DashboardMiniStat label="Boosted live" value={dashboardLedgerStats.boostedQueueCount} tone="warn" />
+                  <DashboardMiniStat label="Standard live" value={dashboardLedgerStats.standardQueueCount} />
+                  <DashboardMiniStat label="Active users" value={dashboardLedgerStats.activeUsers} />
+                  <DashboardMiniStat label="Verified users" value={dashboardLedgerStats.verifiedUsers} />
+                  <DashboardMiniStat label="Qualifying users" value={dashboardLedgerStats.totalQualifyingUsers} />
+                  <DashboardMiniStat label="Pending shout-outs" value={pendingMessages.length} />
+                  <DashboardMiniStat label="Redemption codes" value={dashboardLedgerStats.redemptionCodesLoaded} />
+                </div>
+
+                <div className="admSubPanel" style={{ marginTop: 10 }}>
+                  <div className="admSubTitleText">Quick pulse</div>
+                  <div className="admSubCopy" style={{ marginTop: 8 }}>
+                    Requests and shout-outs now live in the booth flow, so this page is better used as a live pulse page instead of an old moderation board.
+                  </div>
+                  <div className="admActionRow" style={{ marginTop: 12 }}>
+                    <a href={`/booth/${location}`} className="admBtn" style={{ textDecoration: "none" }}>
+                      Open DJ Booth
+                    </a>
+                    <a href={`/admin/${location}?tab=users`} className="admBtnGhost" style={{ textDecoration: "none" }}>
+                      Open Users & Points
+                    </a>
+                  </div>
                 </div>
               </Panel>
 
-              <Panel title="Pending shout-outs" sub="Moderation queue for screen-ready messages and uploads.">
-                <div className="admActionRow" style={{ marginBottom: 2 }}>
-                  <Pill>Pending {pendingMessages.length}</Pill>
-                  <Pill>Approved {approvedMessages.length}</Pill>
-                  <Pill>Active {activeMessages.length}</Pill>
-                  <Pill>Rejected {rejectedMessages.length}</Pill>
-                  <Pill variant="danger">Blocked {blockedCount}</Pill>
-                </div>
-                <div className="admRows">
-                  {pendingMessages.length === 0 ? <EmptyState>No pending messages right now.</EmptyState> : pendingMessages.map((m) => {
-                    const product = safeProduct(m.tier);
-                    return (
-                      <div key={m.id} className="admRowCard">
-                        <div className="admTextWrap" style={{ flex: 1 }}>
-                          <div className="admActionRow" style={{ gap: 6 }}>
-                            <strong>{m.fromName}</strong>
-                            <Pill>{product?.title || m.tier}</Pill>
-                            {m.creditsCost != null ? <Pill>{m.creditsCost} pts</Pill> : null}
-                          </div>
-                          <div style={{ marginTop: 8 }}>{m.messageText}</div>
-                          {m.autoTextModerationReason ? <div className="admFieldHelp" style={{ marginTop: 8 }}>Auto filter: {m.autoTextModerationReason}</div> : null}
-                          {m.signedImageUrl ? (
-                            <div style={{ marginTop: 10, width: 140, height: 140, borderRadius: 16, overflow: "hidden", border: "1px solid rgba(125,156,206,0.12)", background: "#0b0d18" }}>
-                              <img src={m.signedImageUrl} alt="Shout-out preview" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                            </div>
-                          ) : null}
-                          <div className="admFieldHelp" style={{ marginTop: 8 }}>
-                            Submitted {m.createdAt ? new Date(m.createdAt).toLocaleString() : "just now"}
-                            {m.displayDurationSec ? <> • Window {Math.round(m.displayDurationSec / 60)} min</> : null}
-                            {product?.hasPhoto ? <> • Photo tier</> : null}
-                            {m.imageModerationStatus ? <> • Image: {m.imageModerationStatus}</> : null}
-                          </div>
-                        </div>
-                        <div className="admActionRow" style={{ alignSelf: "flex-start" }}>
-                          <ActionButton onClick={() => approveMessage(m.id)}>Approve</ActionButton>
-                          <ActionButton alt onClick={() => editMessage(m.id, m.fromName, m.messageText)}>Edit</ActionButton>
-                          <ActionButton danger onClick={() => rejectMessage(m.id)}>Reject</ActionButton>
-                        </div>
+              <Panel title="Top 1 + activity" sub="A slimmer center stack with what is happening right now.">
+                <div className="admSubPanel admDashboardTopCard">
+                  <div className="admDashboardTopLabel">TOP SONG RIGHT NOW</div>
+                  {top10[0] ? (
+                    <>
+                      <div className="admDashboardTopTitle">{top10[0].title}</div>
+                      <div className="admDashboardTopArtist">{top10[0].artist}</div>
+                      <div className="admActionRow" style={{ marginTop: 10 }}>
+                        <Pill variant="live">Score {top10[0].score}</Pill>
+                        <Pill>Req {Number(top10[0].requestCount || 0)}</Pill>
+                        <Pill>👍 {Number(top10[0].upvotes || 0)}</Pill>
+                        <Pill>👎 {Number(top10[0].downvotes || 0)}</Pill>
                       </div>
-                    );
-                  })}
+                    </>
+                  ) : (
+                    <EmptyState>No Top 10 leader yet.</EmptyState>
+                  )}
+                </div>
+
+                <div className="admSubPanel" style={{ marginTop: 10 }}>
+                  <div className="admSubTitleText">Slim activity stack</div>
+                  <div className="admDashboardActivityList" style={{ display: "grid", gap: 8 }}>
+                    {requestBuckets.boosts.slice(0, 3).map((q) => (
+                      <DashboardActivityRow
+                        key={`boost-${q.id}`}
+                        label="BOOST"
+                        title={q.title}
+                        meta={q.artist}
+                        accent="boost"
+                      />
+                    ))}
+                    {requestBuckets.next.slice(0, 4).map((q) => (
+                      <DashboardActivityRow
+                        key={`queue-${q.id}`}
+                        label="QUEUE"
+                        title={q.title}
+                        meta={`${q.artist} • score ${q.score}`}
+                      />
+                    ))}
+                    {pendingMessages.slice(0, 3).map((m) => (
+                      <DashboardActivityRow
+                        key={`msg-${m.id}`}
+                        label="MSG"
+                        title={m.fromName}
+                        meta={m.messageText}
+                        accent="message"
+                      />
+                    ))}
+                    {!requestBuckets.boosts.length && !requestBuckets.next.length && !pendingMessages.length ? (
+                      <EmptyState>No live activity yet.</EmptyState>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="admSubPanel" style={{ marginTop: 10 }}>
+                  <div className="admSubTitleText">Read-only board preview</div>
+                  <div className="admSubCopy" style={{ marginTop: 8 }}>
+                    {top10UpdatedAt ? `Updated ${new Date(top10UpdatedAt).toLocaleString()}` : "No board update time yet."}
+                  </div>
+                  <div className="admActionRow" style={{ marginTop: 12 }}>
+                    <a href={`/admin/${location}?tab=top10`} className="admBtnGhost" style={{ textDecoration: "none" }}>
+                      Open Top 10 tab
+                    </a>
+                  </div>
+                </div>
+              </Panel>
+
+              <Panel title="Money + points" sub="Issued points, redeemed points, active balances, and purchased revenue.">
+                <div className="admDashboardMoneyStack" style={{ display: "grid", gap: 8 }}>
+                  <DashboardMoneyRow label="Points issued" value={dashboardLedgerStats.pointsIssued} sub={`${dashboardLedgerStats.welcomeUsers} welcome users • ${dashboardLedgerStats.redeemedUsers} redeemed users`} />
+                  <DashboardMoneyRow label="Points redeemed" value={dashboardLedgerStats.pointsRedeemed} sub="Requests, boosts, votes, and shout-outs spent" />
+                  <DashboardMoneyRow label="Points active" value={dashboardLedgerStats.pointsAvailable} sub="Issued minus redeemed" />
+                  <DashboardMoneyRow label="Purchased $" value={formatCurrencyFromCents(dashboardLedgerStats.estimatedRevenueCents)} sub={`${dashboardLedgerStats.purchaseCount} point-pack purchases`} highlight />
+                </div>
+
+                <div className="admSubPanel" style={{ marginTop: 10 }}>
+                  <div className="admSubTitleText">Stats window</div>
+                  <div className="admSubCopy" style={{ marginTop: 8 }}>
+                    {formatDashboardSince(dashboardLedgerStats.baselineAt)}
+                  </div>
+                  <div className="admFieldHelp" style={{ marginTop: 8 }}>
+                    Issued includes welcome points, redeemed code points, and purchased points. Unused codes are not counted.
+                  </div>
+                  {currentStaffRole === "SUPER_ADMIN" ? (
+                    <div className="admActionRow" style={{ marginTop: 12 }}>
+                      <ActionButton onClick={resetDashboardStatsWindow}>Reset stats window</ActionButton>
+                      <ActionButton alt onClick={clearDashboardStatsWindow}>All-time view</ActionButton>
+                    </div>
+                  ) : null}
                 </div>
               </Panel>
             </div>
@@ -2395,7 +2827,7 @@ onChange={(v) => patchMessageRules({ filterBlockMessage: v })}
                 </div>
               </div>
               <div className="admActionRow" style={{ marginTop: 10 }}>
-                <Pill>{p.hasPhoto ? "Photo tier" : "Text only"}</Pill>
+                <Pill>{p.hasImage ? "Photo tier" : "Text only"}</Pill>
                 <Pill>Weight {p.weight}</Pill>
                 <Pill variant={p.enabled ? "live" : "warn"}>{p.enabled ? "Live" : "Coming soon"}</Pill>
               </div>
@@ -2421,7 +2853,69 @@ onChange={(v) => patchMessageRules({ filterBlockMessage: v })}
               <Input value={p.title} onChange={(e) => updatePlaceholder(idx, { title: e.target.value })} />
               <Label style={{ marginTop: 10 }}>Product Label</Label>
               <Input value={p.productTitle || ""} onChange={(e) => updatePlaceholder(idx, { productTitle: e.target.value })} />
-              <Label style={{ marginTop: 10 }}>Message</Label>
+              <Label style={{ marginTop: 10 }}>Photo</Label>
+
+              {p.imageUrl ? (
+                <div
+                  style={{
+                    marginBottom: 10,
+                    borderRadius: 14,
+                    overflow: "hidden",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: "rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <img
+                    src={p.imageUrl}
+                    alt={`Placeholder ${idx + 1}`}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      maxHeight: 240,
+                      objectFit: "cover",
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="admFieldHelp" style={{ marginBottom: 10 }}>
+                  No photo uploaded yet.
+                </div>
+              )}
+
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/heic,image/heif"
+                className="admFileInput"
+                disabled={placeholderUploadBusyId === p.id}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    void uploadPlaceholderPhoto(idx, file);
+                  }
+                  e.currentTarget.value = "";
+                }}
+              />
+
+              <div className="admFieldHelp" style={{ marginTop: 8 }}>
+                Upload uses the same image validation flow as public photo shout-outs.
+              </div>
+
+              {p.imageUrl ? (
+                <div className="admActionRow" style={{ marginTop: 10 }}>
+                  <ActionButton
+                    alt
+                    onClick={() =>
+                      updatePlaceholder(idx, {
+                        imageUrl: null,
+                        imagePath: null,
+                      })
+                    }
+                  >
+                    Remove photo
+                  </ActionButton>
+                </div>
+              ) : null}              
+<Label style={{ marginTop: 10 }}>Message</Label>
               <Textarea rows={4} value={p.body} onChange={(e) => updatePlaceholder(idx, { body: e.target.value })} />
               <Label style={{ marginTop: 10 }}>From</Label>
               <Input value={p.fromName} onChange={(e) => updatePlaceholder(idx, { fromName: e.target.value })} />
@@ -2465,6 +2959,103 @@ onChange={(v) => patchMessageRules({ filterBlockMessage: v })}
     </div>
   );
 }
+
+function DashboardHeroStat({ label, value, sub }: { label: string; value: ReactNode; sub?: string }) {
+  return (
+    <div className="admMetricCard" style={{ minHeight: 96, padding: 10 }}>
+      <div className="admMetricLabel">{label}</div>
+      <div className="admMetricValue">{value}</div>
+      {sub ? <div className="admMetricSub">{sub}</div> : null}
+    </div>
+  );
+}
+
+function DashboardMiniStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: "live" | "warn";
+}) {
+  return (
+    <div className="admSubPanel" style={{ padding: "10px 10px 9px", background: tone === "warn" ? "linear-gradient(135deg, rgba(109,61,146,0.28), rgba(23,15,40,0.95))" : tone === "live" ? "linear-gradient(135deg, rgba(33,107,162,0.24), rgba(11,16,32,0.95))" : undefined }}>
+      <div className="admMetricLabel">{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 1000, marginTop: 8, color: "#f7fbff" }}>{value}</div>
+    </div>
+  );
+}
+
+function DashboardMoneyRow({
+  label,
+  value,
+  sub,
+  highlight,
+}: {
+  label: string;
+  value: ReactNode;
+  sub?: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className="admSubPanel"
+      style={{
+        padding: "10px 12px",
+        background: highlight
+          ? "linear-gradient(135deg, rgba(96,42,130,0.38), rgba(14,17,34,0.98))"
+          : "linear-gradient(180deg, rgba(17,27,53,0.9), rgba(11,15,28,0.94))",
+      }}
+    >
+      <div className="admSplitActions">
+        <div className="admTextWrap">
+          <div className="admMetricLabel">{label}</div>
+          {sub ? <div className="admMetricSub" style={{ marginTop: 6 }}>{sub}</div> : null}
+        </div>
+        <div style={{ fontSize: 24, fontWeight: 1000, color: "#f8fbff" }}>{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardActivityRow({
+  label,
+  title,
+  meta,
+  accent,
+}: {
+  label: string;
+  title: string;
+  meta?: string;
+  accent?: "boost" | "message";
+}) {
+  return (
+    <div
+      className="admRow"
+      style={{
+        marginBottom: 8,
+        paddingTop: 10,
+        paddingBottom: 10,
+        borderColor:
+          accent === "boost"
+            ? "rgba(166, 84, 203, 0.42)"
+            : accent === "message"
+            ? "rgba(70, 120, 193, 0.42)"
+            : undefined,
+      }}
+    >
+      <div className="admActionRow" style={{ gap: 10, alignItems: "flex-start", flexWrap: "nowrap" }}>
+        <Pill variant={accent === "boost" ? "warn" : accent === "message" ? "live" : undefined}>{label}</Pill>
+        <div className="admTextWrap" style={{ flex: 1 }}>
+          <div style={{ fontWeight: 900 }}>{title}</div>
+          {meta ? <div className="admFieldHelp" style={{ marginTop: 4 }}>{meta}</div> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 
 function UserHistoryModal({
@@ -2520,7 +3111,7 @@ function UserHistoryModal({
                 </div>
                 <div style={{ textAlign: "right", minWidth: 120 }}>
                   <div className="admFieldHelp">Current balance</div>
-                  <div style={{ fontWeight: 1000, fontSize: 28 }}>{user.points}</div>
+                  <div style={{ fontWeight: 1000, fontSize: 24 }}>{user.points}</div>
                 </div>
               </div>
             </div>
