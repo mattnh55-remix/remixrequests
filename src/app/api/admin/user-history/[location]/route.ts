@@ -1,13 +1,8 @@
 // src/app/api/admin/user-history/[location]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
+import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
-
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-const prisma = globalForPrisma.prisma ?? new PrismaClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 type RecentUserFilter = "qualifying" | "redeem" | "purchase" | "both";
 
