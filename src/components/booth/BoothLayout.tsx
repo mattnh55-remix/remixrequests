@@ -548,7 +548,7 @@ useEffect(() => {
 
   useEffect(() => {
     void load();
-    const id = window.setInterval(load, 3000);
+    const id = window.setInterval(load, 15000);
     return () => window.clearInterval(id);
   }, [location]);
 
