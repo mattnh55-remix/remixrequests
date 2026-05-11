@@ -1672,9 +1672,7 @@ export default function AdminPage({
 <body>
   <main class="board">
     <div class="header">
-      <div><div class="eyebrow">Remix Staff Board</div><h3>Manual Top 10</h3></div>
-      <div class="saved">${escapeHtml(savedText)}</div>
-    </div>
+      </div>
     ${topHtml}
     ${restHtml}
   </main>
