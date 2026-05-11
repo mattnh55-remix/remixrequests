@@ -182,6 +182,17 @@ model Top10Entry {
   @@index([locationId, bucket, lastActivityAt])
 }
 
+model ManualTop10Board {
+  id           String   @id @default(cuid())
+  locationSlug String   @unique
+  targetVotes  Int      @default(512)
+  items        Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([locationSlug])
+}
+
 model CreditLedger {
   id         String   @id @default(cuid())
   locationId String

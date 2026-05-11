@@ -22,6 +22,7 @@ type TabKey =
   | "songs"
   | "requestSettings"
   | "top10"
+  | "manualTop10"
   | "users"
   | "staff"
   | "shoutoutSettings";
@@ -220,6 +221,34 @@ type Top10Response = {
   updatedAt?: string;
   dataSource?: "TOP10" | "FEATURED_TRACKS" | "DISABLED";
   items?: Top10Item[];
+};
+
+type ManualRequestStatus = "A" | "R" | "P";
+
+type ManualTop10Item = {
+  id: string;
+  requestId: string;
+  songId: string;
+  title: string;
+  artist: string;
+  artworkUrl?: string | null;
+  requestStatus: string;
+  statusSymbol: ManualRequestStatus;
+  createdAt?: string;
+  requesterLabel?: string;
+  upvotes: number;
+  downvotes: number;
+  score: number;
+  rank?: number;
+};
+
+type ManualTop10Response = {
+  ok?: boolean;
+  requestPool?: ManualTop10Item[];
+  boardItems?: ManualTop10Item[];
+  targetVotes?: number;
+  updatedAt?: string | null;
+  error?: string;
 };
 
 const TOP10_WEEKDAYS = [
@@ -767,6 +796,13 @@ export default function AdminPage({
     "TOP10" | "FEATURED_TRACKS" | "DISABLED" | ""
   >("");
   const [top10Busy, setTop10Busy] = useState(false);
+  const [manualRequestPool, setManualRequestPool] = useState<ManualTop10Item[]>([]);
+  const [manualTop10Items, setManualTop10Items] = useState<ManualTop10Item[]>([]);
+  const [manualTargetVotes, setManualTargetVotes] = useState("512");
+  const [manualTop10Msg, setManualTop10Msg] = useState("");
+  const [manualTop10Busy, setManualTop10Busy] = useState(false);
+  const [manualTop10UpdatedAt, setManualTop10UpdatedAt] = useState<string | null>(null);
+  const [manualDragId, setManualDragId] = useState<string>("");
   const [codes, setCodes] = useState<RedemptionCode[]>([]);
   const [codesMsg, setCodesMsg] = useState("");
   const [codeNew, setCodeNew] = useState("");
@@ -1353,6 +1389,116 @@ export default function AdminPage({
     }
   }
 
+  function normalizeManualTop10Items(items: ManualTop10Item[]) {
+    return items.map((item, index) => ({
+      ...item,
+      rank: index + 1,
+      upvotes: Math.max(0, Math.floor(Number(item.upvotes || 0))),
+      downvotes: Math.max(0, Math.floor(Number(item.downvotes || 0))),
+      score: Math.floor(Number(item.upvotes || 0)) - Math.floor(Number(item.downvotes || 0)),
+    }));
+  }
+
+  async function loadManualTop10() {
+    try {
+      const res = await fetch(`/api/admin/manual-top10/${location}`, {
+        cache: "no-store",
+      });
+      const data = (await res.json()) as ManualTop10Response;
+      if (!data?.ok) {
+        setManualTop10Msg(data?.error || "Could not load manual Top 10.");
+        return;
+      }
+      const pool = Array.isArray(data.requestPool) ? data.requestPool : [];
+      const saved = Array.isArray(data.boardItems) ? data.boardItems : [];
+      setManualRequestPool(pool);
+      setManualTop10Items(saved.length ? normalizeManualTop10Items(saved).slice(0, 10) : pool.slice(0, 10));
+      setManualTargetVotes(String(Number(data.targetVotes || 512)));
+      setManualTop10UpdatedAt(data.updatedAt || null);
+    } catch {
+      setManualTop10Msg("Could not load manual Top 10.");
+    }
+  }
+
+  function addManualTop10Item(item: ManualTop10Item) {
+    setManualTop10Msg("");
+    setManualTop10Items((current) => {
+      if (current.some((row) => row.id === item.id)) return current;
+      if (current.length >= 10) {
+        setManualTop10Msg("Manual Top 10 already has 10 songs. Remove one first.");
+        return current;
+      }
+      return normalizeManualTop10Items([...current, item]);
+    });
+  }
+
+  function removeManualTop10Item(id: string) {
+    setManualTop10Items((current) => normalizeManualTop10Items(current.filter((item) => item.id !== id)));
+  }
+
+  function moveManualTop10Item(fromId: string, toId: string) {
+    if (!fromId || !toId || fromId === toId) return;
+    setManualTop10Items((current) => {
+      const fromIndex = current.findIndex((item) => item.id === fromId);
+      const toIndex = current.findIndex((item) => item.id === toId);
+      if (fromIndex < 0 || toIndex < 0) return current;
+      const next = [...current];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return normalizeManualTop10Items(next);
+    });
+  }
+
+  function generateManualVotes() {
+    const topScore = Math.max(1, Math.floor(Number(manualTargetVotes || 0)));
+    setManualTop10Items((current) => {
+      const total = Math.max(1, current.length);
+      const step = Math.max(7, Math.floor(topScore / (total + 2)));
+      return normalizeManualTop10Items(
+        current.map((item, index) => {
+          const jitter = Math.floor(Math.random() * Math.max(4, Math.floor(step * 0.35)));
+          const score = Math.max(1, topScore - index * step - jitter);
+          const downvotes = Math.max(0, Math.floor(score * (0.03 + Math.random() * 0.16)) + Math.floor(Math.random() * 4));
+          const upvotes = score + downvotes;
+          return { ...item, upvotes, downvotes, score };
+        }),
+      );
+    });
+    setManualTop10Msg("✅ Randomized believable thumbs up/down counts for the current order.");
+  }
+
+  async function saveManualTop10() {
+    setManualTop10Busy(true);
+    setManualTop10Msg("");
+    try {
+      const items = normalizeManualTop10Items(manualTop10Items).slice(0, 10);
+      const res = await fetch(`/api/admin/manual-top10/${location}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          targetVotes: Math.max(1, Math.floor(Number(manualTargetVotes || 0))),
+          items,
+        }),
+      });
+      const data = (await safeJson(res)) as ManualTop10Response;
+      if (!data?.ok) {
+        setManualTop10Msg(data?.error || "Could not save manual Top 10.");
+        return;
+      }
+      setManualTop10Items(normalizeManualTop10Items(Array.isArray(data.boardItems) ? data.boardItems : items));
+      setManualTop10UpdatedAt(data.updatedAt || new Date().toISOString());
+      setManualTop10Msg("✅ Manual Top 10 saved for staff.");
+    } finally {
+      setManualTop10Busy(false);
+    }
+  }
+
+  function statusPillVariant(symbol: ManualRequestStatus): "live" | "warn" | "danger" {
+    if (symbol === "A") return "live";
+    if (symbol === "R") return "danger";
+    return "warn";
+  }
+
   function toggleTop10AutoRefreshDay(day: string) {
     const current = Array.isArray(rules?.top10AutoRefreshDays)
       ? rules?.top10AutoRefreshDays || []
@@ -1830,6 +1976,7 @@ export default function AdminPage({
     if (tab === "songs") return "Songs";
     if (tab === "requestSettings") return "Request Settings";
     if (tab === "top10") return "Top 10";
+    if (tab === "manualTop10") return "Manual Top 10";
     if (tab === "users") return "Users & Points";
     if (tab === "staff") return "Staff Users";
     if (tab === "shoutoutSettings") return "Shoutout Settings";
@@ -1850,6 +1997,8 @@ export default function AdminPage({
         await Promise.all([loadRules(true), loadCodes()]);
       } else if (tab === "top10") {
         await Promise.all([loadRules(true), loadTop10()]);
+      } else if (tab === "manualTop10") {
+        await loadManualTop10();
       } else if (tab === "users") {
         await Promise.all([loadUsers(), loadRecentUsers()]);
       } else if (tab === "staff") {
@@ -1891,6 +2040,7 @@ export default function AdminPage({
     await Promise.all([
       loadUsers(),
       loadTop10(),
+      ...(tab === "manualTop10" ? [loadManualTop10()] : []),
       loadCodes(),
       ...(tab === "users" ? [loadRecentUsers()] : []),
     ]);
@@ -1909,6 +2059,7 @@ export default function AdminPage({
       "songs",
       "requestSettings",
       "top10",
+      "manualTop10",
       "users",
       "staff",
       "shoutoutSettings",
@@ -2048,6 +2199,13 @@ export default function AdminPage({
 
             <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>
               Top 10
+            </TabButton>
+
+            <TabButton
+              active={tab === "manualTop10"}
+              onClick={() => setTab("manualTop10")}
+            >
+              Manual Top 10
             </TabButton>
 
             <TabButton active={tab === "users"} onClick={() => setTab("users")}>
@@ -3259,6 +3417,150 @@ export default function AdminPage({
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            </Panel>
+          </div>
+        )}
+
+        {tab === "manualTop10" && (
+          <div
+            className="admGridSettings"
+            style={{ gridTemplateColumns: "1.08fr 0.92fr" } as CSSProperties}
+          >
+            <Panel
+              title="Manual Top 10 for staff"
+              sub="Drag rows into any order, generate believable thumbs up/down numbers, then save. This does not change real request votes."
+            >
+              <div className="admSectionStack">
+                <div className="admActionRow">
+                  <div style={{ width: 180 }}>
+                    <Field
+                      label="Top item score"
+                      value={Number(manualTargetVotes || 0)}
+                      onChange={(v) => setManualTargetVotes(String(v))}
+                    />
+                  </div>
+                  <ActionButton alt onClick={generateManualVotes}>
+                    Generate Votes
+                  </ActionButton>
+                  <ActionButton onClick={saveManualTop10} disabled={manualTop10Busy}>
+                    {manualTop10Busy ? "Saving…" : "Save Top 10"}
+                  </ActionButton>
+                  <ActionButton alt onClick={loadManualTop10}>
+                    Refresh
+                  </ActionButton>
+                </div>
+
+                <div className="admFieldHelp">
+                  Use this as a staff-facing training/display list. Approved, Rejected, and Pending requests are all available below.
+                  {manualTop10UpdatedAt ? ` Last saved ${new Date(manualTop10UpdatedAt).toLocaleString()}.` : ""}
+                </div>
+
+                {manualTop10Msg ? <div className="admNotice">{manualTop10Msg}</div> : null}
+
+                {manualTop10Items.length === 0 ? (
+                  <EmptyState>No manual songs selected yet. Add songs from the request pool.</EmptyState>
+                ) : (
+                  <div className="admRows">
+                    {manualTop10Items.map((item, i) => (
+                      <div
+                        key={item.id}
+                        className="admRow"
+                        draggable
+                        onDragStart={() => setManualDragId(item.id)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          moveManualTop10Item(manualDragId, item.id);
+                          setManualDragId("");
+                        }}
+                        style={{
+                          alignItems: "center",
+                          gap: 12,
+                          cursor: "grab",
+                          borderColor: manualDragId === item.id ? "rgba(94, 234, 212, .75)" : undefined,
+                        }}
+                      >
+                        <div style={{ fontWeight: 1000, width: 28, textAlign: "center" }}>{i + 1}</div>
+                        <img
+                          src={item.artworkUrl || rules?.defaultAlbumArtUrl || "/logo.png"}
+                          alt=""
+                          style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 12, flex: "0 0 auto" }}
+                        />
+                        <div className="admTextWrap" style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                            <span style={{ fontWeight: 1000, textTransform: "uppercase", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {item.title}
+                            </span>
+                            <Pill variant={statusPillVariant(item.statusSymbol)}>{item.statusSymbol}</Pill>
+                          </div>
+                          <div className="admMuted" style={{ marginTop: 2, textTransform: "uppercase", fontSize: 11, fontWeight: 900 }}>
+                            {item.artist}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end", minWidth: 168 }}>
+                          <Pill>👍 {Number(item.upvotes || 0)}</Pill>
+                          <Pill>👎 {Number(item.downvotes || 0)}</Pill>
+                          <ActionButton danger onClick={() => removeManualTop10Item(item.id)}>
+                            Remove
+                          </ActionButton>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Panel>
+
+            <Panel
+              title="All incoming requests"
+              sub="Approved, rejected, and unanswered/pending requests. Add up to 10 into the manual staff board."
+            >
+              <div className="admSectionStack">
+                <div className="admActionRow">
+                  <Pill>{manualRequestPool.length} total requests</Pill>
+                  <Pill>{manualTop10Items.length}/10 selected</Pill>
+                </div>
+                {manualRequestPool.length === 0 ? (
+                  <EmptyState>No requests found yet.</EmptyState>
+                ) : (
+                  <div className="admRows" style={{ maxHeight: 740, overflow: "auto", paddingRight: 4 }}>
+                    {manualRequestPool.map((item) => {
+                      const selected = manualTop10Items.some((row) => row.id === item.id);
+                      return (
+                        <div key={item.id} className="admRow" style={{ alignItems: "center", gap: 10 }}>
+                          <img
+                            src={item.artworkUrl || rules?.defaultAlbumArtUrl || "/logo.png"}
+                            alt=""
+                            style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 11, flex: "0 0 auto" }}
+                          />
+                          <div className="admTextWrap" style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <Pill variant={statusPillVariant(item.statusSymbol)}>{item.statusSymbol}</Pill>
+                              <span style={{ fontWeight: 1000, textTransform: "uppercase", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {item.title}
+                              </span>
+                            </div>
+                            <div className="admMuted" style={{ marginTop: 2, textTransform: "uppercase", fontSize: 11, fontWeight: 900 }}>
+                              {item.artist}
+                              {item.createdAt ? ` • ${new Date(item.createdAt).toLocaleString()}` : ""}
+                            </div>
+                            <div className="admFieldHelp" style={{ marginTop: 5 }}>
+                              Real votes: 👍 {Number(item.upvotes || 0)} • 👎 {Number(item.downvotes || 0)} • Score {Number(item.score || 0)}
+                            </div>
+                          </div>
+                          <ActionButton
+                            alt={selected}
+                            disabled={selected || manualTop10Items.length >= 10}
+                            onClick={() => addManualTop10Item(item)}
+                          >
+                            {selected ? "Added" : "Add"}
+                          </ActionButton>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
