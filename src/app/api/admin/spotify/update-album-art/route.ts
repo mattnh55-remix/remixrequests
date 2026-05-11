@@ -45,9 +45,14 @@ export async function POST(req: NextRequest) {
       where: {
         locationId: location.id,
         OR: [
-          ...(spotifyId ? [{ spotifyId }] : []),
+          ...(spotifyId ? [{ trackId: spotifyId }] : []),
           ...(title && artist
-            ? [{ title: { equals: title, mode: "insensitive" as const }, artist: { equals: artist, mode: "insensitive" as const } }]
+            ? [
+                {
+                  title: { equals: title, mode: "insensitive" as const },
+                  artist: { equals: artist, mode: "insensitive" as const },
+                },
+              ]
             : []),
         ],
       },
@@ -64,10 +69,10 @@ export async function POST(req: NextRequest) {
     const updated = await prisma.song.update({
       where: { id: song.id },
       data: {
-        albumArt,
-        ...(spotifyId ? { spotifyId } : {}),
+        artworkUrl: albumArt,
+        ...(spotifyId ? { trackId: spotifyId } : {}),
       },
-      select: { id: true, title: true, artist: true, albumArt: true },
+      select: { id: true, title: true, artist: true, artworkUrl: true },
     });
 
     return NextResponse.json({ ok: true, song: updated });
