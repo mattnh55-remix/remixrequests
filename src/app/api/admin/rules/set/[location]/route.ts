@@ -1,3 +1,5 @@
+//--- src/app/api/admin/rules/set/[location]/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRulesForLocation } from "@/lib/rules";
@@ -14,6 +16,27 @@ function bool(v: any, fallback: boolean) {
 
 function str(v: any, fallback: string) {
   return typeof v === "string" ? v : fallback;
+}
+
+const WEEKDAYS = new Set([
+  "SUNDAY",
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+]);
+
+function weekdayList(v: any, fallback: any) {
+  const source = Array.isArray(v) ? v : Array.isArray(fallback) ? fallback : [];
+  return Array.from(
+    new Set(
+      source
+        .map((day: any) => String(day || "").trim().toUpperCase())
+        .filter((day: string) => WEEKDAYS.has(day)),
+    ),
+  );
 }
 
 export async function POST(req: Request, { params }: { params: { location: string } }) {
@@ -56,9 +79,27 @@ export async function POST(req: Request, { params }: { params: { location: strin
       msgNoCredits: str(body.msgNoCredits, rules.msgNoCredits),
       msgQueueFull: str((body as any).msgQueueFull, (rules as any).msgQueueFull ?? "The queue is currently full. Please check back in a bit."),
       top10Enabled: bool(body.top10Enabled, rules.top10Enabled),
+      top10AdultModeEnabled: bool(
+        body.top10AdultModeEnabled,
+        (rules as any).top10AdultModeEnabled ?? false,
+      ),
       top10Timezone: str(body.top10Timezone, rules.top10Timezone),
-      top10AdultCutoffHour: int(body.top10AdultCutoffHour, rules.top10AdultCutoffHour),
-      top10AdultCutoffMinute: int(body.top10AdultCutoffMinute, rules.top10AdultCutoffMinute),
+      top10AdultCutoffHour: Math.max(
+        0,
+        Math.min(23, int(body.top10AdultCutoffHour, rules.top10AdultCutoffHour)),
+      ),
+      top10AdultCutoffMinute: Math.max(
+        0,
+        Math.min(59, int(body.top10AdultCutoffMinute, rules.top10AdultCutoffMinute)),
+      ),
+      top10AutoRefreshEnabled: bool(
+        body.top10AutoRefreshEnabled,
+        (rules as any).top10AutoRefreshEnabled ?? false,
+      ),
+      top10AutoRefreshDays: weekdayList(
+        body.top10AutoRefreshDays,
+        (rules as any).top10AutoRefreshDays,
+      ),
       shoutoutSlideSeconds: Math.max(1, int(body.shoutoutSlideSeconds, (rules as any).shoutoutSlideSeconds ?? 10)),
 bonusChallengeEnabled: Boolean(body.bonusChallengeEnabled),
 bonusChallengeRotationMode: String(body.bonusChallengeRotationMode || "weekly"),

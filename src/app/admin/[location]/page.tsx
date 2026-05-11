@@ -128,9 +128,12 @@ type RulesState = {
   bonusChallengeOverrideKey?: string;
   bonusChallenges?: BonusChallengeConfig[];
   top10Enabled?: boolean;
+  top10AdultModeEnabled?: boolean;
   top10Timezone?: string;
   top10AdultCutoffHour?: number;
   top10AdultCutoffMinute?: number;
+  top10AutoRefreshEnabled?: boolean;
+  top10AutoRefreshDays?: string[];
   shoutoutSlideSeconds?: number;
   enabled?: boolean;
   maxFromNameChars?: number;
@@ -213,9 +216,21 @@ type Top10Response = {
   sessionId?: string;
   bucket?: Top10Bucket;
   boardTitle?: string;
+  displayLabel?: string;
   updatedAt?: string;
+  dataSource?: "TOP10" | "FEATURED_TRACKS" | "DISABLED";
   items?: Top10Item[];
 };
+
+const TOP10_WEEKDAYS = [
+  { key: "SUNDAY", label: "Sun" },
+  { key: "MONDAY", label: "Mon" },
+  { key: "TUESDAY", label: "Tue" },
+  { key: "WEDNESDAY", label: "Wed" },
+  { key: "THURSDAY", label: "Thu" },
+  { key: "FRIDAY", label: "Fri" },
+  { key: "SATURDAY", label: "Sat" },
+] as const;
 
 type RedemptionCode = {
   id: string;
@@ -748,6 +763,9 @@ export default function AdminPage({
   const [top10BoardTitle, setTop10BoardTitle] = useState("Top 10");
   const [top10UpdatedAt, setTop10UpdatedAt] = useState("");
   const [top10SessionId, setTop10SessionId] = useState("");
+  const [top10DataSource, setTop10DataSource] = useState<
+    "TOP10" | "FEATURED_TRACKS" | "DISABLED" | ""
+  >("");
   const [top10Busy, setTop10Busy] = useState(false);
   const [codes, setCodes] = useState<RedemptionCode[]>([]);
   const [codesMsg, setCodesMsg] = useState("");
@@ -1305,9 +1323,10 @@ export default function AdminPage({
       const data = (await res.json()) as Top10Response;
       setTop10(Array.isArray(data.items) ? data.items : []);
       setTop10ActiveBucket((data.bucket as Top10Bucket) || "");
-      setTop10BoardTitle(data.boardTitle || "Top 10");
+      setTop10BoardTitle(data.displayLabel || data.boardTitle || "Top 10");
       setTop10UpdatedAt(data.updatedAt || "");
       setTop10SessionId(data.sessionId || "");
+      setTop10DataSource(data.dataSource || "");
     } catch {}
   }
 
@@ -1332,6 +1351,17 @@ export default function AdminPage({
     } finally {
       setTop10Busy(false);
     }
+  }
+
+  function toggleTop10AutoRefreshDay(day: string) {
+    const current = Array.isArray(rules?.top10AutoRefreshDays)
+      ? rules?.top10AutoRefreshDays || []
+      : [];
+    const exists = current.includes(day);
+    const next = exists
+      ? current.filter((item) => item !== day)
+      : [...current, day];
+    patchRules({ top10AutoRefreshDays: next });
   }
 
   async function loadCodes() {
@@ -2997,6 +3027,16 @@ export default function AdminPage({
                       you do not want a live rankings board shown on screens.
                     </div>
 
+                    <Toggle
+                      label="Enable Adult Top 10 after cutoff"
+                      checked={Boolean(rules.top10AdultModeEnabled ?? false)}
+                      onChange={(v) => patchRules({ top10AdultModeEnabled: v })}
+                    />
+                    <div className="admFieldHelp">
+                      Default is OFF. When disabled, the TV Top 10 stays on the
+                      all-ages/general board all day, even after the cutoff time.
+                    </div>
+
                     <TextField
                       label="Top 10 timezone"
                       value={rules.top10Timezone || "America/New_York"}
@@ -3030,6 +3070,43 @@ export default function AdminPage({
                       adult programming instead of general public skating.
                       Example: 21:00 = 9:00 PM.
                     </div>
+
+                    <Toggle
+                      label="Auto refresh Top 10 stats"
+                      checked={Boolean(rules.top10AutoRefreshEnabled ?? false)}
+                      onChange={(v) =>
+                        patchRules({ top10AutoRefreshEnabled: v })
+                      }
+                    />
+                    <div className="admFieldHelp">
+                      Default is OFF. Use this for future scheduled refreshes,
+                      likely once weekly. Manual refresh/reset controls remain
+                      available below.
+                    </div>
+
+                    <div className="admLabel">Auto refresh day(s)</div>
+                    <div className="admActionRow">
+                      {TOP10_WEEKDAYS.map((day) => {
+                        const selected = Array.isArray(rules.top10AutoRefreshDays)
+                          ? rules.top10AutoRefreshDays.includes(day.key)
+                          : false;
+                        return (
+                          <ActionButton
+                            key={day.key}
+                            alt={!selected}
+                            onClick={() => toggleTop10AutoRefreshDay(day.key)}
+                          >
+                            {selected ? "✓ " : ""}
+                            {day.label}
+                          </ActionButton>
+                        );
+                      })}
+                    </div>
+                    <div className="admFieldHelp">
+                      Leave every day off until you are ready for scheduled
+                      refreshes. Selecting one day gives you a clean weekly
+                      refresh plan.
+                    </div>
                   </div>
                 </SubPanel>
 
@@ -3046,6 +3123,23 @@ export default function AdminPage({
                       <b>
                         {String(effectiveTop10CutoffHour).padStart(2, "0")}:
                         {String(effectiveTop10CutoffMinute).padStart(2, "0")}
+                      </b>
+                    </div>
+                    <div className="admSubCopy">
+                      Adult auto-switch:{" "}
+                      <b>{rules.top10AdultModeEnabled ? "Enabled" : "Off"}</b>
+                    </div>
+                    <div className="admSubCopy">
+                      Auto refresh:{" "}
+                      <b>{rules.top10AutoRefreshEnabled ? "Enabled" : "Off"}</b>
+                    </div>
+                    <div className="admSubCopy">
+                      Refresh days:{" "}
+                      <b>
+                        {Array.isArray(rules.top10AutoRefreshDays) &&
+                        rules.top10AutoRefreshDays.length > 0
+                          ? rules.top10AutoRefreshDays.join(", ")
+                          : "None"}
                       </b>
                     </div>
                     <div className="admSubCopy">
@@ -3070,7 +3164,7 @@ export default function AdminPage({
                     Save Top 10 settings
                   </ActionButton>
                   <ActionButton alt onClick={() => loadTop10()}>
-                    Refresh board preview
+                    Refresh Top 10 preview
                   </ActionButton>
                 </div>
               </div>
@@ -3105,29 +3199,35 @@ export default function AdminPage({
                       Updated {new Date(top10UpdatedAt).toLocaleTimeString()}
                     </Pill>
                   ) : null}
+                  {top10DataSource === "FEATURED_TRACKS" ? (
+                    <Pill variant="live">Featured filler</Pill>
+                  ) : null}
                 </div>
                 <div className="admActionRow">
                   <ActionButton alt onClick={() => resetTop10("current")}>
-                    {top10Busy ? "Working..." : "Reset current bucket"}
+                    {top10Busy ? "Working..." : "Clear current stats"}
                   </ActionButton>
                   <ActionButton
                     alt
                     onClick={() => resetTop10("bucket", "GENERAL")}
                   >
-                    Reset General
+                    Clear General
                   </ActionButton>
                   <ActionButton
                     alt
                     onClick={() => resetTop10("bucket", "ADULT")}
                   >
-                    Reset Adult
+                    Clear Adult
                   </ActionButton>
                   <ActionButton danger onClick={() => resetTop10("all")}>
-                    Reset All
+                    Clear All
                   </ActionButton>
                 </div>
                 {top10.length === 0 ? (
-                  <EmptyState>No Top 10 data returned yet.</EmptyState>
+                  <EmptyState>
+                    No Top 10 stats yet. The public TV board will show FEATURED
+                    TRACKS filler until real request data is available.
+                  </EmptyState>
                 ) : (
                   <div className="admRows">
                     {top10.map((item, i) => (

@@ -36,7 +36,6 @@ type Snapshot = {
 
 type Movement = { kind: "up" | "down" | "new" | "same"; delta?: number };
 
-const TITLE_ROTATION = ["TODAY'S TOP 10", "WEEK'S TOP 10", "ADULT NIGHT TOP 10"] as const;
 const POLL_MS = 12000;
 
 const DEFAULT_ART =
@@ -108,7 +107,6 @@ export default function TvTop10Page({ params }: { params: { location: string } }
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [previousSnapshot, setPreviousSnapshot] = useState<Snapshot | null>(null);
   const [isPortraitLayout, setIsPortraitLayout] = useState(false);
-  const [titleIndex, setTitleIndex] = useState(0);
   const [logoUrl, setLogoUrl] = useState("");
   const [locationName, setLocationName] = useState("REMIX");
   const [bucketLabel, setBucketLabel] = useState("REMIX TOP 10");
@@ -172,13 +170,6 @@ export default function TvTop10Page({ params }: { params: { location: string } }
   }, []);
 
   useEffect(() => {
-    const id = window.setInterval(() => {
-      setTitleIndex((v) => (v + 1) % TITLE_ROTATION.length);
-    }, 9000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
@@ -220,7 +211,6 @@ export default function TvTop10Page({ params }: { params: { location: string } }
 
   const items = snapshot?.items || [];
   const hero = items[0] || null;
-  const activeTitle = TITLE_ROTATION[titleIndex];
   const landscapeRest = items.slice(1);
   const portraitRest = items.slice(1, 4);
 
@@ -271,14 +261,14 @@ export default function TvTop10Page({ params }: { params: { location: string } }
               </div>
             )}
             <div className="remixTop10BrandText">
-              <div className="remixTop10Title">REMIX TOP 10</div>
+              <div className="remixTop10Title">{bucketLabel}</div>
               <div className="remixTop10Sub">{locationName} • LIVE CROWD SCOREBOARD</div>
             </div>
           </div></section>
 
 {!isPortraitLayout ? (
   <div className="remixTop10HeaderMeta">
-    <div className="remixTop10ModePill">{activeTitle}</div>
+    <div className="remixTop10ModePill">{bucketLabel}</div>
     <div className="remixTop10LivePill">
       {items.length} RANKED • {queueCount} IN QUEUE
     </div>
@@ -318,7 +308,7 @@ export default function TvTop10Page({ params }: { params: { location: string } }
                   </div>
                 </div>
               ) : (
-                <div className="remixTop10Empty">No ranked songs yet — scan the QR and start the board.</div>
+                <div className="remixTop10Empty">FEATURED TRACKS loading — rankings will appear after requests build the board.</div>
               )}
             </section>
 
@@ -362,7 +352,7 @@ export default function TvTop10Page({ params }: { params: { location: string } }
                   })}
                 </div>
               ) : (
-                <div className="remixTop10Empty remixTop10Empty--small">Only one song ranked so far.</div>
+                <div className="remixTop10Empty remixTop10Empty--small">FEATURED TRACKS will fill this space until more songs rank.</div>
               )}
             </section>
 
@@ -405,7 +395,7 @@ export default function TvTop10Page({ params }: { params: { location: string } }
                   </div>
                 </div>
               ) : (
-                <div className="remixTop10Empty remixTop10Empty--small">No ranked songs yet.</div>
+                <div className="remixTop10Empty remixTop10Empty--small">FEATURED TRACKS loading — rankings coming soon.</div>
               )}
             </section>
 
@@ -436,7 +426,7 @@ export default function TvTop10Page({ params }: { params: { location: string } }
                   })}
                 </div>
               ) : (
-                <div className="remixTop10Empty remixTop10Empty--small">Only one song ranked so far.</div>
+                <div className="remixTop10Empty remixTop10Empty--small">FEATURED TRACKS will fill this space until more songs rank.</div>
               )}
             </section>
 

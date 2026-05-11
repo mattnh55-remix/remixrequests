@@ -6,10 +6,15 @@ type RulesLike = {
   top10AdultCutoffHour?: number | null;
   top10AdultCutoffHourLocal?: number | null;
   adultTop10CutoffHour?: number | null;
+  top10AdultModeEnabled?: boolean | null;
+  top10AdultCutoffMinute?: number | null;
 };
 
 const DEFAULT_TZ = "America/New_York";
-const DEFAULT_CUTOFF_HOUR = 20;
+const DEFAULT_CUTOFF_HOUR = 21;
+const DEFAULT_CUTOFF_MINUTE = 0;
+
+
 
 export function getTop10Timezone(rules?: RulesLike | null) {
   const tz =
@@ -32,14 +37,31 @@ export function getTop10CutoffHour(rules?: RulesLike | null) {
 }
 
 export function getTop10BucketAt(date = new Date(), rules?: RulesLike | null): Top10Bucket {
+  if (!Boolean(rules?.top10AdultModeEnabled ?? false)) {
+    return Top10Bucket.GENERAL;
+  }
+
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: getTop10Timezone(rules),
-    hour: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
     hour12: false,
   }).formatToParts(date);
 
-  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
-  return hour >= getTop10CutoffHour(rules) ? Top10Bucket.ADULT : Top10Bucket.GENERAL;
+  const rawHour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const hour = rawHour === 24 ? 0 : rawHour;
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+
+  const cutoffHour = getTop10CutoffHour(rules);
+  const cutoffMinute = Math.min(
+    59,
+    Math.max(0, Math.floor(Number(rules?.top10AdultCutoffMinute ?? DEFAULT_CUTOFF_MINUTE)))
+  );
+
+  const nowMinutes = hour * 60 + minute;
+  const cutoffMinutes = cutoffHour * 60 + cutoffMinute;
+
+  return nowMinutes >= cutoffMinutes ? Top10Bucket.ADULT : Top10Bucket.GENERAL;
 }
 
 export function normalizeTop10Bucket(input?: string | null): Top10Bucket | null {
@@ -54,7 +76,7 @@ export function getTop10Title(bucket: Top10Bucket): string {
 }
 
 export function getTop10DisplayLabel(bucket: Top10Bucket): string {
-  return bucket === Top10Bucket.ADULT ? "ADULT NIGHT TOP 10" : "TODAY'S TOP 10";
+  return bucket === Top10Bucket.ADULT ? "ADULT TOP 10" : "GENERAL TOP 10";
 }
 
 export function calcTop10Score(requestCount: number, upvotes: number, downvotes: number) {
