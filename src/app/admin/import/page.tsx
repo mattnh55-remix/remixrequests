@@ -66,6 +66,7 @@ function AdminSpotifyImportPageInner() {
   const [featuredIds, setFeaturedIds] = useState<Record<string, boolean>>({});
 
   const [importing, setImporting] = useState(false);
+  const [updatingArtIds, setUpdatingArtIds] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [summary, setSummary] = useState<ImportSummary | null>(null);
@@ -315,6 +316,54 @@ function AdminSpotifyImportPageInner() {
       return blob.includes(q);
     });
   }, [results, resultsSearch, selectedOnly, hideExactDuplicates, selectedIds, duplicates]);
+
+  async function updateAlbumArt(track: Track) {
+    resetMessages();
+
+    if (!track.spotifyId) {
+      setError("This Spotify result is missing a Spotify ID, so it cannot update album art.");
+      return;
+    }
+
+    if (!track.albumArt) {
+      setError("This Spotify result does not include album art to update.");
+      return;
+    }
+
+    const artKey = track.spotifyId;
+    setUpdatingArtIds((prev) => ({ ...prev, [artKey]: true }));
+
+    try {
+      const res = await fetch("/api/admin/spotify/update-album-art", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          locationSlug,
+          spotifyId: track.spotifyId,
+          title: track.title,
+          artist: track.artist,
+          album: track.album,
+          albumArt: track.albumArt,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data?.error || "Album art update failed.");
+      }
+
+      setMessage(`Updated album art for ${track.title} — ${track.artist}.`);
+    } catch (err: any) {
+      setError(err?.message || "Album art update failed.");
+    } finally {
+      setUpdatingArtIds((prev) => {
+        const next = { ...prev };
+        delete next[artKey];
+        return next;
+      });
+    }
+  }
 
   async function importSelected() {
     resetMessages();
@@ -575,6 +624,7 @@ function AdminSpotifyImportPageInner() {
                 const exactDuplicate = isExactDuplicate(track);
                 const possibleDuplicate = isPossibleDuplicate(track);
                 const possibleMatch = track.spotifyId ? duplicates.possibleByFuzzy[track.spotifyId] : null;
+                const isUpdatingArt = !!(track.spotifyId && updatingArtIds[track.spotifyId]);
 
                 return (
                   <div
@@ -652,6 +702,21 @@ function AdminSpotifyImportPageInner() {
                           >
                             {exactDuplicate ? "Locked" : "🔥 Feature"}
                           </button>
+
+                          {exactDuplicate ? (
+                            <button
+                              type="button"
+                              className="rrActionBtn rrActionBtnAlbumArt"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateAlbumArt(track);
+                              }}
+                              disabled={isUpdatingArt || !track.albumArt}
+                              title={track.albumArt ? "Update this existing library song with Spotify album art" : "No Spotify album art available"}
+                            >
+                              {isUpdatingArt ? "Updating…" : "🖼️ Update album art"}
+                            </button>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -1338,6 +1403,22 @@ function AdminSpotifyImportPageInner() {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 6px;
+        }
+
+        .rrActionBtnAlbumArt {
+          grid-column: 1 / -1;
+          color: #ecfbff;
+          background: linear-gradient(180deg, rgba(31, 131, 160, 0.96), rgba(18, 78, 101, 0.98));
+          border-color: rgba(117, 220, 250, 0.28);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.12),
+            0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .rrActionBtnAlbumArt:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+          filter: grayscale(0.12);
         }
 
         .rrActionBtn {
