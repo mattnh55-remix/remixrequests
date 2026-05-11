@@ -1681,15 +1681,18 @@ export default function AdminPage({
 </body>
 </html>`;
 
-    const preview = window.open("", "manualTop10Preview", "width=820,height=1000,noopener,noreferrer");
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const preview = window.open(url, "manualTop10Preview", "width=820,height=1000");
+
     if (!preview) {
+      URL.revokeObjectURL(url);
       setManualTop10Msg("Pop-up was blocked. Allow pop-ups for this admin page and try again.");
       return;
     }
-    preview.document.open();
-    preview.document.write(html);
-    preview.document.close();
+
     preview.focus();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
   function statusPillVariant(symbol: ManualRequestStatus): "live" | "warn" | "danger" {
