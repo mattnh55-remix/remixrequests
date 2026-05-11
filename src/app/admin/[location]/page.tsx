@@ -1493,6 +1493,205 @@ export default function AdminPage({
     }
   }
 
+
+  function openManualTop10Window() {
+    const items = normalizeManualTop10Items(manualTop10Items).slice(0, 10);
+    if (!items.length) {
+      setManualTop10Msg("Add at least one song before opening the result window.");
+      return;
+    }
+
+    const escapeHtml = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    const fallbackArt = rules?.defaultAlbumArtUrl || rules?.logoUrl || "/logo.png";
+    const top = items[0];
+    const rest = items.slice(1);
+    const savedText = manualTop10UpdatedAt
+      ? `Saved ${new Date(manualTop10UpdatedAt).toLocaleString()}`
+      : "Preview not yet saved";
+
+    const topHtml = `
+      <section class="heroCard">
+        <div class="heroGlow"></div>
+        <img class="heroArt" src="${escapeHtml(top.artworkUrl || fallbackArt)}" alt="">
+        <div class="heroCopy">
+          <div class="rankCrown">#1</div>
+          <h1>${escapeHtml(top.title)}</h1>
+          <h2>${escapeHtml(top.artist)}</h2>
+          <div class="metricRow">
+            <span>Score ${escapeHtml(top.score)}</span>
+            <span>Req ${escapeHtml(top.upvotes + top.downvotes)}</span>
+            <span>👍 ${escapeHtml(top.upvotes)}</span>
+            <span>👎 ${escapeHtml(top.downvotes)}</span>
+          </div>
+        </div>
+      </section>`;
+
+    const restHtml = rest
+      .map(
+        (item) => `
+          <article class="songRow">
+            <div class="rowRank">${escapeHtml(item.rank)}</div>
+            <img class="rowArt" src="${escapeHtml(item.artworkUrl || fallbackArt)}" alt="">
+            <div class="rowCopy">
+              <div class="rowTitle">${escapeHtml(item.title)}</div>
+              <div class="rowArtist">${escapeHtml(item.artist)}</div>
+            </div>
+            <div class="rowVotes">
+              <span class="scoreNum">${escapeHtml(item.score)}</span>
+              <span class="voteMini">👍 ${escapeHtml(item.upvotes)}</span>
+              <span class="voteMini">👎 ${escapeHtml(item.downvotes)}</span>
+            </div>
+          </article>`,
+      )
+      .join("");
+
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manual Top 10</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(59, 130, 246, .35), transparent 28%),
+        radial-gradient(circle at 85% 5%, rgba(236, 72, 153, .22), transparent 24%),
+        linear-gradient(180deg, #07101f 0%, #050916 100%);
+      color: #fff;
+      font-family: Inter, Montserrat, Arial, sans-serif;
+      padding: 28px;
+    }
+    .board {
+      width: min(720px, 100%);
+      margin: 0 auto;
+      padding: 16px;
+      border-radius: 30px;
+      background: rgba(6, 12, 26, .72);
+      border: 1px solid rgba(148, 163, 184, .22);
+      box-shadow: 0 28px 80px rgba(0,0,0,.45);
+    }
+    .header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 6px 8px 14px;
+    }
+    .eyebrow {
+      color: #67e8f9;
+      text-transform: uppercase;
+      font-size: 12px;
+      font-weight: 1000;
+      letter-spacing: .18em;
+    }
+    .header h3 { margin: 4px 0 0; font-size: 28px; line-height: 1; text-transform: uppercase; }
+    .saved { color: #94a3b8; font-size: 12px; font-weight: 800; text-align: right; }
+    .heroCard {
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 190px 1fr;
+      gap: 22px;
+      align-items: center;
+      padding: 22px;
+      border-radius: 28px;
+      background: linear-gradient(135deg, rgba(20, 28, 50, .98), rgba(10, 15, 30, .96));
+      border: 1px solid rgba(251, 191, 36, .28);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 18px 45px rgba(0,0,0,.35);
+      margin-bottom: 12px;
+    }
+    .heroGlow {
+      position: absolute;
+      inset: -60px -80px auto auto;
+      width: 260px;
+      height: 260px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(251, 191, 36, .26), transparent 66%);
+      pointer-events: none;
+    }
+    .heroArt {
+      position: relative;
+      width: 190px;
+      height: 190px;
+      object-fit: cover;
+      border-radius: 22px;
+      box-shadow: 0 20px 36px rgba(0,0,0,.48);
+    }
+    .rankCrown { font-size: 54px; line-height: .9; font-weight: 1000; color: #fff; text-shadow: 0 6px 24px rgba(96,165,250,.45); }
+    h1 { margin: 6px 0 0; font-size: 42px; line-height: .94; letter-spacing: -.04em; text-transform: uppercase; }
+    h2 { margin: 8px 0 14px; color: #dbeafe; font-size: 15px; text-transform: uppercase; }
+    .metricRow { display: flex; flex-wrap: wrap; gap: 8px; }
+    .metricRow span, .voteMini {
+      border-radius: 999px;
+      background: rgba(15, 23, 42, .86);
+      border: 1px solid rgba(148, 163, 184, .22);
+      padding: 7px 10px;
+      font-size: 11px;
+      font-weight: 1000;
+      text-transform: uppercase;
+    }
+    .songRow {
+      display: grid;
+      grid-template-columns: 46px 58px 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      min-height: 76px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(20, 28, 49, .94), rgba(12, 18, 34, .94));
+      border: 1px solid rgba(148, 163, 184, .16);
+      margin-top: 8px;
+    }
+    .rowRank { font-size: 26px; font-weight: 1000; color: #e2e8f0; text-align: center; }
+    .rowArt { width: 58px; height: 58px; object-fit: cover; border-radius: 14px; }
+    .rowTitle { font-size: 17px; font-weight: 1000; text-transform: uppercase; }
+    .rowArtist { margin-top: 3px; font-size: 11px; color: #cbd5e1; font-weight: 900; text-transform: uppercase; }
+    .rowVotes { display: flex; align-items: center; gap: 7px; }
+    .scoreNum { font-size: 24px; font-weight: 1000; min-width: 42px; text-align: right; }
+    @media (max-width: 620px) {
+      body { padding: 12px; }
+      .heroCard { grid-template-columns: 110px 1fr; padding: 14px; gap: 14px; }
+      .heroArt { width: 110px; height: 110px; }
+      .rankCrown { font-size: 34px; }
+      h1 { font-size: 28px; }
+      .songRow { grid-template-columns: 34px 48px 1fr; }
+      .rowVotes { grid-column: 3; justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <main class="board">
+    <div class="header">
+      <div><div class="eyebrow">Remix Staff Board</div><h3>Manual Top 10</h3></div>
+      <div class="saved">${escapeHtml(savedText)}</div>
+    </div>
+    ${topHtml}
+    ${restHtml}
+  </main>
+</body>
+</html>`;
+
+    const preview = window.open("", "manualTop10Preview", "width=820,height=1000,noopener,noreferrer");
+    if (!preview) {
+      setManualTop10Msg("Pop-up was blocked. Allow pop-ups for this admin page and try again.");
+      return;
+    }
+    preview.document.open();
+    preview.document.write(html);
+    preview.document.close();
+    preview.focus();
+  }
+
   function statusPillVariant(symbol: ManualRequestStatus): "live" | "warn" | "danger" {
     if (symbol === "A") return "live";
     if (symbol === "R") return "danger";
@@ -3450,6 +3649,9 @@ export default function AdminPage({
                   </ActionButton>
                   <ActionButton alt onClick={loadManualTop10}>
                     Refresh
+                  </ActionButton>
+                  <ActionButton alt onClick={openManualTop10Window}>
+                    Open Result Window
                   </ActionButton>
                 </div>
 
