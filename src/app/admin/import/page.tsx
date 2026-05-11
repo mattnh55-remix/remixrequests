@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 type Track = {
@@ -380,11 +381,26 @@ function AdminSpotifyImportPageInner() {
       <div className="rrGlow rrGlowB" />
 
       <div className="rrAdminSpotifyShell">
+        <header className="rrAdminHeader">
+          <div className="rrAdminHeaderLeft">
+            <div className="rrAdminHeaderEyebrow">RemixRequests Admin</div>
+            <h1 className="rrAdminHeaderTitle">Spotify Song Import</h1>
+            <p className="rrAdminHeaderSub">Search Spotify, flag duplicates, and add songs to the Remix library.</p>
+          </div>
+
+          <div className="rrAdminHeaderActions">
+            <div className="rrStatusPill">{locationSlug}</div>
+            <Link className="rrBtn rrAdminBackBtn" href="/admin/remixrequests">
+              ← Back to Admin
+            </Link>
+          </div>
+        </header>
+
         <div className="rrCompactTop">
           <div className="rrHeroMini">
             <div className="rrHeroMiniTop">
               <div className="rrAdminHeroBadge">Spotify Song Finder</div>
-              <div className="rrStatusPill">{locationSlug}</div>
+              <div className="rrStatusPill">Fast Import</div>
             </div>
             <div className="rrHeroMiniTitle">Quick Add</div>
             <div className="rrHeroMiniText">
@@ -740,6 +756,72 @@ function AdminSpotifyImportPageInner() {
           display: grid;
           gap: 10px;
           max-width: 1020px;
+        }
+
+        .rrAdminHeader {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 14px;
+          border-radius: 22px;
+          border: 1px solid rgba(133, 158, 255, 0.18);
+          background:
+            radial-gradient(circle at 10% 15%, rgba(255, 78, 154, 0.16), transparent 24%),
+            radial-gradient(circle at 88% 12%, rgba(83, 165, 255, 0.15), transparent 26%),
+            linear-gradient(135deg, rgba(20, 23, 46, 0.97) 0%, rgba(12, 18, 37, 0.99) 58%, rgba(22, 14, 37, 0.99) 100%);
+          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+          padding: 16px;
+        }
+
+        .rrAdminHeaderLeft {
+          min-width: 0;
+        }
+
+        .rrAdminHeaderEyebrow {
+          display: inline-flex;
+          align-items: center;
+          min-height: 24px;
+          border-radius: 999px;
+          padding: 0 10px;
+          font-size: 10px;
+          font-weight: 1000;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: #eef3ff;
+          border: 1px solid rgba(138, 171, 255, 0.24);
+          background: linear-gradient(180deg, rgba(48, 58, 95, 0.75), rgba(25, 32, 56, 0.92));
+        }
+
+        .rrAdminHeaderTitle {
+          margin: 10px 0 0;
+          font-size: clamp(28px, 4vw, 48px);
+          font-weight: 1000;
+          line-height: 0.95;
+          letter-spacing: -0.055em;
+          color: #ffffff;
+        }
+
+        .rrAdminHeaderSub {
+          margin: 8px 0 0;
+          max-width: 620px;
+          color: #c5d0e7;
+          font-size: 13px;
+          line-height: 1.4;
+        }
+
+        .rrAdminHeaderActions {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .rrAdminBackBtn {
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .rrCompactTop {
@@ -1402,6 +1484,19 @@ function AdminSpotifyImportPageInner() {
         }
 
         @media (max-width: 760px) {
+          .rrAdminHeader {
+            align-items: stretch;
+            flex-direction: column;
+          }
+
+          .rrAdminHeaderActions {
+            justify-content: flex-start;
+          }
+
+          .rrAdminBackBtn {
+            width: 100%;
+          }
+
           .rrSearchBar {
             grid-template-columns: 1fr;
           }
