@@ -108,6 +108,14 @@ export async function subscribeMailchimp(
     }
   }
 
+console.log("MAILCHIMP_SMS_DEBUG", {
+  email,
+  smsPhoneNumber,
+  smsConsent: normalized.smsConsent,
+  tags,
+  payload,
+});
+
   const res = await mailchimp.lists.setListMember(
     listId,
     subscriberHash,
