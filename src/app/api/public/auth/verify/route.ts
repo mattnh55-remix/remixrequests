@@ -30,6 +30,7 @@ export async function POST(req: Request) {
     const location = String(body.location || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
     const code = String(body.code || "").trim();
+const phone = String(body.phone || body.phoneNumber || "").trim();
 const emailOptInFromBody = typeof body.emailOptIn === "boolean" ? body.emailOptIn : null;
 const smsOptInFromBody = typeof body.smsOptIn === "boolean" ? body.smsOptIn : null;
 
@@ -149,7 +150,7 @@ const identity = await prisma.identity.upsert({
 try {
   await markVerifiedRequestUser({
     email,
-    phone: existingIdentity?.phone || null,
+    phone: phone || existingIdentity?.phone || null,
     firstName: existingIdentity?.firstName || null,
     lastName: existingIdentity?.lastName || null,
   });
