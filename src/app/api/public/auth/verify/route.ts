@@ -7,7 +7,7 @@ import { getRulesForLocation } from "@/lib/rules";
 import { buildGuestSessionTimes, getCreditBalance, isGuestSessionActive } from "@/lib/validators";
 import { hashEmail } from "@/lib/security";
 import { getOrCreateDeviceId } from "@/lib/device";
-import { subscribeMailchimp } from "@/lib/mailchimp";
+import { markVerifiedRequestUser } from "@/lib/mailchimp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,14 +75,17 @@ const smsOptInFromBody = typeof body.smsOptIn === "boolean" ? body.smsOptIn : nu
     const now = new Date();
 const existingIdentity = await prisma.identity.findUnique({
   where: { locationId_emailHash: { locationId: loc.id, emailHash } },
-  select: {
-    id: true,
-    sessionStartedAt: true,
-    sessionExpiresAt: true,
-    smsVerifiedAt: true,
-    emailOptInAt: true,
-    smsOptInAt: true,
-  },
+select: {
+  id: true,
+  sessionStartedAt: true,
+  sessionExpiresAt: true,
+  smsVerifiedAt: true,
+  emailOptInAt: true,
+  smsOptInAt: true,
+  phone: true,
+  firstName: true,
+  lastName: true,
+},
 });
 
 const wasActive = isGuestSessionActive(existingIdentity, now);
@@ -143,13 +146,22 @@ const identity = await prisma.identity.upsert({
       return res;
     }
 
-    try {
-      await subscribeMailchimp(email, ["Remix Requests"]);
-      await prisma.identity.update({
-        where: { id: identity.id },
-        data: { mailchimpStatus: "subscribed", mailchimpError: null },
-      });
-    } catch (e: any) {
+try {
+  await markVerifiedRequestUser({
+    email,
+    phone: existingIdentity?.phone || null,
+    firstName: existingIdentity?.firstName || null,
+    lastName: existingIdentity?.lastName || null,
+  });
+
+  await prisma.identity.update({
+    where: { id: identity.id },
+    data: {
+      mailchimpStatus: "subscribed",
+      mailchimpError: null,
+    },
+  });
+} catch (e: any) {
       await prisma.identity.update({
         where: { id: identity.id },
         data: { mailchimpStatus: "error", mailchimpError: String(e?.message || "mailchimp error") },
