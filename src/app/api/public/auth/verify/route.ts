@@ -83,9 +83,6 @@ select: {
   smsVerifiedAt: true,
   emailOptInAt: true,
   smsOptInAt: true,
-  phone: true,
-  firstName: true,
-  lastName: true,
 },
 });
 
@@ -148,12 +145,10 @@ const identity = await prisma.identity.upsert({
     }
 
 try {
-  await markVerifiedRequestUser({
-    email,
-    phone: phone || existingIdentity?.phone || null,
-    firstName: existingIdentity?.firstName || null,
-    lastName: existingIdentity?.lastName || null,
-  });
+await markVerifiedRequestUser({
+  email,
+  phone: phone || null,
+});
 
   await prisma.identity.update({
     where: { id: identity.id },
