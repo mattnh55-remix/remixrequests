@@ -140,6 +140,52 @@ function parseWriteInSearchInput(input: string) {
   };
 }
 
+function submitMailchimpSmsSignup(email: string, phone: string) {
+  const cleanEmail = String(email || "").trim();
+  const cleanPhone = String(phone || "").trim();
+
+  if (!cleanEmail || !cleanPhone) return;
+
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action =
+    "https://skateremix.us11.list-manage.com/subscribe/post?u=3e95a9a3301c9535cb83b0e42&id=800eaea95b&f_id=005f20e0f0";
+  form.target = "mailchimp_sms_hidden_frame";
+  form.style.display = "none";
+
+  const fields: Record<string, string> = {
+    EMAIL: cleanEmail,
+    SMSPHONE: cleanPhone,
+    "SMSPHONE[country]": "US",
+    "mc-SMSPHONE-ack": "true",
+    "b_3e95a9a3301c9535cb83b0e42_800eaea95b": "",
+  };
+
+  Object.entries(fields).forEach(([name, value]) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  });
+
+  let iframe = document.querySelector<HTMLIFrameElement>(
+    'iframe[name="mailchimp_sms_hidden_frame"]'
+  );
+
+  if (!iframe) {
+    iframe = document.createElement("iframe");
+    iframe.name = "mailchimp_sms_hidden_frame";
+    iframe.style.display = "none";
+    document.body.appendChild(iframe);
+  }
+
+  document.body.appendChild(form);
+  form.submit();
+  setTimeout(() => form.remove(), 3000);
+}
+
+
 function formatCountdown(endsAt?: string | null) {
   if (!endsAt) return "Session live";
   const endMs = new Date(endsAt).getTime();
@@ -569,6 +615,10 @@ function VerifyDrawer({
         if (location) localStorage.setItem("rr_location", String(location));
         if (nextEmail) localStorage.setItem("rr_email", nextEmail);
       } catch {}
+
+      if (smsOptIn) {
+  submitMailchimpSmsSignup(nextEmail, phone);
+}
 
       onVerified({
         identityId: nextIdentityId,
