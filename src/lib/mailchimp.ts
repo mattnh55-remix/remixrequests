@@ -91,7 +91,12 @@ export async function subscribeMailchimp(
     merge_fields: {
       ...(normalized.firstName ? { FNAME: normalized.firstName } : {}),
       ...(normalized.lastName ? { LNAME: normalized.lastName } : {}),
-      ...(smsPhoneNumber ? { PHONE: smsPhoneNumber } : {}),
+      merge_fields: {
+  ...(smsPhoneNumber ? {
+    PHONE: smsPhoneNumber,
+    SMSPHONE: smsPhoneNumber,
+  } : {}),
+},
     },
   };
 
