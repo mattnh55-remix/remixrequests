@@ -7,7 +7,6 @@ import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBa
 import PublicTheme from "../../../components/ui/public/PublicTheme";
 import PublicBottomCommandBar from "@/components/public/PublicBottomCommandBar";
 import confetti from "canvas-confetti";
-import Script from "next/script";
 
 const REMIX_LOGO_URL =
   "https://skateremix.com/wp-content/uploads/2026/03/Remix_Globe_Logo_350px.png";
@@ -1736,12 +1735,6 @@ function fireButtonConfetti(sourceEl?: HTMLElement | null) {
 
   return (
     <PublicTheme>
-  <Script
-    id="mcjs"
-    strategy="afterInteractive"
-    src="https://chimpstatic.com/mcjs-connected/js/users/3e95a9a3301c9535cb83b0e42/d33d266fe044617208b86b857.js"
-  />
-
 
       <div className="rrHeroGrid">
         <div className="rrLogoCard">
