@@ -301,7 +301,7 @@ function getAssetFilename(asset: InterstitialPadItem | DueInterstitialPromptOpti
 
 function areBoothAlertsEnabled() {
   if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(BOOTH_ALERTS_STORAGE_KEY) === "true";
+  return window.localStorage.getItem(BOOTH_ALERTS_STORAGE_KEY) !== "false";
 }
 
 function requestLooksBoosted(item: RequestItem) {
