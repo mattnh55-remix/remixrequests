@@ -381,6 +381,8 @@ export default function BoothLayout({ location }: { location: string }) {
   const previousIncomingIdsRef = useRef<string[]>([]);
   const previousPendingShoutoutIdsRef = useRef<string[]>([]);
   const lastAlertAtRef = useRef(0);
+  const incomingRequestsHydratedRef = useRef(false);
+  const shoutoutsHydratedRef = useRef(false);
 
   async function logout() {
   await fetch("/api/admin/logout", { method: "POST" });
@@ -568,57 +570,66 @@ useEffect(() => {
     [state.playNowRequests, state.upNextRequests]
   );
 
-  useEffect(() => {
-    const currentIds = incomingApprovalRequests.map((item, index) => {
-      const candidate = item as Record<string, unknown>;
-      return String(candidate.requestId ?? candidate.id ?? `${index}:${candidate.title ?? "request"}`);
-    });
+useEffect(() => {
+  const currentIds = incomingApprovalRequests.map((item, index) => {
+    const candidate = item as Record<string, unknown>;
+    return String(candidate.requestId ?? candidate.id ?? `${index}:${candidate.title ?? "request"}`);
+  });
 
-    const previousIds = previousIncomingIdsRef.current;
+  const previousIds = previousIncomingIdsRef.current;
 
-    if (!previousIds.length) {
-      previousIncomingIdsRef.current = currentIds;
-      return;
-    }
-
-    const newIndexes: number[] = [];
-
-    currentIds.forEach((id, index) => {
-      if (!previousIds.includes(id)) {
-        newIndexes.push(index);
-      }
-    });
-
-    if (newIndexes.length > 0) {
-      const newestItem = incomingApprovalRequests[newIndexes[newIndexes.length - 1]];
-      const alertKind = newestItem ? getRequestAlertKind(newestItem) : "regular";
-      playBoothAlert(alertKind);
-    }
-
+  if (!incomingRequestsHydratedRef.current) {
+    incomingRequestsHydratedRef.current = true;
     previousIncomingIdsRef.current = currentIds;
-  }, [incomingApprovalRequests]);
+    return;
+  }
 
-  useEffect(() => {
-    const currentIds = state.pendingShoutouts.map((item, index) => {
-      const candidate = item as Record<string, unknown>;
-      return String(candidate.messageId ?? candidate.id ?? `${index}:${candidate.fromName ?? "shoutout"}`);
-    });
+  const newIndexes: number[] = [];
 
-    const previousIds = previousPendingShoutoutIdsRef.current;
-
-    if (!previousIds.length) {
-      previousPendingShoutoutIdsRef.current = currentIds;
-      return;
+  currentIds.forEach((id, index) => {
+    if (!previousIds.includes(id)) {
+      newIndexes.push(index);
     }
+  });
 
-    const hasNewShoutout = currentIds.some((id) => !previousIds.includes(id));
+  if (newIndexes.length > 0) {
+    const newestItem = incomingApprovalRequests[newIndexes[newIndexes.length - 1]];
+    const alertKind = newestItem ? getRequestAlertKind(newestItem) : "regular";
+    playBoothAlert(alertKind);
+  }
 
-    if (hasNewShoutout) {
-      playBoothAlert("shoutout");
-    }
+  previousIncomingIdsRef.current = currentIds;
+}, [incomingApprovalRequests]);
 
+useEffect(() => {
+  const currentIds = state.pendingShoutouts.map((item, index) => {
+    const candidate = item as Record<string, unknown>;
+
+    return String(
+      candidate.messageId ??
+      candidate.id ??
+      `${index}:${candidate.fromName ?? "shoutout"}`
+    );
+  });
+
+  const previousIds = previousPendingShoutoutIdsRef.current;
+
+  if (!shoutoutsHydratedRef.current) {
+    shoutoutsHydratedRef.current = true;
     previousPendingShoutoutIdsRef.current = currentIds;
-  }, [state.pendingShoutouts]);
+    return;
+  }
+
+  const hasNewShoutout = currentIds.some(
+    (id) => !previousIds.includes(id)
+  );
+
+  if (hasNewShoutout) {
+    playBoothAlert("shoutout");
+  }
+
+  previousPendingShoutoutIdsRef.current = currentIds;
+}, [state.pendingShoutouts]);
 
   useEffect(() => {
     const remaining = sessionClock.cycleMinutes - elapsedMin;

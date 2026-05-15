@@ -626,13 +626,6 @@ function VerifyDrawer({
         welcomeGranted: Boolean(data.welcomeGranted),
       });
 
-if (smsOptIn) {
-  window.open(
-    `https://skateremix.us11.list-manage.com/subscribe?u=3e95a9a3301c9535cb83b0e42&id=800eaea95b`,
-    "_blank"
-  );
-}
-
             onClose();
     } catch {
       setMsg("Code verification failed.");
