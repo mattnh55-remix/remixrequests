@@ -144,11 +144,13 @@ const identity = await prisma.identity.upsert({
       return res;
     }
 
+let mailchimpWarning: string | null = null;
+
 try {
-await markVerifiedRequestUser({
-  email,
-  phone: phone || null,
-});
+  await markVerifiedRequestUser({
+    email,
+    phone: phone || null,
+  });
 
   await prisma.identity.update({
     where: { id: identity.id },
@@ -158,23 +160,23 @@ await markVerifiedRequestUser({
     },
   });
 } catch (e: any) {
-      await prisma.identity.update({
-        where: { id: identity.id },
-        data: { mailchimpStatus: "error", mailchimpError: String(e?.message || "mailchimp error") },
-      });
+  mailchimpWarning = "mailchimp_subscribe_failed";
 
-      console.error("AUTH_VERIFY_MAILCHIMP_FAILED", {
-        reqId,
-        locationId: loc.id,
-        identityId: identity.id,
-        message: e?.message || String(e),
-      });
+  await prisma.identity.update({
+    where: { id: identity.id },
+    data: {
+      mailchimpStatus: "error",
+      mailchimpError: String(e?.message || "mailchimp error"),
+    },
+  });
 
-      return NextResponse.json(
-        { ok: false, error: "Could not subscribe. Please try again." },
-        { status: 400 }
-      );
-    }
+  console.error("AUTH_VERIFY_MAILCHIMP_FAILED_NON_BLOCKING", {
+    reqId,
+    locationId: loc.id,
+    identityId: identity.id,
+    message: e?.message || String(e),
+  });
+}
 
     const welcomeCredits = Number(process.env.WELCOME_CREDITS || "5");
 const welcomeGranted = isNewSession;
@@ -200,19 +202,20 @@ const welcomeGranted = isNewSession;
       return 0;
     });
 
-    const res = NextResponse.json({
-      ok: true,
-      verified: true,
-      identityId: identity.id,
-      welcomeGranted,
-      balance,
-      sessionStartedAt: identity.sessionStartedAt,
-      sessionExpiresAt: identity.sessionExpiresAt,
-      sessionActive: true,
-      note: welcomeGranted
-        ? `Welcome points added: +${welcomeCredits}.`
-        : "Your 4-hour session is already active.",
-    });
+const res = NextResponse.json({
+  ok: true,
+  verified: true,
+  identityId: identity.id,
+  welcomeGranted,
+  balance,
+  sessionStartedAt: identity.sessionStartedAt,
+  sessionExpiresAt: identity.sessionExpiresAt,
+  sessionActive: true,
+  mailchimpWarning,
+  note: welcomeGranted
+    ? `Welcome points added: +${welcomeCredits}.`
+    : "Your 4-hour session is already active.",
+});
 
     if (setCookie) res.headers.set("set-cookie", setCookie);
 
