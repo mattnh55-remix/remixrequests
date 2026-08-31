@@ -119,6 +119,7 @@ export default function SongManagementPanel({
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [localMsg, setLocalMsg] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const [search, setSearch] = useState("");
   const [searchApplied, setSearchApplied] = useState("");
@@ -412,13 +413,22 @@ export default function SongManagementPanel({
                     <button type="button" className="admBtnGhost" onClick={() => { setPage(1); setSearch(""); setSearchApplied(""); }}>Clear</button>
                   </div>
                 </label>
+                <div className="admField">
+                  <span className="admLabel">Catalog tools</span>
+                  <div className="admActionRow">
+                    <button type="button" className="admBtnGhost" onClick={() => setShowAdvancedFilters((current) => !current)}>
+                      {showAdvancedFilters ? "Hide advanced filters" : "Advanced filters"}
+                    </button>
+                    <div className="admSubCopy" style={{ alignSelf: "center" }}>{loading ? "Loading…" : `${items.length} shown of ${total}`}</div>
+                  </div>
+                </div>
+              </div>
+
+              {showAdvancedFilters ? <div className="admGrid2" style={{ marginTop: 10 }}>
                 <label className="admField">
                   <span className="admLabel">Genre contains</span>
                   <input className="admInput" value={genreFilter} onChange={(e) => { setPage(1); setGenreFilter(e.target.value); }} placeholder="pop, country, edm" />
                 </label>
-              </div>
-
-              <div className="admGrid2" style={{ marginTop: 10 }}>
                 <label className="admField">
                   <span className="admLabel">Active</span>
                   <select className="admSelect" value={activeFilter} onChange={(e) => { setPage(1); setActiveFilter(e.target.value); }}>
@@ -448,9 +458,9 @@ export default function SongManagementPanel({
                   <span className="admLabel">Tags contains</span>
                   <input className="admInput" value={tagFilter} onChange={(e) => { setPage(1); setTagFilter(e.target.value); }} placeholder="comma,separated" />
                 </label>
-              </div>
+              </div> : null}
 
-              <div className="admGrid2" style={{ marginTop: 10 }}>
+              {showAdvancedFilters ? <div className="admGrid2" style={{ marginTop: 10 }}>
                 <label className="admField">
                   <span className="admLabel">Sort by</span>
                   <select className="admSelect" value={sortField} onChange={(e) => { setPage(1); setSortField(e.target.value as SortField); }}>
@@ -470,15 +480,11 @@ export default function SongManagementPanel({
                     <option value="desc">Descending</option>
                   </select>
                 </label>
-                <div className="admField">
-                  <span className="admLabel">Results</span>
-                  <div className="admSubCopy">{loading ? "Loading…" : `${items.length} shown of ${total}`}</div>
-                </div>
-              </div>
+              </div> : null}
             </div>
           </div>
 
-          <div className="admPanel">
+          {selectedIds.length > 0 ? <div className="admPanel">
             <div className="admPanelHead">
               <div className="admPanelTitle">Bulk actions</div>
               <div className="admPanelSub">Apply quick catalog changes to the current selection.</div>
@@ -518,7 +524,7 @@ export default function SongManagementPanel({
                 </div>
               </div>
             </div>
-          </div>
+          </div> : null}
 
           <div className="admPanel">
             <div className="admPanelHead">

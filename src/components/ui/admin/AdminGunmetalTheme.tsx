@@ -169,6 +169,10 @@ export default function AdminGunmetalTheme() {
         margin-bottom: 10px;
       }
       .admTabs::-webkit-scrollbar { display: none; }
+      .admNavRail { display: grid; gap: 8px; margin-bottom: 10px; }
+      .admNavGroup { display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .admNavLabel { flex: 0 0 auto; width: 78px; color: var(--adm-text-dim); font-size: 10px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+      .admNavGroup .admTabs { margin-bottom: 0; }
 .admTab {
   appearance: none;
   flex: 0 0 auto;
@@ -206,6 +210,7 @@ export default function AdminGunmetalTheme() {
       .admGridSettings { grid-template-columns: 1.05fr 0.95fr; }
       .admPanel {
         overflow: hidden;
+        border-color: rgba(111, 148, 211, 0.2);
       }
       .admPanelHead {
         padding: 12px 14px 10px;
@@ -227,8 +232,11 @@ export default function AdminGunmetalTheme() {
       }
       .admPanelBody { padding: 12px 14px 14px; }
       .admSubPanel {
-        padding: 12px;
-        background: var(--adm-surface-2);
+        padding: 12px 13px;
+        border: 1px solid rgba(125, 156, 206, 0.1);
+        border-left: 3px solid rgba(77, 143, 228, 0.42);
+        border-radius: 10px;
+        background: linear-gradient(90deg, rgba(20, 30, 46, 0.72), rgba(10, 16, 26, 0.42));
       }
       .admSubTitleRow {
         display: flex;
@@ -252,9 +260,9 @@ export default function AdminGunmetalTheme() {
       .admRow,
       .admRowCard,
       .admMetricCard {
-        border-radius: 14px;
-        border: 1px solid rgba(125, 156, 206, 0.12);
-        background: linear-gradient(90deg, rgba(18, 27, 43, 0.96) 0%, rgba(10, 17, 28, 0.98) 70%, rgba(11, 16, 28, 0.98) 100%);
+        border-radius: 10px;
+        border: 1px solid rgba(125, 156, 206, 0.14);
+        background: linear-gradient(90deg, rgba(18, 27, 43, 0.9) 0%, rgba(10, 17, 28, 0.95) 100%);
       }
       .admRow {
         display: flex;
@@ -278,6 +286,7 @@ export default function AdminGunmetalTheme() {
       .admMetricCard {
         padding: 12px;
         min-width: 0;
+        border-top-color: rgba(105, 182, 255, 0.28);
       }
       .admMetricLabel {
         font-size: 10px;
@@ -353,8 +362,8 @@ export default function AdminGunmetalTheme() {
       .admInput:focus,
       .admTextarea:focus,
       .admSelect:focus {
-        border-color: rgba(105,182,255,0.34);
-        box-shadow: 0 0 0 1px rgba(61,130,215,0.12);
+        border-color: rgba(105,182,255,0.76);
+        box-shadow: 0 0 0 3px rgba(61,130,215,0.16);
       }
       .admInput::placeholder,
       .admTextarea::placeholder { color: var(--adm-text-dim); }
@@ -378,6 +387,8 @@ export default function AdminGunmetalTheme() {
       .admBtnGhost:disabled,
       .admBtnDanger:disabled { opacity: 0.48; cursor: not-allowed; }
       .admBtn--full { width: 100%; }
+      .admBtn:hover:not(:disabled),
+      .admBtnGhost:hover:not(:disabled) { border-color: rgba(137, 181, 245, 0.7); transform: translateY(-1px); }
       .admActionRow {
         display: flex;
         gap: 8px;
@@ -484,6 +495,8 @@ export default function AdminGunmetalTheme() {
         .admRow,
         .admRowCard,
         .admSplitActions { flex-direction: column; align-items: stretch; }
+        .admNavGroup { align-items: flex-start; flex-direction: column; gap: 4px; }
+        .admNavLabel { width: auto; }
       }
     `}</style>
   );

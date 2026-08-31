@@ -2399,8 +2399,10 @@ export default function AdminPage({
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: 8, marginBottom: 10 }}>
-          <div className="admTabs" style={{ marginBottom: 0 }}>
+        <div className="admNavRail">
+          <div className="admNavGroup">
+            <div className="admNavLabel">Workspace</div>
+            <div className="admTabs">
             <TabButton
               active={tab === "dashboard"}
               onClick={() => setTab("dashboard")}
@@ -2456,10 +2458,13 @@ export default function AdminPage({
                 Staff Users
               </TabButton>
             ) : null}
+            </div>
           </div>
 
-          <div
-            className="admTabs"
+          <div className="admNavGroup">
+            <div className="admNavLabel">Tools</div>
+            <div
+              className="admTabs"
             style={{
               marginBottom: 0,
               paddingTop: 0,
@@ -2504,6 +2509,7 @@ export default function AdminPage({
             >
               <i>Spotify Import</i>
             </a>
+            </div>
           </div>
 
           <div className="admRefreshStrip">
