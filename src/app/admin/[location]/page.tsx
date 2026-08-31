@@ -14,6 +14,7 @@ import {
 } from "react";
 import AdminGunmetalTheme from "../../../components/ui/admin/AdminGunmetalTheme";
 import SongManagementPanel from "@/components/admin/SongManagementPanel";
+import AdminSpotifyImportPage from "@/app/admin/import/page";
 import { SHOUTOUT_PRODUCTS } from "@/lib/shoutoutProducts";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -21,6 +22,7 @@ type TabKey =
   | "dashboard"
   | "songs"
   | "requestSettings"
+  | "pointEarning"
   | "top10"
   | "manualTop10"
   | "users"
@@ -125,7 +127,7 @@ type RulesState = {
   packTier3PriceCents?: number;
   packTier4PriceCents?: number;
   bonusChallengeEnabled?: boolean;
-  bonusChallengeRotationMode?: "daily" | "weekly" | "override";
+  bonusChallengeRotationMode?: "daily" | "weekly" | "random_daily" | "override";
   bonusChallengeOverrideKey?: string;
   bonusChallenges?: BonusChallengeConfig[];
   top10Enabled?: boolean;
@@ -349,7 +351,7 @@ const DEFAULT_BONUS_CHALLENGES: BonusChallengeConfig[] = [
     ctaText: "Show a Staff Member to Receive Your Bonus Card",
     buttonText: "Leave Review",
     modalMessage: null,
-    isActive: true,
+    isActive: false,
     sortOrder: 1,
   },
   {
@@ -431,6 +433,16 @@ function getWeekNumber(date: Date) {
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
 
+function getStableDailyChallengeIndex(challenges: BonusChallengeConfig[], date: Date) {
+  const dayKey = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+  const seed = `${dayKey}:${challenges.map((challenge) => challenge.key).join("|")}`;
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  }
+  return hash % challenges.length;
+}
+
 function getActiveBonusChallenge(rules: any): BonusChallengeConfig | null {
   if (!rules?.bonusChallengeEnabled) return null;
 
@@ -445,6 +457,10 @@ function getActiveBonusChallenge(rules: any): BonusChallengeConfig | null {
   }
 
   const now = new Date();
+
+  if (mode === "random_daily") {
+    return challenges[getStableDailyChallengeIndex(challenges, now)];
+  }
 
   if (mode === "daily") {
     const start = new Date(now.getFullYear(), 0, 0);
@@ -742,6 +758,7 @@ export default function AdminPage({
   }, []);
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
+  const requestedSongView = searchParams.get("songView");
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [msg, setMsg] = useState("");
   const [rulesDirty, setRulesDirty] = useState(false);
@@ -2175,6 +2192,7 @@ export default function AdminPage({
     if (tab === "dashboard") return "Dashboard";
     if (tab === "songs") return "Songs";
     if (tab === "requestSettings") return "Request Settings";
+    if (tab === "pointEarning") return "Point Earning";
     if (tab === "top10") return "Top 10";
     if (tab === "manualTop10") return "Manual Top 10";
     if (tab === "users") return "Users & Points";
@@ -2195,6 +2213,8 @@ export default function AdminPage({
         await loadRules(true);
       } else if (tab === "requestSettings") {
         await Promise.all([loadRules(true), loadCodes()]);
+      } else if (tab === "pointEarning") {
+        await loadRules(true);
       } else if (tab === "top10") {
         await Promise.all([loadRules(true), loadTop10()]);
       } else if (tab === "manualTop10") {
@@ -2227,6 +2247,7 @@ export default function AdminPage({
   async function loadAll() {
     const isEditingRulesTab =
       tab === "requestSettings" ||
+      tab === "pointEarning" ||
       tab === "top10" ||
       tab === "shoutoutSettings";
 
@@ -2258,6 +2279,7 @@ export default function AdminPage({
       "dashboard",
       "songs",
       "requestSettings",
+      "pointEarning",
       "top10",
       "manualTop10",
       "users",
@@ -2397,6 +2419,13 @@ export default function AdminPage({
               Request Settings
             </TabButton>
 
+            <TabButton
+              active={tab === "pointEarning"}
+              onClick={() => setTab("pointEarning")}
+            >
+              Point Earning
+            </TabButton>
+
             <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>
               Top 10
             </TabButton>
@@ -2464,7 +2493,7 @@ export default function AdminPage({
             </a>
 
             <a
-              href="/admin/import"
+              href={`/admin/${location}?tab=songs&songView=spotify`}
               className="admTab admTabLink"
               style={{
                 minHeight: 34,
@@ -2788,27 +2817,54 @@ export default function AdminPage({
         )}
 
         {tab === "songs" && (
-          <SongManagementPanel
-            location={location}
-            rules={
-              rules
-                ? {
-                    albumArtBaseUrl: rules.albumArtBaseUrl,
-                    defaultAlbumArtUrl: rules.defaultAlbumArtUrl,
-                  }
-                : null
-            }
-            onGlobalMessage={setMsg}
-          />
+          <>
+            <div className="admTabs" style={{ margin: "0 0 12px" }}>
+              <a
+                href={`/admin/${location}?tab=songs`}
+                className={`admTab ${requestedSongView === "spotify" ? "" : "admTabActive"}`}
+              >
+                Song library
+              </a>
+              <a
+                href={`/admin/${location}?tab=songs&songView=spotify`}
+                className={`admTab ${requestedSongView === "spotify" ? "admTabActive" : ""}`}
+              >
+                Spotify import
+              </a>
+            </div>
+
+            {requestedSongView === "spotify" ? (
+              <AdminSpotifyImportPage />
+            ) : (
+              <SongManagementPanel
+                location={location}
+                rules={
+                  rules
+                    ? {
+                        albumArtBaseUrl: rules.albumArtBaseUrl,
+                        defaultAlbumArtUrl: rules.defaultAlbumArtUrl,
+                      }
+                    : null
+                }
+                onGlobalMessage={setMsg}
+              />
+            )}
+          </>
         )}
 
-        {tab === "requestSettings" && rules && (
+        {(tab === "requestSettings" || tab === "pointEarning") && rules && (
           <div className="admGridSettings">
             <Panel
-              title="Request settings"
-              sub="Pricing, queue behavior, limits, and front-end response copy."
+              title={tab === "pointEarning" ? "Point earning" : "Request settings"}
+              sub={
+                tab === "pointEarning"
+                  ? "Choose the guest task shown in the points tray and how Remix rotates it."
+                  : "Pricing, queue behavior, limits, and front-end response copy."
+              }
             >
               <div className="admSectionStack">
+                {tab === "requestSettings" && (
+                  <>
                 <SubPanel
                   title="Pricing"
                   sub="Controls how users spend points and how much revenue each action generates. Higher costs increase revenue but reduce participation — balance carefully."
@@ -3146,9 +3202,12 @@ export default function AdminPage({
                   </div>
                 </SubPanel>
 
+                  </>
+                )}
+
                 <SubPanel
-                  title="Bonus challenge settings"
-                  sub="Controls the rotating welcome-page challenge that rewards guests with bonus-card points."
+                  title="Point earning tasks"
+                  sub="The active task appears in the customer points tray before checkout and earns a physical point card from staff."
                 >
                   <div className="admFieldStack">
                     <Toggle
@@ -3168,12 +3227,14 @@ export default function AdminPage({
                               bonusChallengeRotationMode: e.target.value as
                                 | "daily"
                                 | "weekly"
+                                | "random_daily"
                                 | "override",
                             })
                           }
                         >
                           <option value="daily">Daily</option>
                           <option value="weekly">Weekly</option>
+                          <option value="random_daily">Random each day</option>
                           <option value="override">Admin Override</option>
                         </select>
                       </label>
@@ -3206,8 +3267,9 @@ export default function AdminPage({
                     </div>
 
                     <div className="admFieldHelp">
-                      Daily rotates by day, Weekly rotates by week, and Admin
-                      Override forces one specific challenge.
+                      Daily and Weekly follow task order. Random each day picks
+                      one active task once per day and keeps it fixed through
+                      the entire shift. Admin Override forces one task.
                     </div>
 
                     <div className="admRows">
@@ -3219,7 +3281,7 @@ export default function AdminPage({
                               style={{ marginBottom: 10 }}
                             >
                               <div className="admSubTitleText">
-                                Challenge {idx + 1}
+                                Task {idx + 1}
                               </div>
                               <Toggle
                                 label="Active"
@@ -3232,7 +3294,7 @@ export default function AdminPage({
 
                             <div className="admGrid2">
                               <TextField
-                                label="Challenge title"
+                                label="Guest-facing task"
                                 value={challenge.title}
                                 onChange={(v) =>
                                   patchBonusChallenge(idx, { title: v })
@@ -3269,7 +3331,7 @@ export default function AdminPage({
                             </div>
 
                             <TextField
-                              label="Link to do challenge"
+                                label="Task link (optional)"
                               value={challenge.linkUrl || ""}
                               onChange={(v) =>
                                 patchBonusChallenge(idx, {
@@ -3288,7 +3350,7 @@ export default function AdminPage({
 
                             <label className="admField">
                               <span className="admLabel">
-                                Modal message (used when link is blank)
+                                Staff instruction (shown when link is blank)
                               </span>
                               <textarea
                                 className="admTextarea"
@@ -3303,8 +3365,9 @@ export default function AdminPage({
                             </label>
 
                             <div className="admFieldHelp">
-                              If link is blank, the welcome page button opens a
-                              modal using the modal message or CTA text.
+                              If no link is needed, explain exactly what the
+                              guest should show a Remix team member before
+                              receiving a point card.
                             </div>
                           </div>
                         ),
@@ -3319,13 +3382,18 @@ export default function AdminPage({
                   ) : null}
                   <div className="admActionRow">
                     <ActionButton onClick={() => void saveRules()}>
-                      {savingRules ? "Saving..." : "Save request settings"}
+                      {savingRules
+                        ? "Saving..."
+                        : tab === "pointEarning"
+                          ? "Save point-earning settings"
+                          : "Save request settings"}
                     </ActionButton>
                   </div>
                 </div>
               </div>
             </Panel>
 
+            {tab === "requestSettings" && (
             <Panel
               title="Import songs"
               sub="Upload CSV or XLSX song list files."
@@ -3360,6 +3428,7 @@ export default function AdminPage({
                 />
               </div>
             </Panel>
+            )}
           </div>
         )}
 

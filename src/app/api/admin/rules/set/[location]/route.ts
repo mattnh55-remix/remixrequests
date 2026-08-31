@@ -28,6 +28,13 @@ const WEEKDAYS = new Set([
   "SATURDAY",
 ]);
 
+const BONUS_ROTATION_MODES = new Set(["daily", "weekly", "random_daily", "override"]);
+
+function bonusRotationMode(v: any, fallback: string) {
+  const candidate = String(v || "");
+  return BONUS_ROTATION_MODES.has(candidate) ? candidate : fallback;
+}
+
 function weekdayList(v: any, fallback: any) {
   const source = Array.isArray(v) ? v : Array.isArray(fallback) ? fallback : [];
   return Array.from(
@@ -102,7 +109,10 @@ export async function POST(req: Request, { params }: { params: { location: strin
       ),
       shoutoutSlideSeconds: Math.max(1, int(body.shoutoutSlideSeconds, (rules as any).shoutoutSlideSeconds ?? 10)),
 bonusChallengeEnabled: Boolean(body.bonusChallengeEnabled),
-bonusChallengeRotationMode: String(body.bonusChallengeRotationMode || "weekly"),
+bonusChallengeRotationMode: bonusRotationMode(
+  body.bonusChallengeRotationMode,
+  rules.bonusChallengeRotationMode || "weekly",
+),
 bonusChallengeOverrideKey: body.bonusChallengeOverrideKey
   ? String(body.bonusChallengeOverrideKey)
   : null,

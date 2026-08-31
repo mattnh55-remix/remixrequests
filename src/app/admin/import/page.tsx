@@ -46,6 +46,7 @@ function formatDuration(ms: number | null | undefined) {
 
 function AdminSpotifyImportPageInner() {
   const searchParams = useSearchParams();
+  const embedded = searchParams.get("songView") === "spotify";
 
   const [locationSlug, setLocationSlug] = useState("remixrequests");
   const [spotifyStatus, setSpotifyStatus] = useState<SpotifyStatus>({ connected: false });
@@ -434,13 +435,20 @@ function AdminSpotifyImportPageInner() {
           <div className="rrAdminHeaderLeft">
             <div className="rrAdminHeaderEyebrow">RemixRequests Admin</div>
             <h1 className="rrAdminHeaderTitle">Spotify Song Import</h1>
-            <p className="rrAdminHeaderSub">Search Spotify, flag duplicates, and add songs to the Remix library.</p>
+            <p className="rrAdminHeaderSub">
+              {embedded
+                ? "Songs workspace · search Spotify, flag duplicates, and add songs to the Remix library."
+                : "Search Spotify, flag duplicates, and add songs to the Remix library."}
+            </p>
           </div>
 
           <div className="rrAdminHeaderActions">
             <div className="rrStatusPill">{locationSlug}</div>
-            <Link className="rrBtn rrAdminBackBtn" href="/admin/remixrequests">
-              ← Back to Admin
+            <Link
+              className="rrBtn rrAdminBackBtn"
+              href={`/admin/${encodeURIComponent(locationSlug)}?tab=songs`}
+            >
+              ← Song Library
             </Link>
           </div>
         </header>

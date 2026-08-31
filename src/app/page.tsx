@@ -54,6 +54,16 @@ function getWeekNumber(date: Date) {
   return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
+function getStableDailyChallengeIndex(challenges: BonusChallengeConfig[], date: Date) {
+  const dayKey = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+  const seed = `${dayKey}:${challenges.map((challenge) => challenge.key).join("|")}`;
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  }
+  return hash % challenges.length;
+}
+
 function getActiveBonusChallenge(rules: any): BonusChallengeConfig | null {
   if (!rules?.bonusChallengeEnabled) return null;
 
@@ -68,6 +78,10 @@ function getActiveBonusChallenge(rules: any): BonusChallengeConfig | null {
   }
 
   const now = new Date();
+
+  if (mode === "random_daily") {
+    return challenges[getStableDailyChallengeIndex(challenges, now)];
+  }
 
   if (mode === "daily") {
     const start = new Date(now.getFullYear(), 0, 0);

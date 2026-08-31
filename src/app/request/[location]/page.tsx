@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { useAnimatedBalance } from "../../../../components/ui/neon/useAnimatedBalance";
 import PublicTheme from "../../../components/ui/public/PublicTheme";
+import PointsPurchaseDrawer from "@/components/public/PointsPurchaseDrawer";
 import PublicBottomCommandBar from "@/components/public/PublicBottomCommandBar";
 import confetti from "canvas-confetti";
 
@@ -69,6 +70,10 @@ type SessionRes = {
     packTier2PriceCents?: number | null;
     packTier3PriceCents?: number | null;
     packTier4PriceCents?: number | null;
+    bonusChallengeEnabled?: boolean;
+    bonusChallengeRotationMode?: string | null;
+    bonusChallengeOverrideKey?: string | null;
+    bonusChallenges?: unknown;
   };
 };
 
@@ -2355,10 +2360,11 @@ const isHot = featuredSongs.some((x) => x.id === song.id);
         }}
       />
 
-      <BuyCreditsDrawer
+      <PointsPurchaseDrawer
         open={showBuy}
         busy={buyBusy}
         packs={packs}
+        challengeRules={rules?.rules}
         redeemCode={redeemCode}
         setRedeemCode={setRedeemCode}
         redeemBusy={redeemBusy}

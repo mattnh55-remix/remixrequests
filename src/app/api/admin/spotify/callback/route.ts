@@ -7,10 +7,21 @@ import {
   upsertSpotifyConnection,
 } from "@/lib/spotify-oauth";
 
+function spotifyWorkspacePath(locationSlug: string, params: Record<string, string>) {
+  const search = new URLSearchParams({
+    tab: "songs",
+    songView: "spotify",
+    ...params,
+  });
+  return `/admin/${encodeURIComponent(locationSlug)}?${search.toString()}`;
+}
+
 export async function GET(req: Request) {
   try {
     if (!isAdminFromCookie(req.headers.get("cookie"))) {
-      return NextResponse.redirect(new URL("/admin/import?spotify=unauthorized", req.url));
+      return NextResponse.redirect(
+        new URL(spotifyWorkspacePath("remixrequests", { spotify: "unauthorized" }), req.url),
+      );
     }
 
     const { clientId, clientSecret, redirectUri } = getSpotifyEnv();
@@ -23,13 +34,13 @@ export async function GET(req: Request) {
 
     if (error) {
       return NextResponse.redirect(
-        new URL(`/admin/import?locationSlug=${encodeURIComponent(locationSlug)}&spotify_error=${encodeURIComponent(error)}`, origin)
+        new URL(spotifyWorkspacePath(locationSlug, { spotify_error: error }), origin)
       );
     }
 
     if (!code) {
       return NextResponse.redirect(
-        new URL(`/admin/import?locationSlug=${encodeURIComponent(locationSlug)}&spotify_error=missing_code`, origin)
+        new URL(spotifyWorkspacePath(locationSlug, { spotify_error: "missing_code" }), origin)
       );
     }
 
@@ -86,13 +97,18 @@ export async function GET(req: Request) {
     });
 
     return NextResponse.redirect(
-      new URL(`/admin/import?locationSlug=${encodeURIComponent(locationSlug)}&spotify=connected`, origin)
+      new URL(spotifyWorkspacePath(locationSlug, { spotify: "connected" }), origin)
     );
   } catch (error: any) {
     const url = new URL(req.url);
     const origin = url.origin;
     return NextResponse.redirect(
-      new URL(`/admin/import?spotify_error=${encodeURIComponent(error?.message || "Spotify connect failed")}`, origin)
+      new URL(
+        spotifyWorkspacePath("remixrequests", {
+          spotify_error: error?.message || "Spotify connect failed",
+        }),
+        origin,
+      )
     );
   }
 }

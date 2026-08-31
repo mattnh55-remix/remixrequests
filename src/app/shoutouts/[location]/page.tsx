@@ -10,6 +10,7 @@ import {
   type ShoutoutProductKey,
 } from "@/lib/shoutoutProducts";
 import PublicBottomCommandBar from "@/components/public/PublicBottomCommandBar";
+import PointsPurchaseDrawer from "@/components/public/PointsPurchaseDrawer";
 
 const REMIX_LOGO_URL =
   "https://skateremix.com/wp-content/uploads/2026/03/Remix_Globe_Logo_350px.png";
@@ -26,6 +27,10 @@ type SessionRes = {
     packTier2PriceCents?: number | null;
     packTier3PriceCents?: number | null;
     packTier4PriceCents?: number | null;
+    bonusChallengeEnabled?: boolean;
+    bonusChallengeRotationMode?: string | null;
+    bonusChallengeOverrideKey?: string | null;
+    bonusChallenges?: unknown;
   };
 };
 
@@ -1258,20 +1263,21 @@ export default function ShoutoutsPage({
         setUsageRightsAccepted={setUsageRightsAccepted}
       />
 
-      <BuyCreditsDrawer
+      <PointsPurchaseDrawer
         open={showBuy}
         onClose={() => {
           setShowBuy(false);
           void refreshBalance();
         }}
         packs={uiPacks}
-        buyUrl={buyUrl}
+        challengeRules={rulesData?.rules}
         redeemBusy={redeemBusy}
         onRedeem={(code: string) => {
           void redeem(code);
         }}
-        onBuy={(packageKey: PackageKey) => {
-          void startCheckout(packageKey);
+        onBuy={(packageKey) => {
+          if (!packageKey) return;
+          void startCheckout(packageKey as PackageKey);
         }}
       />
       <PublicBottomCommandBar
