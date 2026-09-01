@@ -32,6 +32,7 @@ export type QueueLikeItem = {
   requestType?: string | null;
   requestSource?: "CUSTOMER" | "DJ" | null;
   isRequest?: boolean | null;
+  isWriteIn?: boolean | null;
 };
 
 export type RuntimePreview = {

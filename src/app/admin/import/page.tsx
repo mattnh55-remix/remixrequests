@@ -79,6 +79,8 @@ function AdminSpotifyImportPageInner() {
   useEffect(() => {
     const fromQuery = searchParams.get("locationSlug");
     if (fromQuery) setLocationSlug(fromQuery);
+    const requestedSearch = searchParams.get("q");
+    if (requestedSearch) setQuery(requestedSearch);
   }, [searchParams]);
 
   useEffect(() => {

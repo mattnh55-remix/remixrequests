@@ -43,6 +43,7 @@ export default function QueueItemRow({
 }: QueueItemRowProps) {
   const isRequest = isRequestLike(item);
   const isBoosted = isBoostedLike(item);
+  const isWriteIn = Boolean(item.isWriteIn);
   const requestIdForActions = String(item.requestId || item.id);
 
   async function handleReject() {
@@ -53,7 +54,7 @@ export default function QueueItemRow({
 
   return (
     <div
-      className={`queueRow ${isRequest ? "queueRow--request" : ""} ${isBoosted ? "queueRow--boosted" : ""} ${isDragging ? "queueRow--dragging" : ""}`}
+      className={`queueRow ${isRequest ? "queueRow--request" : ""} ${isBoosted ? "queueRow--boosted" : ""} ${isWriteIn ? "queueRow--writein" : ""} ${isDragging ? "queueRow--dragging" : ""}`}
       draggable
       onDragStart={() => onDragStart?.(item.id)}
       onDragOver={(e) => {
@@ -82,6 +83,7 @@ export default function QueueItemRow({
             <div className="queueNumber">{item.position}.</div>
           ) : null}
           <div className="queueTitle">{item.title || "Untitled"}</div>
+          {isWriteIn ? <StatusBadge label="WRITE-IN" tone="loaded" /> : null}
           {isBoosted ? <StatusBadge label="BOOST" tone="boost" /> : null}
           {isRequest ? <StatusBadge label="REQUEST" tone="alert" /> : null}
           {item.requestSource === "DJ" || item.sourceType === "HOUSE" ? <StatusBadge label="DJ" tone="loaded" /> : null}

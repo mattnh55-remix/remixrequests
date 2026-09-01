@@ -31,6 +31,7 @@ export async function GET(_: Request, { params }: { params: { location: string }
                 title: true,
                 artist: true,
                 artworkUrl: true,
+                tags: true,
               },
             },
           },
@@ -86,6 +87,7 @@ export async function GET(_: Request, { params }: { params: { location: string }
         redemptionCode: (request as any)?.redemptionCode ?? null,
         requestType: request?.type ?? null,
         requestSource: isDjAdded ? "DJ" : "CUSTOMER",
+        isWriteIn: Boolean(request?.song?.tags?.includes("write-in")),
         createdAt: item.createdAt?.toISOString?.() ?? null,
         isRequest: true,
       };

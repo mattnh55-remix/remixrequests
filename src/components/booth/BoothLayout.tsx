@@ -1897,6 +1897,10 @@ saveSessionTimerState(location, {
           box-shadow: inset 3px 0 0 rgba(255, 171, 52, 0.95);
         }
 
+        .queueRow--writein {
+          align-items: flex-start;
+        }
+
         .queueDrag {
           width: 16px;
           display: flex;
@@ -1945,6 +1949,28 @@ saveSessionTimerState(location, {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+
+        .queueRow--writein .queueTitle,
+        .queueRow--writein .queueMeta {
+          white-space: normal;
+          overflow: visible;
+          text-overflow: clip;
+          overflow-wrap: anywhere;
+        }
+
+        .queueRow--writein .queueTitle {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          line-height: 1.2;
+        }
+
+        .queueRow--writein .queueMeta {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          line-height: 1.3;
         }
 
         .queueMetaStrong {
