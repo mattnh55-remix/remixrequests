@@ -2365,6 +2365,7 @@ const isHot = featuredSongs.some((x) => x.id === song.id);
         busy={buyBusy}
         packs={packs}
         challengeRules={rules?.rules}
+        availablePoints={Number(bal.balance || 0)}
         redeemCode={redeemCode}
         setRedeemCode={setRedeemCode}
         redeemBusy={redeemBusy}

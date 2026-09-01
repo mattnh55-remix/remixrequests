@@ -824,6 +824,50 @@ export default function PublicGunmetalTheme() {
         line-height: 1.42;
       }
 
+      .rrBuyLead--earn {
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        border-color: rgba(89, 167, 129, 0.52);
+        background:
+          radial-gradient(circle at 0% 0%, rgba(77, 158, 116, 0.25), transparent 42%),
+          linear-gradient(125deg, rgba(24, 54, 42, 0.98), rgba(16, 34, 37, 0.99));
+      }
+
+      .rrBuyEarnIcon {
+        display: grid;
+        width: 48px;
+        height: 48px;
+        place-items: center;
+        border-radius: 999px;
+        background: rgba(53, 108, 89, 0.92);
+        border: 1px solid rgba(174, 232, 197, 0.38);
+        color: #effff5;
+        font-size: 15px;
+        font-weight: 1000;
+        box-shadow: 0 0 0 5px rgba(53, 108, 89, 0.18);
+      }
+
+      .rrBuyLead--earn .rrBuyLeadTitle { color: #e3fff0; }
+      .rrBuyLead--earn .rrBuyLeadText { color: #c7e4d3; }
+
+      .rrBtn--earn {
+        min-height: 46px;
+        padding-inline: 16px;
+        background: linear-gradient(180deg, #4d9b78, #356c59);
+        border-color: rgba(191, 242, 211, 0.42);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 12px 24px rgba(14, 61, 41, 0.35);
+      }
+
+      .rrBuyEarnDetails {
+        grid-column: 2 / -1;
+        padding-top: 2px;
+        color: #d5ecdf;
+        font-size: 13px;
+        line-height: 1.42;
+      }
+
       .rrBuyPackGrid {
         display: grid;
         gap: 12px;
@@ -990,6 +1034,22 @@ export default function PublicGunmetalTheme() {
       }
 
       @media (max-width: 520px) {
+        .rrBuyLead--earn {
+          grid-template-columns: 42px minmax(0, 1fr);
+        }
+
+        .rrBuyEarnIcon {
+          width: 42px;
+          height: 42px;
+        }
+
+        .rrBtn--earn {
+          grid-column: 1 / -1;
+          width: 100%;
+        }
+
+        .rrBuyEarnDetails { grid-column: 1 / -1; }
+
         .rrBuyLead {
           padding: 13px 13px 12px;
           border-radius: 15px;
@@ -1787,4 +1847,3 @@ export default function PublicGunmetalTheme() {
           `}</style>
   );
 }
-

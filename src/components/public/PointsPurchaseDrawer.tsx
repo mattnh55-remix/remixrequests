@@ -72,10 +72,10 @@ function activeChallenge(rules?: ChallengeRules | null): Challenge | null {
 
 export default function PointsPurchaseDrawer({
   open, onClose, packs, challengeRules, busy = false, redeemBusy, redeemCode: controlledCode,
-  setRedeemCode, onBuy, onRedeem,
+  availablePoints, setRedeemCode, onBuy, onRedeem,
 }: {
   open: boolean; onClose: () => void; packs: PointsPack[]; challengeRules?: ChallengeRules | null;
-  busy?: boolean; redeemBusy: boolean; redeemCode?: string; setRedeemCode?: (value: string) => void;
+  busy?: boolean; redeemBusy: boolean; redeemCode?: string; availablePoints?: number; setRedeemCode?: (value: string) => void;
   onBuy: (packageKey?: string, href?: string) => void; onRedeem: (code: string) => void;
 }) {
   const [showRedeem, setShowRedeem] = useState(false);
@@ -87,11 +87,14 @@ export default function PointsPurchaseDrawer({
   if (!open) return null;
 
   const earnCopy = challenge?.modalMessage || challenge?.ctaText || "Show a Remix team member to receive your point card.";
+  const balanceCopy = typeof availablePoints === "number"
+    ? `You have ${availablePoints} point${availablePoints === 1 ? "" : "s"}. Earn, buy, or redeem points to keep your request moving.`
+    : "Earn, buy, or redeem points to keep your request moving.";
   return <div className="rrOverlay" onClick={onClose}>
     <div className="rrDrawer rrDrawer--buy" onClick={(event) => event.stopPropagation()}>
-      <div className="rrDrawerHead rrDrawerHead--buy"><div><div className="rrDrawerTitle">REMIX POINTS</div><div className="rrDrawerSub">Buy points now, or earn a point card from the Remix team.</div></div><button className="rrBtnGhost rrCloseBtn" onClick={onClose}>Close</button></div>
+      <div className="rrDrawerHead rrDrawerHead--buy"><div><div className="rrDrawerTitle">REMIX POINTS</div><div className="rrDrawerSub">{balanceCopy}</div></div><button className="rrBtnGhost rrCloseBtn" onClick={onClose}>Close</button></div>
       <div className="rrDrawerBody">
-        {challenge ? <div className="rrBuyLead"><div className="rrBuyLeadTitle">Earn {challenge.pointValue} points before you buy.</div><div className="rrBuyLeadText">{challenge.title}</div><button className="rrBtn rrBtn--featuredPack" onClick={() => setEarnOpen((value) => !value)}>{earnOpen ? "Hide earning details" : challenge.buttonText}</button>{earnOpen ? <div className="rrDrawerSub" style={{ marginTop: 10 }}>{earnCopy}</div> : null}</div> : null}
+        {challenge ? <div className="rrBuyLead rrBuyLead--earn"><div className="rrBuyEarnIcon" aria-hidden="true">+{challenge.pointValue}</div><div className="rrBuyEarnCopy"><div className="rrBuyLeadTitle">Earn {challenge.pointValue} points free.</div><div className="rrBuyLeadText">{challenge.title}</div></div><button className="rrBtn rrBtn--earn" onClick={() => setEarnOpen((value) => !value)}>{earnOpen ? "Hide details" : `Earn ${challenge.pointValue} Points Free!`}</button>{earnOpen ? <div className="rrBuyEarnDetails">{earnCopy}</div> : null}</div> : null}
         <div className="rrDivider" />
         <div className="rrBuyLead"><div className="rrBuyLeadTitle">Or get points instantly.</div><div className="rrBuyLeadText">Use them for requests, boosts, votes, and shout-outs.</div></div>
         <div className="rrBuyPackGrid">{packs.map((pack) => <div key={pack.packageKey || pack.href || pack.id || pack.title} className={`rrBuyPackCard ${pack.highlight ? "rrBuyPackCard--featured" : ""}`}><div className="rrBuyPackTitleRow"><div className="rrBuyPackTitle">{pack.title}</div>{pack.badge ? <span className="rrMetaPill">{pack.badge}</span> : null}</div><div className="rrBuyPackValueRow rrBuyPackValueRow--compact"><div className="rrBuyPackPoints">{pack.creditsLabel}</div><div className="rrBuyPackPrice rrBuyPackPrice--compact">${(Number(pack.priceCents || 0) / 100).toFixed(2)}</div></div><button className={`rrBtn ${pack.highlight ? "rrBtn--featuredPack" : ""}`} disabled={busy} onClick={() => onBuy(pack.packageKey, pack.href)}>{busy ? "Opening..." : pack.cta || `Get ${pack.creditsLabel}`}</button></div>)}</div>
