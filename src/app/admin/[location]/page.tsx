@@ -15,6 +15,7 @@ import {
 import AdminGunmetalTheme from "../../../components/ui/admin/AdminGunmetalTheme";
 import SongManagementPanel from "@/components/admin/SongManagementPanel";
 import GoogleReviewsPanel from "@/components/admin/GoogleReviewsPanel";
+import BusinessDashboard from "@/components/admin/BusinessDashboard";
 import AdminSpotifyImportPage from "@/app/admin/import/page";
 import { SHOUTOUT_PRODUCTS } from "@/lib/shoutoutProducts";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -2424,7 +2425,9 @@ export default function AdminPage({
 
         {msg ? <div className="admNotice">{msg}</div> : null}
 
-        {tab === "dashboard" && (
+        {tab === "dashboard" && <BusinessDashboard locationSlug={location} />}
+
+        {false && tab === "dashboard" && (
           <>
             <Panel
               title="Business snapshot"

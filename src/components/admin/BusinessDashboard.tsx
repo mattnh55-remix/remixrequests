@@ -1,0 +1,25 @@
+"use client";
+import { useEffect, useState } from "react";
+import GoogleReviewsPanel from "@/components/admin/GoogleReviewsPanel";
+
+type Summary = { pointsIssued:{current:number;previous:number}; pointsPurchased:{current:number;previous:number}; latestRequests:Array<{id:string;title:string;artist:string;createdAt:string;type:string}>; topSong:{title:string;artist:string;count:number}|null; spotifyImports:Array<{batch:string;createdAt:string}> };
+const delta = (current:number, previous:number) => previous ? `${Math.round(((current-previous)/previous)*100)}% vs prior period` : current ? "New this period" : "No activity yet";
+
+export default function BusinessDashboard({ locationSlug }: { locationSlug:string }) {
+  const [period,setPeriod]=useState<"week"|"month">("week"); const [data,setData]=useState<Summary|null>(null); const [busy,setBusy]=useState(true);
+  useEffect(()=>{ setBusy(true); fetch(`/api/admin/dashboard-summary/${encodeURIComponent(locationSlug)}?period=${period}`,{cache:"no-store"}).then(r=>r.json()).then(result=>setData(result.ok?result:null)).finally(()=>setBusy(false)); },[locationSlug,period]);
+  return <div className="admSectionStack">
+    <div className="admSplitActions"><div><div className="admPanelTitle">Business overview</div><div className="admPanelSub">Weekly and monthly outcomes; live operation stays in DJ Booth.</div></div><div className="admTabs"><button className={`admTab ${period==="week"?"is-active":""}`} onClick={()=>setPeriod("week")}>This week</button><button className={`admTab ${period==="month"?"is-active":""}`} onClick={()=>setPeriod("month")}>This month</button></div></div>
+    <div className="admMetricGrid">
+      <Metric tone="amber" label="Points issued" value={data?.pointsIssued.current ?? "—"} sub={data?delta(data.pointsIssued.current,data.pointsIssued.previous):"Loading…"}/>
+      <Metric tone="blue" label="Points purchased" value={data?.pointsPurchased.current ?? "—"} sub={data?delta(data.pointsPurchased.current,data.pointsPurchased.previous):"Loading…"}/>
+      <Metric tone="green" label="Reviews made" value="Google inbox" sub="Connect Google to populate"/>
+    </div>
+    <GoogleReviewsPanel locationSlug={locationSlug}/>
+    <div className="admGrid2">
+      <section className="admPanel"><div className="admPanelHead"><div className="admPanelTitle">Latest requests</div><div className="admPanelSub">Latest 10 this {period}</div></div><div className="admPanelBody"><div className="admRows">{data?.latestRequests.map(item=><div className="admRow" key={item.id}><div><b>{item.title}</b><div className="admFieldHelp">{item.artist}</div></div><div className="admFieldHelp">{new Date(item.createdAt).toLocaleString([], {weekday:"short",hour:"numeric",minute:"2-digit"})}</div></div>)}{!busy&&!data?.latestRequests.length?<div className="admSubCopy">No requests in this period.</div>:null}</div></div></section>
+      <div className="admSectionStack"><section className="admPanel"><div className="admPanelHead"><div className="admPanelTitle">Most requested</div><div className="admPanelSub">2+ requests required</div></div><div className="admPanelBody">{data?.topSong?<div className="admSubPanel" style={{background:"rgba(49,95,147,.35)"}}><b>{data.topSong.title}</b><div className="admFieldHelp">{data.topSong.artist} · {data.topSong.count} requests</div></div>:<div className="admSubCopy">No qualifying song yet.</div>}</div></section><section className="admPanel"><div className="admPanelHead"><div className="admPanelTitle">Latest Spotify imports</div><div className="admPanelSub">Staff recognition</div></div><div className="admPanelBody">{data?.spotifyImports.length?<div className="admRows">{data.spotifyImports.slice(0,3).map(item=><div className="admRow" key={item.batch}><div><b>{item.batch}</b><div className="admFieldHelp">Staff attribution will begin with the next import audit.</div></div><div className="admFieldHelp">{new Date(item.createdAt).toLocaleDateString()}</div></div>)}</div>:<div className="admSubCopy">No Spotify imports in this period. Staff attribution will appear here after the import-audit update.</div>}</div></section></div>
+    </div>
+  </div>;
+}
+function Metric({label,value,sub,tone}:{label:string;value:string|number;sub:string;tone:"amber"|"blue"|"green"}) { const colors={amber:"rgba(140,108,53,.38)",blue:"rgba(49,95,147,.38)",green:"rgba(53,108,89,.38)"}; return <div className="admMetricCard" style={{background:colors[tone],borderColor:"transparent"}}><div className="admMetricLabel">{label}</div><div className="admMetricValue">{value}</div><div className="admMetricSub">{sub}</div></div>; }
