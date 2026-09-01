@@ -2534,291 +2534,68 @@ export default function AdminPage({
         {tab === "dashboard" && (
           <>
             <Panel
-              title="Tonight at a glance"
-              sub="A cleaner landing screen with live operational context, top song focus, and money + point flow."
+              title="Business snapshot"
+              sub="A quieter weekly/monthly home base. Live queue work stays in the DJ Booth."
             >
               <div
-                className="admDashboardHero"
+                className="admDashboardHeroStats"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 0.85fr)",
-                  gap: 10,
-                  alignItems: "stretch",
+                  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                  gap: 8,
                 }}
               >
-                <div className="admDashboardHeroMain">
-                  <div className="admDashboardEyebrow">LIVE SNAPSHOT</div>
-                  <div className="admDashboardHeadline">
-                    {dashboardStatsBusy
-                      ? "Refreshing live dashboard…"
-                      : top10[0]
-                        ? `${top10[0].title} is leading right now.`
-                        : "Dashboard ready for tonight."}
-                  </div>
-                  <div className="admDashboardSub">
-                    {top10[0]
-                      ? `${top10[0].artist} • Score ${top10[0].score}${top10[0].requestCount ? ` • ${top10[0].requestCount} requests` : ""}`
-                      : "Your deep controls now live inside the tabs. This front page is focused on quick pulse, top activity, and money flow."}
-                  </div>
-                </div>
-
-                <div
-                  className="admDashboardHeroStats"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: 8,
-                    alignContent: "start",
-                  }}
-                >
-                  <DashboardHeroStat
-                    label="Queue live"
-                    value={dashboardLedgerStats.liveQueueCount}
-                    sub={`${dashboardLedgerStats.boostedQueueCount} boosted • ${dashboardLedgerStats.standardQueueCount} standard`}
-                  />
-                  <DashboardHeroStat
-                    label="Active users"
-                    value={dashboardLedgerStats.activeUsers}
-                    sub={`${dashboardLedgerStats.verifiedUsers} verified`}
-                  />
-                  <DashboardHeroStat
-                    label="Points issued"
-                    value={dashboardLedgerStats.pointsIssued}
-                    sub={formatDashboardSince(dashboardLedgerStats.baselineAt)}
-                  />
-                  <DashboardHeroStat
-                    label="Purchased $"
-                    value={formatCurrencyFromCents(
-                      dashboardLedgerStats.estimatedRevenueCents,
-                    )}
-                    sub={`${dashboardLedgerStats.purchaseCount} purchases`}
-                  />
-                </div>
+                <DashboardHeroStat label="Points issued" value={dashboardLedgerStats.pointsIssued} sub={formatDashboardSince(dashboardLedgerStats.baselineAt)} />
+                <DashboardHeroStat label="Points purchased" value={formatCurrencyFromCents(dashboardLedgerStats.estimatedRevenueCents)} sub={`${dashboardLedgerStats.purchaseCount} point-pack purchases`} />
+                <DashboardHeroStat label="Points in guest wallets" value={dashboardLedgerStats.pointsAvailable} sub="Issued less points spent" />
+                <DashboardHeroStat label="Qualifying guests" value={dashboardLedgerStats.totalQualifyingUsers} sub={`${dashboardLedgerStats.verifiedUsers} verified`} />
               </div>
             </Panel>
 
             <GoogleReviewsPanel locationSlug={location} />
 
             <div
-              className="admDashboardTriGrid"
+              className="admDashboardBusinessGrid"
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                 gap: 10,
                 alignItems: "start",
               }}
             >
               <Panel
-                title="Stats"
-                sub="Usage snapshot without diving into the deeper tabs."
+                title="Request activity"
+                sub="A short read-only view; use DJ Booth to run the queue."
               >
-                <div
-                  className="admDashboardMiniGrid"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: 8,
-                  }}
-                >
-                  <DashboardMiniStat
-                    label="Songs in queue"
-                    value={dashboardLedgerStats.liveQueueCount}
-                    tone="live"
-                  />
-                  <DashboardMiniStat
-                    label="Boosted live"
-                    value={dashboardLedgerStats.boostedQueueCount}
-                    tone="warn"
-                  />
-                  <DashboardMiniStat
-                    label="Standard live"
-                    value={dashboardLedgerStats.standardQueueCount}
-                  />
-                  <DashboardMiniStat
-                    label="Active users"
-                    value={dashboardLedgerStats.activeUsers}
-                  />
-                  <DashboardMiniStat
-                    label="Verified users"
-                    value={dashboardLedgerStats.verifiedUsers}
-                  />
-                  <DashboardMiniStat
-                    label="Qualifying users"
-                    value={dashboardLedgerStats.totalQualifyingUsers}
-                  />
-                  <DashboardMiniStat
-                    label="Pending shout-outs"
-                    value={pendingMessages.length}
-                  />
-                  <DashboardMiniStat
-                    label="Redemption codes"
-                    value={dashboardLedgerStats.redemptionCodesLoaded}
-                  />
-                </div>
-
-                <div className="admSubPanel" style={{ marginTop: 10 }}>
-                  <div className="admSubTitleText">Quick pulse</div>
-                  <div className="admSubCopy" style={{ marginTop: 8 }}>
-                    Requests and shout-outs now live in the booth flow, so this
-                    page is better used as a live pulse page instead of an old
-                    moderation board.
-                  </div>
-                  <div className="admActionRow" style={{ marginTop: 12 }}>
-                    <a
-                      href={`/booth/${location}`}
-                      className="admBtn"
-                      style={{ textDecoration: "none" }}
-                    >
-                      Open DJ Booth
-                    </a>
-                    <a
-                      href={`/admin/${location}?tab=users`}
-                      className="admBtnGhost"
-                      style={{ textDecoration: "none" }}
-                    >
-                      Open Users & Points
-                    </a>
-                  </div>
-                </div>
-              </Panel>
-
-              <Panel
-                title="Top 1 + activity"
-                sub="A slimmer center stack with what is happening right now."
-              >
-                <div className="admSubPanel admDashboardTopCard">
-                  <div className="admDashboardTopLabel">TOP SONG RIGHT NOW</div>
-                  {top10[0] ? (
+                {top10[0] && Number(top10[0].requestCount || 0) >= 2 ? (
+                  <div className="admSubPanel" style={{ marginBottom: 10, background: "rgba(36, 66, 92, 0.38)" }}>
+                    <div className="admMetricLabel">MOST REQUESTED</div>
                     <>
-                      <div className="admDashboardTopTitle">
-                        {top10[0].title}
-                      </div>
-                      <div className="admDashboardTopArtist">
-                        {top10[0].artist}
-                      </div>
-                      <div className="admActionRow" style={{ marginTop: 10 }}>
-                        <Pill variant="live">Score {top10[0].score}</Pill>
-                        <Pill>Req {Number(top10[0].requestCount || 0)}</Pill>
-                        <Pill>👍 {Number(top10[0].upvotes || 0)}</Pill>
-                        <Pill>👎 {Number(top10[0].downvotes || 0)}</Pill>
-                      </div>
+                      <div style={{ fontWeight: 1000, fontSize: 20, marginTop: 5 }}>{top10[0].title}</div>
+                      <div className="admFieldHelp" style={{ marginTop: 4 }}>{top10[0].artist} · {Number(top10[0].requestCount || 0)} requests</div>
                     </>
-                  ) : (
-                    <EmptyState>No Top 10 leader yet.</EmptyState>
-                  )}
-                </div>
-
-                <div className="admSubPanel" style={{ marginTop: 10 }}>
-                  <div className="admSubTitleText">Slim activity stack</div>
-                  <div
-                    className="admDashboardActivityList"
-                    style={{ display: "grid", gap: 8 }}
-                  >
-                    {requestBuckets.boosts.slice(0, 3).map((q) => (
-                      <DashboardActivityRow
-                        key={`boost-${q.id}`}
-                        label="BOOST"
-                        title={q.title}
-                        meta={q.artist}
-                        accent="boost"
-                      />
-                    ))}
-                    {requestBuckets.next.slice(0, 4).map((q) => (
-                      <DashboardActivityRow
-                        key={`queue-${q.id}`}
-                        label="QUEUE"
-                        title={q.title}
-                        meta={`${q.artist} • score ${q.score}`}
-                      />
-                    ))}
-                    {pendingMessages.slice(0, 3).map((m) => (
-                      <DashboardActivityRow
-                        key={`msg-${m.id}`}
-                        label="MSG"
-                        title={m.fromName}
-                        meta={m.messageText}
-                        accent="message"
-                      />
-                    ))}
-                    {!requestBuckets.boosts.length &&
-                    !requestBuckets.next.length &&
-                    !pendingMessages.length ? (
-                      <EmptyState>No live activity yet.</EmptyState>
-                    ) : null}
                   </div>
+                ) : null}
+                <div style={{ display: "grid", gap: 7 }}>
+                  {[...requestBuckets.boosts, ...requestBuckets.next].slice(0, 6).map((q) => <DashboardActivityRow key={q.id} label={requestTypeLabel(q)} title={q.title} meta={`${q.artist}${q.createdAt ? ` · ${new Date(q.createdAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}` : ""}`} accent={q.boosted ? "boost" : undefined} />)}
+                  {!requestBuckets.boosts.length && !requestBuckets.next.length ? <EmptyState>No current requests.</EmptyState> : null}
                 </div>
-
-                <div className="admSubPanel" style={{ marginTop: 10 }}>
-                  <div className="admSubTitleText">Read-only board preview</div>
-                  <div className="admSubCopy" style={{ marginTop: 8 }}>
-                    {top10UpdatedAt
-                      ? `Updated ${new Date(top10UpdatedAt).toLocaleString()}`
-                      : "No board update time yet."}
-                  </div>
-                  <div className="admActionRow" style={{ marginTop: 12 }}>
-                    <a
-                      href={`/admin/${location}?tab=top10`}
-                      className="admBtnGhost"
-                      style={{ textDecoration: "none" }}
-                    >
-                      Open Top 10 tab
-                    </a>
-                  </div>
-                </div>
+                <div className="admActionRow" style={{ marginTop: 12 }}><a href={`/booth/${location}`} className="admBtnGhost" style={{ textDecoration: "none" }}>Open DJ Booth</a></div>
               </Panel>
 
               <Panel
-                title="Money + points"
-                sub="Issued points, redeemed points, active balances, and purchased revenue."
+                title="Team follow-up"
+                sub="The few places the admin team should visit during the week."
               >
-                <div
-                  className="admDashboardMoneyStack"
-                  style={{ display: "grid", gap: 8 }}
-                >
-                  <DashboardMoneyRow
-                    label="Points issued"
-                    value={dashboardLedgerStats.pointsIssued}
-                    sub={`${dashboardLedgerStats.welcomeUsers} welcome users • ${dashboardLedgerStats.redeemedUsers} redeemed users`}
-                  />
-                  <DashboardMoneyRow
-                    label="Points redeemed"
-                    value={dashboardLedgerStats.pointsRedeemed}
-                    sub="Requests, boosts, votes, and shout-outs spent"
-                  />
-                  <DashboardMoneyRow
-                    label="Points active"
-                    value={dashboardLedgerStats.pointsAvailable}
-                    sub="Issued minus redeemed"
-                  />
-                  <DashboardMoneyRow
-                    label="Purchased $"
-                    value={formatCurrencyFromCents(
-                      dashboardLedgerStats.estimatedRevenueCents,
-                    )}
-                    sub={`${dashboardLedgerStats.purchaseCount} point-pack purchases`}
-                    highlight
-                  />
+                <div style={{ display: "grid", gap: 8 }}>
+                  <DashboardMoneyRow label="Pending shout-outs" value={pendingMessages.length} sub="Review and approve in Shoutout Settings" />
+                  <DashboardMoneyRow label="Redemption codes" value={dashboardLedgerStats.redemptionCodesLoaded} sub="Cards and staff-issued point rewards" />
+                  <DashboardMoneyRow label="Points redeemed" value={dashboardLedgerStats.pointsRedeemed} sub="Requests, boosts, votes, and shout-outs" />
                 </div>
-
-                <div className="admSubPanel" style={{ marginTop: 10 }}>
-                  <div className="admSubTitleText">Stats window</div>
-                  <div className="admSubCopy" style={{ marginTop: 8 }}>
-                    {formatDashboardSince(dashboardLedgerStats.baselineAt)}
-                  </div>
-                  <div className="admFieldHelp" style={{ marginTop: 8 }}>
-                    Issued includes welcome points, redeemed code points, and
-                    purchased points. Unused codes are not counted.
-                  </div>
-                  {currentStaffRole === "SUPER_ADMIN" ? (
-                    <div className="admActionRow" style={{ marginTop: 12 }}>
-                      <ActionButton onClick={resetDashboardStatsWindow}>
-                        Reset stats window
-                      </ActionButton>
-                      <ActionButton alt onClick={clearDashboardStatsWindow}>
-                        All-time view
-                      </ActionButton>
-                    </div>
-                  ) : null}
+                <div className="admActionRow" style={{ marginTop: 12, flexWrap: "wrap" }}>
+                  <a href={`/admin/${location}?tab=pointEarning`} className="admBtnGhost" style={{ textDecoration: "none" }}>Point earning</a>
+                  <a href={`/admin/${location}?tab=songs&songView=spotify`} className="admBtnGhost" style={{ textDecoration: "none" }}>Spotify imports</a>
+                  <a href={`/admin/${location}?tab=users`} className="admBtnGhost" style={{ textDecoration: "none" }}>Guest points</a>
                 </div>
               </Panel>
             </div>

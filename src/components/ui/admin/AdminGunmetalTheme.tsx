@@ -483,6 +483,8 @@ export default function AdminGunmetalTheme() {
         .admGridSettings,
         .admGrid2 { grid-template-columns: 1fr; }
         .admMetricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .admDashboardHeroStats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+        .admDashboardBusinessGrid { grid-template-columns: 1fr !important; }
         .admHero { grid-template-columns: 1fr; }
         .admHeroStats { justify-content: flex-start; }
       }
@@ -492,6 +494,7 @@ export default function AdminGunmetalTheme() {
         .admHeroLogoWrap { width: 54px; height: 54px; }
         .admHeroLogo { width: 40px; height: 40px; }
         .admMetricGrid { grid-template-columns: 1fr 1fr; }
+        .admDashboardHeroStats { grid-template-columns: 1fr 1fr !important; }
         .admRow,
         .admRowCard,
         .admSplitActions { flex-direction: column; align-items: stretch; }
