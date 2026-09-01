@@ -2383,17 +2383,7 @@ export default function AdminPage({
             </div>
           </div>
           <div className="admHeroStats">
-            <span className="admPill admPill--live">
-              Requests {pendingRequests.length}
-            </span>
-            <span className="admPill">Messages {pendingMessages.length}</span>
-            <span className="admPill admPill--warn">
-              Rules {rulesDirty ? "Unsaved" : "Saved"}
-            </span>
-            <span className="admPill">
-              {currentStaffUsername || "Unknown"} (
-              {currentStaffRole || "no role"})
-            </span>
+            <span className="admFieldHelp">{currentStaffUsername || "Admin"}</span>
             <button type="button" className="admBtnGhost" onClick={logout}>
               Logout
             </button>
@@ -2402,114 +2392,17 @@ export default function AdminPage({
 
         <div className="admNavRail">
           <div className="admNavGroup">
-            <div className="admNavLabel">Workspace</div>
             <div className="admTabs">
-            <TabButton
-              active={tab === "dashboard"}
-              onClick={() => setTab("dashboard")}
-            >
-              Dashboard
-            </TabButton>
-
-            <TabButton active={tab === "songs"} onClick={() => setTab("songs")}>
-              Songs
-            </TabButton>
-
-            <TabButton
-              active={tab === "requestSettings"}
-              onClick={() => setTab("requestSettings")}
-            >
-              Request Settings
-            </TabButton>
-
-            <TabButton
-              active={tab === "pointEarning"}
-              onClick={() => setTab("pointEarning")}
-            >
-              Point Earning
-            </TabButton>
-
-            <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>
-              Top 10
-            </TabButton>
-
-            <TabButton
-              active={tab === "manualTop10"}
-              onClick={() => setTab("manualTop10")}
-            >
-              Manual Top 10
-            </TabButton>
-
-            <TabButton active={tab === "users"} onClick={() => setTab("users")}>
-              Users & Points
-            </TabButton>
-
-            <TabButton
-              active={tab === "shoutoutSettings"}
-              onClick={() => setTab("shoutoutSettings")}
-            >
-              Shoutout Settings
-            </TabButton>
-
-            {currentStaffRole === "SUPER_ADMIN" ? (
-              <TabButton
-                active={tab === "staff"}
-                onClick={() => setTab("staff")}
-              >
-                Staff Users
-              </TabButton>
-            ) : null}
-            </div>
-          </div>
-
-          <div className="admNavGroup">
-            <div className="admNavLabel">Tools</div>
-            <div
-              className="admTabs"
-            style={{
-              marginBottom: 0,
-              paddingTop: 0,
-              borderTop: "1px solid rgba(255,255,255,0.04)",
-            }}
-          >
-            <a
-              href={`/booth/${location}`}
-              className="admTab admTabLink"
-              style={{
-                minHeight: 34,
-                padding: "0 12px",
-                fontSize: 11,
-                letterSpacing: "0.08em",
-              }}
-            >
-              DJ Booth
-            </a>
-
-            <a
-              href={`/admin/${location}/interstitials`}
-              className="admTab admTabLink"
-              style={{
-                minHeight: 34,
-                padding: "0 12px",
-                fontSize: 11,
-                letterSpacing: "0.08em",
-              }}
-            >
-              Interstitials
-            </a>
-
-            <a
-              href={`/admin/${location}?tab=songs&songView=spotify`}
-              className="admTab admTabLink"
-              style={{
-                minHeight: 34,
-                padding: "0 12px",
-                fontSize: 11,
-                letterSpacing: "0.08em",
-              }}
-            >
-              <i>Spotify Import</i>
-            </a>
+              <a href={`/booth/${location}`} className="admTab admTabLink">DJ Booth</a>
+              <TabButton active={tab === "dashboard"} onClick={() => setTab("dashboard")}>Dashboard</TabButton>
+              <TabButton active={tab === "songs"} onClick={() => setTab("songs")}>Songs</TabButton>
+              <TabButton active={tab === "requestSettings"} onClick={() => setTab("requestSettings")}>Request Settings</TabButton>
+              <TabButton active={tab === "pointEarning"} onClick={() => setTab("pointEarning")}>Point Earning</TabButton>
+              <TabButton active={tab === "top10" || tab === "manualTop10"} onClick={() => setTab("top10")}>Rankings</TabButton>
+              <TabButton active={tab === "users"} onClick={() => setTab("users")}>Users & Points</TabButton>
+              <TabButton active={tab === "shoutoutSettings"} onClick={() => setTab("shoutoutSettings")}>Shoutout Settings</TabButton>
+              <a href={`/admin/${location}/interstitials`} className="admTab admTabLink">Interstitials</a>
+              {currentStaffRole === "SUPER_ADMIN" ? <TabButton active={tab === "staff"} onClick={() => setTab("staff")}>Staff Users</TabButton> : null}
             </div>
           </div>
 
@@ -2605,18 +2498,11 @@ export default function AdminPage({
         {tab === "songs" && (
           <>
             <div className="admTabs" style={{ margin: "0 0 12px" }}>
-              <a
-                href={`/admin/${location}?tab=songs`}
-                className={`admTab ${requestedSongView === "spotify" ? "" : "admTabActive"}`}
-              >
-                Song library
-              </a>
-              <a
-                href={`/admin/${location}?tab=songs&songView=spotify`}
-                className={`admTab ${requestedSongView === "spotify" ? "admTabActive" : ""}`}
-              >
-                Spotify import
-              </a>
+              <a href={`/admin/${location}?tab=songs&songView=library`} className={`admTab ${!requestedSongView || requestedSongView === "library" ? "admTabActive" : ""}`}>Library</a>
+              <a href={`/admin/${location}?tab=songs&songView=spotify`} className={`admTab ${requestedSongView === "spotify" ? "admTabActive" : ""}`}>Spotify Import</a>
+              <a href={`/admin/${location}?tab=songs&songView=featured`} className={`admTab ${requestedSongView === "featured" ? "admTabActive" : ""}`}>Featured</a>
+              <a href={`/admin/${location}?tab=songs&songView=writeins`} className={`admTab ${requestedSongView === "writeins" ? "admTabActive" : ""}`}>Write-ins</a>
+              <a href={`/admin/${location}?tab=songs&songView=xls`} className={`admTab ${requestedSongView === "xls" ? "admTabActive" : ""}`}>XLS Import</a>
             </div>
 
             {requestedSongView === "spotify" ? (
@@ -2633,6 +2519,8 @@ export default function AdminPage({
                     : null
                 }
                 onGlobalMessage={setMsg}
+                initialTab={requestedSongView === "featured" ? "featured" : requestedSongView === "writeins" ? "writeins" : requestedSongView === "xls" ? "tools" : "all"}
+                showTabs={false}
               />
             )}
           </>
@@ -2991,7 +2879,7 @@ export default function AdminPage({
                   </>
                 )}
 
-                <SubPanel
+                {tab === "pointEarning" && <SubPanel
                   title="Point earning tasks"
                   sub="The active task appears in the customer points tray before checkout and earns a physical point card from staff."
                 >
@@ -3160,7 +3048,7 @@ export default function AdminPage({
                       )}
                     </div>
                   </div>
-                </SubPanel>
+                </SubPanel>}
 
                 <div className="admStickySave">
                   {requestSettingsMsg ? (
@@ -3179,42 +3067,13 @@ export default function AdminPage({
               </div>
             </Panel>
 
-            {tab === "requestSettings" && (
-            <Panel
-              title="Import songs"
-              sub="Upload CSV or XLSX song list files."
-            >
-              <div className="admFieldStack">
-                <div className="admSubPanel">
-                  <div className="admSubCopy">
-                    Upload CSV or XLSX song list files here.
-                  </div>
-                </div>
+          </div>
+        )}
 
-                <input
-                  type="file"
-                  accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) importSongs(f);
-                  }}
-                  className="admFileInput"
-                />
-
-                <TextField
-                  label="Album Art Base URL"
-                  value={rules.albumArtBaseUrl || ""}
-                  onChange={(v) => patchRules({ albumArtBaseUrl: v })}
-                />
-
-                <TextField
-                  label="Default Album Art URL"
-                  value={rules.defaultAlbumArtUrl || ""}
-                  onChange={(v) => patchRules({ defaultAlbumArtUrl: v })}
-                />
-              </div>
-            </Panel>
-            )}
+        {(tab === "top10" || tab === "manualTop10") && (
+          <div className="admTabs" style={{ margin: "0 0 12px" }}>
+            <TabButton active={tab === "top10"} onClick={() => setTab("top10")}>Top 10</TabButton>
+            <TabButton active={tab === "manualTop10"} onClick={() => setTab("manualTop10")}>Manual Top 10</TabButton>
           </div>
         )}
 
@@ -3223,7 +3082,7 @@ export default function AdminPage({
             className="admGridSettings"
             style={{ gridTemplateColumns: "0.92fr 1.08fr" } as CSSProperties}
           >
-            <Panel title="Top 10 settings" sub="Time rules and board behavior.">
+            <Panel title="Rankings settings" sub="Time rules and board behavior.">
               <div className="admSectionStack">
                 <SubPanel
                   title="Board controls"

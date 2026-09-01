@@ -78,6 +78,8 @@ type Props = {
   location: string;
   rules?: RulesSnapshot | null;
   onGlobalMessage?: (message: string) => void;
+  initialTab?: SongAdminTab;
+  showTabs?: boolean;
 };
 
 const PAGE_SIZE = 50;
@@ -106,8 +108,10 @@ export default function SongManagementPanel({
   location,
   rules,
   onGlobalMessage,
+  initialTab = "all",
+  showTabs = true,
 }: Props) {
-  const [tab, setTab] = useState<SongAdminTab>("all");
+  const [tab, setTab] = useState<SongAdminTab>(initialTab);
   const [items, setItems] = useState<SongRow[]>([]);
   const [counts, setCounts] = useState({
     total: 0,
@@ -153,6 +157,8 @@ export default function SongManagementPanel({
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allVisibleSelected =
     items.length > 0 && items.every((item) => selectedSet.has(item.id));
+
+  useEffect(() => { setTab(initialTab); }, [initialTab]);
 
   function pushMessage(message: string) {
     setLocalMsg(message);
@@ -382,12 +388,12 @@ export default function SongManagementPanel({
     <div className="admSectionStack">
       {localMsg ? <div className="admNotice">{localMsg}</div> : null}
 
-      <div className="admTabs">
+      {showTabs ? <div className="admTabs">
         <button type="button" className={`admTab ${tab === "all" ? "is-active" : ""}`} onClick={() => setTab("all")}>All Songs</button>
         <button type="button" className={`admTab ${tab === "featured" ? "is-active" : ""}`} onClick={() => setTab("featured")}>Featured</button>
         <button type="button" className={`admTab ${tab === "writeins" ? "is-active" : ""}`} onClick={() => setTab("writeins")}>Write-Ins</button>
         <button type="button" className={`admTab ${tab === "tools" ? "is-active" : ""}`} onClick={() => setTab("tools")}>Import / Tools</button>
-      </div>
+      </div> : null}
 
       <div className="admMetricGrid" style={{ marginBottom: 10 }}>
         <div className="admMetricCard"><div className="admMetricLabel">Catalog songs</div><div className="admMetricValue">{counts.total}</div></div>
