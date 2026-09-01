@@ -37,6 +37,7 @@ model Location {
   boothNotes            BoothNote[]
   songWriteIns          SongWriteIn[]
   spotifyConnection     SpotifyConnection?
+  googleBusinessConnection GoogleBusinessConnection?
 
   CreditLedger CreditLedger[]
   PlayHistory  PlayHistory[]
@@ -707,6 +708,21 @@ model SpotifyConnection {
   updatedAt          DateTime @updatedAt
 
   @@index([expiresAt])
+}
+
+model GoogleBusinessConnection {
+  id             String   @id @default(cuid())
+  locationId     String   @unique
+  location       Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  googleAccount  String
+  googleLocation String
+  displayName    String?
+  accessToken    String
+  refreshToken   String?
+  expiresAt      DateTime
+  scope          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 

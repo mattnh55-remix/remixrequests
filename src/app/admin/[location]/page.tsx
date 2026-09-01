@@ -14,6 +14,7 @@ import {
 } from "react";
 import AdminGunmetalTheme from "../../../components/ui/admin/AdminGunmetalTheme";
 import SongManagementPanel from "@/components/admin/SongManagementPanel";
+import GoogleReviewsPanel from "@/components/admin/GoogleReviewsPanel";
 import AdminSpotifyImportPage from "@/app/admin/import/page";
 import { SHOUTOUT_PRODUCTS } from "@/lib/shoutoutProducts";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -2595,6 +2596,8 @@ export default function AdminPage({
                 </div>
               </div>
             </Panel>
+
+            <GoogleReviewsPanel locationSlug={location} />
 
             <div
               className="admDashboardTriGrid"
