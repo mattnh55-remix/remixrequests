@@ -16,6 +16,17 @@ function spotifyWorkspacePath(locationSlug: string, params: Record<string, strin
   return `/admin/${encodeURIComponent(locationSlug)}?${search.toString()}`;
 }
 
+function parseSpotifyResponse(text: string): any {
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    // OAuth errors may be returned as plain text rather than JSON.
+    return {};
+  }
+}
+
 export async function GET(req: Request) {
   try {
     if (!isAdminFromCookie(req.headers.get("cookie"))) {
@@ -60,11 +71,11 @@ export async function GET(req: Request) {
     });
 
     const tokenText = await tokenRes.text();
-    const tokenJson = tokenText ? JSON.parse(tokenText) : {};
+    const tokenJson = parseSpotifyResponse(tokenText);
 
     if (!tokenRes.ok) {
       throw new Error(
-        tokenJson?.error_description || tokenJson?.error || "Spotify token exchange failed."
+        tokenJson?.error_description || tokenJson?.error || tokenText || "Spotify token exchange failed."
       );
     }
 
@@ -76,11 +87,11 @@ export async function GET(req: Request) {
     });
 
     const profileText = await profileRes.text();
-    const profileJson = profileText ? JSON.parse(profileText) : {};
+    const profileJson = parseSpotifyResponse(profileText);
 
     if (!profileRes.ok) {
       throw new Error(
-        profileJson?.error?.message || "Spotify profile fetch failed."
+        profileJson?.error?.message || profileText || "Spotify profile fetch failed."
       );
     }
 

@@ -45,6 +45,18 @@ export function parseSpotifyState(state: string | null | undefined) {
   return locationSlug || null;
 }
 
+function parseSpotifyResponse(text: string): any {
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Spotify occasionally returns a plain-text OAuth error. Keep that message
+    // available instead of replacing it with a JSON parsing error.
+    return {};
+  }
+}
+
 export async function getLocationBySlugOrThrow(locationSlug: string) {
   const location = await prisma.location.findUnique({
     where: { slug: locationSlug },
@@ -132,11 +144,11 @@ export async function refreshSpotifyAccessTokenIfNeeded(locationSlug: string) {
   });
 
   const tokenText = await tokenRes.text();
-  const tokenJson = tokenText ? JSON.parse(tokenText) : {};
+  const tokenJson = parseSpotifyResponse(tokenText);
 
   if (!tokenRes.ok) {
     throw new Error(
-      tokenJson?.error_description || tokenJson?.error || "Spotify refresh failed."
+      tokenJson?.error_description || tokenJson?.error || tokenText || "Spotify refresh failed."
     );
   }
 
