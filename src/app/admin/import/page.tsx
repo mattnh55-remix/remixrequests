@@ -485,8 +485,19 @@ function AdminSpotifyImportPageInner() {
 
         <div className="rrPanel rrSearchPanel">
           <div className="rrPanelBody rrPanelBodyTight">
+            <div className="rrSearchHeader">
+              <div>
+                <div className="rrPanelTitle">Find songs on Spotify</div>
+                <div className="rrPanelSub">Search by title, artist, album, or a quick starting point.</div>
+              </div>
+              <div className="rrSearchStep">01 · Search</div>
+            </div>
+            <label className="rrFieldLabel" htmlFor="spotify-search">Song or artist</label>
             <div className="rrSearchBar">
-              <input
+              <div className="rrInputGroup">
+                <span aria-hidden="true">⌕</span>
+                <input
+                id="spotify-search"
                 className="rrInput rrSearchInput"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -498,7 +509,8 @@ function AdminSpotifyImportPageInner() {
                     searchSpotify();
                   }
                 }}
-              />
+                />
+              </div>
 
               <button
                 className="rrBtn rrBtnPrimary rrBtnSearch"
@@ -1022,7 +1034,8 @@ function AdminSpotifyImportPageInner() {
         }
 
         .rrSearchPanel {
-          border-color: rgba(123, 154, 218, 0.22);
+          border-color: rgba(122, 158, 213, 0.28);
+          background: #0d1623;
         }
 
         .rrPanelHead {
@@ -1032,9 +1045,7 @@ function AdminSpotifyImportPageInner() {
           gap: 12px;
           padding: 12px 12px 10px;
           border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-          background:
-            linear-gradient(180deg, rgba(27, 36, 59, 0.6), rgba(13, 18, 33, 0.08)),
-            linear-gradient(90deg, rgba(104, 126, 255, 0.06), rgba(255, 77, 148, 0.05), rgba(0, 0, 0, 0));
+          background: #121d2c;
         }
 
         .rrPanelHeadTight {
@@ -1069,6 +1080,60 @@ function AdminSpotifyImportPageInner() {
           gap: 10px;
         }
 
+        .rrSearchHeader {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 12px;
+        }
+
+        .rrSearchStep {
+          flex: 0 0 auto;
+          border: 1px solid rgba(106, 233, 226, 0.28);
+          border-radius: 7px;
+          background: #0b2027;
+          color: #75ece3;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          padding: 6px 8px;
+          text-transform: uppercase;
+        }
+
+        .rrFieldLabel {
+          display: block;
+          margin: 0 0 6px;
+          color: #dce7fa;
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+        }
+
+        .rrInputGroup {
+          display: flex;
+          align-items: center;
+          min-width: 0;
+          border: 1px solid #45617d;
+          border-radius: 8px;
+          background: #08111c;
+          box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.52);
+          transition: border-color 120ms ease, box-shadow 120ms ease;
+        }
+
+        .rrInputGroup:focus-within {
+          border-color: #65ded5;
+          box-shadow: 0 0 0 3px rgba(101, 222, 213, 0.12), inset 0 1px 2px rgba(0, 0, 0, 0.52);
+        }
+
+        .rrInputGroup > span {
+          padding-left: 12px;
+          color: #6d8fae;
+          font-size: 20px;
+          line-height: 1;
+        }
+
         .rrResultsToolbar {
           display: grid;
           grid-template-columns: 1fr;
@@ -1080,9 +1145,9 @@ function AdminSpotifyImportPageInner() {
         .rrInput {
           width: 100%;
           min-height: 40px;
-          border-radius: 12px;
-          border: 1px solid rgba(129, 151, 197, 0.2);
-          background: linear-gradient(180deg, rgba(16, 24, 39, 0.96), rgba(10, 15, 27, 0.99));
+          border-radius: 8px;
+          border: 1px solid #3c5570;
+          background: #08111c;
           color: #f5f7ff;
           padding: 0 12px;
           outline: none;
@@ -1091,8 +1156,14 @@ function AdminSpotifyImportPageInner() {
         }
 
         .rrSearchInput {
+          min-width: 0;
+          border: 0;
+          background: transparent;
+          box-shadow: none;
           font-size: 15px;
         }
+
+        .rrSearchInput:focus { outline: none; }
 
         .rrInput::placeholder {
           color: #7f8ca7;
@@ -1104,12 +1175,12 @@ function AdminSpotifyImportPageInner() {
           border-radius: 9px;
           padding: 0 11px;
           color: #edf4ff;
-          background: linear-gradient(180deg, rgba(63, 76, 104, 0.98), rgba(27, 38, 57, 0.99));
+          background: #26384e;
           cursor: pointer;
           font: inherit;
           font-size: 13px;
           font-weight: 900;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 0 rgba(2, 4, 9, 0.72), 0 5px 10px rgba(0, 0, 0, 0.22);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 0 #09111b, 0 4px 8px rgba(0, 0, 0, 0.18);
           transition: transform 100ms ease, opacity 120ms ease, border-color 120ms ease, background 120ms ease, box-shadow 100ms ease;
           white-space: nowrap;
         }
@@ -1117,7 +1188,8 @@ function AdminSpotifyImportPageInner() {
         .rrBtn:hover {
           transform: translateY(-1px);
           border-color: rgba(105, 233, 229, 0.56);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 2px 0 rgba(2, 4, 9, 0.72), 0 0 15px rgba(71, 228, 220, 0.16);
+          background: #304862;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 2px 0 #09111b, 0 0 12px rgba(71, 228, 220, 0.13);
         }
 
         .rrBtn:active {
@@ -1132,10 +1204,10 @@ function AdminSpotifyImportPageInner() {
         }
 
         .rrBtnPrimary {
-          background: linear-gradient(180deg, #6d7fff, #4e4fc9);
-          border-color: rgba(165, 179, 255, 0.52);
+          background: #4169b1;
+          border-color: #7da6ed;
           color: white;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 2px 0 rgba(33, 29, 95, 0.95), 0 8px 16px rgba(66, 63, 214, 0.22);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 2px 0 #1b3766, 0 6px 12px rgba(38, 91, 175, 0.23);
         }
 
         .rrBtnLibrary {
@@ -1145,8 +1217,8 @@ function AdminSpotifyImportPageInner() {
 
         .rrBtnConnection,
         .rrBtnUtility {
-          background: rgba(19, 28, 43, 0.72);
-          border-color: rgba(144, 164, 205, 0.22);
+          background: #172536;
+          border-color: #3c526b;
           color: #cbd7ed;
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
         }
@@ -1154,8 +1226,8 @@ function AdminSpotifyImportPageInner() {
         .rrBtnConnection:hover,
         .rrBtnUtility:hover,
         .rrBtnUtilityOn {
-          border-color: rgba(173, 136, 255, 0.58);
-          background: rgba(52, 43, 83, 0.82);
+          border-color: #66dcd3;
+          background: #1c3846;
           color: #fff;
         }
 
@@ -1172,10 +1244,10 @@ function AdminSpotifyImportPageInner() {
 
         .rrQuickChip {
           min-height: 28px;
-          border-radius: 999px;
+          border-radius: 7px;
           padding: 0 10px;
-          border: 1px solid rgba(150, 168, 210, 0.16);
-          background: linear-gradient(180deg, rgba(37, 45, 67, 0.92), rgba(20, 28, 44, 0.98));
+          border: 1px solid #32485f;
+          background: #142336;
           color: #edf3ff;
           font: inherit;
           font-size: 11px;
@@ -1184,21 +1256,24 @@ function AdminSpotifyImportPageInner() {
         }
 
         .rrTopStats {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 8px;
-          margin-top: 8px;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0;
+          margin-top: 12px;
+          overflow: hidden;
+          border: 1px solid #30465d;
+          border-radius: 8px;
+          background: #0a131f;
         }
 
         .rrSmallStat {
-          min-height: 46px;
-          display: grid;
-          align-content: center;
-          gap: 2px;
-          border-radius: 12px;
-          padding: 8px 10px;
-          border: 1px solid rgba(130, 153, 196, 0.14);
-          background: linear-gradient(180deg, rgba(19, 27, 43, 0.96), rgba(10, 16, 27, 0.98));
+          min-height: 34px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 0 12px;
+          border-right: 1px solid #30465d;
         }
 
         .rrSmallStat span {
@@ -1210,7 +1285,8 @@ function AdminSpotifyImportPageInner() {
         }
 
         .rrSmallStat strong {
-          font-size: 16px;
+          font-size: 13px;
+          color: #f5f8ff;
         }
 
         .rrNotice {
