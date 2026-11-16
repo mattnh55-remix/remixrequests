@@ -461,60 +461,27 @@ function AdminSpotifyImportPageInner() {
           </div>
 
           <div className="rrAdminHeaderActions">
-            <div className="rrStatusPill">{locationSlug}</div>
+            <div className={`rrConnectionInline ${spotifyStatus.connected ? "rrConnectionInlineOn" : ""}`}>
+              <span className="rrStatusLight" />
+              <span>
+                {statusLoading
+                  ? "Checking Spotify"
+                  : spotifyStatus.connected
+                  ? `Spotify · ${spotifyStatus.spotifyDisplayName || "Connected"}`
+                  : "Spotify needs attention"}
+              </span>
+              <button className="rrLinkButton" onClick={connectSpotify}>
+                {spotifyStatus.connected ? "Reconnect" : "Connect"}
+              </button>
+            </div>
             <Link
-              className="rrBtn rrAdminBackBtn"
+              className="rrBtn rrBtnUtility rrAdminBackBtn"
               href={`/admin/${encodeURIComponent(locationSlug)}?tab=songs`}
             >
               ← Song Library
             </Link>
           </div>
         </header>
-
-        <div className="rrCompactTop">
-          <div className="rrHeroMini">
-            <div className="rrHeroMiniTop">
-              <div className="rrAdminHeroBadge">Spotify Song Finder</div>
-              <div className="rrStatusPill">Fast Import</div>
-            </div>
-            <div className="rrHeroMiniTitle">Grow the Remix Library!</div>
-            <div className="rrHeroMiniText">
-              Search Spotify, build a batch, then choose which songs deserve a featured spot.
-            </div>
-          </div>
-
-          <div className="rrPanel rrConnectionPanel">
-            <div className="rrPanelBody rrConnectionCompact">
-              <input
-                className="rrInput rrSlugInput"
-                value={locationSlug}
-                onChange={(e) => setLocationSlug(e.target.value)}
-                placeholder="Location slug"
-              />
-
-              <div className="rrConnectionMeta">
-                <div className="rrConnectionTitle">
-                  {statusLoading
-                    ? "Checking Spotify…"
-                    : spotifyStatus.connected
-                    ? `Connected as ${spotifyStatus.spotifyDisplayName || spotifyStatus.spotifyUserId || "Spotify user"}`
-                    : spotifyStatus.reconnectRequired
-                    ? "Spotify needs to be reconnected"
-                    : "Spotify not connected"}
-                </div>
-                <div className="rrConnectionSub">
-                  {spotifyStatus.connected
-                    ? `Scopes: ${spotifyStatus.scope || "Spotify connected"}`
-                    : spotifyStatus.error || "Connect the Remix account to search."}
-                </div>
-              </div>
-
-              <button className="rrBtn rrBtnConnection" onClick={connectSpotify}>
-                {spotifyStatus.connected ? "Reconnect" : "Connect"}
-              </button>
-            </div>
-          </div>
-        </div>
 
         <div className="rrPanel rrSearchPanel">
           <div className="rrPanelBody rrPanelBodyTight">
@@ -623,13 +590,6 @@ function AdminSpotifyImportPageInner() {
               </button>
               <button className="rrBtn rrBtnUtility" onClick={clearSelected}>
                 Clear
-              </button>
-              <button
-                className="rrBtn rrBtnPrimary rrBtnLibrary"
-                onClick={openImportReview}
-                disabled={importing || !selectedCount}
-              >
-                {importing ? "Adding…" : `Add ${selectedCount} to library`}
               </button>
             </div>
           </div>
@@ -831,7 +791,7 @@ function AdminSpotifyImportPageInner() {
             radial-gradient(circle at 90% 10%, rgba(77, 143, 228, 0.16), transparent 24%),
             linear-gradient(180deg, #070811 0%, #0b1020 48%, #080b14 100%);
           color: #f5f7ff;
-          padding: 10px 10px 82px;
+          padding: 8px 10px 82px;
         }
 
         .rrGlow {
@@ -862,7 +822,7 @@ function AdminSpotifyImportPageInner() {
           position: relative;
           z-index: 1;
           display: grid;
-          gap: 10px;
+          gap: 12px;
           max-width: 1020px;
         }
 
@@ -871,14 +831,11 @@ function AdminSpotifyImportPageInner() {
           justify-content: space-between;
           align-items: center;
           gap: 14px;
-          border-radius: 22px;
-          border: 1px solid rgba(133, 158, 255, 0.18);
-          background:
-            radial-gradient(circle at 10% 15%, rgba(255, 78, 154, 0.16), transparent 24%),
-            radial-gradient(circle at 88% 12%, rgba(83, 165, 255, 0.15), transparent 26%),
-            linear-gradient(135deg, rgba(20, 23, 46, 0.97) 0%, rgba(12, 18, 37, 0.99) 58%, rgba(22, 14, 37, 0.99) 100%);
-          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
-          padding: 16px;
+          border-radius: 14px;
+          border: 1px solid rgba(133, 158, 255, 0.2);
+          background: linear-gradient(145deg, rgba(20, 27, 44, 0.96), rgba(10, 15, 27, 0.99));
+          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+          padding: 14px 16px;
         }
 
         .rrAdminHeaderLeft {
@@ -901,8 +858,8 @@ function AdminSpotifyImportPageInner() {
         }
 
         .rrAdminHeaderTitle {
-          margin: 10px 0 0;
-          font-size: clamp(28px, 4vw, 48px);
+          margin: 7px 0 0;
+          font-size: clamp(25px, 3vw, 38px);
           font-weight: 1000;
           line-height: 0.95;
           letter-spacing: -0.055em;
@@ -910,7 +867,7 @@ function AdminSpotifyImportPageInner() {
         }
 
         .rrAdminHeaderSub {
-          margin: 8px 0 0;
+          margin: 6px 0 0;
           max-width: 620px;
           color: #c5d0e7;
           font-size: 13px;
@@ -923,6 +880,46 @@ function AdminSpotifyImportPageInner() {
           justify-content: flex-end;
           gap: 8px;
           flex-wrap: wrap;
+        }
+
+        .rrConnectionInline {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          min-height: 34px;
+          padding: 0 8px 0 10px;
+          border: 1px solid rgba(143, 164, 205, 0.2);
+          border-radius: 9px;
+          background: rgba(6, 11, 20, 0.46);
+          color: #aab8d0;
+          font-size: 11px;
+          font-weight: 800;
+          white-space: nowrap;
+        }
+
+        .rrStatusLight {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #697891;
+          box-shadow: 0 0 0 3px rgba(105, 120, 145, 0.12);
+        }
+
+        .rrConnectionInlineOn .rrStatusLight {
+          background: #47e4dc;
+          box-shadow: 0 0 0 3px rgba(71, 228, 220, 0.12), 0 0 12px rgba(71, 228, 220, 0.74);
+        }
+
+        .rrLinkButton {
+          border: 0;
+          border-left: 1px solid rgba(160, 181, 220, 0.16);
+          background: transparent;
+          color: #e3dcff;
+          cursor: pointer;
+          font: inherit;
+          font-size: 11px;
+          font-weight: 900;
+          padding: 2px 0 2px 8px;
         }
 
         .rrAdminBackBtn {
@@ -991,10 +988,10 @@ function AdminSpotifyImportPageInner() {
 
         .rrPanel {
           overflow: hidden;
-          border-radius: 18px;
-          border: 1px solid rgba(119, 145, 207, 0.14);
-          background: linear-gradient(180deg, rgba(15, 21, 37, 0.95) 0%, rgba(9, 13, 24, 0.985) 100%);
-          box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+          border-radius: 14px;
+          border: 1px solid rgba(119, 145, 207, 0.17);
+          background: linear-gradient(180deg, rgba(16, 23, 38, 0.96) 0%, rgba(9, 13, 24, 0.99) 100%);
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
         }
 
         .rrConnectionPanel .rrPanelBody {
@@ -1025,10 +1022,7 @@ function AdminSpotifyImportPageInner() {
         }
 
         .rrSearchPanel {
-          border-color: rgba(255, 111, 173, 0.14);
-          background:
-            radial-gradient(circle at 8% 14%, rgba(255, 74, 149, 0.1), transparent 20%),
-            linear-gradient(180deg, rgba(19, 21, 41, 0.96) 0%, rgba(10, 13, 24, 0.99) 100%);
+          border-color: rgba(123, 154, 218, 0.22);
         }
 
         .rrPanelHead {
@@ -1105,22 +1099,30 @@ function AdminSpotifyImportPageInner() {
         }
 
         .rrBtn {
-          min-height: 40px;
-          border: 1px solid rgba(136, 159, 201, 0.16);
-          border-radius: 12px;
-          padding: 0 12px;
+          min-height: 34px;
+          border: 1px solid rgba(156, 177, 218, 0.28);
+          border-radius: 9px;
+          padding: 0 11px;
           color: #edf4ff;
-          background: linear-gradient(180deg, rgba(52, 63, 88, 0.94), rgba(26, 36, 54, 0.98));
+          background: linear-gradient(180deg, rgba(63, 76, 104, 0.98), rgba(27, 38, 57, 0.99));
           cursor: pointer;
           font: inherit;
           font-size: 13px;
           font-weight: 900;
-          transition: transform 120ms ease, opacity 120ms ease, border-color 120ms ease, background 120ms ease;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 0 rgba(2, 4, 9, 0.72), 0 5px 10px rgba(0, 0, 0, 0.22);
+          transition: transform 100ms ease, opacity 120ms ease, border-color 120ms ease, background 120ms ease, box-shadow 100ms ease;
           white-space: nowrap;
         }
 
         .rrBtn:hover {
           transform: translateY(-1px);
+          border-color: rgba(105, 233, 229, 0.56);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 2px 0 rgba(2, 4, 9, 0.72), 0 0 15px rgba(71, 228, 220, 0.16);
+        }
+
+        .rrBtn:active {
+          transform: translateY(2px);
+          box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.38), 0 0 0 rgba(0, 0, 0, 0);
         }
 
         .rrBtn:disabled {
@@ -1130,10 +1132,10 @@ function AdminSpotifyImportPageInner() {
         }
 
         .rrBtnPrimary {
-          background: linear-gradient(180deg, rgba(255, 77, 150, 0.98), rgba(92, 87, 255, 0.98));
-          border-color: rgba(201, 153, 255, 0.28);
+          background: linear-gradient(180deg, #6d7fff, #4e4fc9);
+          border-color: rgba(165, 179, 255, 0.52);
           color: white;
-          box-shadow: 0 10px 20px rgba(66, 39, 133, 0.28);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 2px 0 rgba(33, 29, 95, 0.95), 0 8px 16px rgba(66, 63, 214, 0.22);
         }
 
         .rrBtnLibrary {
