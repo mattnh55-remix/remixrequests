@@ -77,6 +77,7 @@ function AdminSpotifyImportPageInner() {
   const [resultsSearch, setResultsSearch] = useState("");
   const [selectedOnly, setSelectedOnly] = useState(false);
   const [hideExactDuplicates, setHideExactDuplicates] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   useEffect(() => {
     const fromQuery = searchParams.get("locationSlug");
@@ -258,6 +259,7 @@ function AdminSpotifyImportPageInner() {
   function clearSelected() {
     setSelectedIds({});
     setFeaturedIds({});
+    setReviewOpen(false);
   }
 
   function selectTopVisible(count = 6) {
@@ -370,6 +372,17 @@ function AdminSpotifyImportPageInner() {
     }
   }
 
+  function openImportReview() {
+    resetMessages();
+
+    if (!selectedTracks.length) {
+      setError("Pick at least one non-duplicate song before adding to the library.");
+      return;
+    }
+
+    setReviewOpen(true);
+  }
+
   async function importSelected() {
     resetMessages();
 
@@ -413,6 +426,7 @@ function AdminSpotifyImportPageInner() {
 
       setSelectedIds({});
       setFeaturedIds({});
+      setReviewOpen(false);
     } catch (err: any) {
       setError(err?.message || "Import failed.");
     } finally {
@@ -441,8 +455,8 @@ function AdminSpotifyImportPageInner() {
             <h1 className="rrAdminHeaderTitle">Spotify Song Import</h1>
             <p className="rrAdminHeaderSub">
               {embedded
-                ? "Songs workspace · search Spotify, flag duplicates, and add songs to the Remix library."
-                : "Search Spotify, flag duplicates, and add songs to the Remix library."}
+                ? "Grow the Remix Library! Search Spotify, choose the right songs, then spotlight featured picks."
+                : "Grow the Remix Library! Search Spotify, choose the right songs, then spotlight featured picks."}
             </p>
           </div>
 
@@ -463,9 +477,9 @@ function AdminSpotifyImportPageInner() {
               <div className="rrAdminHeroBadge">Spotify Song Finder</div>
               <div className="rrStatusPill">Fast Import</div>
             </div>
-            <div className="rrHeroMiniTitle">Quick Add</div>
+            <div className="rrHeroMiniTitle">Grow the Remix Library!</div>
             <div className="rrHeroMiniText">
-              Search, tap, flag duplicates, import.
+              Search Spotify, build a batch, then choose which songs deserve a featured spot.
             </div>
           </div>
 
@@ -495,7 +509,7 @@ function AdminSpotifyImportPageInner() {
                 </div>
               </div>
 
-              <button className="rrBtn rrBtnPrimary" onClick={connectSpotify}>
+              <button className="rrBtn rrBtnConnection" onClick={connectSpotify}>
                 {spotifyStatus.connected ? "Reconnect" : "Connect"}
               </button>
             </div>
@@ -598,24 +612,24 @@ function AdminSpotifyImportPageInner() {
             </div>
 
             <div className="rrQuickActions">
-              <button className="rrBtn" onClick={() => selectTopVisible(6)}>
-                Add top 6
+              <button className="rrBtn rrBtnUtility" onClick={() => selectTopVisible(6)}>
+                Select top 6
               </button>
-              <button className="rrBtn" onClick={() => setSelectedOnly((v) => !v)}>
+              <button className={`rrBtn rrBtnUtility ${selectedOnly ? "rrBtnUtilityOn" : ""}`} onClick={() => setSelectedOnly((v) => !v)}>
                 {selectedOnly ? "Show all" : "Selected"}
               </button>
-              <button className="rrBtn" onClick={() => setHideExactDuplicates((v) => !v)}>
+              <button className={`rrBtn rrBtnUtility ${hideExactDuplicates ? "rrBtnUtilityOn" : ""}`} onClick={() => setHideExactDuplicates((v) => !v)}>
                 {hideExactDuplicates ? "Show exact" : "Hide exact"}
               </button>
-              <button className="rrBtn" onClick={clearSelected}>
+              <button className="rrBtn rrBtnUtility" onClick={clearSelected}>
                 Clear
               </button>
               <button
-                className="rrBtn rrBtnPrimary"
-                onClick={importSelected}
+                className="rrBtn rrBtnPrimary rrBtnLibrary"
+                onClick={openImportReview}
                 disabled={importing || !selectedCount}
               >
-                {importing ? "Importing…" : `Import ${selectedCount}`}
+                {importing ? "Adding…" : `Add ${selectedCount} to library`}
               </button>
             </div>
           </div>
@@ -634,7 +648,6 @@ function AdminSpotifyImportPageInner() {
               {filteredResults.map((track) => {
                 const id = track.spotifyId || `${track.title}-${track.artist}`;
                 const isSelected = !!(track.spotifyId && selectedIds[track.spotifyId]);
-                const isFeatured = !!(track.spotifyId && featuredIds[track.spotifyId]);
                 const exactDuplicate = isExactDuplicate(track);
                 const possibleDuplicate = isPossibleDuplicate(track);
                 const possibleMatch = track.spotifyId ? duplicates.possibleByFuzzy[track.spotifyId] : null;
@@ -646,19 +659,10 @@ function AdminSpotifyImportPageInner() {
                     className={[
                       "rrTrackCard",
                       isSelected ? "rrTrackCardSelected" : "",
-                      isFeatured ? "rrTrackCardFeatured" : "",
                       exactDuplicate ? "rrTrackCardExact" : "",
                       possibleDuplicate ? "rrTrackCardPossible" : "",
                     ].join(" ")}
                   >
-                    <button
-                      type="button"
-                      className="rrTrackSelectLayer"
-                      onClick={() => toggleSelected(track)}
-                      aria-label={`Select ${track.title} by ${track.artist}`}
-                      disabled={exactDuplicate}
-                    />
-
                     <div className="rrTrackArtWrap">
                       {track.albumArt ? (
                         <img src={track.albumArt} alt={track.album} className="rrTrackArt" />
@@ -670,11 +674,6 @@ function AdminSpotifyImportPageInner() {
                         {exactDuplicate ? <span className="rrChip rrChipExact">Already in library</span> : null}
                         {!exactDuplicate && possibleDuplicate ? <span className="rrChip rrChipPossible">Possible duplicate</span> : null}
                         {!exactDuplicate && isSelected ? <span className="rrChip rrChipSelected">In batch</span> : null}
-                        {!exactDuplicate && isFeatured ? <span className="rrChip rrChipFeatured">Featured</span> : null}
-                      </div>
-
-                      <div className="rrTrackTapHint">
-                        {exactDuplicate ? "Blocked" : isSelected ? "✓ Selected" : "Tap to add"}
                       </div>
                     </div>
 
@@ -697,31 +696,17 @@ function AdminSpotifyImportPageInner() {
                             type="button"
                             className={`rrActionBtn ${isSelected ? "rrActionBtnOn" : ""} ${exactDuplicate ? "rrActionBtnDisabled" : ""}`}
                             onClick={(e) => {
-                              e.stopPropagation();
                               toggleSelected(track);
                             }}
                             disabled={exactDuplicate}
                           >
                             {exactDuplicate ? "Already imported" : isSelected ? "✓ Added" : "+ Add"}
                           </button>
-                          <button
-                            type="button"
-                            className={`rrActionBtn rrActionBtnFeature ${isFeatured ? "rrActionBtnFeatureOn" : ""} ${exactDuplicate ? "rrActionBtnDisabled" : ""}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleFeatured(track);
-                            }}
-                            disabled={exactDuplicate}
-                          >
-                            {exactDuplicate ? "Locked" : "🔥 Feature"}
-                          </button>
-
                           {exactDuplicate ? (
                             <button
                               type="button"
                               className="rrActionBtn rrActionBtnAlbumArt"
                               onClick={(e) => {
-                                e.stopPropagation();
                                 updateAlbumArt(track);
                               }}
                               disabled={isUpdatingArt || !track.albumArt}
@@ -750,9 +735,9 @@ function AdminSpotifyImportPageInner() {
           <div className="rrSelectedDock">
             <div className="rrSelectedDockInner">
               <div className="rrSelectedDockMeta">
-                <div className="rrSelectedDockTitle">Batch ready</div>
+                <div className="rrSelectedDockTitle">Ready for review</div>
                 <div className="rrSelectedDockSub">
-                  {selectedCount} selected • {featuredCount} featured
+                  {selectedCount} selected • choose featured songs next
                 </div>
               </div>
 
@@ -775,15 +760,60 @@ function AdminSpotifyImportPageInner() {
               </div>
 
               <div className="rrSelectedDockActions">
-                <button className="rrBtn" onClick={clearSelected}>
+                <button className="rrBtn rrBtnUtility" onClick={clearSelected}>
                   Clear
                 </button>
                 <button
-                  className="rrBtn rrBtnPrimary"
-                  onClick={importSelected}
+                  className="rrBtn rrBtnPrimary rrBtnLibrary"
+                  onClick={openImportReview}
                   disabled={importing || !selectedCount}
                 >
-                  {importing ? "Importing…" : `Import ${selectedCount}`}
+                  {importing ? "Adding…" : `Review ${selectedCount} songs`}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {reviewOpen ? (
+          <div className="rrReviewOverlay" role="dialog" aria-modal="true" aria-label="Review songs before adding">
+            <div className="rrReviewSheet">
+              <div className="rrReviewHeader">
+                <div>
+                  <div className="rrAdminHeroBadge">Library review</div>
+                  <h2>Add {selectedCount} {selectedCount === 1 ? "song" : "songs"} to Remix</h2>
+                  <p>Choose any tracks that should appear as featured picks. Everything else will be added to the regular library.</p>
+                </div>
+                <button className="rrReviewClose" onClick={() => setReviewOpen(false)} aria-label="Close review">×</button>
+              </div>
+
+              <div className="rrReviewTools">
+                <span>{featuredCount} featured</span>
+                <div>
+                  <button className="rrBtn rrBtnUtility" onClick={() => setFeaturedIds(Object.fromEntries(selectedTracks.map((track) => [track.spotifyId!, true])))}>Mark all featured</button>
+                  <button className="rrBtn rrBtnUtility" onClick={() => setFeaturedIds({})}>Clear featured</button>
+                </div>
+              </div>
+
+              <div className="rrReviewList">
+                {selectedTracks.map((track) => {
+                  const isFeatured = Boolean(track.spotifyId && featuredIds[track.spotifyId]);
+                  return (
+                    <div className="rrReviewTrack" key={track.spotifyId}>
+                      {track.albumArt ? <img src={track.albumArt} alt="" /> : <div className="rrReviewArtFallback">♫</div>}
+                      <div className="rrReviewTrackMeta"><strong>{track.title}</strong><span>{track.artist}</span></div>
+                      <button className={`rrFeatureToggle ${isFeatured ? "rrFeatureToggleOn" : ""}`} onClick={() => toggleFeatured(track)} aria-pressed={isFeatured}>
+                        {isFeatured ? "★ Featured" : "Feature"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="rrReviewActions">
+                <button className="rrBtn rrBtnUtility" onClick={() => setReviewOpen(false)} disabled={importing}>Back to results</button>
+                <button className="rrBtn rrBtnPrimary rrBtnLibrary" onClick={importSelected} disabled={importing}>
+                  {importing ? "Adding songs…" : `Add ${selectedCount} to library`}
                 </button>
               </div>
             </div>
@@ -1085,7 +1115,7 @@ function AdminSpotifyImportPageInner() {
           font: inherit;
           font-size: 13px;
           font-weight: 900;
-          transition: transform 120ms ease, opacity 120ms ease;
+          transition: transform 120ms ease, opacity 120ms ease, border-color 120ms ease, background 120ms ease;
           white-space: nowrap;
         }
 
@@ -1104,6 +1134,27 @@ function AdminSpotifyImportPageInner() {
           border-color: rgba(201, 153, 255, 0.28);
           color: white;
           box-shadow: 0 10px 20px rgba(66, 39, 133, 0.28);
+        }
+
+        .rrBtnLibrary {
+          min-width: 154px;
+          box-shadow: 0 10px 24px rgba(92, 63, 255, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        }
+
+        .rrBtnConnection,
+        .rrBtnUtility {
+          background: rgba(19, 28, 43, 0.72);
+          border-color: rgba(144, 164, 205, 0.22);
+          color: #cbd7ed;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+        }
+
+        .rrBtnConnection:hover,
+        .rrBtnUtility:hover,
+        .rrBtnUtilityOn {
+          border-color: rgba(173, 136, 255, 0.58);
+          background: rgba(52, 43, 83, 0.82);
+          color: #fff;
         }
 
         .rrBtnSearch {
@@ -1239,7 +1290,7 @@ function AdminSpotifyImportPageInner() {
 
         .rrTrackCardSelected {
           border-color: rgba(255, 115, 184, 0.42);
-          box-shadow: 0 14px 24px rgba(122, 42, 116, 0.22);
+          box-shadow: inset 3px 0 0 #ff79bf, 0 14px 24px rgba(122, 42, 116, 0.22);
         }
 
         .rrTrackCardFeatured {
@@ -1255,19 +1306,6 @@ function AdminSpotifyImportPageInner() {
 
         .rrTrackCardPossible {
           border-color: rgba(255, 191, 84, 0.34);
-        }
-
-        .rrTrackSelectLayer {
-          position: absolute;
-          inset: 0;
-          z-index: 1;
-          border: 0;
-          background: transparent;
-          cursor: pointer;
-        }
-
-        .rrTrackSelectLayer:disabled {
-          cursor: not-allowed;
         }
 
         .rrTrackArtWrap {
@@ -1337,24 +1375,6 @@ function AdminSpotifyImportPageInner() {
           background: rgba(107, 71, 14, 0.86);
         }
 
-        .rrTrackTapHint {
-          position: absolute;
-          right: 8px;
-          bottom: 8px;
-          z-index: 2;
-          min-height: 24px;
-          display: inline-flex;
-          align-items: center;
-          border-radius: 999px;
-          padding: 0 8px;
-          font-size: 10px;
-          font-weight: 1000;
-          color: #fff;
-          background: rgba(10, 13, 24, 0.74);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          backdrop-filter: blur(8px);
-        }
-
         .rrTrackBody {
           position: relative;
           z-index: 2;
@@ -1414,7 +1434,7 @@ function AdminSpotifyImportPageInner() {
 
         .rrTrackActions {
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: 1fr;
           gap: 6px;
         }
 
@@ -1555,6 +1575,158 @@ function AdminSpotifyImportPageInner() {
           gap: 6px;
         }
 
+        .rrReviewOverlay {
+          position: fixed;
+          inset: 0;
+          z-index: 60;
+          display: grid;
+          place-items: center;
+          padding: 20px;
+          background: rgba(3, 7, 16, 0.74);
+          backdrop-filter: blur(10px);
+        }
+
+        .rrReviewSheet {
+          width: min(660px, 100%);
+          max-height: min(760px, calc(100vh - 40px));
+          overflow: auto;
+          border: 1px solid rgba(179, 151, 255, 0.3);
+          border-radius: 22px;
+          padding: 18px;
+          background:
+            radial-gradient(circle at 88% 0%, rgba(120, 77, 255, 0.2), transparent 32%),
+            linear-gradient(155deg, #182238 0%, #0b1120 62%, #070b14 100%);
+          box-shadow: 0 28px 90px rgba(0, 0, 0, 0.62);
+        }
+
+        .rrReviewHeader {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .rrReviewHeader h2 {
+          margin: 8px 0 6px;
+          color: #fff;
+          font-size: clamp(22px, 4vw, 30px);
+          line-height: 1;
+          letter-spacing: -0.045em;
+        }
+
+        .rrReviewHeader p {
+          max-width: 500px;
+          margin: 0;
+          color: #acbad5;
+          font-size: 13px;
+          line-height: 1.45;
+        }
+
+        .rrReviewClose {
+          width: 36px;
+          height: 36px;
+          flex: 0 0 auto;
+          border: 1px solid rgba(159, 180, 221, 0.2);
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.045);
+          color: #dce8ff;
+          cursor: pointer;
+          font-size: 24px;
+          line-height: 1;
+        }
+
+        .rrReviewTools,
+        .rrReviewActions {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin-top: 18px;
+        }
+
+        .rrReviewTools {
+          padding: 10px 0;
+          border-top: 1px solid rgba(162, 181, 220, 0.12);
+          border-bottom: 1px solid rgba(162, 181, 220, 0.12);
+          color: #d7e1f4;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .rrReviewTools > div {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+
+        .rrReviewList {
+          display: grid;
+          gap: 8px;
+          margin-top: 12px;
+        }
+
+        .rrReviewTrack {
+          display: grid;
+          grid-template-columns: 44px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 10px;
+          padding: 8px;
+          border: 1px solid rgba(148, 170, 212, 0.13);
+          border-radius: 14px;
+          background: rgba(5, 11, 22, 0.48);
+        }
+
+        .rrReviewTrack img,
+        .rrReviewArtFallback {
+          width: 44px;
+          height: 44px;
+          border-radius: 10px;
+          object-fit: cover;
+          background: #050914;
+        }
+
+        .rrReviewArtFallback {
+          display: grid;
+          place-items: center;
+          color: #c8b5ff;
+          font-size: 21px;
+        }
+
+        .rrReviewTrackMeta {
+          min-width: 0;
+          display: grid;
+          gap: 2px;
+        }
+
+        .rrReviewTrackMeta strong,
+        .rrReviewTrackMeta span {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .rrReviewTrackMeta strong { color: #f6f8ff; font-size: 13px; }
+        .rrReviewTrackMeta span { color: #9eafce; font-size: 11px; }
+
+        .rrFeatureToggle {
+          min-height: 32px;
+          padding: 0 10px;
+          border: 1px solid rgba(184, 154, 255, 0.28);
+          border-radius: 10px;
+          background: rgba(79, 56, 124, 0.24);
+          color: #dbcfff;
+          cursor: pointer;
+          font: inherit;
+          font-size: 11px;
+          font-weight: 900;
+        }
+
+        .rrFeatureToggleOn {
+          border-color: rgba(255, 193, 93, 0.56);
+          background: linear-gradient(180deg, #ffb54d, #e47b3d);
+          color: #241207;
+        }
+
         @media (max-width: 1020px) {
           .rrCompactTop {
             grid-template-columns: 1fr;
@@ -1603,6 +1775,17 @@ function AdminSpotifyImportPageInner() {
           .rrSelectedDockActions {
             width: 100%;
             flex-wrap: wrap;
+          }
+
+          .rrReviewTools,
+          .rrReviewActions {
+            align-items: stretch;
+            flex-direction: column;
+          }
+
+          .rrReviewTools > div,
+          .rrReviewActions > button {
+            width: 100%;
           }
         }
       `}</style>
