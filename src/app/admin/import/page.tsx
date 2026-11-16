@@ -23,6 +23,8 @@ type ImportSummary = {
 
 type SpotifyStatus = {
   connected: boolean;
+  reconnectRequired?: boolean;
+  error?: string | null;
   spotifyUserId?: string | null;
   spotifyDisplayName?: string | null;
   expiresAt?: string | null;
@@ -482,12 +484,14 @@ function AdminSpotifyImportPageInner() {
                     ? "Checking Spotify…"
                     : spotifyStatus.connected
                     ? `Connected as ${spotifyStatus.spotifyDisplayName || spotifyStatus.spotifyUserId || "Spotify user"}`
+                    : spotifyStatus.reconnectRequired
+                    ? "Spotify needs to be reconnected"
                     : "Spotify not connected"}
                 </div>
                 <div className="rrConnectionSub">
                   {spotifyStatus.connected
                     ? `Scopes: ${spotifyStatus.scope || "Spotify connected"}`
-                    : "Connect the Remix account to search."}
+                    : spotifyStatus.error || "Connect the Remix account to search."}
                 </div>
               </div>
 

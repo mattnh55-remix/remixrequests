@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdminFromCookie } from "@/lib/adminAuth";
 import { prisma } from "@/lib/prisma";
+import { refreshSpotifyAccessTokenIfNeeded } from "@/lib/spotify-oauth";
 
 export async function GET(req: Request) {
   try {
@@ -33,6 +34,33 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "Location not found." }, { status: 404 });
     }
 
+    let spotify: Record<string, unknown> = { connected: false };
+
+    if (location.spotifyConnection) {
+      try {
+        // A saved row only proves that Spotify was connected in the past. Refreshing
+        // an expired token here prevents the UI from showing a stale connection as live.
+        const connection = await refreshSpotifyAccessTokenIfNeeded(locationSlug);
+        spotify = {
+          connected: true,
+          spotifyUserId: connection.spotifyUserId,
+          spotifyDisplayName: connection.spotifyDisplayName,
+          expiresAt: connection.expiresAt,
+          scope: connection.scope,
+          updatedAt: connection.updatedAt,
+        };
+      } catch {
+        spotify = {
+          connected: false,
+          reconnectRequired: true,
+          spotifyUserId: location.spotifyConnection.spotifyUserId,
+          spotifyDisplayName: location.spotifyConnection.spotifyDisplayName,
+          scope: location.spotifyConnection.scope,
+          error: "Spotify authorization has expired or was revoked. Reconnect Spotify to continue.",
+        };
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       location: {
@@ -40,18 +68,7 @@ export async function GET(req: Request) {
         slug: location.slug,
         name: location.name,
       },
-      spotify: location.spotifyConnection
-        ? {
-            connected: true,
-            spotifyUserId: location.spotifyConnection.spotifyUserId,
-            spotifyDisplayName: location.spotifyConnection.spotifyDisplayName,
-            expiresAt: location.spotifyConnection.expiresAt,
-            scope: location.spotifyConnection.scope,
-            updatedAt: location.spotifyConnection.updatedAt,
-          }
-        : {
-            connected: false,
-          },
+      spotify,
     });
   } catch (error: any) {
     return NextResponse.json(
