@@ -161,7 +161,7 @@ export default function AdminGunmetalTheme() {
       .admPill--danger { background: rgba(95,38,52,0.35); border-color: rgba(220,144,170,0.18); color: #ffd7e2; }
       .admTabs {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         overflow-x: auto;
         scrollbar-width: none;
         -webkit-overflow-scrolling: touch;
@@ -176,20 +176,27 @@ export default function AdminGunmetalTheme() {
 .admTab {
   appearance: none;
   flex: 0 0 auto;
-  min-height: 36px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(117, 145, 197, 0.22);
-  background: linear-gradient(180deg, rgba(43, 53, 72, 0.84), rgba(18, 26, 39, 0.94));
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: 1px solid #42566d;
+  background: #223246;
   color: #fff;
-  font-size: 11px;
-  font-weight: 900;
+  font-size: 10px;
+  font-weight: 1000;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 2px 0 #080e16, 0 4px 8px rgba(0,0,0,0.18);
   cursor: pointer;
+  transition: transform 100ms ease, background 120ms ease, border-color 120ms ease, box-shadow 100ms ease;
 }
       .admTab.is-active {
-        background: linear-gradient(180deg, rgba(77, 143, 228, 0.98), rgba(47, 111, 198, 0.99));
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 8px 18px rgba(32, 83, 155, 0.18);
+        background: #356db4;
+        border-color: #83b4f0;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 0 #173c70, 0 5px 10px rgba(36,93,171,0.24);
       }
+      .admTab:hover { background: #2a4058; border-color: #61ddd3; box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 2px 0 #080e16, 0 0 12px rgba(74,226,215,0.16); transform: translateY(-1px); }
+      .admTab:active { transform: translateY(2px); box-shadow: inset 0 2px 6px rgba(0,0,0,0.42); }
       .admNotice {
         padding: 12px 14px;
         margin-bottom: 10px;
@@ -350,13 +357,13 @@ export default function AdminGunmetalTheme() {
 }
 .admTab,
 .admTabLink {
-  min-height: 40px;
+  min-height: 32px;
   line-height: 1;
 }
 .admTabs {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   flex-wrap: wrap;
 }
       .admInput:focus,
@@ -371,24 +378,31 @@ export default function AdminGunmetalTheme() {
       .admBtnGhost,
       .admBtnDanger {
         appearance: none;
-        border-radius: 12px;
-        min-height: 36px;
-        padding: 0 12px;
-        border: 1px solid rgba(117,145,197,0.22);
+        border-radius: 5px;
+        min-height: 32px;
+        padding: 0 10px;
+        border: 1px solid #42566d;
         color: #fff;
-        font-weight: 900;
-        font-size: 12px;
+        font-weight: 1000;
+        font-size: 10px;
+        letter-spacing: 0.055em;
+        text-transform: uppercase;
         cursor: pointer;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 2px 0 #080e16, 0 4px 8px rgba(0,0,0,0.18);
+        transition: transform 100ms ease, background 120ms ease, border-color 120ms ease, box-shadow 100ms ease;
       }
-      .admBtn { background: linear-gradient(180deg, var(--adm-blue) 0%, var(--adm-blue-2) 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 8px 18px rgba(32, 83, 155, 0.28); }
-      .admBtnGhost { background: linear-gradient(180deg, rgba(43,53,72,0.84), rgba(18,26,39,0.94)); }
-      .admBtnDanger { background: linear-gradient(180deg, rgba(101, 51, 67, 0.92), rgba(69, 28, 42, 0.96)); border-color: rgba(220,144,170,0.2); }
+      .admBtn { background: #356db4; border-color: #83b4f0; box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 0 #173c70, 0 5px 10px rgba(36,93,171,0.24); }
+      .admBtnGhost { background: #223246; }
+      .admBtnDanger { background: #713345; border-color: #c77c93; }
       .admBtn:disabled,
       .admBtnGhost:disabled,
       .admBtnDanger:disabled { opacity: 0.48; cursor: not-allowed; }
       .admBtn--full { width: 100%; }
       .admBtn:hover:not(:disabled),
-      .admBtnGhost:hover:not(:disabled) { border-color: rgba(137, 181, 245, 0.7); transform: translateY(-1px); }
+      .admBtnGhost:hover:not(:disabled) { background: #2a4058; border-color: #61ddd3; transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 2px 0 #080e16, 0 0 12px rgba(74,226,215,0.16); }
+      .admBtn:active:not(:disabled),
+      .admBtnGhost:active:not(:disabled),
+      .admBtnDanger:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 2px 6px rgba(0,0,0,0.42); }
       .admActionRow {
         display: flex;
         gap: 8px;
