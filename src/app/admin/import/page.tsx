@@ -89,6 +89,11 @@ function AdminSpotifyImportPageInner() {
   useEffect(() => {
     const spotify = searchParams.get("spotify");
     const spotifyError = searchParams.get("spotify_error");
+    const requestedQuery = searchParams.get("q")?.trim();
+
+    if (requestedQuery) {
+      setQuery(requestedQuery);
+    }
 
     if (spotify === "connected") {
       setMessage("Spotify connected successfully.");

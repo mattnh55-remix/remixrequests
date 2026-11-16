@@ -139,6 +139,16 @@ export default function AdminGunmetalTheme() {
         gap: 8px;
         flex-wrap: wrap;
         justify-content: flex-end;
+        align-self: start;
+        align-items: center;
+      }
+      .admHeroUser {
+        color: var(--adm-text-soft);
+        font-size: 10px;
+        font-weight: 1000;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        white-space: nowrap;
       }
       .admPill {
         display: inline-flex;
@@ -499,8 +509,8 @@ export default function AdminGunmetalTheme() {
         .admMetricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .admDashboardHeroStats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
         .admDashboardBusinessGrid { grid-template-columns: 1fr !important; }
-        .admHero { grid-template-columns: 1fr; }
-        .admHeroStats { justify-content: flex-start; }
+        .admHero { grid-template-columns: minmax(0, 1fr) auto; }
+        .admHeroStats { justify-content: flex-end; }
       }
       @media (max-width: 700px) {
         .admShell { width: calc(100vw - 12px); padding-top: 6px; }

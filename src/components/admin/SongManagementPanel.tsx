@@ -150,6 +150,9 @@ export default function SongManagementPanel({
   const [writeInMatchId, setWriteInMatchId] = useState<Record<string, string>>(
     {}
   );
+  const [writeInLibraryQuery, setWriteInLibraryQuery] = useState<Record<string, string>>({});
+  const [writeInLibraryResults, setWriteInLibraryResults] = useState<Record<string, SongRow[]>>({});
+  const [writeInLibraryBusy, setWriteInLibraryBusy] = useState<Record<string, boolean>>({});
 
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState(false);
@@ -283,6 +286,42 @@ export default function SongManagementPanel({
     pushMessage(data.message || "Write-in updated.");
     await fetchWriteIns();
     await fetchSongs(1, "all");
+  }
+
+  async function findWriteInLibraryMatches(item: WriteInRow) {
+    const query = (writeInLibraryQuery[item.id] ?? item.title).trim();
+    if (!query) {
+      pushMessage("Enter a title, artist, or catalog ID to search the library.");
+      return;
+    }
+
+    setWriteInLibraryBusy((current) => ({ ...current, [item.id]: true }));
+    try {
+      const params = new URLSearchParams({
+        page: "1",
+        pageSize: "8",
+        q: query,
+        tab: "all",
+        sort: "artist",
+        dir: "asc",
+      });
+      const res = await fetch(`/api/admin/songs/${location}?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const data = parseJson<SongListResponse>(await res.text());
+
+      if (!data?.ok) {
+        pushMessage(data?.error || "Could not search the song library.");
+        return;
+      }
+
+      setWriteInLibraryResults((current) => ({
+        ...current,
+        [item.id]: Array.isArray(data.items) ? data.items : [],
+      }));
+    } finally {
+      setWriteInLibraryBusy((current) => ({ ...current, [item.id]: false }));
+    }
   }
 
   async function saveSongEdit() {
@@ -632,9 +671,58 @@ export default function SongManagementPanel({
                       <button type="button" className="admBtn" onClick={() => void submitWriteInAction("promote-to-catalog", item.id)}>Promote to catalog</button>
                       <button type="button" className="admBtnDanger" onClick={() => void submitWriteInAction("reject", item.id)}>Reject</button>
                     </div>
-                    <div className="admActionRow" style={{ justifyContent: "flex-end" }}>
-                      <input className="admInput" value={writeInMatchId[item.id] || ""} onChange={(e) => setWriteInMatchId((curr) => ({ ...curr, [item.id]: e.target.value }))} placeholder="Existing songId to match" style={{ maxWidth: 220 }} />
-                      <button type="button" className="admBtnGhost" onClick={() => void submitWriteInAction("match-existing", item.id, { songId: writeInMatchId[item.id] || "" })}>Match existing</button>
+                    <div className="admSubPanel" style={{ padding: 10 }}>
+                      <div className="admLabel" style={{ marginBottom: 7 }}>Find a catalog match</div>
+                      <div className="admActionRow">
+                        <input
+                          className="admInput"
+                          value={writeInLibraryQuery[item.id] ?? item.title}
+                          onChange={(e) => setWriteInLibraryQuery((current) => ({ ...current, [item.id]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              void findWriteInLibraryMatches(item);
+                            }
+                          }}
+                          placeholder="Song title, artist, or catalog ID"
+                          aria-label={`Search the library for ${item.title}`}
+                          style={{ flex: "1 1 180px", minWidth: 0 }}
+                        />
+                        <button type="button" className="admBtnGhost" onClick={() => void findWriteInLibraryMatches(item)} disabled={writeInLibraryBusy[item.id]}>
+                          {writeInLibraryBusy[item.id] ? "Finding…" : "Search library"}
+                        </button>
+                      </div>
+                      <div className="admActionRow" style={{ marginTop: 8 }}>
+                        <a
+                          className="admBtnGhost"
+                          href={`/admin/${location}?tab=songs&songView=spotify&q=${encodeURIComponent(`${item.title} ${item.artist}`.trim())}`}
+                          style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                        >
+                          Search Spotify
+                        </a>
+                      </div>
+                      {writeInLibraryResults[item.id] ? (
+                        <div style={{ display: "grid", gap: 6, marginTop: 9 }}>
+                          {writeInLibraryResults[item.id].length ? writeInLibraryResults[item.id].map((song) => (
+                            <div key={song.id} className="admRow" style={{ padding: "8px 9px", gap: 8 }}>
+                              <div className="admTextWrap">
+                                <div style={{ fontWeight: 1000 }}>{song.title}</div>
+                                <div className="admFieldHelp">{song.artist} · {song.songId}</div>
+                              </div>
+                              <button type="button" className="admBtn" onClick={() => void submitWriteInAction("match-existing", item.id, { songId: song.songId })}>
+                                Match
+                              </button>
+                            </div>
+                          )) : <div className="admFieldHelp">No library matches. Try a shorter title, artist name, or Spotify.</div>}
+                        </div>
+                      ) : null}
+                      <details style={{ marginTop: 9 }}>
+                        <summary className="admFieldHelp" style={{ cursor: "pointer" }}>Enter a catalog ID manually</summary>
+                        <div className="admActionRow" style={{ marginTop: 7 }}>
+                          <input className="admInput" value={writeInMatchId[item.id] || ""} onChange={(e) => setWriteInMatchId((curr) => ({ ...curr, [item.id]: e.target.value }))} placeholder="Existing song ID" style={{ flex: "1 1 160px", minWidth: 0 }} />
+                          <button type="button" className="admBtnGhost" onClick={() => void submitWriteInAction("match-existing", item.id, { songId: writeInMatchId[item.id] || "" })}>Match ID</button>
+                        </div>
+                      </details>
                     </div>
                   </div>
                 </div>

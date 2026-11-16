@@ -2384,7 +2384,7 @@ export default function AdminPage({
             </div>
           </div>
           <div className="admHeroStats">
-            <span className="admFieldHelp">{currentStaffUsername || "Admin"}</span>
+            <span className="admHeroUser">{currentStaffUsername || "Admin"}</span>
             <button type="button" className="admBtnGhost" onClick={logout}>
               Logout
             </button>
@@ -2407,20 +2407,22 @@ export default function AdminPage({
             </div>
           </div>
 
-          <div className="admRefreshStrip">
-            <button
-              type="button"
-              className="admRefreshPulse"
-              onClick={() => void refreshCurrentTab(true)}
-              disabled={refreshBusy}
-            >
-              {refreshBusy ? "Refreshing…" : `Refresh ${activeTabLabel()}`}
-            </button>
-            <div className="admRefreshMeta">
-              Manual refresh is now the default to protect Supabase connections.
-              {lastRefreshAt ? ` Last refreshed ${lastRefreshAt}.` : ""}
+          {tab !== "songs" ? (
+            <div className="admRefreshStrip">
+              <button
+                type="button"
+                className="admRefreshPulse"
+                onClick={() => void refreshCurrentTab(true)}
+                disabled={refreshBusy}
+              >
+                {refreshBusy ? "Refreshing…" : `Refresh ${activeTabLabel()}`}
+              </button>
+              <div className="admRefreshMeta">
+                Manual refresh is now the default to protect Supabase connections.
+                {lastRefreshAt ? ` Last refreshed ${lastRefreshAt}.` : ""}
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
 
         {msg ? <div className="admNotice">{msg}</div> : null}
